@@ -12,7 +12,7 @@ class MapViewModel: ObservableObject {
     private var mapLayer: MapLayer?
 
     init() {
-        // Initialisation avec des valeurs par défaut (ex: Paris)
+        // Initialization with default values (e.g., Paris)
         self.centerCoordinate = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
         self.zoomLevel = 10.0
 
@@ -20,15 +20,15 @@ class MapViewModel: ObservableObject {
     }
 
     private func loadMBTilesData() {
-        // Recherche du fichier dans le Bundle de l'application
+        // Search for the file in the application Bundle
         guard let url = Bundle.main.url(forResource: "7413_pal300", withExtension: "mbtiles") else {
-            print("Erreur : Le fichier 7413_pal300.mbtiles n'a pas été trouvé dans le Bundle.")
+            print("Error: The file 7413_pal300.mbtiles was not found in the Bundle.")
             return
         }
 
-        self.mapLayer = MapLayer(name: "Carte Marine Raster", localURL: url)
+        self.mapLayer = MapLayer(name: "Marine Raster Chart", localURL: url)
 
-        // Extraction du centre et du zoom par défaut depuis le fichier SQLite (mbtiles)
+        // Extraction of default center and zoom from the SQLite file (mbtiles)
         let metadata = MBTilesHelper.extractMetadata(from: url)
 
         if let center = metadata.center {
@@ -38,35 +38,35 @@ class MapViewModel: ObservableObject {
             self.zoomLevel = zoom
         }
 
-        // Construction dynamique du Style JSON pour MapLibre
+        // Dynamic construction of the JSON Style for MapLibre
         self.styleURL = buildStyleJSON(for: url)
     }
 
-    /// Construit le dictionnaire de style JSON et le sauvegarde dans un fichier temporaire
-    /// - Parameter url: L'URL pointant vers le fichier MBTiles local
-    /// - Returns: L'URL du fichier JSON de style généré (file://...)
+    /// Builds the JSON style dictionary and saves it in a temporary file
+    /// - Parameter url: The URL pointing to the local MBTiles file
+    /// - Returns: The URL of the generated JSON style file (file://...)
     private func buildStyleJSON(for url: URL) -> URL? {
-        // L'URL du protocole interne MapLibre pour pointer sur le système de fichiers
+        // The URL of the internal MapLibre protocol to point to the file system
         let mbtilesProtocolURL = "mbtiles://\(url.path)"
 
-        // --- Structure du style JSON pour la carte ---
+        // --- Structure of the map's JSON style ---
         let styleDictionary: [String: Any] = [
             "version": 8,
             "name": "LocalRasterStyle",
-            // Définition des sources de données de la carte
+            // Definition of the map data sources
             "sources": [
                 "local-raster-source": [
                     "type": "raster",
                     "url": mbtilesProtocolURL,
                     "tileSize": 256
 
-                    // NOTE POUR LE FUTUR (Vector Tiles - MVT) :
-                    // Si vous passez à des tuiles vectorielles, changez le type en "vector" :
+                    // NOTE FOR THE FUTURE (Vector Tiles - MVT):
+                    // If you switch to vector tiles, change the type to "vector":
                     // "type": "vector",
                     // "url": "mbtiles://\(url.path)"
                 ]
             ],
-            // Définition des couches d'affichage (Layers)
+            // Definition of display layers
             "layers": [
                 [
                     "id": "local-raster-layer",
@@ -77,30 +77,30 @@ class MapViewModel: ObservableObject {
                         "raster-fade-duration": 0
                     ]
 
-                    // NOTE POUR LE FUTUR (Vector Tiles - MVT) :
-                    // Pour les cartes vectorielles, vous aurez plusieurs couches. Par exemple :
+                    // NOTE FOR THE FUTURE (Vector Tiles - MVT):
+                    // For vector charts, you will have several layers. For example:
                     // "type": "line", "type": "fill", "type": "symbol", etc.
-                    // Chacune référençant un "source-layer" spécifique du fichier MVT :
+                    // Each referencing a specific "source-layer" of the MVT file:
                     // "source-layer": "water",
                     // "paint": { "fill-color": "#a0cfdf" }
                 ]
             ]
         ]
 
-        // Conversion du dictionnaire en données JSON
+        // Conversion of the dictionary into JSON data
         do {
             let jsonData = try JSONSerialization.data(withJSONObject: styleDictionary, options: .prettyPrinted)
 
-            // Sauvegarde dans le répertoire temporaire de l'application
+            // Saving in the application's temporary directory
             let tempDirectory = FileManager.default.temporaryDirectory
             let styleFileURL = tempDirectory.appendingPathComponent("mapstyle.json")
 
             try jsonData.write(to: styleFileURL)
 
-            // On retourne l'URL locale file:// du fichier JSON généré
+            // Return the local file:// URL of the generated JSON file
             return styleFileURL
         } catch {
-            print("Erreur lors de la génération du style JSON : \(error.localizedDescription)")
+            print("Error generating JSON style: \(error.localizedDescription)")
             return nil
         }
     }

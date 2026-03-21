@@ -6,36 +6,37 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct ContentView: View {
 
-    // Instanciation de notre ViewModel
+    // Instantiation of our ViewModel
     @StateObject private var mapViewModel = MapViewModel()
 
     var body: some View {
-        // ZStack pour que la carte occupe tout l'espace (ignorant la zone sécurisée)
+        // ZStack so the map occupies the entire space (ignoring safe areas)
         ZStack {
 
-            // Affichage conditionnel de la carte (si le style JSON a bien été généré)
+            // Conditional display of the map (if the style JSON was successfully generated)
             if mapViewModel.styleURL != nil {
                 MapLibreView(
                     centerCoordinate: $mapViewModel.centerCoordinate,
                     zoomLevel: $mapViewModel.zoomLevel,
                     styleURL: $mapViewModel.styleURL
                 )
-                .ignoresSafeArea() // Indispensable pour l'immersion en plein écran
+                .ignoresSafeArea() // Essential for full-screen immersion
 
             } else {
-                // Vue de secours si les données MBTiles ne peuvent pas être chargées
+                // Fallback view if MBTiles data cannot be loaded
                 VStack {
                     ProgressView()
                         .padding()
-                    Text("Chargement des cartes marines...")
+                    Text("Loading marine charts...")
                         .foregroundColor(.secondary)
                 }
             }
 
-            // Affichage de la position au centre de l'écran (réticule marin par ex)
+            // Display of the current center position (e.g., marine reticle)
             VStack {
                 Spacer()
                 Text("Lat: \(mapViewModel.centerCoordinate.latitude, specifier: "%.4f"), Lon: \(mapViewModel.centerCoordinate.longitude, specifier: "%.4f")")
@@ -44,7 +45,7 @@ struct ContentView: View {
                     .background(Color.black.opacity(0.6))
                     .foregroundColor(.white)
                     .cornerRadius(8)
-                    .padding(.bottom, 30) // Pour dégager la "safe area" du bas (si iPhone avec Home Indicator)
+                    .padding(.bottom, 30) // Clears the bottom safe area (for iPhones with Home Indicator)
             }
         }
     }

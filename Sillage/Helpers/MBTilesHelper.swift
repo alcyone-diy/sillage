@@ -9,10 +9,10 @@ struct MBTilesMetadata {
 
 class MBTilesHelper {
 
-    /// Extrait les métadonnées de la table 'metadata' d'un fichier MBTiles.
+    /// Extracts metadata from the 'metadata' table of an MBTiles file.
     ///
-    /// - Parameter url: L'URL locale pointant vers le fichier `.mbtiles`
-    /// - Returns: Une structure `MBTilesMetadata` contenant le centre et le zoom (si disponibles).
+    /// - Parameter url: The local URL pointing to the `.mbtiles` file
+    /// - Returns: An `MBTilesMetadata` structure containing the center and default zoom (if available).
     static func extractMetadata(from url: URL) -> MBTilesMetadata {
         var db: OpaquePointer?
 
@@ -22,9 +22,9 @@ class MBTilesHelper {
             }
         }
 
-        // Connexion à la base de données SQLite (Read-Only)
+        // Connect to the SQLite database (Read-Only)
         if sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) != SQLITE_OK {
-            print("Erreur : Impossible d'ouvrir la base de données MBTiles à \(url.path)")
+            print("Error: Cannot open the MBTiles database at \(url.path)")
             return MBTilesMetadata(center: nil, defaultZoom: nil)
         }
 
@@ -38,7 +38,7 @@ class MBTilesHelper {
             if sqlite3_step(statement) == SQLITE_ROW {
                 if let cString = sqlite3_column_text(statement, 0) {
                     let centerString = String(cString: cString)
-                    // Le format de 'center' est typiquement : "longitude,latitude,zoom"
+                    // The 'center' format is typically: "longitude,latitude,zoom"
                     let components = centerString.split(separator: ",")
                     if components.count >= 2,
                        let lon = Double(components[0]),
@@ -52,7 +52,7 @@ class MBTilesHelper {
                 }
             }
         } else {
-            print("Erreur : La table metadata ne contient pas la clé 'center' ou la requête a échoué.")
+            print("Error: The metadata table does not contain the 'center' key or the query failed.")
         }
 
         sqlite3_finalize(statement)

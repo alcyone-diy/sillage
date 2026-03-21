@@ -9,31 +9,31 @@ struct MapLibreView: UIViewRepresentable {
     @Binding var styleURL: URL?
 
     func makeUIView(context: Context) -> MLNMapView {
-        // Initialisation de la vue MapLibre sans frame
+        // Initialization of the MapLibre view without a frame
         let mapView = MLNMapView(frame: .zero)
         mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
-        // Configuration du delegate
+        // Delegate configuration
         mapView.delegate = context.coordinator
 
-        // Application du style local (si disponible)
+        // Application of the local style (if available)
         if let styleURL = styleURL {
             mapView.styleURL = styleURL
         }
 
-        // Centrage de la caméra initiale
+        // Centering of the initial camera
         mapView.setCenter(centerCoordinate, zoomLevel: zoomLevel, animated: false)
 
         return mapView
     }
 
     func updateUIView(_ uiView: MLNMapView, context: Context) {
-        // Met à jour le parent du coordinator pour toujours pointer vers la dernière vue (struct SwiftUI)
+        // Updates the coordinator's parent to always point to the latest view (SwiftUI struct)
         context.coordinator.parent = self
 
-        // Met à jour la carte en fonction des modifications du ViewModel
+        // Updates the map according to the ViewModel's modifications
 
-        // Centre
+        // Center
         if uiView.centerCoordinate.latitude != centerCoordinate.latitude ||
            uiView.centerCoordinate.longitude != centerCoordinate.longitude {
             uiView.setCenter(centerCoordinate, animated: true)
@@ -63,20 +63,20 @@ struct MapLibreView: UIViewRepresentable {
             self.parent = parent
         }
 
-        // Appelé lorsque la carte a fini de charger son style
+        // Called when the map has finished loading its style
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-            print("MapLibre a chargé avec succès le style : \(style.name ?? "Inconnu")")
+            print("MapLibre successfully loaded the style: \(style.name ?? "Unknown")")
         }
 
-        // Méthodes pour capturer les déplacements de la carte par l'utilisateur
+        // Methods to capture user's map movements
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
             parent.centerCoordinate = mapView.centerCoordinate
             parent.zoomLevel = mapView.zoomLevel
         }
 
-        // Erreurs éventuelles lors du chargement
+        // Potential loading errors
         func mapViewDidFailLoadingMap(_ mapView: MLNMapView, withError error: Error) {
-            print("Erreur de chargement de la carte MapLibre : \(error.localizedDescription)")
+            print("Error loading MapLibre map: \(error.localizedDescription)")
         }
     }
 }

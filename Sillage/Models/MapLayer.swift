@@ -1,9 +1,9 @@
 import Foundation
 
 struct MapLayer {
-    /// Le nom affiché ou l'identifiant de la couche cartographique
+    /// The displayed name or identifier of the map layer
     let name: String
 
-    /// L'URL locale pointant vers le fichier .mbtiles
+    /// The local URL pointing to the .mbtiles file
     let localURL: URL
 }
