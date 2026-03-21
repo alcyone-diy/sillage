@@ -1,6 +1,7 @@
 import SwiftUI
 import MapLibre
 import CoreLocation
+import Combine
 
 struct MapLibreView: UIViewRepresentable {
 
@@ -8,6 +9,7 @@ struct MapLibreView: UIViewRepresentable {
     @Binding var zoomLevel: Double
     @Binding var styleURL: URL?
     @Binding var mapBounds: MBTilesBounds?
+    let moveToLocationPublisher: PassthroughSubject<CLLocationCoordinate2D, Never>
 
     func makeUIView(context: Context) -> MLNMapView {
         // Initialization of the MapLibre view without a frame
@@ -24,6 +26,9 @@ struct MapLibreView: UIViewRepresentable {
 
         // Centering of the initial camera
         mapView.setCenter(centerCoordinate, zoomLevel: zoomLevel, animated: false)
+
+        // Setup subscription for explicit user location centering
+        context.coordinator.setupSubscription(for: mapView)
 
         return mapView
     }
@@ -59,9 +64,19 @@ struct MapLibreView: UIViewRepresentable {
 
     class Coordinator: NSObject, MLNMapViewDelegate {
         var parent: MapLibreView
+        private var cancellables = Set<AnyCancellable>()
 
         init(_ parent: MapLibreView) {
             self.parent = parent
+        }
+
+        func setupSubscription(for mapView: MLNMapView) {
+            parent.moveToLocationPublisher
+                .receive(on: DispatchQueue.main)
+                .sink { coordinate in
+                    mapView.setCenter(coordinate, animated: true)
+                }
+                .store(in: &cancellables)
         }
 
         // Called when the map has finished loading its style

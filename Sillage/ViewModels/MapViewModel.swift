@@ -10,14 +10,75 @@ class MapViewModel: ObservableObject {
     @Published var styleURL: URL?
     @Published var mapBounds: MBTilesBounds?
 
-    private var mapLayer: MapLayer?
+    // UI Properties
+    @Published var formattedCoordinates: String = "--"
+    @Published var speedOverGround: Double = 0.0 // knots
+    @Published var courseOverGround: Double = 0.0 // degrees
 
-    init() {
+    private var mapLayer: MapLayer?
+    private let locationService: LocationServiceProtocol
+    private var cancellables = Set<AnyCancellable>()
+
+    // Publisher to trigger a one-off camera animation to a specific location
+    let moveToLocationPublisher = PassthroughSubject<CLLocationCoordinate2D, Never>()
+
+    // Store the last received location to center on it when requested
+    private var lastKnownLocation: CLLocation?
+
+    init(locationService: LocationServiceProtocol = LocationService()) {
+        self.locationService = locationService
         // Initialization with default values (e.g., Paris)
         self.centerCoordinate = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
         self.zoomLevel = 10.0
 
         loadMBTilesData()
+        setupLocationService()
+    }
+
+    private func setupLocationService() {
+        locationService.locationPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] location in
+                self?.handleNewLocation(location)
+            }
+            .store(in: &cancellables)
+
+        locationService.requestAuthorization()
+    }
+
+    private func handleNewLocation(_ location: CLLocation) {
+        lastKnownLocation = location
+
+        // Update formatted coordinates (Degrees, Minutes, Decimals)
+        let lat = formatCoordinate(location.coordinate.latitude, isLatitude: true)
+        let lon = formatCoordinate(location.coordinate.longitude, isLatitude: false)
+        formattedCoordinates = "\(lat) / \(lon)"
+
+        // Update SOG (m/s to knots)
+        let speed = location.speed
+        if speed >= 0 {
+            speedOverGround = speed * 1.94384
+        }
+
+        // Update COG
+        let course = location.course
+        if course >= 0 {
+            courseOverGround = course
+        }
+    }
+
+    private func formatCoordinate(_ degrees: CLLocationDegrees, isLatitude: Bool) -> String {
+        let direction = isLatitude ? (degrees >= 0 ? "N" : "S") : (degrees >= 0 ? "E" : "W")
+        let absDegrees = abs(degrees)
+        let intDegrees = Int(absDegrees)
+        let minutes = (absDegrees - Double(intDegrees)) * 60.0
+
+        return String(format: "%02d°%06.3f' %@", intDegrees, minutes, direction)
+    }
+
+    func centerOnUserLocation() {
+        guard let location = lastKnownLocation else { return }
+        moveToLocationPublisher.send(location.coordinate)
     }
 
     private func loadMBTilesData() {

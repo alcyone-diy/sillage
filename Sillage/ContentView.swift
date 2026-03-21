@@ -23,7 +23,8 @@ struct ContentView: View {
                     centerCoordinate: $mapViewModel.centerCoordinate,
                     zoomLevel: $mapViewModel.zoomLevel,
                     styleURL: $mapViewModel.styleURL,
-                    mapBounds: $mapViewModel.mapBounds
+                    mapBounds: $mapViewModel.mapBounds,
+                    moveToLocationPublisher: mapViewModel.moveToLocationPublisher
                 )
                 .ignoresSafeArea() // Essential for full-screen immersion
 
@@ -37,18 +38,67 @@ struct ContentView: View {
                 }
             }
 
-            // Display of the current center position (e.g., marine reticle)
+            // UI Overlay
             VStack {
+                // Top Marine Dashboard
+                marineDashboard
+
                 Spacer()
-                Text("Lat: \(mapViewModel.centerCoordinate.latitude, specifier: "%.4f"), Lon: \(mapViewModel.centerCoordinate.longitude, specifier: "%.4f")")
-                    .font(.caption)
-                    .padding(8)
-                    .background(Color.black.opacity(0.6))
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
-                    .padding(.bottom, 30) // Clears the bottom safe area (for iPhones with Home Indicator)
+
+                // Bottom-right Floating Action Button
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        mapViewModel.centerOnUserLocation()
+                    }) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 60, height: 60)
+                            .background(Color.blue)
+                            .clipShape(Circle())
+                            .shadow(radius: 5)
+                    }
+                    .padding()
+                    .padding(.bottom, 30) // Clears bottom safe area
+                }
             }
         }
+    }
+
+    // Marine Dashboard View
+    private var marineDashboard: some View {
+        VStack(spacing: 8) {
+            Text(mapViewModel.formattedCoordinates)
+                .font(.headline)
+                .foregroundColor(.yellow)
+
+            HStack(spacing: 40) {
+                VStack {
+                    Text("SOG")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(String(format: "%.1f kts", mapViewModel.speedOverGround))
+                        .font(.title3.bold())
+                        .foregroundColor(.white)
+                }
+
+                VStack {
+                    Text("COG")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(String(format: "%.0f°", mapViewModel.courseOverGround))
+                        .font(.title3.bold())
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .padding()
+        .background(Material.ultraThinMaterial)
+        .environment(\.colorScheme, .dark)
+        .cornerRadius(12)
+        .padding(.horizontal)
+        .padding(.top, 10)
     }
 }
 
