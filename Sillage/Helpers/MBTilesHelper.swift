@@ -16,16 +16,16 @@ class MBTilesHelper {
     static func extractMetadata(from url: URL) -> MBTilesMetadata {
         var db: OpaquePointer?
 
-        // Connexion à la base de données SQLite (Read-Only)
-        if sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) != SQLITE_OK {
-            print("Erreur : Impossible d'ouvrir la base de données MBTiles à \(url.path)")
-            return MBTilesMetadata(center: nil, defaultZoom: nil)
-        }
-
         defer {
             if db != nil {
                 sqlite3_close(db)
             }
+        }
+
+        // Connexion à la base de données SQLite (Read-Only)
+        if sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) != SQLITE_OK {
+            print("Erreur : Impossible d'ouvrir la base de données MBTiles à \(url.path)")
+            return MBTilesMetadata(center: nil, defaultZoom: nil)
         }
 
         let query = "SELECT value FROM metadata WHERE name = 'center';"

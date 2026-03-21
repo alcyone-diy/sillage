@@ -1,5 +1,5 @@
 import SwiftUI
-import Mapbox
+import MapLibre
 import CoreLocation
 
 struct MapLibreView: UIViewRepresentable {
@@ -28,6 +28,9 @@ struct MapLibreView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: MLNMapView, context: Context) {
+        // Met à jour le parent du coordinator pour toujours pointer vers la dernière vue (struct SwiftUI)
+        context.coordinator.parent = self
+
         // Met à jour la carte en fonction des modifications du ViewModel
 
         // Centre
