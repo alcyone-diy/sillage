@@ -9,7 +9,7 @@ struct MapLibreView: UIViewRepresentable {
     @Binding var zoomLevel: Double
     @Binding var styleURL: URL?
     @Binding var mapBounds: MBTilesBounds?
-    let moveToLocationPublisher: PassthroughSubject<CLLocationCoordinate2D, Never>
+    let moveToLocationPublisher: PassthroughSubject<(CLLocationCoordinate2D, Double?), Never>
 
     func makeUIView(context: Context) -> MLNMapView {
         // Initialization of the MapLibre view without a frame
@@ -73,8 +73,14 @@ struct MapLibreView: UIViewRepresentable {
         func setupSubscription(for mapView: MLNMapView) {
             parent.moveToLocationPublisher
                 .receive(on: DispatchQueue.main)
-                .sink { coordinate in
-                    mapView.setCenter(coordinate, animated: true)
+                .sink { (coordinate, requestedZoom) in
+                    let targetZoom = requestedZoom ?? mapView.zoomLevel
+                    print("📍 [Locate Me] Animating to Lat: \(coordinate.latitude), Lon: \(coordinate.longitude) | Target Zoom: \(targetZoom)")
+
+                    // We pass the targetZoom explicitly. If the raster chart doesn't support this
+                    // zoom level (e.g., maxZoom is 14), MapLibre might show a white screen
+                    // depending on how over-zooming is handled by the raster source style.
+                    mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
                 }
                 .store(in: &cancellables)
         }
@@ -104,6 +110,9 @@ struct MapLibreView: UIViewRepresentable {
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
             parent.centerCoordinate = mapView.centerCoordinate
             parent.zoomLevel = mapView.zoomLevel
+
+            // Log current position and zoom during manual movement
+            print("🗺️ [Map Moved] Lat: \(mapView.centerCoordinate.latitude), Lon: \(mapView.centerCoordinate.longitude) | Zoom: \(mapView.zoomLevel)")
         }
 
         // Potential loading errors

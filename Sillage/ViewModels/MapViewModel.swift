@@ -9,6 +9,8 @@ class MapViewModel: ObservableObject {
     @Published var zoomLevel: Double
     @Published var styleURL: URL?
     @Published var mapBounds: MBTilesBounds?
+    @Published var maxZoom: Double?
+    @Published var minZoom: Double?
 
     // UI Properties
     @Published var formattedCoordinates: String = "--"
@@ -20,7 +22,8 @@ class MapViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     // Publisher to trigger a one-off camera animation to a specific location
-    let moveToLocationPublisher = PassthroughSubject<CLLocationCoordinate2D, Never>()
+    // We optionally pass a target zoom level if we want a specific viewport
+    let moveToLocationPublisher = PassthroughSubject<(CLLocationCoordinate2D, Double?), Never>()
 
     // Store the last received location to center on it when requested
     private var lastKnownLocation: CLLocation?
@@ -78,7 +81,17 @@ class MapViewModel: ObservableObject {
 
     func centerOnUserLocation() {
         guard let location = lastKnownLocation else { return }
-        moveToLocationPublisher.send(location.coordinate)
+
+        // Sending a high zoom level like 18.0, which roughly corresponds to ~50m visibility.
+        // We clamp it to the map's maxZoom if available to avoid the "white screen" issue
+        // caused by requesting a zoom level where no raster tiles exist.
+        var targetZoom = 18.0
+        if let maxZ = self.maxZoom, targetZoom > maxZ {
+            targetZoom = maxZ
+        }
+
+        print("🔍 [MapViewModel] Requested centerOnUserLocation. Target Zoom (clamped): \(targetZoom) (Max available: \(self.maxZoom.map { String($0) } ?? "Unknown"))")
+        moveToLocationPublisher.send((location.coordinate, targetZoom))
     }
 
     private func loadMBTilesData() {
@@ -101,6 +114,12 @@ class MapViewModel: ObservableObject {
         }
         if let bounds = metadata.bounds {
             self.mapBounds = bounds
+        }
+        if let minZ = metadata.minZoom {
+            self.minZoom = minZ
+        }
+        if let maxZ = metadata.maxZoom {
+            self.maxZoom = maxZ
         }
 
         // Dynamic construction of the JSON Style for MapLibre
