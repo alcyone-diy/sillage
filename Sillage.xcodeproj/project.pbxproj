@@ -6,14 +6,36 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		020ACF672F6E43C1002C5C1B /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 020ACF662F6E43C1002C5C1B /* MapLibre */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		020ACF262F6C9E66002C5C1B /* Sillage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sillage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		020ACF642F6CD0D1002C5C1B /* Exceptions for "maps" folder in "Sillage" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				7413/7413_pal300.mbtiles,
+			);
+			target = 020ACF252F6C9E66002C5C1B /* Sillage */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		020ACF282F6C9E66002C5C1B /* Sillage */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Sillage;
+			sourceTree = "<group>";
+		};
+		020ACF622F6CD0C6002C5C1B /* maps */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				020ACF642F6CD0D1002C5C1B /* Exceptions for "maps" folder in "Sillage" target */,
+			);
+			path = maps;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -23,6 +45,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				020ACF672F6E43C1002C5C1B /* MapLibre in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -32,6 +55,7 @@
 		020ACF1D2F6C9E66002C5C1B = {
 			isa = PBXGroup;
 			children = (
+				020ACF622F6CD0C6002C5C1B /* maps */,
 				020ACF282F6C9E66002C5C1B /* Sillage */,
 				020ACF272F6C9E66002C5C1B /* Products */,
 			);
@@ -65,6 +89,7 @@
 			);
 			name = Sillage;
 			packageProductDependencies = (
+				020ACF662F6E43C1002C5C1B /* MapLibre */,
 			);
 			productName = Sillage;
 			productReference = 020ACF262F6C9E66002C5C1B /* Sillage.app */;
@@ -94,6 +119,9 @@
 			);
 			mainGroup = 020ACF1D2F6C9E66002C5C1B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				020ACF652F6E43C1002C5C1B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 020ACF272F6C9E66002C5C1B /* Products */;
 			projectDirPath = "";
@@ -340,6 +368,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		020ACF652F6E43C1002C5C1B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.24.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		020ACF662F6E43C1002C5C1B /* MapLibre */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 020ACF652F6E43C1002C5C1B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
+			productName = MapLibre;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 020ACF1E2F6C9E66002C5C1B /* Project object */;
 }
