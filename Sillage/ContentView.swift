@@ -22,7 +22,8 @@ struct ContentView: View {
                 MapLibreView(
                     centerCoordinate: $mapViewModel.centerCoordinate,
                     zoomLevel: $mapViewModel.zoomLevel,
-                    styleURL: $mapViewModel.styleURL
+                    styleURL: $mapViewModel.styleURL,
+                    mapBounds: $mapViewModel.mapBounds
                 )
                 .ignoresSafeArea() // Essential for full-screen immersion
 

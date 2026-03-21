@@ -8,6 +8,7 @@ class MapViewModel: ObservableObject {
     @Published var centerCoordinate: CLLocationCoordinate2D
     @Published var zoomLevel: Double
     @Published var styleURL: URL?
+    @Published var mapBounds: MBTilesBounds?
 
     private var mapLayer: MapLayer?
 
@@ -36,6 +37,9 @@ class MapViewModel: ObservableObject {
         }
         if let zoom = metadata.defaultZoom {
             self.zoomLevel = zoom
+        }
+        if let bounds = metadata.bounds {
+            self.mapBounds = bounds
         }
 
         // Dynamic construction of the JSON Style for MapLibre

@@ -7,6 +7,7 @@ struct MapLibreView: UIViewRepresentable {
     @Binding var centerCoordinate: CLLocationCoordinate2D
     @Binding var zoomLevel: Double
     @Binding var styleURL: URL?
+    @Binding var mapBounds: MBTilesBounds?
 
     func makeUIView(context: Context) -> MLNMapView {
         // Initialization of the MapLibre view without a frame
@@ -66,6 +67,22 @@ struct MapLibreView: UIViewRepresentable {
         // Called when the map has finished loading its style
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             print("MapLibre successfully loaded the style: \(style.name ?? "Unknown")")
+
+            // If bounds are available, perfectly fit the camera to the bounds
+            if let bounds = parent.mapBounds {
+                let sw = CLLocationCoordinate2D(latitude: bounds.minLat, longitude: bounds.minLon)
+                let ne = CLLocationCoordinate2D(latitude: bounds.maxLat, longitude: bounds.maxLon)
+                let coordinateBounds = MLNCoordinateBounds(sw: sw, ne: ne)
+
+                // Add a small delay to ensure the view's layout is complete before fitting bounds
+                DispatchQueue.main.async {
+                    mapView.setVisibleCoordinateBounds(coordinateBounds, edgePadding: UIEdgeInsets(top: 20, left: 20, bottom: 20, right: 20), animated: false)
+
+                    // Update the state with the exact calculated camera after fitting bounds
+                    self.parent.centerCoordinate = mapView.centerCoordinate
+                    self.parent.zoomLevel = mapView.zoomLevel
+                }
+            }
         }
 
         // Methods to capture user's map movements
