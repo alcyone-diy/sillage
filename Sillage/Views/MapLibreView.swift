@@ -107,8 +107,10 @@ struct MapLibreView: UIViewRepresentable {
 
         // Methods to capture user's map movements
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
-            parent.centerCoordinate = mapView.centerCoordinate
-            parent.zoomLevel = mapView.zoomLevel
+            DispatchQueue.main.async {
+                self.parent.centerCoordinate = mapView.centerCoordinate
+                self.parent.zoomLevel = mapView.zoomLevel
+            }
         }
 
         // Potential loading errors
