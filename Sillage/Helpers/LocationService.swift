@@ -62,10 +62,12 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
         let accuracy = latestLocation.horizontalAccuracy
         if accuracy >= 0 && accuracy <= 50 {
             locationPublisher.send(latestLocation)
+        } else {
+            print("LocationService ignored coordinate due to low accuracy: \(accuracy)m")
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("LocationService failed with error: \(error.localizedDescription)")
+        print("LocationService failed with error: \(error.localizedDescription) (Ensure Simulator -> Features -> Location is set)")
     }
 }

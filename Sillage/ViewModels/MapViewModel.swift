@@ -91,12 +91,16 @@ class MapViewModel: ObservableObject {
     }
 
     func activateTracking() {
+        print("Recenter button tapped. Tracking activated.")
         isTrackingUser = true
         centerOnUserLocation()
     }
 
     func centerOnUserLocation() {
-        guard let location = lastKnownLocation else { return }
+        guard let location = lastKnownLocation else {
+            print("Cannot center: lastKnownLocation is nil. Waiting for a valid GPS fix from LocationService.")
+            return
+        }
 
         // Sending a high zoom level like 18.0, which roughly corresponds to ~50m visibility.
         // We clamp it to the map's maxZoom if available to avoid the "white screen" issue
