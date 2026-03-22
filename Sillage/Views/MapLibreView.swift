@@ -1,6 +1,7 @@
 import SwiftUI
 import MapLibre
 import CoreLocation
+import Combine
 
 struct MapLibreView: UIViewRepresentable {
 
@@ -8,6 +9,7 @@ struct MapLibreView: UIViewRepresentable {
     @Binding var zoomLevel: Double
     @Binding var styleURL: URL?
     @Binding var mapBounds: MBTilesBounds?
+    let moveToLocationPublisher: PassthroughSubject<(CLLocationCoordinate2D, Double?), Never>
 
     func makeUIView(context: Context) -> MLNMapView {
         // Initialization of the MapLibre view without a frame
@@ -24,6 +26,9 @@ struct MapLibreView: UIViewRepresentable {
 
         // Centering of the initial camera
         mapView.setCenter(centerCoordinate, zoomLevel: zoomLevel, animated: false)
+
+        // Setup subscription for explicit user location centering
+        context.coordinator.setupSubscription(for: mapView)
 
         return mapView
     }
@@ -59,9 +64,24 @@ struct MapLibreView: UIViewRepresentable {
 
     class Coordinator: NSObject, MLNMapViewDelegate {
         var parent: MapLibreView
+        private var cancellables = Set<AnyCancellable>()
 
         init(_ parent: MapLibreView) {
             self.parent = parent
+        }
+
+        func setupSubscription(for mapView: MLNMapView) {
+            parent.moveToLocationPublisher
+                .receive(on: DispatchQueue.main)
+                .sink { (coordinate, requestedZoom) in
+                    let targetZoom = requestedZoom ?? mapView.zoomLevel
+
+                    // We pass the targetZoom explicitly. If the raster chart doesn't support this
+                    // zoom level (e.g., maxZoom is 14), MapLibre might show a white screen
+                    // depending on how over-zooming is handled by the raster source style.
+                    mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
+                }
+                .store(in: &cancellables)
         }
 
         // Called when the map has finished loading its style
