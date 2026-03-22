@@ -11,9 +11,9 @@ class MapViewModel: ObservableObject {
     @Published var maxZoom: Double?
     @Published var minZoom: Double?
 
-    // Initial configuration state
-    var initialCenterCoordinate: CLLocationCoordinate2D?
-    var initialZoomLevel: Double?
+    // Current Map State
+    @Published var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
+    @Published var zoomLevel: Double = 10.0
 
     // UI Properties
     @Published var formattedCoordinates: String = "--"
@@ -125,10 +125,10 @@ class MapViewModel: ObservableObject {
         let metadata = MBTilesHelper.extractMetadata(from: url)
 
         if let center = metadata.center {
-            self.initialCenterCoordinate = center
+            self.centerCoordinate = center
         }
         if let zoom = metadata.defaultZoom {
-            self.initialZoomLevel = zoom
+            self.zoomLevel = zoom
         }
         if let bounds = metadata.bounds {
             self.mapBounds = bounds

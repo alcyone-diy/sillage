@@ -20,13 +20,8 @@ struct MapLibreView: UIViewRepresentable {
             mapView.styleURL = blankStyleURL
         }
 
-        // Centering of the initial camera
-        if let initialCenter = viewModel.initialCenterCoordinate, let initialZoom = viewModel.initialZoomLevel {
-            mapView.setCenter(initialCenter, zoomLevel: initialZoom, animated: false)
-        } else {
-            // Default center if none available
-            mapView.setCenter(CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522), zoomLevel: 10.0, animated: false)
-        }
+        // Centering of the initial camera using ViewModel's state
+        mapView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, animated: false)
 
         // Setup subscription for explicit user location centering via Publisher
         context.coordinator.setupSubscription(for: mapView)
@@ -93,12 +88,13 @@ struct MapLibreView: UIViewRepresentable {
             print("MapLibre successfully loaded the default style.")
 
             // Programmatically inject MBTiles source and layer
-            if let activeMapPath = parent.viewModel.activeMapPath {
-                let mbtilesProtocolURL = "mbtiles://\(activeMapPath.path)"
+            if let activeMapPath = parent.viewModel.activeMapPath,
+               let encodedPath = activeMapPath.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+               let configurationURL = URL(string: "mbtiles://\(encodedPath)") {
                 let sourceId = "local-raster-source"
 
-                // Add the raster source
-                let rasterSource = MLNRasterTileSource(identifier: sourceId, tileURLTemplates: [mbtilesProtocolURL], options: [
+                // Add the raster source using configurationURL for mbtiles:// protocol
+                let rasterSource = MLNRasterTileSource(identifier: sourceId, configurationURL: configurationURL, options: [
                     .tileSize: 256
                 ])
                 style.addSource(rasterSource)
@@ -118,12 +114,13 @@ struct MapLibreView: UIViewRepresentable {
 
                 // Add a small delay to ensure the view's layout is complete before fitting bounds
                 DispatchQueue.main.async {
-                    mapView.setVisibleCoordinateBounds(coordinateBounds, edgePadding: UIEdgeInsets(top: 20, left: 20, bottom: 20, right: 20), animated: false)
+                    mapView.setVisibleCoordinateBounds(coordinateBounds, edgePadding: UIEdgeInsets(top: 20, left: 20, bottom: 20, right: 20), animated: false, completionHandler: nil)
                 }
             }
         }
 
         // Capture user's map movements to break tracking ONLY when the movement stops, as requested
+        // Also sync the final camera state back to the ViewModel so it knows where the map is.
         func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
             // Break tracking only if the change was caused by user interaction (like panning or zooming).
             // Using `reason` is the most precise way in MapLibre.
@@ -133,21 +130,13 @@ struct MapLibreView: UIViewRepresentable {
                                     reason.contains(.gestureZoomOut) ||
                                     reason.contains(.gestureOneFingerZoom)
 
-            if isUserInteraction {
-                DispatchQueue.main.async {
-                    self.parent.viewModel.mapInteractedByUser()
-                }
-            }
-        }
+            DispatchQueue.main.async {
+                // Keep ViewModel state in sync with the map
+                self.parent.viewModel.centerCoordinate = mapView.centerCoordinate
+                self.parent.viewModel.zoomLevel = mapView.zoomLevel
 
-        // Fallback for older MapLibre versions or if reason is not fully reliable:
-        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
-            // Check if user is panning or zooming manually
-            let isUserInteraction = mapView.panGestureRecognizer.state == .ended ||
-                                    mapView.pinchGestureRecognizer.state == .ended
-
-            if isUserInteraction {
-                DispatchQueue.main.async {
+                // If it was a manual interaction, break tracking
+                if isUserInteraction {
                     self.parent.viewModel.mapInteractedByUser()
                 }
             }
