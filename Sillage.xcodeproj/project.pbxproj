@@ -12,6 +12,7 @@
 
 /* Begin PBXFileReference section */
 		020ACF262F6C9E66002C5C1B /* Sillage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sillage.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		020ACFC02F6F699B002C5C1B /* LaRochelle_Test.gpx */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = LaRochelle_Test.gpx; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -55,6 +56,7 @@
 		020ACF1D2F6C9E66002C5C1B = {
 			isa = PBXGroup;
 			children = (
+				020ACFC02F6F699B002C5C1B /* LaRochelle_Test.gpx */,
 				020ACF622F6CD0C6002C5C1B /* maps */,
 				020ACF282F6C9E66002C5C1B /* Sillage */,
 				020ACF272F6C9E66002C5C1B /* Products */,
