@@ -47,8 +47,8 @@ struct MapLibreView: UIViewRepresentable {
         do {
             let jsonData = Data(jsonString.utf8)
             let tempDirectory = FileManager.default.temporaryDirectory
-            let uniqueFilename = "blank-style-\(UUID().uuidString).json"
-            let styleFileURL = tempDirectory.appendingPathComponent(uniqueFilename)
+            let staticFilename = "blank-style.json"
+            let styleFileURL = tempDirectory.appendingPathComponent(staticFilename)
             try jsonData.write(to: styleFileURL)
             return styleFileURL
         } catch {
@@ -85,21 +85,28 @@ struct MapLibreView: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             print("MapLibre successfully loaded the default style.")
 
-            // Construct the mbtiles:// URL securely using URLComponents
-            var components = URLComponents()
-            components.scheme = "mbtiles"
+            // Construct the mbtiles:// URL by prepending the scheme to the raw file path.
+            // This guarantees the preservation of the three slashes (mbtiles:///Users/...)
+            // which MapLibre's internal HTTP interceptor requires to resolve the TileJSON.
+            var configurationURL: URL? = nil
             if let activeMapPath = parent.viewModel.activeMapPath {
-                components.path = activeMapPath.path
+                let mbtilesString = "mbtiles://" + activeMapPath.path
+                // Safe encode to handle potential spaces in simulator paths
+                if let encodedString = mbtilesString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                    configurationURL = URL(string: encodedString)
+                } else {
+                    configurationURL = URL(string: mbtilesString)
+                }
             }
 
             // Programmatically inject MBTiles source and layer
-            if let configurationURL = components.url {
+            if let configURL = configurationURL {
                 let sourceId = "local-raster-source"
 
                 // Ensure the source isn't already added
                 if style.source(withIdentifier: sourceId) == nil {
                     // Add the raster source using configurationURL and tileSize
-                    let rasterSource = MLNRasterTileSource(identifier: sourceId, configurationURL: configurationURL, tileSize: 256)
+                    let rasterSource = MLNRasterTileSource(identifier: sourceId, configurationURL: configURL, tileSize: 256)
                     style.addSource(rasterSource)
 
                     // Add the raster layer
@@ -112,9 +119,11 @@ struct MapLibreView: UIViewRepresentable {
 
             // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
             // In SwiftUI, `didFinishLoading` can fire before the map view has a non-zero frame.
-            // Calling coordinate bounds on a `.zero` frame corrupts the MapLibre camera (`NaN` zoom level),
-            // which results in a permanently blank map that ignores all future `setCenter` calls.
-            // The map's initial position is already safely configured in `makeUIView` using `viewModel.centerCoordinate` and `viewModel.zoomLevel`.
+            // Calling coordinate bounds on a `.zero` frame corrupts the MapLibre camera (`NaN` zoom level).
+            // Instead, we simply jump the camera back to the exact metadata `centerCoordinate` and `zoomLevel`.
+            // This is required because loading the blank JSON style resets the map to (0,0), which leaves it looking at
+            // the African coast where no French marine chart tiles exist, causing the map to appear blank.
+            mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, animated: false)
         }
 
         // Capture user's map movements to break tracking ONLY when the movement stops, as requested
