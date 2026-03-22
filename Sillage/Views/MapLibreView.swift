@@ -43,10 +43,18 @@ struct MapLibreView: UIViewRepresentable {
         let jsonString = """
         { "version": 8, "name": "EmptyStyle", "sources": {}, "layers": [] }
         """
-        if let encoded = jsonString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            return URL(string: "data:application/json;charset=utf-8,\(encoded)")
+
+        do {
+            let jsonData = Data(jsonString.utf8)
+            let tempDirectory = FileManager.default.temporaryDirectory
+            let uniqueFilename = "blank-style-\(UUID().uuidString).json"
+            let styleFileURL = tempDirectory.appendingPathComponent(uniqueFilename)
+            try jsonData.write(to: styleFileURL)
+            return styleFileURL
+        } catch {
+            print("Failed to create blank style JSON: \(error)")
+            return nil
         }
-        return nil
     }
 
     // MARK: - Coordinator
