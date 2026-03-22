@@ -13,12 +13,14 @@ protocol LocationServiceProtocol {
 
 class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDelegate {
 
+    static let shared = LocationService()
+
     private let locationManager: CLLocationManager
 
     let locationPublisher = PassthroughSubject<CLLocation, Never>()
     let authorizationStatusPublisher = PassthroughSubject<CLAuthorizationStatus, Never>()
 
-    override init() {
+    private override init() {
         self.locationManager = CLLocationManager()
         super.init()
 

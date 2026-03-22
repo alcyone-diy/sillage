@@ -5,12 +5,15 @@ import SwiftUI
 
 class MapViewModel: ObservableObject {
 
-    @Published var centerCoordinate: CLLocationCoordinate2D
-    @Published var zoomLevel: Double
-    @Published var styleURL: URL?
+    @Published var isTrackingUser: Bool = false
+    @Published var activeMapPath: URL?
     @Published var mapBounds: MBTilesBounds?
     @Published var maxZoom: Double?
     @Published var minZoom: Double?
+
+    // Initial configuration state
+    var initialCenterCoordinate: CLLocationCoordinate2D?
+    var initialZoomLevel: Double?
 
     // UI Properties
     @Published var formattedCoordinates: String = "--"
@@ -23,16 +26,13 @@ class MapViewModel: ObservableObject {
 
     // Publisher to trigger a one-off camera animation to a specific location
     // We optionally pass a target zoom level if we want a specific viewport
-    let moveToLocationPublisher = PassthroughSubject<(CLLocationCoordinate2D, Double?), Never>()
+    let cameraMovePublisher = PassthroughSubject<(CLLocationCoordinate2D, Double?), Never>()
 
     // Store the last received location to center on it when requested
     private var lastKnownLocation: CLLocation?
 
-    init(locationService: LocationServiceProtocol = LocationService()) {
+    init(locationService: LocationServiceProtocol = LocationService.shared) {
         self.locationService = locationService
-        // Initialization with default values (e.g., Paris)
-        self.centerCoordinate = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
-        self.zoomLevel = 10.0
 
         loadMBTilesData()
         setupLocationService()
@@ -68,6 +68,17 @@ class MapViewModel: ObservableObject {
         if course >= 0 {
             courseOverGround = course
         }
+
+        // If tracking is active, recenter on the new location automatically
+        if isTrackingUser {
+            centerOnUserLocation()
+        }
+    }
+
+    func mapInteractedByUser() {
+        if isTrackingUser {
+            isTrackingUser = false
+        }
     }
 
     private func formatCoordinate(_ degrees: CLLocationDegrees, isLatitude: Bool) -> String {
@@ -77,6 +88,11 @@ class MapViewModel: ObservableObject {
         let minutes = (absDegrees - Double(intDegrees)) * 60.0
 
         return String(format: "%02d°%06.3f' %@", intDegrees, minutes, direction)
+    }
+
+    func activateTracking() {
+        isTrackingUser = true
+        centerOnUserLocation()
     }
 
     func centerOnUserLocation() {
@@ -90,7 +106,7 @@ class MapViewModel: ObservableObject {
             targetZoom = maxZ
         }
 
-        moveToLocationPublisher.send((location.coordinate, targetZoom))
+        cameraMovePublisher.send((location.coordinate, targetZoom))
     }
 
     private func loadMBTilesData() {
@@ -102,14 +118,17 @@ class MapViewModel: ObservableObject {
 
         self.mapLayer = MapLayer(name: "Marine Raster Chart", localURL: url)
 
+        // Set the active map path
+        self.activeMapPath = url
+
         // Extraction of default center and zoom from the SQLite file (mbtiles)
         let metadata = MBTilesHelper.extractMetadata(from: url)
 
         if let center = metadata.center {
-            self.centerCoordinate = center
+            self.initialCenterCoordinate = center
         }
         if let zoom = metadata.defaultZoom {
-            self.zoomLevel = zoom
+            self.initialZoomLevel = zoom
         }
         if let bounds = metadata.bounds {
             self.mapBounds = bounds
@@ -119,72 +138,6 @@ class MapViewModel: ObservableObject {
         }
         if let maxZ = metadata.maxZoom {
             self.maxZoom = maxZ
-        }
-
-        // Dynamic construction of the JSON Style for MapLibre
-        self.styleURL = buildStyleJSON(for: url)
-    }
-
-    /// Builds the JSON style dictionary and saves it in a temporary file
-    /// - Parameter url: The URL pointing to the local MBTiles file
-    /// - Returns: The URL of the generated JSON style file (file://...)
-    private func buildStyleJSON(for url: URL) -> URL? {
-        // The URL of the internal MapLibre protocol to point to the file system
-        let mbtilesProtocolURL = "mbtiles://\(url.path)"
-
-        // --- Structure of the map's JSON style ---
-        let styleDictionary: [String: Any] = [
-            "version": 8,
-            "name": "LocalRasterStyle",
-            // Definition of the map data sources
-            "sources": [
-                "local-raster-source": [
-                    "type": "raster",
-                    "url": mbtilesProtocolURL,
-                    "tileSize": 256
-
-                    // NOTE FOR THE FUTURE (Vector Tiles - MVT):
-                    // If you switch to vector tiles, change the type to "vector":
-                    // "type": "vector",
-                    // "url": "mbtiles://\(url.path)"
-                ]
-            ],
-            // Definition of display layers
-            "layers": [
-                [
-                    "id": "local-raster-layer",
-                    "type": "raster",
-                    "source": "local-raster-source",
-                    "paint": [
-                        "raster-opacity": 1.0,
-                        "raster-fade-duration": 0
-                    ]
-
-                    // NOTE FOR THE FUTURE (Vector Tiles - MVT):
-                    // For vector charts, you will have several layers. For example:
-                    // "type": "line", "type": "fill", "type": "symbol", etc.
-                    // Each referencing a specific "source-layer" of the MVT file:
-                    // "source-layer": "water",
-                    // "paint": { "fill-color": "#a0cfdf" }
-                ]
-            ]
-        ]
-
-        // Conversion of the dictionary into JSON data
-        do {
-            let jsonData = try JSONSerialization.data(withJSONObject: styleDictionary, options: .prettyPrinted)
-
-            // Saving in the application's temporary directory
-            let tempDirectory = FileManager.default.temporaryDirectory
-            let styleFileURL = tempDirectory.appendingPathComponent("mapstyle.json")
-
-            try jsonData.write(to: styleFileURL)
-
-            // Return the local file:// URL of the generated JSON file
-            return styleFileURL
-        } catch {
-            print("Error generating JSON style: \(error.localizedDescription)")
-            return nil
         }
     }
 }

@@ -5,11 +5,7 @@ import Combine
 
 struct MapLibreView: UIViewRepresentable {
 
-    @Binding var centerCoordinate: CLLocationCoordinate2D
-    @Binding var zoomLevel: Double
-    @Binding var styleURL: URL?
-    @Binding var mapBounds: MBTilesBounds?
-    let moveToLocationPublisher: PassthroughSubject<(CLLocationCoordinate2D, Double?), Never>
+    @ObservedObject var viewModel: MapViewModel
 
     func makeUIView(context: Context) -> MLNMapView {
         // Initialization of the MapLibre view without a frame
@@ -19,15 +15,20 @@ struct MapLibreView: UIViewRepresentable {
         // Delegate configuration
         mapView.delegate = context.coordinator
 
-        // Application of the local style (if available)
-        if let styleURL = styleURL {
-            mapView.styleURL = styleURL
+        // Load a minimal blank style so MapLibre initializes and fires `mapView(_:didFinishLoading:)`
+        if let blankStyleURL = createBlankStyleJSON() {
+            mapView.styleURL = blankStyleURL
         }
 
         // Centering of the initial camera
-        mapView.setCenter(centerCoordinate, zoomLevel: zoomLevel, animated: false)
+        if let initialCenter = viewModel.initialCenterCoordinate, let initialZoom = viewModel.initialZoomLevel {
+            mapView.setCenter(initialCenter, zoomLevel: initialZoom, animated: false)
+        } else {
+            // Default center if none available
+            mapView.setCenter(CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522), zoomLevel: 10.0, animated: false)
+        }
 
-        // Setup subscription for explicit user location centering
+        // Setup subscription for explicit user location centering via Publisher
         context.coordinator.setupSubscription(for: mapView)
 
         return mapView
@@ -36,28 +37,31 @@ struct MapLibreView: UIViewRepresentable {
     func updateUIView(_ uiView: MLNMapView, context: Context) {
         // Updates the coordinator's parent to always point to the latest view (SwiftUI struct)
         context.coordinator.parent = self
-
-        // Updates the map according to the ViewModel's modifications
-
-        // Center
-        if uiView.centerCoordinate.latitude != centerCoordinate.latitude ||
-           uiView.centerCoordinate.longitude != centerCoordinate.longitude {
-            uiView.setCenter(centerCoordinate, animated: true)
-        }
-
-        // Zoom
-        if uiView.zoomLevel != zoomLevel {
-            uiView.setZoomLevel(zoomLevel, animated: true)
-        }
-
-        // Style
-        if uiView.styleURL != styleURL {
-            uiView.styleURL = styleURL
-        }
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
+    }
+
+    /// Creates a minimal empty JSON style to force MapLibre to load its engine and fire the finish loading delegate method.
+    private func createBlankStyleJSON() -> URL? {
+        let styleDictionary: [String: Any] = [
+            "version": 8,
+            "name": "EmptyStyle",
+            "sources": [:],
+            "layers": []
+        ]
+
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: styleDictionary)
+            let tempDirectory = FileManager.default.temporaryDirectory
+            let styleFileURL = tempDirectory.appendingPathComponent("blank-style.json")
+            try jsonData.write(to: styleFileURL)
+            return styleFileURL
+        } catch {
+            print("Failed to create blank style JSON: \(error)")
+            return nil
+        }
     }
 
     // MARK: - Coordinator
@@ -71,7 +75,7 @@ struct MapLibreView: UIViewRepresentable {
         }
 
         func setupSubscription(for mapView: MLNMapView) {
-            parent.moveToLocationPublisher
+            parent.viewModel.cameraMovePublisher
                 .receive(on: DispatchQueue.main)
                 .sink { (coordinate, requestedZoom) in
                     let targetZoom = requestedZoom ?? mapView.zoomLevel
@@ -86,10 +90,28 @@ struct MapLibreView: UIViewRepresentable {
 
         // Called when the map has finished loading its style
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-            print("MapLibre successfully loaded the style: \(style.name ?? "Unknown")")
+            print("MapLibre successfully loaded the default style.")
+
+            // Programmatically inject MBTiles source and layer
+            if let activeMapPath = parent.viewModel.activeMapPath {
+                let mbtilesProtocolURL = "mbtiles://\(activeMapPath.path)"
+                let sourceId = "local-raster-source"
+
+                // Add the raster source
+                let rasterSource = MLNRasterTileSource(identifier: sourceId, tileURLTemplates: [mbtilesProtocolURL], options: [
+                    .tileSize: 256
+                ])
+                style.addSource(rasterSource)
+
+                // Add the raster layer
+                let rasterLayer = MLNRasterStyleLayer(identifier: "local-raster-layer", source: rasterSource)
+                style.addLayer(rasterLayer)
+
+                print("Programmatically injected MBTiles raster source and layer.")
+            }
 
             // If bounds are available, perfectly fit the camera to the bounds
-            if let bounds = parent.mapBounds {
+            if let bounds = parent.viewModel.mapBounds {
                 let sw = CLLocationCoordinate2D(latitude: bounds.minLat, longitude: bounds.minLon)
                 let ne = CLLocationCoordinate2D(latitude: bounds.maxLat, longitude: bounds.maxLon)
                 let coordinateBounds = MLNCoordinateBounds(sw: sw, ne: ne)
@@ -97,19 +119,37 @@ struct MapLibreView: UIViewRepresentable {
                 // Add a small delay to ensure the view's layout is complete before fitting bounds
                 DispatchQueue.main.async {
                     mapView.setVisibleCoordinateBounds(coordinateBounds, edgePadding: UIEdgeInsets(top: 20, left: 20, bottom: 20, right: 20), animated: false)
-
-                    // Update the state with the exact calculated camera after fitting bounds
-                    self.parent.centerCoordinate = mapView.centerCoordinate
-                    self.parent.zoomLevel = mapView.zoomLevel
                 }
             }
         }
 
-        // Methods to capture user's map movements
-        func mapViewRegionIsChanging(_ mapView: MLNMapView) {
-            DispatchQueue.main.async {
-                self.parent.centerCoordinate = mapView.centerCoordinate
-                self.parent.zoomLevel = mapView.zoomLevel
+        // Capture user's map movements to break tracking ONLY when the movement stops, as requested
+        func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+            // Break tracking only if the change was caused by user interaction (like panning or zooming).
+            // Using `reason` is the most precise way in MapLibre.
+            let isUserInteraction = reason.contains(.gesturePan) ||
+                                    reason.contains(.gesturePinch) ||
+                                    reason.contains(.gestureZoomIn) ||
+                                    reason.contains(.gestureZoomOut) ||
+                                    reason.contains(.gestureOneFingerZoom)
+
+            if isUserInteraction {
+                DispatchQueue.main.async {
+                    self.parent.viewModel.mapInteractedByUser()
+                }
+            }
+        }
+
+        // Fallback for older MapLibre versions or if reason is not fully reliable:
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            // Check if user is panning or zooming manually
+            let isUserInteraction = mapView.panGestureRecognizer.state == .ended ||
+                                    mapView.pinchGestureRecognizer.state == .ended
+
+            if isUserInteraction {
+                DispatchQueue.main.async {
+                    self.parent.viewModel.mapInteractedByUser()
+                }
             }
         }
 
