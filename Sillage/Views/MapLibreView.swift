@@ -40,23 +40,13 @@ struct MapLibreView: UIViewRepresentable {
 
     /// Creates a minimal empty JSON style to force MapLibre to load its engine and fire the finish loading delegate method.
     private func createBlankStyleJSON() -> URL? {
-        let styleDictionary: [String: Any] = [
-            "version": 8,
-            "name": "EmptyStyle",
-            "sources": [:],
-            "layers": []
-        ]
-
-        do {
-            let jsonData = try JSONSerialization.data(withJSONObject: styleDictionary)
-            let tempDirectory = FileManager.default.temporaryDirectory
-            let styleFileURL = tempDirectory.appendingPathComponent("blank-style.json")
-            try jsonData.write(to: styleFileURL)
-            return styleFileURL
-        } catch {
-            print("Failed to create blank style JSON: \(error)")
-            return nil
+        let jsonString = """
+        { "version": 8, "name": "EmptyStyle", "sources": {}, "layers": [] }
+        """
+        if let encoded = jsonString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            return URL(string: "data:application/json;charset=utf-8,\(encoded)")
         }
+        return nil
     }
 
     // MARK: - Coordinator
@@ -93,17 +83,18 @@ struct MapLibreView: UIViewRepresentable {
                let configurationURL = URL(string: "mbtiles://\(encodedPath)") {
                 let sourceId = "local-raster-source"
 
-                // Add the raster source using configurationURL for mbtiles:// protocol
-                let rasterSource = MLNRasterTileSource(identifier: sourceId, configurationURL: configurationURL, options: [
-                    .tileSize: 256
-                ])
-                style.addSource(rasterSource)
+                // Ensure the source isn't already added
+                if style.source(withIdentifier: sourceId) == nil {
+                    // Add the raster source using configurationURL and tileSize
+                    let rasterSource = MLNRasterTileSource(identifier: sourceId, configurationURL: configurationURL, tileSize: 256)
+                    style.addSource(rasterSource)
 
-                // Add the raster layer
-                let rasterLayer = MLNRasterStyleLayer(identifier: "local-raster-layer", source: rasterSource)
-                style.addLayer(rasterLayer)
+                    // Add the raster layer
+                    let rasterLayer = MLNRasterStyleLayer(identifier: "local-raster-layer", source: rasterSource)
+                    style.addLayer(rasterLayer)
 
-                print("Programmatically injected MBTiles raster source and layer.")
+                    print("Programmatically injected MBTiles raster source and layer.")
+                }
             }
 
             // If bounds are available, perfectly fit the camera to the bounds
@@ -124,11 +115,7 @@ struct MapLibreView: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
             // Break tracking only if the change was caused by user interaction (like panning or zooming).
             // Using `reason` is the most precise way in MapLibre.
-            let isUserInteraction = reason.contains(.gesturePan) ||
-                                    reason.contains(.gesturePinch) ||
-                                    reason.contains(.gestureZoomIn) ||
-                                    reason.contains(.gestureZoomOut) ||
-                                    reason.contains(.gestureOneFingerZoom)
+            let isUserInteraction = !reason.contains(.programmatic)
 
             DispatchQueue.main.async {
                 // Keep ViewModel state in sync with the map
