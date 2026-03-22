@@ -17,16 +17,10 @@ struct ContentView: View {
         // ZStack so the map occupies the entire space (ignoring safe areas)
         ZStack {
 
-            // Conditional display of the map (if the style JSON was successfully generated)
-            if mapViewModel.styleURL != nil {
-                MapLibreView(
-                    centerCoordinate: $mapViewModel.centerCoordinate,
-                    zoomLevel: $mapViewModel.zoomLevel,
-                    styleURL: $mapViewModel.styleURL,
-                    mapBounds: $mapViewModel.mapBounds,
-                    moveToLocationPublisher: mapViewModel.moveToLocationPublisher
-                )
-                .ignoresSafeArea() // Essential for full-screen immersion
+            // Conditional display of the map (if the active map path was successfully found)
+            if mapViewModel.activeMapPath != nil {
+                MapLibreView(viewModel: mapViewModel)
+                    .ignoresSafeArea() // Essential for full-screen immersion
 
             } else {
                 // Fallback view if MBTiles data cannot be loaded
@@ -49,13 +43,13 @@ struct ContentView: View {
                 HStack {
                     Spacer()
                     Button(action: {
-                        mapViewModel.centerOnUserLocation()
+                        mapViewModel.activateTracking()
                     }) {
-                        Image(systemName: "location.fill")
+                        Image(systemName: mapViewModel.isTrackingUser ? "location.fill" : "location")
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
                             .frame(width: 60, height: 60)
-                            .background(Color.blue)
+                            .background(mapViewModel.isTrackingUser ? Color.blue : Color.gray)
                             .clipShape(Circle())
                             .shadow(radius: 5)
                     }
