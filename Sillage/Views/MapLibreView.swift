@@ -85,10 +85,15 @@ struct MapLibreView: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             print("MapLibre successfully loaded the default style.")
 
+            // Construct the mbtiles:// URL securely using URLComponents
+            var components = URLComponents()
+            components.scheme = "mbtiles"
+            if let activeMapPath = parent.viewModel.activeMapPath {
+                components.path = activeMapPath.path
+            }
+
             // Programmatically inject MBTiles source and layer
-            if let activeMapPath = parent.viewModel.activeMapPath,
-               let encodedPath = activeMapPath.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-               let configurationURL = URL(string: "mbtiles://\(encodedPath)") {
+            if let configurationURL = components.url {
                 let sourceId = "local-raster-source"
 
                 // Ensure the source isn't already added
@@ -105,17 +110,11 @@ struct MapLibreView: UIViewRepresentable {
                 }
             }
 
-            // If bounds are available, perfectly fit the camera to the bounds
-            if let bounds = parent.viewModel.mapBounds {
-                let sw = CLLocationCoordinate2D(latitude: bounds.minLat, longitude: bounds.minLon)
-                let ne = CLLocationCoordinate2D(latitude: bounds.maxLat, longitude: bounds.maxLon)
-                let coordinateBounds = MLNCoordinateBounds(sw: sw, ne: ne)
-
-                // Add a small delay to ensure the view's layout is complete before fitting bounds
-                DispatchQueue.main.async {
-                    mapView.setVisibleCoordinateBounds(coordinateBounds, edgePadding: UIEdgeInsets(top: 20, left: 20, bottom: 20, right: 20), animated: false, completionHandler: nil)
-                }
-            }
+            // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
+            // In SwiftUI, `didFinishLoading` can fire before the map view has a non-zero frame.
+            // Calling coordinate bounds on a `.zero` frame corrupts the MapLibre camera (`NaN` zoom level),
+            // which results in a permanently blank map that ignores all future `setCenter` calls.
+            // The map's initial position is already safely configured in `makeUIView` using `viewModel.centerCoordinate` and `viewModel.zoomLevel`.
         }
 
         // Capture user's map movements to break tracking ONLY when the movement stops, as requested
