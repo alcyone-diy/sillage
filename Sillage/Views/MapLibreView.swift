@@ -75,7 +75,6 @@ struct MapLibreView: UIViewRepresentable {
                 .receive(on: DispatchQueue.main)
                 .sink { (coordinate, requestedZoom) in
                     let targetZoom = requestedZoom ?? mapView.zoomLevel
-                    print("📍 [Locate Me] Animating to Lat: \(coordinate.latitude), Lon: \(coordinate.longitude) | Target Zoom: \(targetZoom)")
 
                     // We pass the targetZoom explicitly. If the raster chart doesn't support this
                     // zoom level (e.g., maxZoom is 14), MapLibre might show a white screen
@@ -110,9 +109,6 @@ struct MapLibreView: UIViewRepresentable {
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
             parent.centerCoordinate = mapView.centerCoordinate
             parent.zoomLevel = mapView.zoomLevel
-
-            // Log current position and zoom during manual movement
-            print("🗺️ [Map Moved] Lat: \(mapView.centerCoordinate.latitude), Lon: \(mapView.centerCoordinate.longitude) | Zoom: \(mapView.zoomLevel)")
         }
 
         // Potential loading errors

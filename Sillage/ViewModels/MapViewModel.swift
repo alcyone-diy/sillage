@@ -90,7 +90,6 @@ class MapViewModel: ObservableObject {
             targetZoom = maxZ
         }
 
-        print("🔍 [MapViewModel] Requested centerOnUserLocation. Target Zoom (clamped): \(targetZoom) (Max available: \(self.maxZoom.map { String($0) } ?? "Unknown"))")
         moveToLocationPublisher.send((location.coordinate, targetZoom))
     }
 
