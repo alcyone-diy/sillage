@@ -32,6 +32,13 @@ struct MapLibreView: UIViewRepresentable {
     func updateUIView(_ uiView: MLNMapView, context: Context) {
         // Updates the coordinator's parent to always point to the latest view (SwiftUI struct)
         context.coordinator.parent = self
+
+        // If the map source has changed, update the map's style/source
+        if let currentSource = viewModel.currentMapSource,
+           context.coordinator.lastMapSource != currentSource,
+           let style = uiView.style {
+            context.coordinator.updateMapSource(currentSource, style: style, mapView: uiView)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -62,6 +69,7 @@ struct MapLibreView: UIViewRepresentable {
     class Coordinator: NSObject, MLNMapViewDelegate {
         var parent: MapLibreView
         private var cancellables = Set<AnyCancellable>()
+        var lastMapSource: MapSource?
 
         init(_ parent: MapLibreView) {
             self.parent = parent
@@ -85,36 +93,8 @@ struct MapLibreView: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             print("MapLibre successfully loaded the default style.")
 
-            // Construct the mbtiles:// URL by prepending the scheme to the raw file path.
-            // This guarantees the preservation of the three slashes (mbtiles:///Users/...)
-            // which MapLibre's internal HTTP interceptor requires to resolve the TileJSON.
-            var configurationURL: URL? = nil
-            if let activeMapPath = parent.viewModel.activeMapPath {
-                let mbtilesString = "mbtiles://" + activeMapPath.path
-                // Safe encode to handle potential spaces in simulator paths
-                if let encodedString = mbtilesString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-                    configurationURL = URL(string: encodedString)
-                } else {
-                    configurationURL = URL(string: mbtilesString)
-                }
-            }
-
-            // Programmatically inject MBTiles source and layer
-            if let configURL = configurationURL {
-                let sourceId = "local-raster-source"
-
-                // Ensure the source isn't already added
-                if style.source(withIdentifier: sourceId) == nil {
-                    // Add the raster source using configurationURL and tileSize
-                    let rasterSource = MLNRasterTileSource(identifier: sourceId, configurationURL: configURL, tileSize: 256)
-                    style.addSource(rasterSource)
-
-                    // Add the raster layer
-                    let rasterLayer = MLNRasterStyleLayer(identifier: "local-raster-layer", source: rasterSource)
-                    style.addLayer(rasterLayer)
-
-                    print("Programmatically injected MBTiles raster source and layer.")
-                }
+            if let currentSource = parent.viewModel.currentMapSource {
+                updateMapSource(currentSource, style: style, mapView: mapView)
             }
 
             // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
@@ -123,6 +103,67 @@ struct MapLibreView: UIViewRepresentable {
             // Instead, we simply jump the camera back to the exact metadata `centerCoordinate` and `zoomLevel`.
             // This is required because loading the blank JSON style resets the map to (0,0), which leaves it looking at
             // the African coast where no French marine chart tiles exist, causing the map to appear blank.
+            mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, animated: false)
+        }
+
+        func updateMapSource(_ source: MapSource, style: MLNStyle, mapView: MLNMapView) {
+            lastMapSource = source
+
+            // Remove existing layer and source if they exist
+            let layerId = "raster-layer"
+            let sourceId = "raster-source"
+
+            if let existingLayer = style.layer(withIdentifier: layerId) {
+                style.removeLayer(existingLayer)
+            }
+            if let existingSource = style.source(withIdentifier: sourceId) {
+                style.removeSource(existingSource)
+            }
+
+            switch source {
+            case .localMBTiles(let activeMapPath):
+                // Construct the mbtiles:// URL by prepending the scheme to the raw file path.
+                // This guarantees the preservation of the three slashes (mbtiles:///Users/...)
+                // which MapLibre's internal HTTP interceptor requires to resolve the TileJSON.
+                var configurationURL: URL? = nil
+                let mbtilesString = "mbtiles://" + activeMapPath.path
+                // Safe encode to handle potential spaces in simulator paths
+                if let encodedString = mbtilesString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                    configurationURL = URL(string: encodedString)
+                } else {
+                    configurationURL = URL(string: mbtilesString)
+                }
+
+                if let configURL = configurationURL {
+                    // Add the raster source using configurationURL and tileSize
+                    let rasterSource = MLNRasterTileSource(identifier: sourceId, configurationURL: configURL, tileSize: 256)
+                    style.addSource(rasterSource)
+
+                    // Add the raster layer
+                    let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
+                    style.addLayer(rasterLayer)
+
+                    print("Programmatically injected MBTiles raster source and layer.")
+                }
+
+            case .remoteGeoGarage(let clientID, let layerID):
+                // Construct GeoGarage URL template
+                let template = "https://tiles.geogarage.com/\(clientID)/\(layerID)/{z}/{x}/{y}.png"
+
+                let rasterSource = MLNRasterTileSource(identifier: sourceId, tileURLTemplates: [template], options: [
+                    .minimumZoomLevel: 0,
+                    .maximumZoomLevel: 20
+                ])
+
+                style.addSource(rasterSource)
+
+                let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
+                style.addLayer(rasterLayer)
+
+                print("Programmatically injected GeoGarage raster source and layer.")
+            }
+
+            // Re-center on the new source's preferred coordinate and zoom if needed
             mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, animated: false)
         }
 
