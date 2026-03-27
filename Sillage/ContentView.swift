@@ -13,6 +13,9 @@ struct ContentView: View {
     // Instantiation of our ViewModel
     @StateObject private var mapViewModel = MapViewModel()
 
+    // State for showing the settings sheet
+    @State private var isShowingSettings = false
+
     var body: some View {
         // ZStack so the map occupies the entire space (ignoring safe areas)
         ZStack {
@@ -42,9 +45,26 @@ struct ContentView: View {
 
                 Spacer()
 
-                // Bottom-right Floating Action Button
+                // Bottom Floating Action Buttons
                 HStack {
+                    // Settings Button
+                    Button(action: {
+                        isShowingSettings = true
+                    }) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 60, height: 60)
+                            .background(Color.blue)
+                            .clipShape(Circle())
+                            .shadow(radius: 5)
+                    }
+                    .padding()
+                    .padding(.bottom, 30) // Clears bottom safe area
+
                     Spacer()
+
+                    // Recenter Button
                     Button(action: {
                         mapViewModel.activateTracking()
                     }) {
@@ -60,6 +80,11 @@ struct ContentView: View {
                     .padding(.bottom, 30) // Clears bottom safe area
                 }
             }
+        }
+        .sheet(isPresented: $isShowingSettings) {
+            SettingsView()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
