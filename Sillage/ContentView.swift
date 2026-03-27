@@ -17,8 +17,8 @@ struct ContentView: View {
         // ZStack so the map occupies the entire space (ignoring safe areas)
         ZStack {
 
-            // Conditional display of the map (if the active map path was successfully found)
-            if mapViewModel.activeMapPath != nil {
+            // Conditional display of the map (if the current map source was successfully found)
+            if mapViewModel.currentMapSource != nil {
                 MapLibreView(viewModel: mapViewModel)
                     .ignoresSafeArea() // Essential for full-screen immersion
 
@@ -36,6 +36,9 @@ struct ContentView: View {
             VStack {
                 // Top Marine Dashboard
                 marineDashboard
+
+                // Map Source Switcher
+                mapSourceSwitcher
 
                 Spacer()
 
@@ -58,6 +61,33 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    // Map Source Switcher View
+    private var mapSourceSwitcher: some View {
+        HStack {
+            Spacer()
+            Menu {
+                Button("Local MBTiles") {
+                    if let url = Bundle.main.url(forResource: "7413_pal300", withExtension: "mbtiles") {
+                        mapViewModel.switchMapSource(to: .localMBTiles(url: url))
+                    }
+                }
+                Button("Remote GeoGarage") {
+                    mapViewModel.switchMapSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "test_layer"))
+                }
+            } label: {
+                Image(systemName: "map")
+                    .font(.system(size: 20))
+                    .foregroundColor(.white)
+                    .padding(12)
+                    .background(Color.blue)
+                    .clipShape(Circle())
+                    .shadow(radius: 5)
+            }
+            .padding(.trailing, 20)
+        }
+        .padding(.top, 10)
     }
 
     // Marine Dashboard View

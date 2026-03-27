@@ -6,7 +6,7 @@ import SwiftUI
 class MapViewModel: ObservableObject {
 
     @Published var isTrackingUser: Bool = false
-    @Published var activeMapPath: URL?
+    @Published var currentMapSource: MapSource?
     @Published var mapBounds: MBTilesBounds?
     @Published var maxZoom: Double?
     @Published var minZoom: Double?
@@ -75,6 +75,35 @@ class MapViewModel: ObservableObject {
         }
     }
 
+    func switchMapSource(to source: MapSource) {
+        self.currentMapSource = source
+
+        switch source {
+        case .localMBTiles(let url):
+            self.mapLayer = MapLayer(name: "Marine Raster Chart", source: source)
+            let metadata = MBTilesHelper.extractMetadata(from: url)
+            if let center = metadata.center { self.centerCoordinate = center }
+            if let zoom = metadata.defaultZoom { self.zoomLevel = zoom }
+            if let bounds = metadata.bounds { self.mapBounds = bounds }
+            if let minZ = metadata.minZoom { self.minZoom = minZ }
+            if let maxZ = metadata.maxZoom { self.maxZoom = maxZ }
+
+        case .remoteGeoGarage:
+            self.mapLayer = MapLayer(name: "GeoGarage Marine Chart", source: source)
+            self.mapBounds = nil
+            self.minZoom = 0.0
+            self.maxZoom = 20.0
+
+            // Set zoom to a reasonable default, or use max zoom
+            self.zoomLevel = 10.0
+
+            // Center on user location if available, otherwise keep current center
+            if let location = lastKnownLocation {
+                self.centerCoordinate = location.coordinate
+            }
+        }
+    }
+
     func mapInteractedByUser() {
         if isTrackingUser {
             isTrackingUser = false
@@ -120,28 +149,6 @@ class MapViewModel: ObservableObject {
             return
         }
 
-        self.mapLayer = MapLayer(name: "Marine Raster Chart", localURL: url)
-
-        // Set the active map path
-        self.activeMapPath = url
-
-        // Extraction of default center and zoom from the SQLite file (mbtiles)
-        let metadata = MBTilesHelper.extractMetadata(from: url)
-
-        if let center = metadata.center {
-            self.centerCoordinate = center
-        }
-        if let zoom = metadata.defaultZoom {
-            self.zoomLevel = zoom
-        }
-        if let bounds = metadata.bounds {
-            self.mapBounds = bounds
-        }
-        if let minZ = metadata.minZoom {
-            self.minZoom = minZ
-        }
-        if let maxZ = metadata.maxZoom {
-            self.maxZoom = maxZ
-        }
+        switchMapSource(to: .localMBTiles(url: url))
     }
 }
