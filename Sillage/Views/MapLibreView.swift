@@ -15,6 +15,9 @@ struct MapLibreView: UIViewRepresentable {
         // Delegate configuration
         mapView.delegate = context.coordinator
 
+        // Disable pitch gesture to keep the map in 2D
+        mapView.isPitchEnabled = false
+
         // Load a minimal blank style so MapLibre initializes and fires `mapView(_:didFinishLoading:)`
         if let blankStyleURL = createBlankStyleJSON() {
             mapView.styleURL = blankStyleURL
