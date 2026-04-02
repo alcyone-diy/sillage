@@ -99,7 +99,7 @@ struct ContentView: View {
                     }
                 }
                 Button("Remote GeoGarage") {
-                    mapViewModel.switchMapSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "test_layer"))
+                    mapViewModel.switchMapSource(to: .remoteGeoGarage(clientID: Secrets.geoGarageClientID, layerID: Secrets.geoGarageLayerID))
                 }
             } label: {
                 Image(systemName: "map")
