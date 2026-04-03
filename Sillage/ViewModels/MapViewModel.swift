@@ -14,6 +14,7 @@ class MapViewModel: ObservableObject {
     // Current Map State
     @Published var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
     @Published var zoomLevel: Double = 10.0
+    @Published var mapDirection: Double = 0.0
 
     // UI Properties
     @Published var formattedCoordinates: String = "--"
@@ -31,10 +32,14 @@ class MapViewModel: ObservableObject {
     // Store the last received location to center on it when requested
     private var lastKnownLocation: CLLocation?
 
-    init(locationService: LocationServiceProtocol = LocationService.shared) {
-        self.locationService = locationService
+    private var preferencesService: PreferencesServiceProtocol
 
-        loadMBTilesData()
+    init(locationService: LocationServiceProtocol = LocationService.shared,
+         preferencesService: PreferencesServiceProtocol = PreferencesService.shared) {
+        self.locationService = locationService
+        self.preferencesService = preferencesService
+
+        loadSavedMapSource()
         setupLocationService()
     }
 
@@ -80,26 +85,36 @@ class MapViewModel: ObservableObject {
 
         switch source {
         case .localMBTiles(let url):
+            // Extract the filename without extension, e.g., "7413_pal300"
+            let fileName = url.deletingPathExtension().lastPathComponent
+            preferencesService.savedMapSource = fileName
+
             self.mapLayer = MapLayer(name: "Marine Raster Chart", source: source)
             let metadata = MBTilesHelper.extractMetadata(from: url)
-            if let center = metadata.center { self.centerCoordinate = center }
-            if let zoom = metadata.defaultZoom { self.zoomLevel = zoom }
             if let bounds = metadata.bounds { self.mapBounds = bounds }
             if let minZ = metadata.minZoom { self.minZoom = minZ }
             if let maxZ = metadata.maxZoom { self.maxZoom = maxZ }
 
+            // Only use map defaults if we do not already have a valid loaded state
+            if preferencesService.savedLatitude == nil {
+                if let center = metadata.center { self.centerCoordinate = center }
+                if let zoom = metadata.defaultZoom { self.zoomLevel = zoom }
+            }
+
         case .remoteGeoGarage:
+            preferencesService.savedMapSource = "remoteGeoGarage"
+
             self.mapLayer = MapLayer(name: "GeoGarage Marine Chart", source: source)
             self.mapBounds = nil
             self.minZoom = 0.0
             self.maxZoom = 20.0
 
-            // Set zoom to a reasonable default, or use max zoom
-            self.zoomLevel = 10.0
-
-            // Center on user location if available, otherwise keep current center
-            if let location = lastKnownLocation {
-                self.centerCoordinate = location.coordinate
+            // Only use map defaults if we do not already have a valid loaded state
+            if preferencesService.savedLatitude == nil {
+                self.zoomLevel = 10.0
+                if let location = lastKnownLocation {
+                    self.centerCoordinate = location.coordinate
+                }
             }
         }
     }
@@ -142,6 +157,18 @@ class MapViewModel: ObservableObject {
         cameraMovePublisher.send((location.coordinate, targetZoom))
     }
 
+    func saveCameraState() {
+        preferencesService.saveCameraState(coordinate: centerCoordinate, zoom: zoomLevel, direction: mapDirection)
+    }
+
+    func loadSavedCameraState() {
+        if let state = preferencesService.loadCameraState() {
+            self.centerCoordinate = state.coordinate
+            self.zoomLevel = state.zoom
+            self.mapDirection = state.direction
+        }
+    }
+
     private func loadMBTilesData() {
         // Search for the file in the application Bundle
         guard let url = Bundle.main.url(forResource: "7413_pal300", withExtension: "mbtiles") else {
@@ -150,5 +177,22 @@ class MapViewModel: ObservableObject {
         }
 
         switchMapSource(to: .localMBTiles(url: url))
+    }
+
+    private func loadSavedMapSource() {
+        let savedSource = preferencesService.savedMapSource
+
+        if savedSource == "remoteGeoGarage" {
+            switchMapSource(to: .remoteGeoGarage(clientID: Secrets.geoGarageClientID, layerID: Secrets.geoGarageLayerID))
+        } else if let savedFileName = savedSource,
+                  let url = Bundle.main.url(forResource: savedFileName, withExtension: "mbtiles") {
+            switchMapSource(to: .localMBTiles(url: url))
+        } else {
+            // Default to the predefined local MBTiles
+            loadMBTilesData()
+        }
+
+        // Ensure camera state overrides any defaults populated by switchMapSource
+        loadSavedCameraState()
     }
 }

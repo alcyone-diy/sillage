@@ -24,7 +24,7 @@ struct MapLibreView: UIViewRepresentable {
         }
 
         // Centering of the initial camera using ViewModel's state
-        mapView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, animated: false)
+        mapView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, direction: viewModel.mapDirection, animated: false)
 
         // Setup subscription for explicit user location centering via Publisher
         context.coordinator.setupSubscription(for: mapView)
@@ -106,7 +106,7 @@ struct MapLibreView: UIViewRepresentable {
             // Instead, we simply jump the camera back to the exact metadata `centerCoordinate` and `zoomLevel`.
             // This is required because loading the blank JSON style resets the map to (0,0), which leaves it looking at
             // the African coast where no French marine chart tiles exist, causing the map to appear blank.
-            mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, animated: false)
+            mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection, animated: false)
         }
 
         func updateMapSource(_ source: MapSource, style: MLNStyle, mapView: MLNMapView) {
@@ -167,7 +167,7 @@ struct MapLibreView: UIViewRepresentable {
             }
 
             // Re-center on the new source's preferred coordinate and zoom if needed
-            mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, animated: false)
+            mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection, animated: false)
         }
 
         // Capture user's map movements to break tracking ONLY when the movement stops, as requested
@@ -181,6 +181,10 @@ struct MapLibreView: UIViewRepresentable {
                 // Keep ViewModel state in sync with the map
                 self.parent.viewModel.centerCoordinate = mapView.centerCoordinate
                 self.parent.viewModel.zoomLevel = mapView.zoomLevel
+                self.parent.viewModel.mapDirection = mapView.direction
+
+                // Save the camera state to UserDefaults
+                self.parent.viewModel.saveCameraState()
 
                 // If it was a manual interaction, break tracking
                 if isUserInteraction {
