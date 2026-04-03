@@ -31,7 +31,7 @@ class MapViewModel: ObservableObject {
     // Store the last received location to center on it when requested
     private var lastKnownLocation: CLLocation?
 
-    private let preferencesService: PreferencesServiceProtocol
+    private var preferencesService: PreferencesServiceProtocol
 
     init(locationService: LocationServiceProtocol = LocationService.shared,
          preferencesService: PreferencesServiceProtocol = PreferencesService.shared) {
