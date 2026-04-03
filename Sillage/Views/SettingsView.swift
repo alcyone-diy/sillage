@@ -7,6 +7,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var viewModel = SettingsViewModel()
 
     var body: some View {
         NavigationStack {
@@ -14,9 +15,21 @@ struct SettingsView: View {
                 Section(header: Text("General")) {
                     NavigationLink(destination: Text("Map Settings")) {
                         Label("Map Preferences", systemImage: "map")
+                            .frame(minHeight: 60)
+                            .contentShape(Rectangle())
                     }
                     NavigationLink(destination: Text("Vessel Settings")) {
                         Label("Vessel Details", systemImage: "ferry")
+                            .frame(minHeight: 60)
+                            .contentShape(Rectangle())
+                    }
+                }
+
+                Section(header: Text("Safety & Legal")) {
+                    NavigationLink(destination: LegalListView(documents: viewModel.legalDocuments)) {
+                        Label("Legal & Licenses", systemImage: "doc.text")
+                            .frame(minHeight: 60)
+                            .contentShape(Rectangle())
                     }
                 }
 
@@ -27,6 +40,8 @@ struct SettingsView: View {
                         Text("1.0.0")
                             .foregroundColor(.secondary)
                     }
+                    .frame(minHeight: 60)
+                    .contentShape(Rectangle())
                 }
             }
             .navigationTitle("Settings")
