@@ -31,10 +31,12 @@ class MapViewModel: ObservableObject {
     // Store the last received location to center on it when requested
     private var lastKnownLocation: CLLocation?
 
+    private let mapSourceKey = "selectedMapSource"
+
     init(locationService: LocationServiceProtocol = LocationService.shared) {
         self.locationService = locationService
 
-        loadMBTilesData()
+        loadSavedMapSource()
         setupLocationService()
     }
 
@@ -80,6 +82,10 @@ class MapViewModel: ObservableObject {
 
         switch source {
         case .localMBTiles(let url):
+            // Extract the filename without extension, e.g., "7413_pal300"
+            let fileName = url.deletingPathExtension().lastPathComponent
+            UserDefaults.standard.set(fileName, forKey: mapSourceKey)
+
             self.mapLayer = MapLayer(name: "Marine Raster Chart", source: source)
             let metadata = MBTilesHelper.extractMetadata(from: url)
             if let center = metadata.center { self.centerCoordinate = center }
@@ -89,6 +95,8 @@ class MapViewModel: ObservableObject {
             if let maxZ = metadata.maxZoom { self.maxZoom = maxZ }
 
         case .remoteGeoGarage:
+            UserDefaults.standard.set("remoteGeoGarage", forKey: mapSourceKey)
+
             self.mapLayer = MapLayer(name: "GeoGarage Marine Chart", source: source)
             self.mapBounds = nil
             self.minZoom = 0.0
@@ -150,5 +158,19 @@ class MapViewModel: ObservableObject {
         }
 
         switchMapSource(to: .localMBTiles(url: url))
+    }
+
+    private func loadSavedMapSource() {
+        let savedSource = UserDefaults.standard.string(forKey: mapSourceKey)
+
+        if savedSource == "remoteGeoGarage" {
+            switchMapSource(to: .remoteGeoGarage(clientID: Secrets.geoGarageClientID, layerID: Secrets.geoGarageLayerID))
+        } else if let savedFileName = savedSource,
+                  let url = Bundle.main.url(forResource: savedFileName, withExtension: "mbtiles") {
+            switchMapSource(to: .localMBTiles(url: url))
+        } else {
+            // Default to the predefined local MBTiles
+            loadMBTilesData()
+        }
     }
 }
