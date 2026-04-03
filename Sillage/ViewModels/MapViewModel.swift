@@ -90,11 +90,15 @@ class MapViewModel: ObservableObject {
 
             self.mapLayer = MapLayer(name: "Marine Raster Chart", source: source)
             let metadata = MBTilesHelper.extractMetadata(from: url)
-            if let center = metadata.center { self.centerCoordinate = center }
-            if let zoom = metadata.defaultZoom { self.zoomLevel = zoom }
             if let bounds = metadata.bounds { self.mapBounds = bounds }
             if let minZ = metadata.minZoom { self.minZoom = minZ }
             if let maxZ = metadata.maxZoom { self.maxZoom = maxZ }
+
+            // Only use map defaults if we do not already have a valid loaded state
+            if preferencesService.savedLatitude == nil {
+                if let center = metadata.center { self.centerCoordinate = center }
+                if let zoom = metadata.defaultZoom { self.zoomLevel = zoom }
+            }
 
         case .remoteGeoGarage:
             preferencesService.savedMapSource = "remoteGeoGarage"
@@ -104,12 +108,12 @@ class MapViewModel: ObservableObject {
             self.minZoom = 0.0
             self.maxZoom = 20.0
 
-            // Set zoom to a reasonable default, or use max zoom
-            self.zoomLevel = 10.0
-
-            // Center on user location if available, otherwise keep current center
-            if let location = lastKnownLocation {
-                self.centerCoordinate = location.coordinate
+            // Only use map defaults if we do not already have a valid loaded state
+            if preferencesService.savedLatitude == nil {
+                self.zoomLevel = 10.0
+                if let location = lastKnownLocation {
+                    self.centerCoordinate = location.coordinate
+                }
             }
         }
     }
@@ -186,6 +190,7 @@ class MapViewModel: ObservableObject {
             loadMBTilesData()
         }
 
+        // Ensure camera state overrides any defaults populated by switchMapSource
         loadSavedCameraState()
     }
 }
