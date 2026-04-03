@@ -11,9 +11,10 @@ protocol PreferencesServiceProtocol {
     var savedLatitude: Double? { get set }
     var savedLongitude: Double? { get set }
     var savedZoom: Double? { get set }
+    var savedDirection: Double? { get set }
 
-    func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double)
-    func loadCameraState() -> (coordinate: CLLocationCoordinate2D, zoom: Double)?
+    func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double)
+    func loadCameraState() -> (coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double)?
 }
 
 class PreferencesService: PreferencesServiceProtocol {
@@ -23,6 +24,7 @@ class PreferencesService: PreferencesServiceProtocol {
     private let savedLatitudeKey = "savedLatitude"
     private let savedLongitudeKey = "savedLongitude"
     private let savedZoomKey = "savedZoom"
+    private let savedDirectionKey = "savedDirection"
 
     private let defaults = UserDefaults.standard
 
@@ -46,15 +48,22 @@ class PreferencesService: PreferencesServiceProtocol {
         set { defaults.set(newValue, forKey: savedZoomKey) }
     }
 
-    func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double) {
+    var savedDirection: Double? {
+        get { defaults.object(forKey: savedDirectionKey) as? Double }
+        set { defaults.set(newValue, forKey: savedDirectionKey) }
+    }
+
+    func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double) {
         savedLatitude = coordinate.latitude
         savedLongitude = coordinate.longitude
         savedZoom = zoom
+        savedDirection = direction
     }
 
-    func loadCameraState() -> (coordinate: CLLocationCoordinate2D, zoom: Double)? {
+    func loadCameraState() -> (coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double)? {
         if let lat = savedLatitude, let lon = savedLongitude, let zoom = savedZoom {
-            return (CLLocationCoordinate2D(latitude: lat, longitude: lon), zoom)
+            let direction = savedDirection ?? 0.0 // Default to 0 (North) if not saved
+            return (CLLocationCoordinate2D(latitude: lat, longitude: lon), zoom, direction)
         }
         return nil
     }

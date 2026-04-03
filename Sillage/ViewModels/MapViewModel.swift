@@ -14,6 +14,7 @@ class MapViewModel: ObservableObject {
     // Current Map State
     @Published var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
     @Published var zoomLevel: Double = 10.0
+    @Published var mapDirection: Double = 0.0
 
     // UI Properties
     @Published var formattedCoordinates: String = "--"
@@ -157,13 +158,14 @@ class MapViewModel: ObservableObject {
     }
 
     func saveCameraState() {
-        preferencesService.saveCameraState(coordinate: centerCoordinate, zoom: zoomLevel)
+        preferencesService.saveCameraState(coordinate: centerCoordinate, zoom: zoomLevel, direction: mapDirection)
     }
 
     func loadSavedCameraState() {
         if let state = preferencesService.loadCameraState() {
             self.centerCoordinate = state.coordinate
             self.zoomLevel = state.zoom
+            self.mapDirection = state.direction
         }
     }
 
