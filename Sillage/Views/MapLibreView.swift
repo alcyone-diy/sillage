@@ -182,6 +182,9 @@ struct MapLibreView: UIViewRepresentable {
                 self.parent.viewModel.centerCoordinate = mapView.centerCoordinate
                 self.parent.viewModel.zoomLevel = mapView.zoomLevel
 
+                // Save the camera state to UserDefaults
+                self.parent.viewModel.saveCameraState()
+
                 // If it was a manual interaction, break tracking
                 if isUserInteraction {
                     self.parent.viewModel.mapInteractedByUser()

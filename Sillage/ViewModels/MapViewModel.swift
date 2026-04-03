@@ -31,10 +31,12 @@ class MapViewModel: ObservableObject {
     // Store the last received location to center on it when requested
     private var lastKnownLocation: CLLocation?
 
-    private let mapSourceKey = "selectedMapSource"
+    private let preferencesService: PreferencesServiceProtocol
 
-    init(locationService: LocationServiceProtocol = LocationService.shared) {
+    init(locationService: LocationServiceProtocol = LocationService.shared,
+         preferencesService: PreferencesServiceProtocol = PreferencesService.shared) {
         self.locationService = locationService
+        self.preferencesService = preferencesService
 
         loadSavedMapSource()
         setupLocationService()
@@ -84,7 +86,7 @@ class MapViewModel: ObservableObject {
         case .localMBTiles(let url):
             // Extract the filename without extension, e.g., "7413_pal300"
             let fileName = url.deletingPathExtension().lastPathComponent
-            UserDefaults.standard.set(fileName, forKey: mapSourceKey)
+            preferencesService.savedMapSource = fileName
 
             self.mapLayer = MapLayer(name: "Marine Raster Chart", source: source)
             let metadata = MBTilesHelper.extractMetadata(from: url)
@@ -95,7 +97,7 @@ class MapViewModel: ObservableObject {
             if let maxZ = metadata.maxZoom { self.maxZoom = maxZ }
 
         case .remoteGeoGarage:
-            UserDefaults.standard.set("remoteGeoGarage", forKey: mapSourceKey)
+            preferencesService.savedMapSource = "remoteGeoGarage"
 
             self.mapLayer = MapLayer(name: "GeoGarage Marine Chart", source: source)
             self.mapBounds = nil
@@ -150,6 +152,17 @@ class MapViewModel: ObservableObject {
         cameraMovePublisher.send((location.coordinate, targetZoom))
     }
 
+    func saveCameraState() {
+        preferencesService.saveCameraState(coordinate: centerCoordinate, zoom: zoomLevel)
+    }
+
+    func loadSavedCameraState() {
+        if let state = preferencesService.loadCameraState() {
+            self.centerCoordinate = state.coordinate
+            self.zoomLevel = state.zoom
+        }
+    }
+
     private func loadMBTilesData() {
         // Search for the file in the application Bundle
         guard let url = Bundle.main.url(forResource: "7413_pal300", withExtension: "mbtiles") else {
@@ -161,7 +174,7 @@ class MapViewModel: ObservableObject {
     }
 
     private func loadSavedMapSource() {
-        let savedSource = UserDefaults.standard.string(forKey: mapSourceKey)
+        let savedSource = preferencesService.savedMapSource
 
         if savedSource == "remoteGeoGarage" {
             switchMapSource(to: .remoteGeoGarage(clientID: Secrets.geoGarageClientID, layerID: Secrets.geoGarageLayerID))
@@ -172,5 +185,7 @@ class MapViewModel: ObservableObject {
             // Default to the predefined local MBTiles
             loadMBTilesData()
         }
+
+        loadSavedCameraState()
     }
 }
