@@ -10,10 +10,16 @@ struct LegalDetailView: View {
 
     var body: some View {
         ScrollView {
-            Text(document.content)
-                .font(.body)
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 16) {
+                Text(document.title)
+                    .font(.title)
+                    .bold()
+
+                Text(document.content)
+                    .font(.body)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle(document.title)
         .navigationBarTitleDisplayMode(.inline)
