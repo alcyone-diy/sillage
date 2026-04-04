@@ -1,6 +1,6 @@
 //
 //  LegalListView.swift
-//  Sillage
+//  Alcyone Sillage
 //
 
 import SwiftUI

@@ -1,6 +1,6 @@
 //
 //  PreferencesService.swift
-//  Sillage
+//  Alcyone Sillage
 //
 
 import Foundation

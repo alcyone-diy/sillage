@@ -1,6 +1,6 @@
 //
 //  Secrets.template.swift
-//  Sillage
+//  Alcyone Sillage
 //
 
 import Foundation

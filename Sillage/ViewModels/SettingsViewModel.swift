@@ -1,6 +1,6 @@
 //
 //  SettingsViewModel.swift
-//  Sillage
+//  Alcyone Sillage
 //
 
 import Foundation

@@ -1,3 +1,8 @@
+//
+//  MapLayer.swift
+//  Alcyone Sillage
+//
+
 import Foundation
 
 enum MapSource: Equatable {

@@ -1,3 +1,8 @@
+//
+//  MapViewModel.swift
+//  Alcyone Sillage
+//
+
 import Foundation
 import Combine
 import CoreLocation

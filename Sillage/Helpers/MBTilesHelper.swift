@@ -1,3 +1,8 @@
+//
+//  MBTilesHelper.swift
+//  Alcyone Sillage
+//
+
 import Foundation
 import SQLite3
 import CoreLocation

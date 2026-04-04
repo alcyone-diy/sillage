@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  Sillage
+//  Alcyone Sillage
 //
 //  Created by Alcyone on 19/03/2026.
 //

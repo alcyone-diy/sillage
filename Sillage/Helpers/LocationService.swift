@@ -1,3 +1,8 @@
+//
+//  LocationService.swift
+//  Alcyone Sillage
+//
+
 import Foundation
 import CoreLocation
 import Combine

@@ -1,6 +1,6 @@
 //
 //  SettingsView.swift
-//  Sillage
+//  Alcyone Sillage
 //
 
 import SwiftUI

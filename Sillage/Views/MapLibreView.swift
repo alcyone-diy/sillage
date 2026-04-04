@@ -1,3 +1,8 @@
+//
+//  MapLibreView.swift
+//  Alcyone Sillage
+//
+
 import SwiftUI
 import MapLibre
 import CoreLocation
