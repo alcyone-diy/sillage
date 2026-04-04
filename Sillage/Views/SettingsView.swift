@@ -15,8 +15,10 @@ struct SettingsView: View {
             Form {
                 Section(header: Text("General")) {
                     @Bindable var bindableAppViewModel = appViewModel
-                    Toggle("Glove Mode", isOn: $bindableAppViewModel.isGloveModeEnabled)
-                        .marineListCell()
+                    Toggle(isOn: $bindableAppViewModel.isGloveModeEnabled) {
+                        Label("Glove Mode", systemImage: "hand.raised.fill")
+                    }
+                    .marineListCell()
 
                     NavigationLink(destination: Text("Map Settings")) {
                         Label("Map Preferences", systemImage: "map")
