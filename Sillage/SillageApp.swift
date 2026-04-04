@@ -9,9 +9,13 @@ import SwiftUI
 
 @main
 struct SillageApp: App {
+    @State private var appViewModel = AppViewModel()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.marineUIStyle, appViewModel.marineUIStyle)
+                .environment(appViewModel)
         }
     }
 }

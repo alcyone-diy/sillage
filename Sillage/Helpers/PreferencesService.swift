@@ -12,6 +12,7 @@ protocol PreferencesServiceProtocol {
     var savedLongitude: Double? { get set }
     var savedZoom: Double? { get set }
     var savedDirection: Double? { get set }
+    var gloveModeEnabled: Bool { get set }
 
     func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double)
     func loadCameraState() -> (coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double)?
@@ -25,6 +26,7 @@ class PreferencesService: PreferencesServiceProtocol {
     private let savedLongitudeKey = "savedLongitude"
     private let savedZoomKey = "savedZoom"
     private let savedDirectionKey = "savedDirection"
+    private let gloveModeEnabledKey = "gloveModeEnabled"
 
     private let defaults = UserDefaults.standard
 
@@ -51,6 +53,11 @@ class PreferencesService: PreferencesServiceProtocol {
     var savedDirection: Double? {
         get { defaults.object(forKey: savedDirectionKey) as? Double }
         set { defaults.set(newValue, forKey: savedDirectionKey) }
+    }
+
+    var gloveModeEnabled: Bool {
+        get { defaults.bool(forKey: gloveModeEnabledKey) }
+        set { defaults.set(newValue, forKey: gloveModeEnabledKey) }
     }
 
     func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double) {
