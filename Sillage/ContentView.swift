@@ -55,11 +55,12 @@ struct ContentView: View {
             Image(systemName: "gearshape.fill")
               .font(.system(size: 24, weight: .bold))
               .foregroundColor(.white)
-              .frame(width: 60, height: 60)
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
               .background(Color.blue)
               .clipShape(Circle())
               .shadow(radius: 5)
           }
+          .buttonStyle(MarineButtonStyle())
           .padding()
           .padding(.bottom, 30) // Clears bottom safe area
 
@@ -72,11 +73,12 @@ struct ContentView: View {
             Image(systemName: mapViewModel.isTrackingUser ? "location.fill" : "location")
               .font(.system(size: 24, weight: .bold))
               .foregroundColor(.white)
-              .frame(width: 60, height: 60)
+              .frame(maxWidth: .infinity, maxHeight: .infinity)
               .background(mapViewModel.isTrackingUser ? Color.blue : Color.gray)
               .clipShape(Circle())
               .shadow(radius: 5)
           }
+          .buttonStyle(MarineButtonStyle())
           .padding()
           .padding(.bottom, 30) // Clears bottom safe area
       }
@@ -93,25 +95,27 @@ struct ContentView: View {
   private var marineDashboard: some View {
       VStack(spacing: 8) {
         Text(mapViewModel.formattedCoordinates)
-          .font(.headline)
+          .marineFont(.headline)
           .foregroundColor(.yellow)
 
         HStack(spacing: 40) {
           VStack {
             Text("SOG")
-              .font(.caption)
+              .marineFont(.caption)
               .foregroundColor(.gray)
             Text(String(format: "%.1f kts", mapViewModel.speedOverGround))
-              .font(.title3.bold())
+              .marineFont(.title3)
+              .fontWeight(.bold)
               .foregroundColor(.white)
           }
 
           VStack {
             Text("COG")
-              .font(.caption)
+              .marineFont(.caption)
               .foregroundColor(.gray)
             Text(String(format: "%.0f°", mapViewModel.courseOverGround))
-              .font(.title3.bold())
+              .marineFont(.title3)
+              .fontWeight(.bold)
               .foregroundColor(.white)
           }
         }

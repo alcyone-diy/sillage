@@ -18,38 +18,44 @@ struct SettingsView: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section(header: Text("General")) {
+        Section(header: Text("General").marineFont(.headline)) {
           @Bindable var bindableAppViewModel = appViewModel
           Toggle(isOn: $bindableAppViewModel.isGloveModeEnabled) {
             Label("Glove Mode", systemImage: "hand.raised.fill")
+              .marineFont(.body)
           }
           .marineListCell()
 
           NavigationLink(destination: MapPreferencesView()) {
             Label("Map Preferences", systemImage: "map")
+              .marineFont(.body)
               .marineListCell()
           }
         }
 
-        Section(header: Text("Accounts")) {
+        Section(header: Text("Accounts").marineFont(.headline)) {
           NavigationLink(destination: GeoGarageLoginView()) {
             Label("GeoGarage Account", systemImage: "person.crop.circle")
+              .marineFont(.body)
               .marineListCell()
           }
         }
 
-        Section(header: Text("Safety & Legal")) {
+        Section(header: Text("Safety & Legal").marineFont(.headline)) {
           NavigationLink(destination: LegalListView(documents: viewModel.legalDocuments)) {
             Label("Legal & Licenses", systemImage: "doc.text")
+              .marineFont(.body)
               .marineListCell()
           }
         }
 
-        Section(header: Text("About")) {
+        Section(header: Text("About").marineFont(.headline)) {
           HStack {
             Label("Version", systemImage: "info.circle")
+              .marineFont(.body)
             Spacer()
             Text("1.0.0")
+              .marineFont(.body)
               .foregroundColor(.secondary)
           }
           .marineListCell()
