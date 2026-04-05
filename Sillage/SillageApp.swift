@@ -22,7 +22,7 @@ struct SillageApp: App {
     WindowGroup {
       if hasAcceptedDisclaimer {
         ContentView()
-          .environment(\.marineUIStyle, appViewModel.marineUIStyle)
+          .environment(\.marineTheme, appViewModel.marineTheme)
           .environment(appViewModel)
           .environmentObject(mapViewModel)
       } else {

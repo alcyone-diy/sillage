@@ -25,6 +25,10 @@ final class AppViewModel {
     return isGloveModeEnabled ? .gloveMode : .standard
   }
 
+  var marineTheme: MarineTheme {
+    return isGloveModeEnabled ? .gloveMode : .standard
+  }
+
   init(preferencesService: PreferencesServiceProtocol = PreferencesService.shared) {
     self.preferencesService = preferencesService
     self.isGloveModeEnabled = preferencesService.gloveModeEnabled
