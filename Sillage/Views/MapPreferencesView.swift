@@ -40,25 +40,12 @@ struct MapPreferencesView: View {
             mapViewModel.switchMapSource(to: .localMBTiles(url: url))
           }
         }) {
-          HStack {
-            VStack(alignment: .leading, spacing: 4) {
-              Text("Local MBTiles")
-                .font(.title3.bold())
-                .foregroundColor(.primary)
-              Text("Offline marine charts")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            }
-            Spacer()
-            if currentSelection == .local {
-              Image(systemName: "checkmark")
-                .foregroundColor(.blue)
-                .font(.title2.weight(.bold))
-            }
-          }
-          // Enforce Marine UI large touch targets
-          .frame(minHeight: 60)
-          .contentShape(Rectangle()) // Make the entire row tappable
+          MapSourceRowView(
+            title: "Local MBTiles",
+            subtitle: "Offline marine charts",
+            isSelected: currentSelection == .local
+          )
+          .marineListCell()
         }
         .buttonStyle(.plain) // Prevent form default button styling
 
@@ -66,25 +53,12 @@ struct MapPreferencesView: View {
         Button(action: {
           mapViewModel.switchMapSource(to: .remoteGeoGarage(clientID: Secrets.geoGarageClientID, layerID: Secrets.geoGarageLayerID))
         }) {
-          HStack {
-            VStack(alignment: .leading, spacing: 4) {
-              Text("Remote GeoGarage")
-                .font(.title3.bold())
-                .foregroundColor(.primary)
-              Text("Online marine charts")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            }
-            Spacer()
-            if currentSelection == .remote {
-              Image(systemName: "checkmark")
-                .foregroundColor(.blue)
-                .font(.title2.weight(.bold))
-            }
-          }
-          // Enforce Marine UI large touch targets
-          .frame(minHeight: 60)
-          .contentShape(Rectangle()) // Make the entire row tappable
+          MapSourceRowView(
+            title: "Remote GeoGarage",
+            subtitle: "Online marine charts",
+            isSelected: currentSelection == .remote
+          )
+          .marineListCell()
         }
         .buttonStyle(.plain)
 
@@ -92,6 +66,31 @@ struct MapPreferencesView: View {
     }
     .navigationTitle("Map Preferences")
     .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+private struct MapSourceRowView: View {
+  let title: String
+  let subtitle: String
+  let isSelected: Bool
+
+  var body: some View {
+    HStack {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+          .font(.headline)
+          .foregroundColor(.primary)
+        Text(subtitle)
+          .font(.subheadline)
+          .foregroundColor(.secondary)
+      }
+      Spacer()
+      if isSelected {
+        Image(systemName: "checkmark")
+          .foregroundColor(.blue)
+          .font(.title2.weight(.bold))
+      }
+    }
   }
 }
 
