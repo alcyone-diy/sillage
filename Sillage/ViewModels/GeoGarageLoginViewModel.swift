@@ -12,26 +12,26 @@ import SwiftUI
 @MainActor
 @Observable
 final class GeoGarageLoginViewModel {
-    var username = ""
-    var password = ""
-    var isLoading = false
-    var errorMessage: String? = nil
+  var username = ""
+  var password = ""
+  var isLoading = false
+  var errorMessage: String? = nil
 
-    func login() {
-        Task {
-            isLoading = true
-            errorMessage = nil
+  func login() {
+    Task {
+      isLoading = true
+      errorMessage = nil
 
-            // Simulate network delay
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+      // Simulate network delay
+      try? await Task.sleep(nanoseconds: 2_000_000_000)
 
-            isLoading = false
+      isLoading = false
 
-            if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                errorMessage = String(localized: "Please enter a valid username.")
-            } else {
-                print("Mock login successful for user: \(username)")
-            }
-        }
+      if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        errorMessage = String(localized: "Please enter a valid username.")
+      } else {
+        print("Mock login successful for user: \(username)")
+      }
     }
+  }
 }
