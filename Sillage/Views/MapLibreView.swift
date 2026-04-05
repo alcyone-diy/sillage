@@ -34,6 +34,7 @@ struct MapLibreView: UIViewRepresentable {
     mapView.isPitchEnabled = false
 
     mapView.attributionButton.isHidden = true
+    mapView.logoView.isHidden = true
 
     // Load a minimal blank style so MapLibre initializes and fires `mapView(_:didFinishLoading:)`
     if let blankStyleURL = createBlankStyleJSON() {
