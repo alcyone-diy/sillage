@@ -15,8 +15,7 @@ import CoreLocation
 
 struct ContentView: View {
 
-  // Instantiation of our ViewModel
-  @StateObject private var mapViewModel = MapViewModel()
+  @EnvironmentObject var mapViewModel: MapViewModel
 
   // State for showing the settings sheet
   @State private var isShowingSettings = false
@@ -44,9 +43,6 @@ struct ContentView: View {
     VStack {
       // Top Marine Dashboard
       marineDashboard
-
-      // Map Source Switcher
-      mapSourceSwitcher
 
       Spacer()
 
@@ -93,33 +89,6 @@ struct ContentView: View {
     }
   }
 
-  // Map Source Switcher View
-  private var mapSourceSwitcher: some View {
-      HStack {
-          Spacer()
-          Menu {
-            Button("Local MBTiles") {
-              if let url = Bundle.main.url(forResource: "7413_pal300", withExtension: "mbtiles") {
-                mapViewModel.switchMapSource(to: .localMBTiles(url: url))
-              }
-            }
-            Button("Remote GeoGarage") {
-              mapViewModel.switchMapSource(to: .remoteGeoGarage(clientID: Secrets.geoGarageClientID, layerID: Secrets.geoGarageLayerID))
-            }
-          } label: {
-            Image(systemName: "map")
-              .font(.system(size: 20))
-              .foregroundColor(.white)
-              .padding(12)
-              .background(Color.blue)
-              .clipShape(Circle())
-              .shadow(radius: 5)
-          }
-          .padding(.trailing, 20)
-      }
-      .padding(.top, 10)
-  }
-
   // Marine Dashboard View
   private var marineDashboard: some View {
       VStack(spacing: 8) {
@@ -158,4 +127,5 @@ struct ContentView: View {
 
 #Preview {
   ContentView()
+    .environmentObject(MapViewModel())
 }

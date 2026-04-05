@@ -15,12 +15,14 @@ import SwiftUI
 @main
 struct SillageApp: App {
   @State private var appViewModel = AppViewModel()
+  @StateObject private var mapViewModel = MapViewModel()
 
   var body: some Scene {
     WindowGroup {
       ContentView()
         .environment(\.marineUIStyle, appViewModel.marineUIStyle)
         .environment(appViewModel)
+        .environmentObject(mapViewModel)
     }
   }
 }
