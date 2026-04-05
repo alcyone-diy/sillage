@@ -30,5 +30,7 @@ struct AppConfiguration {
         """)
     }
     self.geoGarageClientID = clientID
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .replacingOccurrences(of: "\"", with: "")
   }
 }
