@@ -12,8 +12,8 @@ struct LegalListView: View {
         List(documents) { document in
             NavigationLink(destination: LegalDetailView(document: document)) {
                 Text(document.title)
-                    .frame(minHeight: 60, alignment: .leading)
-                    .contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .marineListCell()
             }
         }
         .navigationTitle("Legal & Licenses")

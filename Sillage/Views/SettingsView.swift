@@ -7,29 +7,33 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppViewModel.self) private var appViewModel
     @State private var viewModel = SettingsViewModel()
 
     var body: some View {
         NavigationStack {
             Form {
                 Section(header: Text("General")) {
+                    @Bindable var bindableAppViewModel = appViewModel
+                    Toggle(isOn: $bindableAppViewModel.isGloveModeEnabled) {
+                        Label("Glove Mode", systemImage: "hand.raised.fill")
+                    }
+                    .marineListCell()
+
                     NavigationLink(destination: Text("Map Settings")) {
                         Label("Map Preferences", systemImage: "map")
-                            .frame(minHeight: 60)
-                            .contentShape(Rectangle())
+                            .marineListCell()
                     }
                     NavigationLink(destination: Text("Vessel Settings")) {
                         Label("Vessel Details", systemImage: "ferry")
-                            .frame(minHeight: 60)
-                            .contentShape(Rectangle())
+                            .marineListCell()
                     }
                 }
 
                 Section(header: Text("Safety & Legal")) {
                     NavigationLink(destination: LegalListView(documents: viewModel.legalDocuments)) {
                         Label("Legal & Licenses", systemImage: "doc.text")
-                            .frame(minHeight: 60)
-                            .contentShape(Rectangle())
+                            .marineListCell()
                     }
                 }
 
@@ -40,8 +44,7 @@ struct SettingsView: View {
                         Text("1.0.0")
                             .foregroundColor(.secondary)
                     }
-                    .frame(minHeight: 60)
-                    .contentShape(Rectangle())
+                    .marineListCell()
                 }
             }
             .navigationTitle("Settings")
@@ -59,4 +62,6 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
+        .environment(AppViewModel())
+        .environment(\.marineUIStyle, .standard)
 }
