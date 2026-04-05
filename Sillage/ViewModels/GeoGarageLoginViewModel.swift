@@ -17,20 +17,31 @@ final class GeoGarageLoginViewModel {
   var isLoading = false
   var errorMessage: String? = nil
 
+  private let authService: GeoGarageAuthServiceProtocol
+
+  init(authService: GeoGarageAuthServiceProtocol = GeoGarageAuthService()) {
+    self.authService = authService
+  }
+
   func login() {
     Task {
       isLoading = true
       errorMessage = nil
 
-      // Simulate network delay
-      try? await Task.sleep(nanoseconds: 2_000_000_000)
-
-      isLoading = false
+      defer { isLoading = false }
 
       if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         errorMessage = String(localized: "Please enter a valid username.")
-      } else {
-        print("Mock login successful for user: \(username)")
+        return
+      }
+
+      do {
+        let response = try await authService.authenticate(username: username, password: password)
+        print("\n--- SUCCESS: Access Token: \(response.access_token) ---\n")
+      } catch let error as AuthError {
+        errorMessage = error.localizedDescription
+      } catch {
+        errorMessage = AuthError.unknown.localizedDescription
       }
     }
   }
