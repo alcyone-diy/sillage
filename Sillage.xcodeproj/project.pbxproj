@@ -13,6 +13,7 @@
 /* Begin PBXFileReference section */
 		020ACF262F6C9E66002C5C1B /* Sillage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sillage.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		020ACFC02F6F699B002C5C1B /* LaRochelle_Test.gpx */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = LaRochelle_Test.gpx; sourceTree = "<group>"; };
+		1D1F25430CE99BC84D383856 /* Secrets.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -62,6 +63,7 @@
 				020ACF622F6CD0C6002C5C1B /* maps */,
 				020ACF282F6C9E66002C5C1B /* Sillage */,
 				020ACF272F6C9E66002C5C1B /* Products */,
+				1D1F25430CE99BC84D383856 /* Secrets.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -159,6 +161,7 @@
 /* Begin XCBuildConfiguration section */
 		020ACF2F2F6C9E67002C5C1B /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1D1F25430CE99BC84D383856 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -222,6 +225,7 @@
 		};
 		020ACF302F6C9E67002C5C1B /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1D1F25430CE99BC84D383856 /* Secrets.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -287,6 +291,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Sillage;
+				INFOPLIST_KEY_GEOGARAGE_CLIENT_ID = "$(GEOGARAGE_CLIENT_ID)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Sillage needs your location to display your position and calculate your speed and course.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -325,6 +330,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Sillage;
+				INFOPLIST_KEY_GEOGARAGE_CLIENT_ID = "$(GEOGARAGE_CLIENT_ID)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Sillage needs your location to display your position and calculate your speed and course.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
