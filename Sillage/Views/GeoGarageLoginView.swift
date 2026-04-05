@@ -10,6 +10,7 @@
 import SwiftUI
 
 struct GeoGarageLoginView: View {
+    @Environment(\.marineUIStyle) private var marineUIStyle
     @State private var viewModel = GeoGarageLoginViewModel()
 
     var body: some View {
@@ -17,8 +18,8 @@ struct GeoGarageLoginView: View {
             VStack(spacing: 24) {
                 // Header
                 Text("GeoGarage Login")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                    .font(.title)
+                    .fontWeight(.semibold)
                     .padding(.bottom, 16)
 
                 // Form Fields
@@ -61,7 +62,7 @@ struct GeoGarageLoginView: View {
                                 .fontWeight(.bold)
                         }
                     }
-                    .frame(maxWidth: .infinity, minHeight: 60) // Marine standard minimum height
+                    .frame(maxWidth: .infinity, minHeight: marineUIStyle == .gloveMode ? 60 : 44)
                     .background(viewModel.isLoading ? Color.blue.opacity(0.6) : Color.blue)
                     .foregroundColor(.white)
                     .cornerRadius(12)
