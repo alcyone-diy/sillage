@@ -23,6 +23,7 @@ struct SillageApp: App {
       if hasAcceptedDisclaimer {
         ContentView()
           .environment(\.marineUIStyle, appViewModel.marineUIStyle)
+          .environment(\.marineTheme, appViewModel.currentMarineTheme)
           .environment(appViewModel)
           .environmentObject(mapViewModel)
       } else {
