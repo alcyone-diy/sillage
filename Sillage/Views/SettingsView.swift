@@ -31,9 +31,9 @@ struct SettingsView: View {
           }
         }
 
-        Section(header: Text("Accounts")) {
+        Section(header: Text(String(localized: "Accounts"))) {
           NavigationLink(destination: GeoGarageLoginView()) {
-            Label("GeoGarage Account", systemImage: "person.crop.circle")
+            Label(String(localized: "GeoGarage Account"), systemImage: "person.crop.circle")
               .marineListCell()
           }
         }
