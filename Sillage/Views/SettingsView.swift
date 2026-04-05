@@ -25,7 +25,7 @@ struct SettingsView: View {
           }
           .marineListCell()
 
-          NavigationLink(destination: Text("Map Settings")) {
+          NavigationLink(destination: MapPreferencesView()) {
             Label("Map Preferences", systemImage: "map")
               .marineListCell()
           }
