@@ -28,6 +28,8 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		020ACF282F6C9E66002C5C1B /* Sillage */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = Sillage;
 			sourceTree = "<group>";
 		};

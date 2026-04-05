@@ -40,7 +40,7 @@ struct LegalDetailView: View {
         }
       }
     }
-    .navigationTitle(viewModel.document.title)
+    .navigationTitle(Text(viewModel.document.title))
     .navigationBarTitleDisplayMode(.inline)
     .task {
       await viewModel.loadContent()
