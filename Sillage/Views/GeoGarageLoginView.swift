@@ -10,7 +10,8 @@
 import SwiftUI
 
 struct GeoGarageLoginView: View {
-  @Environment(\.marineUIStyle) private var marineUIStyle
+  @Environment(\.marineTheme) private var marineTheme
+  @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
   @State private var viewModel = GeoGarageLoginViewModel()
 
   var body: some View {
@@ -63,7 +64,7 @@ struct GeoGarageLoginView: View {
                   .fontWeight(.bold)
               }
             }
-            .frame(maxWidth: .infinity, minHeight: marineUIStyle == .gloveMode ? 60 : 44)
+            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget * scaleFactor)
             .background(viewModel.isLoading ? Color.blue.opacity(0.6) : Color.blue)
             .foregroundColor(.white)
             .cornerRadius(12)

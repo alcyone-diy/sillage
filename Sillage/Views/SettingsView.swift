@@ -71,5 +71,5 @@ struct SettingsView: View {
 #Preview {
   SettingsView()
     .environment(AppViewModel())
-    .environment(\.marineUIStyle, .standard)
+    .environment(\.marineTheme, .standard)
 }
