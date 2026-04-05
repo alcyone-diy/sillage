@@ -29,10 +29,6 @@ struct SettingsView: View {
             Label("Map Preferences", systemImage: "map")
               .marineListCell()
           }
-          NavigationLink(destination: Text("Vessel Settings")) {
-            Label("Vessel Details", systemImage: "ferry")
-              .marineListCell()
-          }
         }
 
         Section(header: Text("Safety & Legal")) {
