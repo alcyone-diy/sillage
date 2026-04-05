@@ -16,28 +16,10 @@ struct LegalDetailView: View {
         Group {
             switch viewModel.state {
             case .loading:
-                VStack {
-                    if viewModel.showSpinner {
-                        ProgressView("Loading...")
-                            .progressViewStyle(CircularProgressViewStyle())
-                    } else {
-                        Color.clear // Empty state during the 150ms anti-flicker window
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Color.clear
             case .loaded(let content):
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text(viewModel.document.title)
-                            .font(.title)
-                            .bold()
-
-                        Text(content)
-                            .font(.body)
-                    }
-                    .padding(24)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                NativeTextView(text: content)
+                    .ignoresSafeArea(edges: .bottom)
             case .error(let errorMessage):
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle")

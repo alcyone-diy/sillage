@@ -16,7 +16,6 @@ class LegalDetailViewModel {
     }
 
     var state: ViewState = .loading
-    var showSpinner: Bool = false
 
     let document: LegalDocument
 
@@ -36,23 +35,11 @@ class LegalDetailViewModel {
         }
 
         self.state = .loading
-        self.showSpinner = false
-
-        let spinnerTask = Task {
-            try? await Task.sleep(nanoseconds: 150_000_000) // 150ms
-            if !Task.isCancelled {
-                self.showSpinner = true
-            }
-        }
 
         do {
             let content = try await Self.readFile(filename: filename, fileExtension: ext)
-            spinnerTask.cancel()
-            self.showSpinner = false
             self.state = .loaded(content)
         } catch {
-            spinnerTask.cancel()
-            self.showSpinner = false
             self.state = .error("Failed to load document: \(error.localizedDescription)")
         }
     }
