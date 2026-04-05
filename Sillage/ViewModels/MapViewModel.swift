@@ -99,7 +99,7 @@ class MapViewModel: ObservableObject {
       let fileName = url.deletingPathExtension().lastPathComponent
       preferencesService.savedMapSource = fileName
 
-      self.mapLayer = MapLayer(name: "Marine Raster Chart", source: source)
+      self.mapLayer = MapLayer(name: LocalizedStringResource("Marine Raster Chart"), source: source)
       let metadata = MBTilesHelper.extractMetadata(from: url)
       if let bounds = metadata.bounds { self.mapBounds = bounds }
       if let minZ = metadata.minZoom { self.minZoom = minZ }
@@ -114,7 +114,7 @@ class MapViewModel: ObservableObject {
     case .remoteGeoGarage:
       preferencesService.savedMapSource = "remoteGeoGarage"
 
-      self.mapLayer = MapLayer(name: "GeoGarage Marine Chart", source: source)
+      self.mapLayer = MapLayer(name: LocalizedStringResource("GeoGarage Marine Chart"), source: source)
       self.mapBounds = nil
       self.minZoom = 0.0
       self.maxZoom = 20.0

@@ -17,7 +17,7 @@ enum MapSource: Equatable {
 
 struct MapLayer {
   /// The displayed name or identifier of the map layer
-  let name: String
+  let name: LocalizedStringResource
 
   /// The map source defining where the tiles come from
   let source: MapSource
