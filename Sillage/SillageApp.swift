@@ -16,13 +16,18 @@ import SwiftUI
 struct SillageApp: App {
   @State private var appViewModel = AppViewModel()
   @StateObject private var mapViewModel = MapViewModel()
+  @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
 
   var body: some Scene {
     WindowGroup {
-      ContentView()
-        .environment(\.marineUIStyle, appViewModel.marineUIStyle)
-        .environment(appViewModel)
-        .environmentObject(mapViewModel)
+      if hasAcceptedDisclaimer {
+        ContentView()
+          .environment(\.marineUIStyle, appViewModel.marineUIStyle)
+          .environment(appViewModel)
+          .environmentObject(mapViewModel)
+      } else {
+        DisclaimerView()
+      }
     }
   }
 }
