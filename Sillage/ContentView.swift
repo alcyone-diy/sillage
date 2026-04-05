@@ -55,12 +55,8 @@ struct ContentView: View {
             Image(systemName: "gearshape.fill")
               .font(.system(size: 24, weight: .bold))
               .foregroundColor(.white)
-              .frame(maxWidth: .infinity, maxHeight: .infinity)
-              .background(Color.blue)
-              .clipShape(Circle())
-              .shadow(radius: 5)
           }
-          .buttonStyle(MarineButtonStyle())
+          .buttonStyle(MarineFABStyle(backgroundColor: .blue))
           .padding()
           .padding(.bottom, 30) // Clears bottom safe area
 
@@ -73,12 +69,8 @@ struct ContentView: View {
             Image(systemName: mapViewModel.isTrackingUser ? "location.fill" : "location")
               .font(.system(size: 24, weight: .bold))
               .foregroundColor(.white)
-              .frame(maxWidth: .infinity, maxHeight: .infinity)
-              .background(mapViewModel.isTrackingUser ? Color.blue : Color.gray)
-              .clipShape(Circle())
-              .shadow(radius: 5)
           }
-          .buttonStyle(MarineButtonStyle())
+          .buttonStyle(MarineFABStyle(backgroundColor: mapViewModel.isTrackingUser ? .blue : .gray))
           .padding()
           .padding(.bottom, 30) // Clears bottom safe area
       }
