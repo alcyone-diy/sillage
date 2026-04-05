@@ -17,14 +17,14 @@ struct GeoGarageLoginView: View {
     ScrollView {
       VStack(spacing: 24) {
         // Header
-        Text(String(localized: "GeoGarage Login"))
+        Text("GeoGarage Login")
           .font(.title)
           .fontWeight(.semibold)
           .padding(.bottom, 16)
 
         // Form Fields
         VStack(spacing: 16) {
-          TextField(String(localized: "Username"), text: $viewModel.username)
+          TextField("Username", text: $viewModel.username)
             .textFieldStyle(.roundedBorder)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled(true)
@@ -32,7 +32,7 @@ struct GeoGarageLoginView: View {
             .frame(minHeight: 44)
             .padding(.horizontal)
 
-          SecureField(String(localized: "Password"), text: $viewModel.password)
+          SecureField("Password", text: $viewModel.password)
             .textFieldStyle(.roundedBorder)
             .disabled(viewModel.isLoading)
             .frame(minHeight: 44)
@@ -57,7 +57,7 @@ struct GeoGarageLoginView: View {
               ProgressView()
                 .tint(.white)
             } else {
-              Text(String(localized: "Log In"))
+              Text("Log In")
                 .font(.headline)
                 .fontWeight(.bold)
             }
@@ -75,7 +75,7 @@ struct GeoGarageLoginView: View {
       }
       .padding(.vertical, 32)
     }
-    .navigationTitle(String(localized: "GeoGarage"))
+    .navigationTitle("GeoGarage")
     .navigationBarTitleDisplayMode(.inline)
   }
 }
