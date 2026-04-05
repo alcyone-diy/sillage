@@ -15,7 +15,7 @@ final class GeoGarageLoginViewModel {
     var username = ""
     var password = ""
     var isLoading = false
-    var errorMessage: String? = nil
+    var errorMessage: LocalizedStringResource? = nil
 
     func login() {
         Task {
