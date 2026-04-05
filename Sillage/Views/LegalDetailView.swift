@@ -9,19 +9,22 @@ struct LegalDetailView: View {
     @State private var viewModel: LegalDetailViewModel
 
     init(document: LegalDocument) {
-        _viewModel = State(wrappedValue: LegalDetailViewModel(document: document))
+        _viewModel = State(initialValue: LegalDetailViewModel(document: document))
     }
 
     var body: some View {
         Group {
             switch viewModel.state {
             case .loading:
-                if viewModel.showSpinner {
-                    ProgressView("Loading...")
-                        .progressViewStyle(CircularProgressViewStyle())
-                } else {
-                    Color.clear // Empty state during the 150ms anti-flicker window
+                VStack {
+                    if viewModel.showSpinner {
+                        ProgressView("Loading...")
+                            .progressViewStyle(CircularProgressViewStyle())
+                    } else {
+                        Color.clear // Empty state during the 150ms anti-flicker window
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .loaded(let content):
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
