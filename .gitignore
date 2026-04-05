@@ -82,4 +82,4 @@ iOSInjectionProject/
 
 # Custom specific ignores
 /maps/
-Sillage/Helpers/Secrets.swift
+Secrets.xcconfig

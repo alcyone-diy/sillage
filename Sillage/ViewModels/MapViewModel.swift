@@ -193,7 +193,7 @@ class MapViewModel: ObservableObject {
     let savedSource = preferencesService.savedMapSource
 
     if savedSource == "remoteGeoGarage" {
-      switchMapSource(to: .remoteGeoGarage(clientID: Secrets.geoGarageClientID, layerID: Secrets.geoGarageLayerID))
+      switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: AppConfiguration.shared.geoGarageLayerID))
     } else if let savedFileName = savedSource,
             let url = Bundle.main.url(forResource: savedFileName, withExtension: "mbtiles") {
       switchMapSource(to: .localMBTiles(url: url))

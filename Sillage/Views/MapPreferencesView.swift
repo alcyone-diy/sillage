@@ -51,7 +51,7 @@ struct MapPreferencesView: View {
 
         // Remote GeoGarage Button
         Button(action: {
-          mapViewModel.switchMapSource(to: .remoteGeoGarage(clientID: Secrets.geoGarageClientID, layerID: Secrets.geoGarageLayerID))
+          mapViewModel.switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: AppConfiguration.shared.geoGarageLayerID))
         }) {
           MapSourceRowView(
             title: "Remote GeoGarage",
