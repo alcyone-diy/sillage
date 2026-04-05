@@ -15,7 +15,7 @@ final class GeoGarageLoginViewModel {
     var username = ""
     var password = ""
     var isLoading = false
-    var errorMessage: LocalizedStringResource? = nil
+    var errorMessage: String? = nil
 
     func login() {
         Task {
@@ -28,7 +28,7 @@ final class GeoGarageLoginViewModel {
             isLoading = false
 
             if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                errorMessage = "Please enter a valid username."
+                errorMessage = String(localized: "Please enter a valid username.")
             } else {
                 print("Mock login successful for user: \(username)")
             }

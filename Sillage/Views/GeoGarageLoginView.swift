@@ -41,7 +41,7 @@ struct GeoGarageLoginView: View {
 
                 // Error Message
                 if let errorMessage = viewModel.errorMessage {
-                    Text(String(localized: errorMessage))
+                    Text(errorMessage)
                         .foregroundColor(.red)
                         .font(.callout)
                         .multilineTextAlignment(.center)
