@@ -78,7 +78,7 @@ private struct MapSourceRowView: View {
     HStack {
       VStack(alignment: .leading, spacing: 4) {
         Text(title)
-          .font(.headline)
+          .font(.body)
           .foregroundColor(.primary)
         Text(subtitle)
           .font(.subheadline)
