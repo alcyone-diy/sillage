@@ -6,23 +6,55 @@
 import SwiftUI
 
 struct LegalDetailView: View {
-    let document: LegalDocument
+    @State private var viewModel: LegalDetailViewModel
+
+    init(document: LegalDocument) {
+        _viewModel = State(wrappedValue: LegalDetailViewModel(document: document))
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(document.title)
-                    .font(.title)
-                    .bold()
+        Group {
+            switch viewModel.state {
+            case .loading:
+                if viewModel.showSpinner {
+                    ProgressView("Loading...")
+                        .progressViewStyle(CircularProgressViewStyle())
+                } else {
+                    Color.clear // Empty state during the 150ms anti-flicker window
+                }
+            case .loaded(let content):
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(viewModel.document.title)
+                            .font(.title)
+                            .bold()
 
-                Text(document.content)
-                    .font(.body)
+                        Text(content)
+                            .font(.body)
+                    }
+                    .padding(24)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            case .error(let errorMessage):
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundColor(.red)
+                    Text("Error loading document")
+                        .font(.headline)
+                    Text(errorMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .navigationTitle(document.title)
+        .navigationTitle(viewModel.document.title)
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await viewModel.loadContent()
+        }
     }
 }
 

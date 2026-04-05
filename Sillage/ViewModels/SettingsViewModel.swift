@@ -18,23 +18,14 @@ class SettingsViewModel {
             ),
             LegalDocument(
                 title: "Alcyone Sillage (MIT License)",
-                content: Self.loadText(filename: "License_MIT")
+                filename: "License_MIT",
+                fileExtension: "txt"
             ),
             LegalDocument(
                 title: "MapLibre GL Native (BSD 2-Clause License)",
-                content: Self.loadText(filename: "License_MapLibre")
+                filename: "License_MapLibre",
+                fileExtension: "txt"
             )
         ]
-    }
-
-    private static func loadText(filename: String) -> String {
-        guard let url = Bundle.main.url(forResource: filename, withExtension: "txt") else {
-            return "License text not found."
-        }
-        do {
-            return try String(contentsOf: url)
-        } catch {
-            return "License text not found."
-        }
     }
 }
