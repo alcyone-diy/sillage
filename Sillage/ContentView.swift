@@ -34,7 +34,7 @@ struct ContentView: View {
       VStack {
         ProgressView()
           .padding()
-        Text("Loading marine charts...")
+        Text("Loading marine charts…")
           .foregroundColor(.secondary)
       }
     }
