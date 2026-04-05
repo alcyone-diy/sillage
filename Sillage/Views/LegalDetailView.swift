@@ -6,23 +6,40 @@
 import SwiftUI
 
 struct LegalDetailView: View {
-    let document: LegalDocument
+    @State private var viewModel: LegalDetailViewModel
+
+    init(document: LegalDocument) {
+        _viewModel = State(initialValue: LegalDetailViewModel(document: document))
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(document.title)
-                    .font(.title)
-                    .bold()
-
-                Text(document.content)
-                    .font(.body)
+        Group {
+            switch viewModel.state {
+            case .loading:
+                Color.clear
+            case .loaded(let content):
+                NativeTextView(text: content)
+                    .ignoresSafeArea(edges: .bottom)
+            case .error(let errorMessage):
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundColor(.red)
+                    Text("Error loading document")
+                        .font(.headline)
+                    Text(errorMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .navigationTitle(document.title)
+        .navigationTitle(viewModel.document.title)
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await viewModel.loadContent()
+        }
     }
 }
 
