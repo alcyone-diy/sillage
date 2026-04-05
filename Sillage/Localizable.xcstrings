@@ -7,6 +7,9 @@
     "About" : {
 
     },
+    "Accounts" : {
+
+    },
     "Alcyone Sillage (MIT License)" : {
 
     },
@@ -20,6 +23,15 @@
 
     },
     "General" : {
+
+    },
+    "GeoGarage" : {
+
+    },
+    "GeoGarage Account" : {
+
+    },
+    "GeoGarage Login" : {
 
     },
     "GeoGarage Marine Chart" : {
@@ -37,6 +49,9 @@
     "Loading marine charts…" : {
 
     },
+    "Log In" : {
+
+    },
     "Map Preferences" : {
 
     },
@@ -52,6 +67,12 @@
     "Maritime Navigation Warning" : {
 
     },
+    "Password" : {
+
+    },
+    "Please enter a valid username." : {
+
+    },
     "Safety & Legal" : {
 
     },
@@ -59,6 +80,9 @@
 
     },
     "SOG" : {
+
+    },
+    "Username" : {
 
     },
     "Version" : {
