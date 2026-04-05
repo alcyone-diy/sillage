@@ -17,7 +17,7 @@ struct AppConfiguration {
   let geoGarageLayerID: String = "shom" // Public service parameter
 
   private init() {
-    guard let clientID = Bundle.main.infoDictionary?["GEOGARAGE_CLIENT_ID"] as? String, !clientID.isEmpty else {
+    guard let clientID = Bundle.main.object(forInfoDictionaryKey: "GEOGARAGE_CLIENT_ID") as? String, !clientID.isEmpty else {
       fatalError("""
         ❌ MISSING CONFIGURATION: GEOGARAGE_CLIENT_ID is not set!
 
