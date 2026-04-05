@@ -14,69 +14,82 @@ struct GeoGarageLoginView: View {
   @State private var viewModel = GeoGarageLoginViewModel()
 
   var body: some View {
-    ScrollView {
-      VStack(spacing: 24) {
-        // Header
-        Text("GeoGarage Login")
-          .font(.title)
-          .fontWeight(.semibold)
-          .padding(.bottom, 16)
+    ZStack {
+      ScrollView {
+        VStack(spacing: 24) {
+          // Header
+          Text("GeoGarage Login")
+            .font(.title)
+            .fontWeight(.semibold)
+            .padding(.bottom, 16)
 
-        // Form Fields
-        VStack(spacing: 16) {
-          TextField("Username", text: $viewModel.username)
-            .textFieldStyle(.roundedBorder)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled(true)
-            .disabled(viewModel.isLoading)
-            .frame(minHeight: 44)
-            .padding(.horizontal)
+          // Form Fields
+          VStack(spacing: 16) {
+            TextField("Username", text: $viewModel.username)
+              .textFieldStyle(.roundedBorder)
+              .textInputAutocapitalization(.never)
+              .autocorrectionDisabled(true)
+              .disabled(viewModel.isLoading)
+              .frame(minHeight: 44)
+              .padding(.horizontal)
 
-          SecureField("Password", text: $viewModel.password)
-            .textFieldStyle(.roundedBorder)
-            .disabled(viewModel.isLoading)
-            .frame(minHeight: 44)
-            .padding(.horizontal)
-        }
-
-        // Error Message
-        if let errorMessage = viewModel.errorMessage {
-          Text(errorMessage)
-            .foregroundColor(.red)
-            .font(.callout)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal)
-        }
-
-        // Login Button
-        Button(action: {
-          viewModel.login()
-        }) {
-          ZStack {
-            if viewModel.isLoading {
-              ProgressView()
-                .tint(.white)
-            } else {
-              Text("Log In")
-                .font(.headline)
-                .fontWeight(.bold)
-            }
+            SecureField("Password", text: $viewModel.password)
+              .textFieldStyle(.roundedBorder)
+              .disabled(viewModel.isLoading)
+              .frame(minHeight: 44)
+              .padding(.horizontal)
           }
-          .frame(maxWidth: .infinity, minHeight: marineUIStyle == .gloveMode ? 60 : 44)
-          .background(viewModel.isLoading ? Color.blue.opacity(0.6) : Color.blue)
-          .foregroundColor(.white)
-          .cornerRadius(12)
-          .padding(.horizontal)
-        }
-        .disabled(viewModel.isLoading)
-        .padding(.top, 8)
 
-        Spacer(minLength: 40)
+          // Error Message
+          if let errorMessage = viewModel.errorMessage {
+            Text(errorMessage)
+              .foregroundColor(.red)
+              .font(.callout)
+              .multilineTextAlignment(.center)
+              .padding(.horizontal)
+          }
+
+          // Login Button
+          Button(action: {
+            viewModel.login()
+          }) {
+            ZStack {
+              if viewModel.isLoading {
+                ProgressView()
+                  .tint(.white)
+              } else {
+                Text("Log In")
+                  .font(.headline)
+                  .fontWeight(.bold)
+              }
+            }
+            .frame(maxWidth: .infinity, minHeight: marineUIStyle == .gloveMode ? 60 : 44)
+            .background(viewModel.isLoading ? Color.blue.opacity(0.6) : Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(12)
+            .padding(.horizontal)
+          }
+          .disabled(viewModel.isLoading)
+          .padding(.top, 8)
+
+          Spacer(minLength: 40)
+        }
+        .padding(.vertical, 32)
       }
-      .padding(.vertical, 32)
+
+      if viewModel.isLoading {
+        Color.black.opacity(0.3)
+          .ignoresSafeArea()
+
+        ProgressView()
+          .controlSize(.large)
+          .tint(.white)
+      }
     }
     .navigationTitle("GeoGarage")
     .navigationBarTitleDisplayMode(.inline)
+    .navigationBarBackButtonHidden(viewModel.isLoading)
+    .interactiveDismissDisabled(viewModel.isLoading)
   }
 }
 
