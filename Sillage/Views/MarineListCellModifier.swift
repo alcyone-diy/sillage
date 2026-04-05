@@ -2,21 +2,26 @@
 //  MarineListCellModifier.swift
 //  Alcyone Sillage
 //
+//  Created by Alcyone on 2026-04-05.
+//  Copyright © 2026 Alcyone. All rights reserved.
+//  This file is released under the MIT License.
+//  See LICENSE file in the project root for full license information.
+//
 
 import SwiftUI
 
 struct MarineListCellModifier: ViewModifier {
-    @Environment(\.marineUIStyle) private var marineUIStyle
+  @Environment(\.marineUIStyle) private var marineUIStyle
 
-    func body(content: Content) -> some View {
-        content
-            .frame(minHeight: marineUIStyle == .gloveMode ? 60 : nil)
-            .contentShape(Rectangle())
-    }
+  func body(content: Content) -> some View {
+    content
+      .frame(minHeight: marineUIStyle == .gloveMode ? 60 : nil)
+      .contentShape(Rectangle())
+  }
 }
 
 extension View {
-    func marineListCell() -> some View {
-        self.modifier(MarineListCellModifier())
-    }
+  func marineListCell() -> some View {
+    self.modifier(MarineListCellModifier())
+  }
 }

@@ -2,6 +2,11 @@
 //  LegalDetailViewModel.swift
 //  Alcyone Sillage
 //
+//  Created by Alcyone on 2026-04-05.
+//  Copyright © 2026 Alcyone. All rights reserved.
+//  This file is released under the MIT License.
+//  See LICENSE file in the project root for full license information.
+//
 
 import Foundation
 import Observation
@@ -9,47 +14,47 @@ import Observation
 @MainActor
 @Observable
 class LegalDetailViewModel {
-    enum ViewState {
-        case loading
-        case loaded(String)
-        case error(String)
+  enum ViewState {
+    case loading
+    case loaded(String)
+    case error(String)
+  }
+
+  var state: ViewState = .loading
+
+  let document: LegalDocument
+
+  init(document: LegalDocument) {
+    self.document = document
+  }
+
+  func loadContent() async {
+    if let content = document.content {
+      self.state = .loaded(content)
+      return
     }
 
-    var state: ViewState = .loading
-
-    let document: LegalDocument
-
-    init(document: LegalDocument) {
-        self.document = document
+    guard let filename = document.filename, let ext = document.fileExtension else {
+      self.state = .error("Invalid document reference.")
+      return
     }
 
-    func loadContent() async {
-        if let content = document.content {
-            self.state = .loaded(content)
-            return
-        }
+    self.state = .loading
 
-        guard let filename = document.filename, let ext = document.fileExtension else {
-            self.state = .error("Invalid document reference.")
-            return
-        }
-
-        self.state = .loading
-
-        do {
-            let content = try await Self.readFile(filename: filename, fileExtension: ext)
-            self.state = .loaded(content)
-        } catch {
-            self.state = .error("Failed to load document: \(error.localizedDescription)")
-        }
+    do {
+      let content = try await Self.readFile(filename: filename, fileExtension: ext)
+      self.state = .loaded(content)
+    } catch {
+      self.state = .error("Failed to load document: \(error.localizedDescription)")
     }
+  }
 
-    nonisolated private static func readFile(filename: String, fileExtension ext: String) async throws -> String {
-        return try await Task.detached(priority: .userInitiated) {
-            guard let url = Bundle.main.url(forResource: filename, withExtension: ext) else {
-                throw NSError(domain: "LegalDetailViewModel", code: 404, userInfo: [NSLocalizedDescriptionKey: "File not found."])
-            }
-            return try String(contentsOf: url, encoding: .utf8)
-        }.value
-    }
+  nonisolated private static func readFile(filename: String, fileExtension ext: String) async throws -> String {
+    return try await Task.detached(priority: .userInitiated) {
+      guard let url = Bundle.main.url(forResource: filename, withExtension: ext) else {
+        throw NSError(domain: "LegalDetailViewModel", code: 404, userInfo: [NSLocalizedDescriptionKey: "File not found."])
+      }
+      return try String(contentsOf: url, encoding: .utf8)
+    }.value
+  }
 }

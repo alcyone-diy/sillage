@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>FILEHEADER</key>
+    <string>
+//  ___FILENAME___
+//  Alcyone Sillage
+//
+//  Created by Alcyone on ___DATE___.
+//  Copyright © ___YEAR___ Alcyone. All rights reserved.
+//  This file is released under the MIT License.
+//  See LICENSE file in the project root for full license information.
+//</string>
+</dict>
+</plist>
