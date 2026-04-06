@@ -4,5 +4,7 @@
 <dict>
 	<key>GEOGARAGE_CLIENT_ID</key>
 	<string>$(GEOGARAGE_CLIENT_ID)</string>
+	<key>UIBackgroundModes</key>
+	<array/>
 </dict>
 </plist>

@@ -42,12 +42,14 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
     // Marine Activity Type: prevents automotive road-snapping algorithms
     self.locationManager.activityType = .otherNavigation
 
+    // TODO: Disable pausesLocationUpdatesAutomatically when needed.
     // Disable Auto-Pause: never pause updates
-    self.locationManager.pausesLocationUpdatesAutomatically = false
+    // self.locationManager.pausesLocationUpdatesAutomatically = false
 
+    // TODO: Enable background when needed.
     // Background Execution
-    self.locationManager.allowsBackgroundLocationUpdates = true
-    self.locationManager.showsBackgroundLocationIndicator = true
+    // self.locationManager.allowsBackgroundLocationUpdates = true
+    // self.locationManager.showsBackgroundLocationIndicator = true
   }
 
   func requestAuthorization() {
