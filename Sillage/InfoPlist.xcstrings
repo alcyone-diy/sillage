@@ -25,6 +25,9 @@
         }
       }
     },
+    "MBTiles Map Archive" : {
+
+    },
     "NSLocationWhenInUseUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {
