@@ -20,6 +20,7 @@ class MapViewModel: ObservableObject {
   @Published var mapBounds: MBTilesBounds?
   @Published var maxZoom: Double?
   @Published var minZoom: Double?
+  @Published var availableGeoGarageLayers: [GeoGarageLayer] = []
 
   // Current Map State
   @Published var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
@@ -43,14 +44,40 @@ class MapViewModel: ObservableObject {
   private var lastKnownLocation: CLLocation?
 
   private var preferencesService: PreferencesServiceProtocol
+  private let authService: GeoGarageAuthServiceProtocol
 
   init(locationService: LocationServiceProtocol = LocationService.shared,
-     preferencesService: PreferencesServiceProtocol = PreferencesService.shared) {
+       preferencesService: PreferencesServiceProtocol = PreferencesService.shared,
+       authService: GeoGarageAuthServiceProtocol = GeoGarageAuthService()) {
     self.locationService = locationService
     self.preferencesService = preferencesService
+    self.authService = authService
 
     loadSavedMapSource()
     setupLocationService()
+    silentlyFetchGeoGarageLayers()
+  }
+
+  func updateGeoGarageLayers(_ layers: [GeoGarageLayer]) {
+    self.availableGeoGarageLayers = layers
+  }
+
+  private func silentlyFetchGeoGarageLayers() {
+    guard let accessToken = KeychainManager.shared.getToken(for: "geogarage_access_token") else {
+      return
+    }
+
+    Task.detached { [weak self] in
+      guard let self = self else { return }
+      do {
+        let settings = try await self.authService.fetchAccountSettings(accessToken: accessToken)
+        await MainActor.run {
+          self.availableGeoGarageLayers = settings.layers
+        }
+      } catch {
+        print("Silent fetch of GeoGarage layers failed: \(error)")
+      }
+    }
   }
 
   private func setupLocationService() {
@@ -111,8 +138,9 @@ class MapViewModel: ObservableObject {
         if let zoom = metadata.defaultZoom { self.zoomLevel = zoom }
       }
 
-    case .remoteGeoGarage:
+    case .remoteGeoGarage(_, let layerID):
       preferencesService.savedMapSource = "remoteGeoGarage"
+      preferencesService.savedGeoGarageLayerID = layerID
 
       self.mapLayer = MapLayer(name: LocalizedStringResource("GeoGarage Marine Chart"), source: source)
       self.mapBounds = nil
@@ -192,8 +220,8 @@ class MapViewModel: ObservableObject {
   private func loadSavedMapSource() {
     let savedSource = preferencesService.savedMapSource
 
-    if savedSource == "remoteGeoGarage" {
-      switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: AppConfiguration.shared.geoGarageLayerID))
+    if savedSource == "remoteGeoGarage", let savedLayerID = preferencesService.savedGeoGarageLayerID {
+      switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: savedLayerID))
     } else if let savedFileName = savedSource,
             let url = Bundle.main.url(forResource: savedFileName, withExtension: "mbtiles") {
       switchMapSource(to: .localMBTiles(url: url))

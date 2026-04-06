@@ -11,8 +11,10 @@ import SwiftUI
 
 struct GeoGarageLoginView: View {
   @Environment(\.marineTheme) private var marineTheme
+  @EnvironmentObject private var mapViewModel: MapViewModel
   @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
   @State private var viewModel = GeoGarageLoginViewModel()
+  @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     ZStack {
@@ -93,6 +95,12 @@ struct GeoGarageLoginView: View {
     .navigationBarTitleDisplayMode(.inline)
     .navigationBarBackButtonHidden(viewModel.isLoading)
     .interactiveDismissDisabled(viewModel.isLoading)
+    .onChange(of: viewModel.isAuthorizationReady) { oldState, isReady in
+      if isReady {
+        mapViewModel.updateGeoGarageLayers(viewModel.availableLayers)
+        dismiss()
+      }
+    }
   }
 }
 
