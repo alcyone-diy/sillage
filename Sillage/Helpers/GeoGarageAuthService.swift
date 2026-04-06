@@ -11,10 +11,12 @@ import Foundation
 
 protocol GeoGarageAuthServiceProtocol {
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse
+  func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse
 }
 
 struct GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   private let endpoint = URL(string: "https://accounts.geogarage.com/o/token/")!
+  private let settingsEndpoint = URL(string: "https://accounts.geogarage.com/api/account/settings")!
 
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse {
     var request = URLRequest(url: endpoint)
@@ -62,6 +64,37 @@ struct GeoGarageAuthService: GeoGarageAuthServiceProtocol {
       }
     } else {
       throw AuthError.invalidResponse
+    }
+  }
+
+  func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse {
+    var request = URLRequest(url: settingsEndpoint)
+    request.httpMethod = "GET"
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.timeoutInterval = 15.0
+
+    let (data, response): (Data, URLResponse)
+    do {
+      (data, response) = try await URLSession.shared.data(for: request)
+    } catch {
+      throw AuthError.networkError(error)
+    }
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw AuthError.invalidResponse
+    }
+
+    if httpResponse.statusCode == 200 {
+      do {
+        let settingsResponse = try JSONDecoder().decode(GeoGarageSettingsResponse.self, from: data)
+        return settingsResponse
+      } catch {
+        throw AuthError.invalidResponse
+      }
+    } else if httpResponse.statusCode == 401 {
+      throw AuthError.tokenExpired
+    } else {
+      throw AuthError.fetchSettingsFailed(statusCode: httpResponse.statusCode)
     }
   }
 
