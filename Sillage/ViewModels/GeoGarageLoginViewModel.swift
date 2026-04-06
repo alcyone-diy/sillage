@@ -16,6 +16,8 @@ final class GeoGarageLoginViewModel {
   var password = ""
   var isLoading = false
   var errorMessage: String? = nil
+  var availableLayers: [GeoGarageLayer] = []
+  var isAuthorizationReady: Bool = false
 
   private let authService: GeoGarageAuthServiceProtocol
 
@@ -37,7 +39,23 @@ final class GeoGarageLoginViewModel {
 
       do {
         let response = try await authService.authenticate(username: username, password: password)
-        print("\n--- SUCCESS: Access Token: \(response.access_token) ---\n")
+
+        // Save tokens securely
+        KeychainManager.shared.save(token: response.access_token, for: "geogarage_access_token")
+        KeychainManager.shared.save(token: response.refresh_token, for: "geogarage_refresh_token")
+
+        // Fetch account settings/layers
+        let settingsResponse = try await authService.fetchAccountSettings(accessToken: response.access_token)
+
+        // Ensure UI-bound updates are explicitly on the MainActor
+        await MainActor.run {
+          availableLayers = settingsResponse.layers
+          isAuthorizationReady = true
+        }
+
+        // Log successful fetch
+        let layerNames = settingsResponse.layers.map { $0.brand_name }.joined(separator: ", ")
+        print("\n--- SUCCESS: Successfully fetched layers: \(layerNames) ---\n")
       } catch let error as AuthError {
         errorMessage = error.localizedDescription
       } catch {

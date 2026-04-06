@@ -27,6 +27,8 @@ enum AuthError: Error, LocalizedError {
   case networkError(Error)
   case invalidResponse
   case encodingError
+  case fetchSettingsFailed(statusCode: Int)
+  case tokenExpired
   case unknown
 
   var errorDescription: String? {
@@ -40,6 +42,10 @@ enum AuthError: Error, LocalizedError {
       return String(localized: "Invalid response from the server.")
     case .encodingError:
       return String(localized: "Failed to encode the request.")
+    case .fetchSettingsFailed(let statusCode):
+      return String(localized: "Failed to fetch account settings. Server returned code \(statusCode).")
+    case .tokenExpired:
+      return String(localized: "Your session has expired. Please log in again.")
     case .unknown:
       return fallback
     }
