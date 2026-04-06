@@ -21,6 +21,9 @@ class MapViewModel: ObservableObject {
   @Published var maxZoom: Double?
   @Published var minZoom: Double?
   @Published var availableGeoGarageLayers: [GeoGarageLayer] = []
+  @Published var localOfflineMaps: [URL] = []
+  @Published var mapImportError: String?
+  @Published var showImportError: Bool = false
 
   // Current Map State
   @Published var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
@@ -56,6 +59,33 @@ class MapViewModel: ObservableObject {
     loadSavedMapSource()
     setupLocationService()
     silentlyFetchGeoGarageLayers()
+    loadLocalOfflineMaps()
+  }
+
+  private func loadLocalOfflineMaps() {
+    Task {
+      let maps = await LocalMapManager.shared.fetchLocalMaps()
+      await MainActor.run {
+        self.localOfflineMaps = maps
+      }
+    }
+  }
+
+  func importOfflineMap(from url: URL) {
+    Task {
+      do {
+        let importedURL = try await LocalMapManager.shared.importMap(from: url)
+        await MainActor.run {
+          self.localOfflineMaps.append(importedURL)
+          self.switchMapSource(to: .localMBTiles(url: importedURL))
+        }
+      } catch {
+        await MainActor.run {
+          self.mapImportError = error.localizedDescription
+          self.showImportError = true
+        }
+      }
+    }
   }
 
   func updateGeoGarageLayers(_ layers: [GeoGarageLayer]) {
