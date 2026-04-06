@@ -1,6 +1,18 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "-- kts" : {
+
+    },
+    "--°" : {
+
+    },
+    "%@ kts" : {
+
+    },
+    "%@°" : {
+
+    },
     "1.0.0" : {
 
     },
@@ -28,6 +40,9 @@
     "Failed to encode the request." : {
 
     },
+    "Failed to fetch account settings. Server returned code %lld." : {
+
+    },
     "General" : {
 
     },
@@ -49,6 +64,12 @@
     "I Accept" : {
 
     },
+    "Import Failed" : {
+
+    },
+    "Import Offline Map (.mbtiles)" : {
+
+    },
     "Invalid response from the server." : {
 
     },
@@ -58,7 +79,13 @@
     "Loading marine charts…" : {
 
     },
+    "Local Offline Charts" : {
+
+    },
     "Log In" : {
+
+    },
+    "Login to GeoGarage" : {
 
     },
     "Map Preferences" : {
@@ -77,6 +104,12 @@
 
     },
     "Network error: %@" : {
+
+    },
+    "OK" : {
+
+    },
+    "Online Charts (GeoGarage)" : {
 
     },
     "Password" : {
@@ -101,6 +134,9 @@
 
     },
     "WARNING: Alcyone Sillage is an electronic navigational aid designed for situational awareness only. It must not be used as the primary means of navigation. This application does not replace official government charts, official notices to mariners, or prudent seamanship. The captain of the vessel assumes all responsibility and liability for the safety of the ship and its crew. Never rely on a single source of information and always maintain a proper visual lookout." : {
+
+    },
+    "Your session has expired. Please log in again." : {
 
     }
   },
