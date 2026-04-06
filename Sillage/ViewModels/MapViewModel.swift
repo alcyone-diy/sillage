@@ -32,8 +32,8 @@ class MapViewModel: ObservableObject {
 
   // UI Properties
   @Published var formattedCoordinates: String = "--"
-  @Published var speedOverGround: Double = 0.0 // knots
-  @Published var courseOverGround: Double = 0.0 // degrees
+  @Published var formattedSOG: String = "-- kts"
+  @Published var formattedCOG: String = "--°"
 
   private var mapLayer: MapLayer?
   private let locationService: LocationServiceProtocol
@@ -112,6 +112,7 @@ class MapViewModel: ObservableObject {
 
   private func setupLocationService() {
     locationService.locationPublisher
+      .throttle(for: .seconds(1), scheduler: DispatchQueue.main, latest: true)
       .receive(on: DispatchQueue.main)
       .sink { [weak self] location in
         self?.handleNewLocation(location)
@@ -122,6 +123,10 @@ class MapViewModel: ObservableObject {
   }
 
   private func handleNewLocation(_ location: CLLocation) {
+    if location.horizontalAccuracy < 0 || location.horizontalAccuracy > 50 {
+      return
+    }
+
     lastKnownLocation = location
 
     // Update formatted coordinates (Degrees, Minutes, Decimals)
@@ -129,16 +134,22 @@ class MapViewModel: ObservableObject {
     let lon = formatCoordinate(location.coordinate.longitude, isLatitude: false)
     formattedCoordinates = "\(lat) / \(lon)"
 
-    // Update SOG (m/s to knots)
+    // Update SOG (m/s to knots) using Apple's Measurement
     let speed = location.speed
     if speed >= 0 {
-      speedOverGround = speed * 1.94384
+      let speedMeasurement = Measurement(value: speed, unit: UnitSpeed.metersPerSecond)
+      let speedInKnots = speedMeasurement.converted(to: .knots).value
+      formattedSOG = String(format: "%.1f kts", speedInKnots)
+    } else {
+      formattedSOG = "-- kts"
     }
 
     // Update COG
     let course = location.course
     if course >= 0 {
-      courseOverGround = course
+      formattedCOG = String(format: "%.0f°", course)
+    } else {
+      formattedCOG = "--°"
     }
 
     // If tracking is active, recenter on the new location automatically
