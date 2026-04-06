@@ -95,34 +95,32 @@ struct ContentView: View {
             Text("SOG")
               .marineFont(.caption)
               .foregroundColor(.gray)
-            if let sog = mapViewModel.speedOverGround {
-              Text("\(sog.formatted(.number.precision(.fractionLength(1)))) kts")
-                .marineFont(.title3)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-            } else {
-              Text("-- kts")
-                .marineFont(.title3)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
+            Group {
+              if let sog = mapViewModel.speedOverGround {
+                Text("\(sog.formatted(.number.precision(.fractionLength(1)))) kts")
+              } else {
+                Text("-- kts")
+              }
             }
+              .marineFont(.title3)
+              .fontWeight(.bold)
+              .foregroundColor(.white)
           }
 
           VStack {
             Text("COG")
               .marineFont(.caption)
               .foregroundColor(.gray)
-            if let cog = mapViewModel.courseOverGround {
-              Text("\(cog.formatted(.number.precision(.fractionLength(0))))°")
-                .marineFont(.title3)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-            } else {
-              Text("--°")
-                .marineFont(.title3)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
+            Group {
+              if let cog = mapViewModel.courseOverGround {
+                Text("\(cog.formatted(.number.precision(.fractionLength(0))))°")
+              } else {
+                Text("--°")
+              }
             }
+              .marineFont(.title3)
+              .fontWeight(.bold)
+              .foregroundColor(.white)
           }
         }
       }
