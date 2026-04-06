@@ -63,7 +63,7 @@ class MapViewModel: ObservableObject {
   }
 
   private func silentlyFetchGeoGarageLayers() {
-    guard let accessToken = KeychainManager.shared.getToken(for: "geogarage_access_token") else {
+    guard let accessToken = KeychainManager.shared.retrieveToken(for: "geogarage_access_token") else {
       return
     }
 
