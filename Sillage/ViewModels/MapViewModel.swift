@@ -32,8 +32,8 @@ class MapViewModel: ObservableObject {
 
   // UI Properties
   @Published var formattedCoordinates: String = "--"
-  @Published var formattedSOG: String = "-- kts"
-  @Published var formattedCOG: String = "--°"
+  @Published var speedOverGround: Double? = nil
+  @Published var courseOverGround: Double? = nil
 
   private var mapLayer: MapLayer?
   private let locationService: LocationServiceProtocol
@@ -124,6 +124,8 @@ class MapViewModel: ObservableObject {
 
   private func handleNewLocation(_ location: CLLocation) {
     if location.horizontalAccuracy < 0 || location.horizontalAccuracy > 50 {
+      speedOverGround = nil
+      courseOverGround = nil
       return
     }
 
@@ -138,18 +140,17 @@ class MapViewModel: ObservableObject {
     let speed = location.speed
     if speed >= 0 {
       let speedMeasurement = Measurement(value: speed, unit: UnitSpeed.metersPerSecond)
-      let speedInKnots = speedMeasurement.converted(to: .knots).value
-      formattedSOG = String(format: "%.1f kts", speedInKnots)
+      speedOverGround = speedMeasurement.converted(to: .knots).value
     } else {
-      formattedSOG = "-- kts"
+      speedOverGround = nil
     }
 
     // Update COG
     let course = location.course
     if course >= 0 {
-      formattedCOG = String(format: "%.0f°", course)
+      courseOverGround = course
     } else {
-      formattedCOG = "--°"
+      courseOverGround = nil
     }
 
     // If tracking is active, recenter on the new location automatically
