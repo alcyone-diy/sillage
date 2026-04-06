@@ -38,6 +38,16 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
     // Prioritize accuracy over battery for a marine environment
     self.locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
     self.locationManager.distanceFilter = kCLDistanceFilterNone
+
+    // Marine Activity Type: prevents automotive road-snapping algorithms
+    self.locationManager.activityType = .otherNavigation
+
+    // Disable Auto-Pause: never pause updates
+    self.locationManager.pausesLocationUpdatesAutomatically = false
+
+    // Background Execution
+    self.locationManager.allowsBackgroundLocationUpdates = true
+    self.locationManager.showsBackgroundLocationIndicator = true
   }
 
   func requestAuthorization() {
