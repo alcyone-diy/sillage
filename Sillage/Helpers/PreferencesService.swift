@@ -13,6 +13,7 @@ import CoreLocation
 
 protocol PreferencesServiceProtocol {
   var savedMapSource: String? { get set }
+  var savedGeoGarageLayerID: String? { get set }
   var savedLatitude: Double? { get set }
   var savedLongitude: Double? { get set }
   var savedZoom: Double? { get set }
@@ -28,6 +29,7 @@ class PreferencesService: PreferencesServiceProtocol {
   static let shared = PreferencesService()
 
   private let mapSourceKey = "selectedMapSource"
+  private let savedGeoGarageLayerIDKey = "savedGeoGarageLayerID"
   private let savedLatitudeKey = "savedLatitude"
   private let savedLongitudeKey = "savedLongitude"
   private let savedZoomKey = "savedZoom"
@@ -40,6 +42,11 @@ class PreferencesService: PreferencesServiceProtocol {
   var savedMapSource: String? {
     get { defaults.string(forKey: mapSourceKey) }
     set { defaults.set(newValue, forKey: mapSourceKey) }
+  }
+
+  var savedGeoGarageLayerID: String? {
+    get { defaults.string(forKey: savedGeoGarageLayerIDKey) }
+    set { defaults.set(newValue, forKey: savedGeoGarageLayerIDKey) }
   }
 
   var savedLatitude: Double? {

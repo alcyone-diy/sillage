@@ -49,19 +49,36 @@ struct MapPreferencesView: View {
         }
         .buttonStyle(.plain) // Prevent form default button styling
 
-        // Remote GeoGarage Button
-        Button(action: {
-          mapViewModel.switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: AppConfiguration.shared.geoGarageLayerID))
-        }) {
-          MapSourceRowView(
-            title: "Remote GeoGarage",
-            subtitle: "Online marine charts",
-            isSelected: currentSelection == .remote
-          )
-          .marineListCell()
-        }
-        .buttonStyle(.plain)
+      }
 
+      Section(header: Text("Online Charts (GeoGarage)").marineFont(.headline)) {
+        if mapViewModel.availableGeoGarageLayers.isEmpty {
+          NavigationLink(destination: GeoGarageLoginView()) {
+            Text("Login to GeoGarage")
+          }
+          .buttonStyle(MarineButtonStyle())
+        } else {
+          ForEach(mapViewModel.availableGeoGarageLayers) { layer in
+            let isSelected = currentSelection == .remote && {
+              if case .remoteGeoGarage(_, let currentLayerID) = mapViewModel.currentMapSource {
+                return currentLayerID == layer.layer
+              }
+              return false
+            }()
+
+            Button(action: {
+              mapViewModel.switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: layer.layer))
+            }) {
+              MapSourceRowView(
+                title: layer.brand_name,
+                subtitle: "Valid until \(layer.valid_until)",
+                isSelected: isSelected
+              )
+              .marineListCell()
+            }
+            .buttonStyle(.plain)
+          }
+        }
       }
     }
     .navigationTitle("Map Preferences")
@@ -78,10 +95,10 @@ private struct MapSourceRowView: View {
     HStack {
       VStack(alignment: .leading, spacing: 4) {
         Text(title)
-          .font(.body)
+          .marineFont(.body)
           .foregroundColor(.primary)
         Text(subtitle)
-          .font(.subheadline)
+          .marineFont(.subheadline)
           .foregroundColor(.secondary)
       }
       Spacer()

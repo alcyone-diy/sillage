@@ -14,7 +14,6 @@ struct AppConfiguration {
   static let shared = AppConfiguration()
 
   let geoGarageClientID: String
-  let geoGarageLayerID: String = "shom" // Public service parameter
 
   private init() {
     guard let clientID = Bundle.main.object(forInfoDictionaryKey: "GEOGARAGE_CLIENT_ID") as? String, !clientID.isEmpty else {
