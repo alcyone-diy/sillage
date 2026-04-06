@@ -95,7 +95,13 @@ struct ContentView: View {
             Text("SOG")
               .marineFont(.caption)
               .foregroundColor(.gray)
-            Text(String(format: "%.1f kts", mapViewModel.speedOverGround))
+            Group {
+              if let sog = mapViewModel.speedOverGround {
+                Text("\(sog.formatted(.number.precision(.fractionLength(1)))) kts")
+              } else {
+                Text("-- kts")
+              }
+            }
               .marineFont(.title3)
               .fontWeight(.bold)
               .foregroundColor(.white)
@@ -105,7 +111,13 @@ struct ContentView: View {
             Text("COG")
               .marineFont(.caption)
               .foregroundColor(.gray)
-            Text(String(format: "%.0f°", mapViewModel.courseOverGround))
+            Group {
+              if let cog = mapViewModel.courseOverGround {
+                Text("\(cog.formatted(.number.precision(.fractionLength(0))))°")
+              } else {
+                Text("--°")
+              }
+            }
               .marineFont(.title3)
               .fontWeight(.bold)
               .foregroundColor(.white)
