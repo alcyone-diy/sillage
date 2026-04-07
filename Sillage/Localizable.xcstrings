@@ -100,7 +100,13 @@
     "Marine Raster Chart" : {
 
     },
+    "Maritime Layers" : {
+
+    },
     "Maritime Navigation Warning" : {
+
+    },
+    "Navigational markers overlay. Zoom in (level 10+) on coasts to see marks." : {
 
     },
     "Network error: %@" : {
@@ -109,7 +115,13 @@
     "OK" : {
 
     },
-    "Online Charts (GeoGarage)" : {
+    "Online Charts (Internet Required)" : {
+
+    },
+    "OpenSeaMap" : {
+
+    },
+    "OpenSeaMap Seamarks" : {
 
     },
     "Password" : {
