@@ -24,7 +24,11 @@ class MapViewModel: ObservableObject {
   @Published var localOfflineMaps: [URL] = []
   @Published var mapImportError: String?
   @Published var showImportError: Bool = false
-  @Published var isOpenSeaMapOverlayEnabled: Bool = false
+  @Published var isOpenSeaMapOverlayEnabled: Bool = false {
+    didSet {
+      preferencesService.isOpenSeaMapOverlayEnabled = isOpenSeaMapOverlayEnabled
+    }
+  }
 
   // Current Map State
   @Published var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
@@ -56,6 +60,7 @@ class MapViewModel: ObservableObject {
     self.locationService = locationService
     self.preferencesService = preferencesService
     self.authService = authService
+    self.isOpenSeaMapOverlayEnabled = preferencesService.isOpenSeaMapOverlayEnabled
 
     loadSavedMapSource()
     setupLocationService()
