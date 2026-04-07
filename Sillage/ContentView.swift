@@ -94,7 +94,7 @@ struct ContentView: View {
           VStack {
             Text("SOG")
               .marineFont(.instrumentLabel)
-              .foregroundColor(.gray)
+              .foregroundColor(.secondary)
             Group {
               if let sog = mapViewModel.speedOverGround {
                 Text("\(sog.formatted(.number.precision(.fractionLength(1)))) kts")
@@ -109,7 +109,7 @@ struct ContentView: View {
           VStack {
             Text("COG")
               .marineFont(.instrumentLabel)
-              .foregroundColor(.gray)
+              .foregroundColor(.secondary)
             Group {
               if let cog = mapViewModel.courseOverGround {
                 Text("\(cog.formatted(.number.precision(.fractionLength(0))))°")

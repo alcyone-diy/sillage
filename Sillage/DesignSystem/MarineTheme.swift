@@ -50,8 +50,8 @@ struct MarineTheme {
     case .footnote: return (.footnote, nil)
     case .caption: return (.caption, nil)
     case .caption2: return (.caption2, nil)
-    case .instrumentData: return (.largeTitle, .semibold)
-    case .instrumentLabel: return (.caption, .bold)
+    case .instrumentData: return (.title3, .semibold)
+    case .instrumentLabel: return (.headline, .bold)
     }
   }
 }
