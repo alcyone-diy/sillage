@@ -179,9 +179,9 @@ struct MapLibreView: UIViewRepresentable {
           print("Programmatically injected MBTiles raster source and layer.")
         }
 
-      case .remoteGeoGarage(let clientID, let layerID):
-        // Construct GeoGarage URL template
-        let template = "sillage-geo://tiles.geogarage.com/\(clientID)/\(layerID)/{z}/{x}/{y}.png"
+      case .remoteGeoGarage(_, let layerID):
+        // Construct GeoGarage URL template using custom local scheme to bypass MapLibre direct request
+        let template = "sillage-geo://geogarage-proxy/\(layerID)/{z}/{x}/{y}.png"
 
         let rasterSource = MLNRasterTileSource(identifier: sourceId, tileURLTemplates: [template], options: [
           .minimumZoomLevel: 0,
