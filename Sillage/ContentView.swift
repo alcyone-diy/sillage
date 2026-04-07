@@ -87,13 +87,13 @@ struct ContentView: View {
   private var marineDashboard: some View {
       VStack(spacing: 8) {
         Text(mapViewModel.formattedCoordinates)
-          .marineFont(.headline)
+          .marineFont(.instrumentData)
           .foregroundColor(.yellow)
 
         HStack(spacing: 40) {
           VStack {
             Text("SOG")
-              .marineFont(.caption)
+              .marineFont(.instrumentLabel)
               .foregroundColor(.gray)
             Group {
               if let sog = mapViewModel.speedOverGround {
@@ -102,14 +102,13 @@ struct ContentView: View {
                 Text("-- kts")
               }
             }
-              .marineFont(.title3)
-              .fontWeight(.bold)
+              .marineFont(.instrumentData)
               .foregroundColor(.white)
           }
 
           VStack {
             Text("COG")
-              .marineFont(.caption)
+              .marineFont(.instrumentLabel)
               .foregroundColor(.gray)
             Group {
               if let cog = mapViewModel.courseOverGround {
@@ -118,8 +117,7 @@ struct ContentView: View {
                 Text("--°")
               }
             }
-              .marineFont(.title3)
-              .fontWeight(.bold)
+              .marineFont(.instrumentData)
               .foregroundColor(.white)
           }
         }

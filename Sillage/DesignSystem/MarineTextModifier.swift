@@ -11,17 +11,37 @@
 import SwiftUI
 
 struct MarineTextModifier: ViewModifier {
-  let baseStyle: Font.TextStyle
+  let style: MarineTextStyle
   @Environment(\.marineTheme) private var marineTheme
 
+  @ViewBuilder
   func body(content: Content) -> some View {
-    content.font(.system(effectiveStyle))
+    let settings = marineTheme.fontSettings(for: style)
+    let isInstrumentStyle = style == .instrumentData || style == .instrumentLabel
+    let effectiveStyle = isInstrumentStyle ? settings.size : calculateEffectiveStyle(base: settings.size)
+
+    if style == .instrumentData {
+      content
+        .font(.system(effectiveStyle))
+        .fontWeight(settings.weight)
+        .monospacedDigit()
+        .dynamicTypeSize(.large)
+    } else if style == .instrumentLabel {
+      content
+        .font(.system(effectiveStyle))
+        .fontWeight(settings.weight)
+        .dynamicTypeSize(.large)
+    } else {
+      content
+        .font(.system(effectiveStyle))
+        .fontWeight(settings.weight)
+    }
   }
 
-  private var effectiveStyle: Font.TextStyle {
-    guard marineTheme.isGloveMode else { return baseStyle }
+  private func calculateEffectiveStyle(base: Font.TextStyle) -> Font.TextStyle {
+    guard marineTheme.isGloveMode else { return base }
 
-    switch baseStyle {
+    switch base {
     case .caption, .caption2:
       return .subheadline
     case .subheadline, .footnote:
@@ -35,13 +55,13 @@ struct MarineTextModifier: ViewModifier {
     case .title:
       return .largeTitle
     default:
-      return baseStyle
+      return base
     }
   }
 }
 
 extension View {
-  func marineFont(_ baseStyle: Font.TextStyle) -> some View {
-    self.modifier(MarineTextModifier(baseStyle: baseStyle))
+  func marineFont(_ style: MarineTextStyle) -> some View {
+    self.modifier(MarineTextModifier(style: style))
   }
 }
