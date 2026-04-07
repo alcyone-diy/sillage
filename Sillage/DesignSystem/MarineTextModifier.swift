@@ -24,6 +24,7 @@ struct MarineTextModifier: ViewModifier {
         .font(.system(effectiveStyle))
         .fontWeight(settings.weight)
         .monospacedDigit()
+        .dynamicTypeSize(.large)
     } else {
       content
         .font(.system(effectiveStyle))
