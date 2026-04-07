@@ -140,8 +140,8 @@ struct MapLibreView: UIViewRepresentable {
       lastMapSource = source
 
       // Remove existing layer and source if they exist
-      let layerId = "raster-layer"
-      let sourceId = "raster-source"
+      let layerId = "base-raster-layer"
+      let sourceId = "base-raster-source"
 
       if let existingLayer = style.layer(withIdentifier: layerId) {
         style.removeLayer(existingLayer)
@@ -191,6 +191,22 @@ struct MapLibreView: UIViewRepresentable {
         style.addLayer(rasterLayer)
 
         print("Programmatically injected GeoGarage raster source and layer.")
+
+      case .openSeaMap:
+        let template = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        let attribution = MLNAttributionInfo(title: NSAttributedString(string: "© OpenStreetMap contributors"), url: URL(string: "https://www.openstreetmap.org/copyright"))
+        let rasterSource = MLNRasterTileSource(identifier: sourceId, tileURLTemplates: [template], options: [
+          .minimumZoomLevel: 0,
+          .maximumZoomLevel: 18,
+          .attributionInfos: [attribution]
+        ])
+
+        style.addSource(rasterSource)
+
+        let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
+        style.addLayer(rasterLayer)
+
+        print("Programmatically injected OpenSeaMap raster source and layer.")
       }
 
       // Re-apply OpenSeaMap overlay if it was enabled, to ensure it stays on top of the new base map
@@ -207,22 +223,8 @@ struct MapLibreView: UIViewRepresentable {
       if lastOpenSeaMapOverlayEnabled != isEnabled {
         lastOpenSeaMapOverlayEnabled = isEnabled
         if isEnabled {
-          // Find the actual bottom-most raster base layer dynamically
-          // ignoring the openseamap layer itself
-          let openseamapLayerID = "openseamap_layer"
-          var bottomRasterLayerID: String? = nil
-
-          for layer in style.layers {
-            if layer is MLNRasterStyleLayer && layer.identifier != openseamapLayerID {
-              bottomRasterLayerID = layer.identifier
-              // Break early or keep going? The base layer is usually added first.
-              // Assuming it's the first raster layer we find.
-              break
-            }
-          }
-
-          // Add above the dynamically found base layer
-          OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: bottomRasterLayerID)
+          // Since we now use a consistent base layer ID, we can simply insert above it
+          OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: "base-raster-layer")
         } else {
           OpenSeaMapLayerService.shared.removeSeamarkLayer(from: style)
         }

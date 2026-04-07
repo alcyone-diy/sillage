@@ -175,11 +175,7 @@ class MapViewModel: ObservableObject {
       if let minZ = metadata.minZoom { self.minZoom = minZ }
       if let maxZ = metadata.maxZoom { self.maxZoom = maxZ }
 
-      // Only use map defaults if we do not already have a valid loaded state
-      if preferencesService.savedLatitude == nil {
-        if let center = metadata.center { self.centerCoordinate = center }
-        if let zoom = metadata.defaultZoom { self.zoomLevel = zoom }
-      }
+      resetToDefaultsIfNeeded(defaultZoom: metadata.defaultZoom ?? 10.0, defaultCenter: metadata.center)
 
     case .remoteGeoGarage(_, let layerID):
       preferencesService.savedMapSource = "remoteGeoGarage"
@@ -190,12 +186,25 @@ class MapViewModel: ObservableObject {
       self.minZoom = 0.0
       self.maxZoom = 20.0
 
-      // Only use map defaults if we do not already have a valid loaded state
-      if preferencesService.savedLatitude == nil {
-        self.zoomLevel = 10.0
-        if let location = lastKnownLocation {
-          self.centerCoordinate = location.coordinate
-        }
+      resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: lastKnownLocation?.coordinate)
+
+    case .openSeaMap:
+      preferencesService.savedMapSource = "openSeaMap"
+      self.mapLayer = MapLayer(name: LocalizedStringResource("OpenSeaMap"), source: source)
+      self.mapBounds = nil
+      self.minZoom = 0.0
+      self.maxZoom = 18.0
+
+      resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: lastKnownLocation?.coordinate)
+    }
+  }
+
+  private func resetToDefaultsIfNeeded(defaultZoom: Double, defaultCenter: CLLocationCoordinate2D?) {
+    // Only use map defaults if we do not already have a valid loaded state
+    if preferencesService.savedLatitude == nil {
+      self.zoomLevel = defaultZoom
+      if let center = defaultCenter {
+        self.centerCoordinate = center
       }
     }
   }
@@ -265,6 +274,8 @@ class MapViewModel: ObservableObject {
 
     if savedSource == "remoteGeoGarage", let savedLayerID = preferencesService.savedGeoGarageLayerID {
       switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: savedLayerID))
+    } else if savedSource == "openSeaMap" {
+      switchMapSource(to: .openSeaMap)
     } else if let savedFileName = savedSource,
             let url = Bundle.main.url(forResource: savedFileName, withExtension: "mbtiles") {
       switchMapSource(to: .localMBTiles(url: url))

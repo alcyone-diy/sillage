@@ -15,10 +15,11 @@ struct MapPreferencesView: View {
   @EnvironmentObject var mapViewModel: MapViewModel
   @State private var showingFileImporter = false
 
-  // A helper enum to easily toggle between the two specific sources
+  // A helper enum to easily toggle between the specific sources
   private enum MapSourceSelection {
     case local
     case remote
+    case openSeaMap
   }
 
   private var currentSelection: MapSourceSelection {
@@ -27,6 +28,8 @@ struct MapPreferencesView: View {
       return .local
     case .remoteGeoGarage:
       return .remote
+    case .openSeaMap:
+      return .openSeaMap
     case .none:
       return .local // Default fallback
     }
@@ -81,7 +84,19 @@ struct MapPreferencesView: View {
         }
       }
 
-      Section(header: Text("Online Charts (GeoGarage)").marineFont(.headline)) {
+      Section(header: Text("Online Charts (Internet Required)").marineFont(.headline)) {
+        Button(action: {
+          mapViewModel.switchMapSource(to: .openSeaMap)
+        }) {
+          MapSourceRowView(
+            title: "OpenSeaMap (Free)",
+            subtitle: "Global map",
+            isSelected: currentSelection == .openSeaMap
+          )
+          .marineListCell()
+        }
+        .buttonStyle(.plain)
+
         if mapViewModel.availableGeoGarageLayers.isEmpty {
           NavigationLink(destination: GeoGarageLoginView()) {
             Text("Login to GeoGarage")
