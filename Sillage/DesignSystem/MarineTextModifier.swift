@@ -14,21 +14,21 @@ struct MarineTextModifier: ViewModifier {
   let style: MarineTextStyle
   @Environment(\.marineTheme) private var marineTheme
 
+  @ViewBuilder
   func body(content: Content) -> some View {
     let settings = marineTheme.fontSettings(for: style)
-    let effectiveStyle = calculateEffectiveStyle(base: settings.size)
-
-    var view = AnyView(content.font(.system(effectiveStyle)))
-
-    if let weight = settings.weight {
-      view = AnyView(view.fontWeight(weight))
-    }
+    let effectiveStyle = (style == .instrumentData) ? settings.size : calculateEffectiveStyle(base: settings.size)
 
     if style == .instrumentData {
-      return AnyView(view.monospacedDigit())
+      content
+        .font(.system(effectiveStyle))
+        .fontWeight(settings.weight)
+        .monospacedDigit()
+    } else {
+      content
+        .font(.system(effectiveStyle))
+        .fontWeight(settings.weight)
     }
-
-    return view
   }
 
   private func calculateEffectiveStyle(base: Font.TextStyle) -> Font.TextStyle {
