@@ -27,7 +27,7 @@ actor TileProxyManager {
         }
 
         // 3. Create new fetch task
-        let task = Task {
+        let task = Task<Data?, Error> {
             defer { inFlightTasks.removeValue(forKey: url) }
 
             let (data, response) = try await URLSession.shared.data(from: url)
