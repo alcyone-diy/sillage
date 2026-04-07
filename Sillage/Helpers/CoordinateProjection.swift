@@ -30,9 +30,12 @@ extension CLLocationCoordinate2D {
 
     let lon2 = lon1 + atan2(sin(trueCourse) * sin(angularDistance) * cos(lat1), cos(angularDistance) - sin(lat1) * sin(lat2))
 
+    let degreesLon = lon2 * 180.0 / .pi
+    let normalizedLon = (degreesLon + 540.0).truncatingRemainder(dividingBy: 360.0) - 180.0
+
     return CLLocationCoordinate2D(
       latitude: lat2 * 180.0 / .pi,
-      longitude: (lon2 * 180.0 / .pi).truncatingRemainder(dividingBy: 360.0) // Normalize
+      longitude: normalizedLon
     )
   }
 }

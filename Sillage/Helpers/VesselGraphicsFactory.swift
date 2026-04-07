@@ -14,7 +14,7 @@ class VesselGraphicsFactory {
 
   /// Draws a sleek isosceles triangle pointing upwards and returns it as a UIImage.
   /// The center of the generated image matches the vessel's pivot point.
-  static func createVesselImage(size: CGSize = CGSize(width: 24, height: 36), color: UIColor = .systemBlue) -> UIImage? {
+  static func createVesselImage(size: CGSize, color: UIColor) -> UIImage? {
     UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
     guard let context = UIGraphicsGetCurrentContext() else {
       return nil

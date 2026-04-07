@@ -136,7 +136,7 @@ struct MapLibreView: UIViewRepresentable {
       print("MapLibre successfully loaded the default style.")
 
       // Add vessel cursor image
-      if let image = VesselGraphicsFactory.createVesselImage(size: CGSize(width: 24, height: 36), color: UIColor(MarineTheme.Colors.accent)) {
+      if let image = VesselGraphicsFactory.createVesselImage(size: MarineTheme.MapMetrics.vesselCursorBaseSize, color: UIColor(MarineTheme.Colors.accent)) {
         style.setImage(image, forName: "vessel-cursor")
       }
 
@@ -308,7 +308,7 @@ struct MapLibreView: UIViewRepresentable {
         style.addSource(source)
 
         let layer = MLNLineStyleLayer(identifier: layerId, source: source)
-        layer.lineWidth = NSExpression(forConstantValue: 2.5)
+        layer.lineWidth = NSExpression(forConstantValue: MarineTheme.MapMetrics.headingLineWidth)
         layer.lineColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.accent))
         layer.lineDashPattern = NSExpression(forConstantValue: [3, 3])
 

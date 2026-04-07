@@ -29,6 +29,11 @@ struct MarineTheme {
     static let large: CGFloat = 24
   }
 
+  struct MapMetrics {
+    static let vesselCursorBaseSize = CGSize(width: 24, height: 36)
+    static let headingLineWidth: Double = 2.5
+  }
+
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false)
   static let gloveMode = MarineTheme(minTouchTarget: 66, isGloveMode: true)
 }

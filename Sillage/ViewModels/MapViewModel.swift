@@ -144,11 +144,14 @@ class MapViewModel: ObservableObject {
 
     lastKnownLocation = location
 
-    // Reset stale data timer
-    isDataStale = false
-    staleDataTimer?.invalidate()
-    staleDataTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-      self?.isDataStale = true
+    // Reset stale data timer (ensure run loop on main thread)
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { return }
+      self.isDataStale = false
+      self.staleDataTimer?.invalidate()
+      self.staleDataTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+        self?.isDataStale = true
+      }
     }
 
     // Update formatted coordinates (Degrees, Minutes, Decimals)
