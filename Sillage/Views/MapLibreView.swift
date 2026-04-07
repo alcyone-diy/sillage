@@ -76,21 +76,11 @@ struct MapLibreView: UIViewRepresentable {
 
   /// Creates a minimal empty JSON style to force MapLibre to load its engine and fire the finish loading delegate method.
   private func createBlankStyleJSON() -> URL? {
-    let jsonString = """
-    { "version": 8, "name": "EmptyStyle", "sources": {}, "layers": [] }
-    """
-
-    do {
-      let jsonData = Data(jsonString.utf8)
-      let tempDirectory = FileManager.default.temporaryDirectory
-      let staticFilename = "blank-style.json"
-      let styleFileURL = tempDirectory.appendingPathComponent(staticFilename)
-      try jsonData.write(to: styleFileURL)
-      return styleFileURL
-    } catch {
-      print("Failed to create blank style JSON: \(error)")
+    guard let styleURL = Bundle.main.url(forResource: "blank-style", withExtension: "json") else {
+      print("WARNING: blank-style.json not found in App Bundle. MapLibre may not initialize correctly.")
       return nil
     }
+    return styleURL
   }
 
   // MARK: - Coordinator
