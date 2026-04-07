@@ -24,6 +24,7 @@ class MapViewModel: ObservableObject {
   @Published var localOfflineMaps: [URL] = []
   @Published var mapImportError: String?
   @Published var showImportError: Bool = false
+  @Published var isOpenSeaMapOverlayEnabled: Bool = false
 
   // Current Map State
   @Published var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)

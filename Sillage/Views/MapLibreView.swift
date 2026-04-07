@@ -60,6 +60,11 @@ struct MapLibreView: UIViewRepresentable {
      let style = uiView.style {
       context.coordinator.updateMapSource(currentSource, style: style, mapView: uiView)
     }
+
+    // Handle OpenSeaMap overlay toggle
+    if let style = uiView.style {
+      context.coordinator.updateOpenSeaMapOverlay(isEnabled: viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: uiView)
+    }
   }
 
   func makeCoordinator() -> Coordinator {
@@ -110,6 +115,8 @@ struct MapLibreView: UIViewRepresentable {
         .store(in: &cancellables)
     }
 
+    var lastOpenSeaMapOverlayEnabled: Bool = false
+
     // Called when the map has finished loading its style
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
       print("MapLibre successfully loaded the default style.")
@@ -117,6 +124,8 @@ struct MapLibreView: UIViewRepresentable {
       if let currentSource = parent.viewModel.currentMapSource {
         updateMapSource(currentSource, style: style, mapView: mapView)
       }
+
+      updateOpenSeaMapOverlay(isEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: mapView)
 
       // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
       // In SwiftUI, `didFinishLoading` can fire before the map view has a non-zero frame.
@@ -184,8 +193,40 @@ struct MapLibreView: UIViewRepresentable {
         print("Programmatically injected GeoGarage raster source and layer.")
       }
 
+      // Re-apply OpenSeaMap overlay if it was enabled, to ensure it stays on top of the new base map
+      if lastOpenSeaMapOverlayEnabled {
+        OpenSeaMapLayerService.shared.removeSeamarkLayer(from: style)
+        OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: layerId)
+      }
+
       // Re-center on the new source's preferred coordinate and zoom if needed
       mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection, animated: false)
+    }
+
+    func updateOpenSeaMapOverlay(isEnabled: Bool, style: MLNStyle, mapView: MLNMapView) {
+      if lastOpenSeaMapOverlayEnabled != isEnabled {
+        lastOpenSeaMapOverlayEnabled = isEnabled
+        if isEnabled {
+          // Find the actual bottom-most raster base layer dynamically
+          // ignoring the openseamap layer itself
+          let openseamapLayerID = "openseamap_layer"
+          var bottomRasterLayerID: String? = nil
+
+          for layer in style.layers {
+            if layer is MLNRasterStyleLayer && layer.identifier != openseamapLayerID {
+              bottomRasterLayerID = layer.identifier
+              // Break early or keep going? The base layer is usually added first.
+              // Assuming it's the first raster layer we find.
+              break
+            }
+          }
+
+          // Add above the dynamically found base layer
+          OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: bottomRasterLayerID)
+        } else {
+          OpenSeaMapLayerService.shared.removeSeamarkLayer(from: style)
+        }
+      }
     }
 
     // Capture user's map movements to break tracking ONLY when the movement stops, as requested

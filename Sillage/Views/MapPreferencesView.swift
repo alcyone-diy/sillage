@@ -110,6 +110,21 @@ struct MapPreferencesView: View {
           }
         }
       }
+
+      Section(header: Text("Maritime Layers").marineFont(.headline)) {
+        Toggle(isOn: $mapViewModel.isOpenSeaMapOverlayEnabled) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("OpenSeaMap Seamarks")
+              .marineFont(.body)
+              .foregroundColor(.primary)
+            Text("Navigational markers overlay. Zoom in (level 10+) on coasts to see marks.")
+              .marineFont(.subheadline)
+              .foregroundColor(.secondary)
+          }
+        }
+        .tint(MarineTheme.Colors.primary)
+        .marineListCell()
+      }
     }
     .navigationTitle("Map Preferences")
     .navigationBarTitleDisplayMode(.inline)
