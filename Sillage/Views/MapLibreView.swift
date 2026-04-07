@@ -30,6 +30,9 @@ struct MapLibreView: UIViewRepresentable {
     // Delegate configuration
     mapView.delegate = context.coordinator
 
+    // Set maximum zoom level to allow overzooming
+    mapView.maximumZoomLevel = 22.0
+
     // Disable pitch gesture to keep the map in 2D
     mapView.isPitchEnabled = false
 
@@ -182,7 +185,7 @@ struct MapLibreView: UIViewRepresentable {
 
         let rasterSource = MLNRasterTileSource(identifier: sourceId, tileURLTemplates: [template], options: [
           .minimumZoomLevel: 0,
-          .maximumZoomLevel: 20
+          .maximumZoomLevel: 16
         ])
 
         style.addSource(rasterSource)
