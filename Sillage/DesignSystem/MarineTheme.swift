@@ -16,6 +16,7 @@ struct MarineTheme {
 
   struct Colors {
     static let primary = Color.blue
+    static let accent = Color.blue // Alias for primary, matching user request
     static let inactive = Color.gray
     static let warning = Color.yellow
     static let background = Color.black
