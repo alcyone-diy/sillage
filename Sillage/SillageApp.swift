@@ -22,7 +22,11 @@ struct SillageApp: App {
   init() {
     URLProtocol.registerClass(TileProxyProtocol.self)
 
-    let config = MLNNetworkConfiguration.sharedManager.sessionConfiguration
+    guard let config = MLNNetworkConfiguration.sharedManager.sessionConfiguration else {
+        // If maplibre has no configuration, we can't inject. (Extremely rare).
+        return
+    }
+
     if let protocolClasses = config.protocolClasses {
         var newProtocolClasses = protocolClasses
         newProtocolClasses.insert(TileProxyProtocol.self, at: 0)
