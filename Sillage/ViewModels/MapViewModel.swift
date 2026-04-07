@@ -197,6 +197,21 @@ class MapViewModel: ObservableObject {
           self.centerCoordinate = location.coordinate
         }
       }
+
+    case .openSeaMap:
+      preferencesService.savedMapSource = "openSeaMap"
+      self.mapLayer = MapLayer(name: LocalizedStringResource("OpenSeaMap"), source: source)
+      self.mapBounds = nil
+      self.minZoom = 0.0
+      self.maxZoom = 18.0
+
+      // Only use map defaults if we do not already have a valid loaded state
+      if preferencesService.savedLatitude == nil {
+        self.zoomLevel = 10.0
+        if let location = lastKnownLocation {
+          self.centerCoordinate = location.coordinate
+        }
+      }
     }
   }
 
@@ -265,6 +280,8 @@ class MapViewModel: ObservableObject {
 
     if savedSource == "remoteGeoGarage", let savedLayerID = preferencesService.savedGeoGarageLayerID {
       switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: savedLayerID))
+    } else if savedSource == "openSeaMap" {
+      switchMapSource(to: .openSeaMap)
     } else if let savedFileName = savedSource,
             let url = Bundle.main.url(forResource: savedFileName, withExtension: "mbtiles") {
       switchMapSource(to: .localMBTiles(url: url))

@@ -13,6 +13,7 @@ import Foundation
 enum MapSource: Equatable {
   case localMBTiles(url: URL)
   case remoteGeoGarage(clientID: String, layerID: String)
+  case openSeaMap
 }
 
 struct MapLayer {
