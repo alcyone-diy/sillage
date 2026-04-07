@@ -17,13 +17,19 @@ struct MarineTextModifier: ViewModifier {
   @ViewBuilder
   func body(content: Content) -> some View {
     let settings = marineTheme.fontSettings(for: style)
-    let effectiveStyle = (style == .instrumentData) ? settings.size : calculateEffectiveStyle(base: settings.size)
+    let isInstrumentStyle = style == .instrumentData || style == .instrumentLabel
+    let effectiveStyle = isInstrumentStyle ? settings.size : calculateEffectiveStyle(base: settings.size)
 
     if style == .instrumentData {
       content
         .font(.system(effectiveStyle))
         .fontWeight(settings.weight)
         .monospacedDigit()
+        .dynamicTypeSize(.large)
+    } else if style == .instrumentLabel {
+      content
+        .font(.system(effectiveStyle))
+        .fontWeight(settings.weight)
         .dynamicTypeSize(.large)
     } else {
       content

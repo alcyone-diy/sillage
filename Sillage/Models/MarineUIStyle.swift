@@ -28,4 +28,5 @@ enum MarineTextStyle {
   case caption
   case caption2
   case instrumentData
+  case instrumentLabel
 }

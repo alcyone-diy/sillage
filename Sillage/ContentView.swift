@@ -93,7 +93,7 @@ struct ContentView: View {
         HStack(spacing: 40) {
           VStack {
             Text("SOG")
-              .marineFont(.caption)
+              .marineFont(.instrumentLabel)
               .foregroundColor(.gray)
             Group {
               if let sog = mapViewModel.speedOverGround {
@@ -108,7 +108,7 @@ struct ContentView: View {
 
           VStack {
             Text("COG")
-              .marineFont(.caption)
+              .marineFont(.instrumentLabel)
               .foregroundColor(.gray)
             Group {
               if let cog = mapViewModel.courseOverGround {
