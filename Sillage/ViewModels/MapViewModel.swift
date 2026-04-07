@@ -42,8 +42,8 @@ class MapViewModel: ObservableObject {
   @Published var courseOverGround: Double? = nil
 
   // Vessel Tracking Features
-  @Published var vesselFeature: MGLPointFeature?
-  @Published var headingLineFeature: MGLPolylineFeature?
+  @Published var vesselFeature: MLNPointFeature?
+  @Published var headingLineFeature: MLNPolylineFeature?
   @Published var isDataStale: Bool = true
 
   private var mapLayer: MapLayer?
@@ -174,7 +174,7 @@ class MapViewModel: ObservableObject {
     }
 
     // Update Vessel Feature
-    let feature = MGLPointFeature()
+    let feature = MLNPointFeature()
     feature.coordinate = location.coordinate
     feature.attributes = ["course": course >= 0 ? course : 0.0]
     self.vesselFeature = feature
@@ -189,7 +189,7 @@ class MapViewModel: ObservableObject {
       if distanceToProject > 0 {
         let projectedCoordinate = location.coordinate.coordinate(at: distanceToProject, bearing: cog)
         var coordinates = [location.coordinate, projectedCoordinate]
-        self.headingLineFeature = MGLPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
+        self.headingLineFeature = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
       } else {
         self.headingLineFeature = nil
       }
