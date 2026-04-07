@@ -12,6 +12,7 @@ import Foundation
 import Combine
 import CoreLocation
 import SwiftUI
+import MapLibre
 
 class MapViewModel: ObservableObject {
 
@@ -40,7 +41,13 @@ class MapViewModel: ObservableObject {
   @Published var speedOverGround: Double? = nil
   @Published var courseOverGround: Double? = nil
 
+  // Vessel Tracking Features
+  @Published var vesselFeature: MLNPointFeature?
+  @Published var headingLineFeature: MLNPolylineFeature?
+  @Published var isDataStale: Bool = true
+
   private var mapLayer: MapLayer?
+  private var staleDataTimer: Timer?
   private let locationService: LocationServiceProtocol
   private var cancellables = Set<AnyCancellable>()
 
@@ -137,6 +144,16 @@ class MapViewModel: ObservableObject {
 
     lastKnownLocation = location
 
+    // Reset stale data timer (ensure run loop on main thread)
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { return }
+      self.isDataStale = false
+      self.staleDataTimer?.invalidate()
+      self.staleDataTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+        self?.isDataStale = true
+      }
+    }
+
     // Update formatted coordinates (Degrees, Minutes, Decimals)
     let lat = formatCoordinate(location.coordinate.latitude, isLatitude: true)
     let lon = formatCoordinate(location.coordinate.longitude, isLatitude: false)
@@ -157,6 +174,30 @@ class MapViewModel: ObservableObject {
       courseOverGround = course
     } else {
       courseOverGround = nil
+    }
+
+    // Update Vessel Feature
+    let feature = MLNPointFeature()
+    feature.coordinate = location.coordinate
+    feature.attributes = ["course": course >= 0 ? course : 0.0]
+    self.vesselFeature = feature
+
+    // Update Heading Line Feature (project 2 minutes ahead based on SOG)
+    if let sog = speedOverGround, let cog = courseOverGround, sog > 0 {
+      // sog is in knots. We need it in m/s for projection
+      // speedMeasurement was created using m/s. We can use location.speed directly.
+      let speedInMetersPerSecond = location.speed > 0 ? location.speed : 0
+      let distanceToProject = speedInMetersPerSecond * 120.0 // 2 minutes (120 seconds)
+
+      if distanceToProject > 0 {
+        let projectedCoordinate = location.coordinate.coordinate(at: distanceToProject, bearing: cog)
+        var coordinates = [location.coordinate, projectedCoordinate]
+        self.headingLineFeature = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
+      } else {
+        self.headingLineFeature = nil
+      }
+    } else {
+      self.headingLineFeature = nil
     }
 
     // If tracking is active, recenter on the new location automatically

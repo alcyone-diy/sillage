@@ -16,6 +16,7 @@ struct MarineTheme {
 
   struct Colors {
     static let primary = Color.blue
+    static let accent = Color.blue // Alias for primary, matching user request
     static let inactive = Color.gray
     static let warning = Color.yellow
     static let background = Color.black
@@ -26,6 +27,11 @@ struct MarineTheme {
     static let small: CGFloat = 8
     static let medium: CGFloat = 16
     static let large: CGFloat = 24
+  }
+
+  struct MapMetrics {
+    static let vesselCursorBaseSize = CGSize(width: 24, height: 36)
+    static let headingLineWidth: Double = 2.5
   }
 
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false)
