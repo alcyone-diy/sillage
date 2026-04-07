@@ -16,10 +16,6 @@ class VesselGraphicsFactory {
   /// The center of the generated image matches the vessel's pivot point.
   static func createVesselImage(size: CGSize, color: UIColor) -> UIImage? {
     UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
-    guard let context = UIGraphicsGetCurrentContext() else {
-      return nil
-    }
-
     // Draw an isosceles triangle
     // A simple triangle (0, h) to (w/2, 0) to (w, h) has its centroid at y = 2/3 * h.
     // To make the centroid of the drawn shape exactly at the canvas center (w/2, h/2),
