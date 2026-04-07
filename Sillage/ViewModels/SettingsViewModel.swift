@@ -30,7 +30,17 @@ class SettingsViewModel {
         title: "MapLibre GL Native (BSD 2-Clause License)",
         filename: "License_MapLibre",
         fileExtension: "txt"
-      )
+      ),
+      LegalDocument(
+        title: "OpenSeaMap (ODbL)",
+        filename: "License_OpenSeaMap",
+        fileExtension: "txt"
+      ),
+      LegalDocument(
+        title: "GeoGarage Terms of Use",
+        filename: "License_GeoGarage",
+        fileExtension: "txt"
+      ),
     ]
   }
 }

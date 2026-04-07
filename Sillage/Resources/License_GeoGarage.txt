@@ -1,0 +1,11 @@
+GeoGarage Marine Cartography - End User License Agreement (EULA)
+
+The nautical charts and associated data provided within this application are supplied by GeoGarage and are derived from various official International Hydrographic Offices (HOs).
+
+WARNING - NOT FOR PRIMARY NAVIGATION
+The electronic charts provided by GeoGarage are an aid to navigation only. They do not replace official government charts and notices to mariners. The user assumes all risk of use. The creators of this application, GeoGarage, and the respective Hydrographic Offices disclaim all liability for any errors, omissions, or inaccuracies in the data, or for any loss, damage, or injury resulting from the use of this product.
+
+INTELLECTUAL PROPERTY
+All chart data is the intellectual property of the respective Hydrographic Offices (e.g., SHOM, UKHO, NOAA, LINZ, etc.) and is protected by international copyright laws. Reproduction, redistribution, or modification of this data outside the scope of this application is strictly prohibited.
+
+By using the GeoGarage map layers within this application, you acknowledge and agree to be bound by the full terms and conditions specified by GeoGarage and the individual Hydrographic Offices, available at: https://geogarage.com/page/license
