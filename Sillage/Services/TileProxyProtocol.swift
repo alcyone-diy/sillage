@@ -20,6 +20,14 @@ class TileProxyProtocol: URLProtocol {
             return
         }
 
+        // 1. Intercept & Verify: Local Authorization Firewall
+        let token = KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
+        if token == nil || token!.isEmpty {
+            // Rule 2: Fail-Closed
+            client?.urlProtocol(self, didFailWithError: URLError(.userAuthenticationRequired))
+            return
+        }
+
         activeTask = Task {
             do {
                 guard let data = try await fetchTileData(for: url) else {
@@ -42,10 +50,20 @@ class TileProxyProtocol: URLProtocol {
     }
 
     private func fetchTileData(for url: URL, depth: Int = 0) async throws -> Data? {
-        // Construct the actual HTTPS URL
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-        components.scheme = "https"
-        guard let httpsURL = components.url else { return nil }
+        // Rewrite and Dispatch
+        // Example URL: sillage-geo://geogarage-proxy/<layerID>/{z}/{x}/{y}.png
+        guard url.host == "geogarage-proxy" else { return nil }
+
+        let pathComponents = url.pathComponents.filter { $0 != "/" }
+        guard pathComponents.count >= 4 else { return nil }
+
+        let layerID = pathComponents[0]
+        let z = pathComponents[1]
+        let x = pathComponents[2]
+        let y = pathComponents[3]
+
+        let clientID = AppConfiguration.shared.geoGarageClientID
+        guard let httpsURL = URL(string: "https://tiles.geogarage.com/\(clientID)/\(layerID)/\(z)/\(x)/\(y)") else { return nil }
 
         // Use TileProxyManager to fetch with request coalescing
         if let data = try await TileProxyManager.shared.fetchTile(url: httpsURL) {
