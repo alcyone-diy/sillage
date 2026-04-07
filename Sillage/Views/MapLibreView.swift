@@ -80,17 +80,11 @@ struct MapLibreView: UIViewRepresentable {
     { "version": 8, "name": "EmptyStyle", "sources": {}, "layers": [] }
     """
 
-    do {
-      let jsonData = Data(jsonString.utf8)
-      let tempDirectory = FileManager.default.temporaryDirectory
-      let staticFilename = "blank-style.json"
-      let styleFileURL = tempDirectory.appendingPathComponent(staticFilename)
-      try jsonData.write(to: styleFileURL)
-      return styleFileURL
-    } catch {
-      print("Failed to create blank style JSON: \(error)")
-      return nil
-    }
+    let jsonData = Data(jsonString.utf8)
+    let base64String = jsonData.base64EncodedString()
+    let dataURI = "data:application/json;base64,\(base64String)"
+
+    return URL(string: dataURI)
   }
 
   // MARK: - Coordinator
