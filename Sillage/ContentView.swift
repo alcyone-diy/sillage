@@ -87,7 +87,7 @@ struct ContentView: View {
   private var marineDashboard: some View {
       VStack(spacing: 8) {
         Text(mapViewModel.formattedCoordinates)
-          .marineFont(.headline)
+          .marineFont(.instrumentData)
           .foregroundColor(.yellow)
 
         HStack(spacing: 40) {
@@ -102,8 +102,7 @@ struct ContentView: View {
                 Text("-- kts")
               }
             }
-              .marineFont(.title3)
-              .fontWeight(.bold)
+              .marineFont(.instrumentData)
               .foregroundColor(.white)
           }
 
@@ -118,8 +117,7 @@ struct ContentView: View {
                 Text("--°")
               }
             }
-              .marineFont(.title3)
-              .fontWeight(.bold)
+              .marineFont(.instrumentData)
               .foregroundColor(.white)
           }
         }
