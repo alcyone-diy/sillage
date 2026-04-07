@@ -14,3 +14,18 @@ enum MarineUIStyle {
   case standard
   case gloveMode
 }
+
+enum MarineTextStyle {
+  case largeTitle
+  case title
+  case title2
+  case title3
+  case headline
+  case body
+  case callout
+  case subheadline
+  case footnote
+  case caption
+  case caption2
+  case instrumentData
+}

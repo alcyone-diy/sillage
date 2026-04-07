@@ -21,7 +21,7 @@ All UI tokens and modifiers are located in `Sillage/DesignSystem/`.
 - **NEVER** use standard `.font(.body)` directly for labels.
 
 #### 2. Typography
-Use the custom `.marineFont(_ baseStyle: Font.TextStyle)` modifier. 
+Use the custom `.marineFont(_ style: MarineTextStyle)` modifier.
 - It automatically handles font tier bumping when `Glove Mode` is active.
 - Example: `Text("SOG").marineFont(.caption)`
 

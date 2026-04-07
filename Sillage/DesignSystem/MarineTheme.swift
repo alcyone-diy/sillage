@@ -36,6 +36,23 @@ struct MarineTheme {
 
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false)
   static let gloveMode = MarineTheme(minTouchTarget: 66, isGloveMode: true)
+
+  func fontSettings(for style: MarineTextStyle) -> (size: Font.TextStyle, weight: Font.Weight?) {
+    switch style {
+    case .largeTitle: return (.largeTitle, nil)
+    case .title: return (.title, nil)
+    case .title2: return (.title2, nil)
+    case .title3: return (.title3, nil)
+    case .headline: return (.headline, nil)
+    case .body: return (.body, nil)
+    case .callout: return (.callout, nil)
+    case .subheadline: return (.subheadline, nil)
+    case .footnote: return (.footnote, nil)
+    case .caption: return (.caption, nil)
+    case .caption2: return (.caption2, nil)
+    case .instrumentData: return (.largeTitle, .semibold)
+    }
+  }
 }
 
 private struct MarineThemeKey: EnvironmentKey {
