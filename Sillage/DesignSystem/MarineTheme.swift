@@ -14,6 +14,20 @@ struct MarineTheme {
   let minTouchTarget: CGFloat
   let isGloveMode: Bool
 
+  struct Colors {
+    static let primary = Color.blue
+    static let inactive = Color.gray
+    static let warning = Color.yellow
+    static let background = Color.black
+    static let overlay = Color.black.opacity(0.3)
+  }
+
+  struct Spacing {
+    static let small: CGFloat = 8
+    static let medium: CGFloat = 16
+    static let large: CGFloat = 24
+  }
+
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false)
   static let gloveMode = MarineTheme(minTouchTarget: 66, isGloveMode: true)
 }

@@ -60,6 +60,11 @@ struct MapLibreView: UIViewRepresentable {
      let style = uiView.style {
       context.coordinator.updateMapSource(currentSource, style: style, mapView: uiView)
     }
+
+    // Handle OpenSeaMap overlay toggle
+    if let style = uiView.style {
+      context.coordinator.updateOpenSeaMapOverlay(isEnabled: viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: uiView)
+    }
   }
 
   func makeCoordinator() -> Coordinator {
@@ -110,6 +115,8 @@ struct MapLibreView: UIViewRepresentable {
         .store(in: &cancellables)
     }
 
+    var lastOpenSeaMapOverlayEnabled: Bool = false
+
     // Called when the map has finished loading its style
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
       print("MapLibre successfully loaded the default style.")
@@ -117,6 +124,8 @@ struct MapLibreView: UIViewRepresentable {
       if let currentSource = parent.viewModel.currentMapSource {
         updateMapSource(currentSource, style: style, mapView: mapView)
       }
+
+      updateOpenSeaMapOverlay(isEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: mapView)
 
       // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
       // In SwiftUI, `didFinishLoading` can fire before the map view has a non-zero frame.
@@ -184,8 +193,26 @@ struct MapLibreView: UIViewRepresentable {
         print("Programmatically injected GeoGarage raster source and layer.")
       }
 
+      // Re-apply OpenSeaMap overlay if it was enabled, to ensure it stays on top of the new base map
+      if lastOpenSeaMapOverlayEnabled {
+        OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: layerId)
+      }
+
       // Re-center on the new source's preferred coordinate and zoom if needed
       mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection, animated: false)
+    }
+
+    func updateOpenSeaMapOverlay(isEnabled: Bool, style: MLNStyle, mapView: MLNMapView) {
+      if lastOpenSeaMapOverlayEnabled != isEnabled {
+        lastOpenSeaMapOverlayEnabled = isEnabled
+        if isEnabled {
+          // If the raster-layer exists, add above it. Otherwise, add at the bottom of the style layers
+          // to ensure it doesn't obscure the GPS puck or custom navigation UI.
+          OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: "raster-layer")
+        } else {
+          OpenSeaMapLayerService.shared.removeSeamarkLayer(from: style)
+        }
+      }
     }
 
     // Capture user's map movements to break tracking ONLY when the movement stops, as requested

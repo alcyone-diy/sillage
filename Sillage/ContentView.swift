@@ -47,20 +47,18 @@ struct ContentView: View {
       Spacer()
 
       // Bottom Floating Action Buttons
-      HStack {
-          // Settings Button
+      HStack(spacing: MarineTheme.Spacing.medium) {
+          Spacer()
+
+          // OpenSeaMap Overlay Toggle Button
           Button(action: {
-            isShowingSettings = true
+            mapViewModel.isOpenSeaMapOverlayEnabled.toggle()
           }) {
-            Image(systemName: "gearshape.fill")
+            Image(systemName: "map.fill")
               .font(.system(size: 24, weight: .bold))
               .foregroundColor(.white)
           }
-          .buttonStyle(MarineFABStyle(backgroundColor: .blue))
-          .padding()
-          .padding(.bottom, 30) // Clears bottom safe area
-
-          Spacer()
+          .buttonStyle(MarineFABStyle(backgroundColor: mapViewModel.isOpenSeaMapOverlayEnabled ? MarineTheme.Colors.primary : MarineTheme.Colors.inactive))
 
           // Recenter Button
           Button(action: {
@@ -70,10 +68,20 @@ struct ContentView: View {
               .font(.system(size: 24, weight: .bold))
               .foregroundColor(.white)
           }
-          .buttonStyle(MarineFABStyle(backgroundColor: mapViewModel.isTrackingUser ? .blue : .gray))
-          .padding()
-          .padding(.bottom, 30) // Clears bottom safe area
+          .buttonStyle(MarineFABStyle(backgroundColor: mapViewModel.isTrackingUser ? MarineTheme.Colors.primary : MarineTheme.Colors.inactive))
+
+          // Settings Button
+          Button(action: {
+            isShowingSettings = true
+          }) {
+            Image(systemName: "gearshape.fill")
+              .font(.system(size: 24, weight: .bold))
+              .foregroundColor(.white)
+          }
+          .buttonStyle(MarineFABStyle(backgroundColor: MarineTheme.Colors.primary))
       }
+      .padding(MarineTheme.Spacing.medium)
+      .padding(.bottom, 30) // Clears bottom safe area
     }
     }
     .sheet(isPresented: $isShowingSettings) {
