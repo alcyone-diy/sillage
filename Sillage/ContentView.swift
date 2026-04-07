@@ -86,10 +86,12 @@ struct ContentView: View {
   // Marine Dashboard View
   private var marineDashboard: some View {
       VStack(spacing: 8) {
+        // TODO: Need to find a way to add it back without taking too much space. Probably display it when tapping on the instructions.
+        /*
         Text(mapViewModel.formattedCoordinates)
           .marineFont(.instrumentData)
           .foregroundColor(.yellow)
-
+        */
         HStack(spacing: 40) {
           VStack {
             Text("SOG")
