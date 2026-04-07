@@ -195,6 +195,7 @@ struct MapLibreView: UIViewRepresentable {
 
       // Re-apply OpenSeaMap overlay if it was enabled, to ensure it stays on top of the new base map
       if lastOpenSeaMapOverlayEnabled {
+        OpenSeaMapLayerService.shared.removeSeamarkLayer(from: style)
         OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: layerId)
       }
 
@@ -206,9 +207,22 @@ struct MapLibreView: UIViewRepresentable {
       if lastOpenSeaMapOverlayEnabled != isEnabled {
         lastOpenSeaMapOverlayEnabled = isEnabled
         if isEnabled {
-          // If the raster-layer exists, add above it. Otherwise, add at the bottom of the style layers
-          // to ensure it doesn't obscure the GPS puck or custom navigation UI.
-          OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: "raster-layer")
+          // Find the actual bottom-most raster base layer dynamically
+          // ignoring the openseamap layer itself
+          let openseamapLayerID = "openseamap_layer"
+          var bottomRasterLayerID: String? = nil
+
+          for layer in style.layers {
+            if layer is MLNRasterStyleLayer && layer.identifier != openseamapLayerID {
+              bottomRasterLayerID = layer.identifier
+              // Break early or keep going? The base layer is usually added first.
+              // Assuming it's the first raster layer we find.
+              break
+            }
+          }
+
+          // Add above the dynamically found base layer
+          OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: bottomRasterLayerID)
         } else {
           OpenSeaMapLayerService.shared.removeSeamarkLayer(from: style)
         }

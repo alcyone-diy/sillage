@@ -117,7 +117,7 @@ struct MapPreferencesView: View {
             Text("OpenSeaMap Seamarks")
               .marineFont(.body)
               .foregroundColor(.primary)
-            Text("Navigational markers overlay")
+            Text("Navigational markers overlay. Zoom in (level 10+) on coasts to see marks.")
               .marineFont(.subheadline)
               .foregroundColor(.secondary)
           }
