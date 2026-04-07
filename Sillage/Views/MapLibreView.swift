@@ -181,7 +181,7 @@ struct MapLibreView: UIViewRepresentable {
 
       case .remoteGeoGarage(let clientID, let layerID):
         // Construct GeoGarage URL template
-        let template = "https://tiles.geogarage.com/\(clientID)/\(layerID)/{z}/{x}/{y}.png"
+        let template = "sillage-geo://tiles.geogarage.com/\(clientID)/\(layerID)/{z}/{x}/{y}.png"
 
         let rasterSource = MLNRasterTileSource(identifier: sourceId, tileURLTemplates: [template], options: [
           .minimumZoomLevel: 0,

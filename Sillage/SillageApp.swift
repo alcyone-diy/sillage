@@ -11,12 +11,32 @@
 //
 
 import SwiftUI
+import MapLibre
 
 @main
 struct SillageApp: App {
   @State private var appViewModel = AppViewModel()
   @StateObject private var mapViewModel = MapViewModel()
   @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
+
+  init() {
+    URLProtocol.registerClass(TileProxyProtocol.self)
+
+    guard let config = MLNNetworkConfiguration.sharedManager.sessionConfiguration else {
+        // If maplibre has no configuration, we can't inject. (Extremely rare).
+        return
+    }
+
+    if let protocolClasses = config.protocolClasses {
+        var newProtocolClasses = protocolClasses
+        newProtocolClasses.insert(TileProxyProtocol.self, at: 0)
+        config.protocolClasses = newProtocolClasses
+    } else {
+        config.protocolClasses = [TileProxyProtocol.self]
+    }
+    // Explicitly reassign the configuration object to MapLibre
+    MLNNetworkConfiguration.sharedManager.sessionConfiguration = config
+  }
 
   var body: some Scene {
     WindowGroup {
