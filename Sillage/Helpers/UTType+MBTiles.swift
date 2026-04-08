@@ -15,6 +15,6 @@ extension UTType {
   static var mbtiles: UTType {
     // "com.alcyone.sillage.mbtiles" should be registered in Info.plist
     // conforming to "public.data" with the extension "mbtiles".
-    UTType(exportedAs: "com.alcyone.sillage.mbtiles")
+    UTType(exportedAs: "com.alcyone-sillage.app.mbtiles")
   }
 }
