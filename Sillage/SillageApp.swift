@@ -18,26 +18,27 @@ struct SillageApp: App {
   @State private var appViewModel = AppViewModel()
   @StateObject private var mapViewModel = MapViewModel()
   @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
-
+  
   init() {
     URLProtocol.registerClass(TileProxyProtocol.self)
-
+    
     guard let config = MLNNetworkConfiguration.sharedManager.sessionConfiguration else {
-        // If maplibre has no configuration, we can't inject. (Extremely rare).
-        return
+      // If maplibre has no configuration, we can't inject. (Extremely rare).
+      return
     }
-
+    
     if let protocolClasses = config.protocolClasses {
-        var newProtocolClasses = protocolClasses
-        newProtocolClasses.insert(TileProxyProtocol.self, at: 0)
-        config.protocolClasses = newProtocolClasses
+      var newProtocolClasses = protocolClasses
+      newProtocolClasses.insert(TileProxyProtocol.self, at: 0)
+      config.protocolClasses = newProtocolClasses
     } else {
-        config.protocolClasses = [TileProxyProtocol.self]
+      config.protocolClasses = [TileProxyProtocol.self]
     }
     // Explicitly reassign the configuration object to MapLibre
     MLNNetworkConfiguration.sharedManager.sessionConfiguration = config
+    setupFileSystem()
   }
-
+  
   var body: some Scene {
     WindowGroup {
       if hasAcceptedDisclaimer {
@@ -55,6 +56,31 @@ struct SillageApp: App {
             appViewModel.handleIncomingURL(url)
           }
       }
+    }
+  }
+  
+  private func setupFileSystem() {
+    let fm = FileManager.default
+    guard let docsURL = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+    let chartsURL = docsURL.appendingPathComponent("Charts", isDirectory: true)
+    do {
+      // 1. Create the 'Charts' subdirectory if it doesn't exist
+      if !fm.fileExists(atPath: chartsURL.path) {
+        try fm.createDirectory(at: chartsURL, withIntermediateDirectories: true)
+      }
+      // 2. Write a dummy file to force iOS to expose the Sillage folder in the Files app
+      let dummyURL = docsURL.appendingPathComponent("Sillage_ReadMe.txt")
+      if !fm.fileExists(atPath: dummyURL.path) {
+        let text = "Alcyone Sillage - Chart Plotter.\nPlease place your .mbtiles files in the 'Charts' directory."
+        try text.write(to: dummyURL, atomically: true, encoding: .utf8)
+      }
+#if DEBUG
+      print("⚓️ FileSystem ready: \(docsURL.path)")
+#endif
+    } catch {
+#if DEBUG
+      print("❌ Critical FileSystem initialization error: \(error.localizedDescription)")
+#endif
     }
   }
 }

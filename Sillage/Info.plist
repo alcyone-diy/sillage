@@ -17,6 +17,10 @@
 	</array>
 	<key>GEOGARAGE_CLIENT_ID</key>
 	<string>$(GEOGARAGE_CLIENT_ID)</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UIFileSharingEnabled</key>
+	<true/>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Sillage requires your background location to record your GPS track and maintain navigation alarms while the screen is off.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
