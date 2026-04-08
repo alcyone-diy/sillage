@@ -45,8 +45,15 @@ struct SillageApp: App {
           .environment(\.marineTheme, appViewModel.marineTheme)
           .environment(appViewModel)
           .environmentObject(mapViewModel)
+          .onOpenURL { url in
+            appViewModel.handleIncomingURL(url)
+          }
       } else {
         DisclaimerView()
+          .onOpenURL { url in
+            // Handle URL opening even if disclaimer is not yet accepted
+            appViewModel.handleIncomingURL(url)
+          }
       }
     }
   }

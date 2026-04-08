@@ -15,6 +15,7 @@ import CoreLocation
 
 struct ContentView: View {
 
+  @Environment(AppViewModel.self) private var appViewModel
   @EnvironmentObject var mapViewModel: MapViewModel
 
   // State for showing the settings sheet
@@ -80,6 +81,14 @@ struct ContentView: View {
       SettingsView()
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+    .alert(
+      isPresented: Bindable(appViewModel).showImportError,
+      error: appViewModel.importError
+    ) { _ in
+      Button("OK", role: .cancel) { }
+    } message: { error in
+      Text(error.localizedDescription)
     }
   }
 
