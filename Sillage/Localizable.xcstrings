@@ -31,16 +31,25 @@
     "COG" : {
 
     },
+    "Could not create the Charts directory." : {
+
+    },
     "Done" : {
 
     },
     "Error loading document" : {
 
     },
+    "Failed to access the file securely." : {
+
+    },
     "Failed to encode the request." : {
 
     },
     "Failed to fetch account settings. Server returned code %lld." : {
+
+    },
+    "Failed to move the chart file: %@" : {
 
     },
     "General" : {
@@ -71,6 +80,9 @@
 
     },
     "Import Offline Map (.mbtiles)" : {
+
+    },
+    "Import succeeded, but failed to clean up the original file: %@" : {
 
     },
     "Invalid response from the server." : {
@@ -140,6 +152,9 @@
 
     },
     "SOG" : {
+
+    },
+    "The provided URL is not a valid file." : {
 
     },
     "Username" : {
