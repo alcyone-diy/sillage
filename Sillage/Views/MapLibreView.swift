@@ -127,6 +127,18 @@ struct MapLibreView: UIViewRepresentable {
           self?.updateStaleState(isStale, in: mapView)
         }
         .store(in: &cancellables)
+
+      parent.viewModel.$isTrackingUser
+        .receive(on: DispatchQueue.main)
+        .sink { [weak mapView] isTracking in
+          guard let mapView = mapView else { return }
+          if isTracking && mapView.userTrackingMode != .follow {
+            mapView.userTrackingMode = .follow
+          } else if !isTracking && mapView.userTrackingMode != .none {
+            mapView.userTrackingMode = .none
+          }
+        }
+        .store(in: &cancellables)
     }
 
     var lastOpenSeaMapOverlayEnabled: Bool = false
@@ -336,6 +348,31 @@ struct MapLibreView: UIViewRepresentable {
           OpenSeaMapLayerService.shared.removeSeamarkLayer(from: style)
         }
       }
+    }
+
+    func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
+      DispatchQueue.main.async {
+        if mode != .follow && self.parent.viewModel.isTrackingUser {
+          self.parent.viewModel.isTrackingUser = false
+        } else if mode == .follow && !self.parent.viewModel.isTrackingUser {
+          self.parent.viewModel.isTrackingUser = true
+        }
+      }
+    }
+
+    // Hide the native MapLibre user location puck, as we draw our own custom vessel feature.
+    func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+      if annotation is MLNUserLocation {
+        let identifier = "hiddenUserLocation"
+        var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MLNUserLocationAnnotationView
+        if view == nil {
+          view = MLNUserLocationAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+        }
+        view?.isHidden = true
+        view?.alpha = 0
+        return view
+      }
+      return nil
     }
 
     // Capture user's map movements to break tracking ONLY when the movement stops, as requested

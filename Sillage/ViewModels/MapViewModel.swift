@@ -200,10 +200,7 @@ class MapViewModel: ObservableObject {
       self.headingLineFeature = nil
     }
 
-    // If tracking is active, recenter on the new location automatically
-    if isTrackingUser {
-      centerOnUserLocation()
-    }
+    // Tracking is handled natively by MapLibreView observing isTrackingUser
   }
 
   func switchMapSource(to source: MapSource) {
@@ -256,9 +253,7 @@ class MapViewModel: ObservableObject {
   }
 
   func mapInteractedByUser() {
-    if isTrackingUser {
-      isTrackingUser = false
-    }
+    // Left empty or handled. Tracking state updates are now synced via mapView(_:didChange:animated:) in MapLibreView
   }
 
   private func formatCoordinate(_ degrees: CLLocationDegrees, isLatitude: Bool) -> String {
@@ -273,7 +268,8 @@ class MapViewModel: ObservableObject {
   func activateTracking() {
     print("Recenter button tapped. Tracking activated.")
     isTrackingUser = true
-    centerOnUserLocation()
+    // Note: Calling centerOnUserLocation() manually here might interrupt native tracking.
+    // Setting `isTrackingUser` triggers `mapView.userTrackingMode = .follow` which natively centers on user.
   }
 
   func centerOnUserLocation() {
@@ -282,15 +278,8 @@ class MapViewModel: ObservableObject {
       return
     }
 
-    // Sending a high zoom level like 18.0, which roughly corresponds to ~50m visibility.
-    // We clamp it to the map's maxZoom if available to avoid the "white screen" issue
-    // caused by requesting a zoom level where no raster tiles exist.
-    var targetZoom = 18.0
-    if let maxZ = self.maxZoom, targetZoom > maxZ {
-      targetZoom = maxZ
-    }
-
-    cameraMovePublisher.send((location.coordinate, targetZoom))
+    // Pass `nil` for zoomLevel to allow MapLibreView to use `mapView.zoomLevel` and preserve it.
+    cameraMovePublisher.send((location.coordinate, nil))
   }
 
   func saveCameraState() {
