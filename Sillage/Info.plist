@@ -2,48 +2,51 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>GEOGARAGE_CLIENT_ID</key>
-  <string>$(GEOGARAGE_CLIENT_ID)</string>
-  <key>UIBackgroundModes</key>
-  <array>
-    <string>location</string>
-  </array>
-  <key>NSLocationWhenInUseUsageDescription</key>
-  <string>Your position is required to display your vessel on the chart and provide navigation data (SOG/COG).</string>
-  <key>LSSupportsOpeningDocumentsInPlace</key>
-  <true/>
-  <key>CFBundleDocumentTypes</key>
-  <array>
-    <dict>
-      <key>CFBundleTypeName</key>
-      <string>MBTiles Map Archive</string>
-      <key>LSHandlerRank</key>
-      <string>Owner</string>
-      <key>LSItemContentTypes</key>
-      <array>
-        <string>com.alcyone.sillage.mbtiles</string>
-      </array>
-    </dict>
-  </array>
-  <key>UTExportedTypeDeclarations</key>
-  <array>
-    <dict>
-      <key>UTTypeIdentifier</key>
-      <string>com.alcyone.sillage.mbtiles</string>
-      <key>UTTypeConformsTo</key>
-      <array>
-        <string>public.data</string>
-      </array>
-      <key>UTTypeDescription</key>
-      <string>MBTiles Map Archive</string>
-      <key>UTTypeTagSpecification</key>
-      <dict>
-        <key>public.filename-extension</key>
-        <array>
-          <string>mbtiles</string>
-        </array>
-      </dict>
-    </dict>
-  </array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>MBTiles Map Archive</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.alcyone.sillage.mbtiles</string>
+			</array>
+		</dict>
+	</array>
+	<key>GEOGARAGE_CLIENT_ID</key>
+	<string>$(GEOGARAGE_CLIENT_ID)</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict/>
+	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>MBTiles Map Archive</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.alcyone.sillage.mbtiles</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>mbtiles</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>
