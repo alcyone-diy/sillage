@@ -360,6 +360,16 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
 
+    // Hide the native MapLibre user location puck, as we draw our own custom vessel feature.
+    func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+      if annotation is MLNUserLocation {
+        let view = MLNAnnotationView(frame: .zero)
+        view.isHidden = true
+        return view
+      }
+      return nil
+    }
+
     // Capture user's map movements to break tracking ONLY when the movement stops, as requested
     // Also sync the final camera state back to the ViewModel so it knows where the map is.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
