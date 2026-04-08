@@ -127,6 +127,18 @@ struct MapLibreView: UIViewRepresentable {
           self?.updateStaleState(isStale, in: mapView)
         }
         .store(in: &cancellables)
+
+      parent.viewModel.$isTrackingUser
+        .receive(on: DispatchQueue.main)
+        .sink { [weak mapView] isTracking in
+          guard let mapView = mapView else { return }
+          if isTracking && mapView.userTrackingMode != .follow {
+            mapView.userTrackingMode = .follow
+          } else if !isTracking && mapView.userTrackingMode != .none {
+            mapView.userTrackingMode = .none
+          }
+        }
+        .store(in: &cancellables)
     }
 
     var lastOpenSeaMapOverlayEnabled: Bool = false
@@ -334,6 +346,16 @@ struct MapLibreView: UIViewRepresentable {
           OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: "base-raster-layer")
         } else {
           OpenSeaMapLayerService.shared.removeSeamarkLayer(from: style)
+        }
+      }
+    }
+
+    func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
+      DispatchQueue.main.async {
+        if mode != .follow && self.parent.viewModel.isTrackingUser {
+          self.parent.viewModel.isTrackingUser = false
+        } else if mode == .follow && !self.parent.viewModel.isTrackingUser {
+          self.parent.viewModel.isTrackingUser = true
         }
       }
     }
