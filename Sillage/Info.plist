@@ -11,7 +11,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.alcyone.sillage.mbtiles</string>
+				<string>com.alcyone-sillage.app.mbtiles</string>
 			</array>
 		</dict>
 	</array>
@@ -42,7 +42,7 @@
 			<key>UTTypeDescription</key>
 			<string>MBTiles Map Archive</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.alcyone.sillage.mbtiles</string>
+			<string>com.alcyone-sillage.app.mbtiles</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
