@@ -363,8 +363,13 @@ struct MapLibreView: UIViewRepresentable {
     // Hide the native MapLibre user location puck, as we draw our own custom vessel feature.
     func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
       if annotation is MLNUserLocation {
-        let view = MLNAnnotationView(frame: .zero)
-        view.isHidden = true
+        let identifier = "hiddenUserLocation"
+        var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MLNUserLocationAnnotationView
+        if view == nil {
+          view = MLNUserLocationAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+        }
+        view?.isHidden = true
+        view?.alpha = 0
         return view
       }
       return nil
