@@ -37,25 +37,6 @@ struct MapPreferencesView: View {
 
   var body: some View {
     Form {
-      Section(header: Text("Map Source").font(.headline)) {
-
-        // Local MBTiles Button
-        Button(action: {
-          if let url = Bundle.main.url(forResource: "7413_pal300", withExtension: "mbtiles") {
-            mapViewModel.switchMapSource(to: .localMBTiles(url: url))
-          }
-        }) {
-          MapSourceRowView(
-            title: "Local MBTiles",
-            subtitle: "Offline marine charts",
-            isSelected: currentSelection == .local
-          )
-          .marineListCell()
-        }
-        .buttonStyle(.plain) // Prevent form default button styling
-
-      }
-
       Section(header: Text("Local Offline Charts").marineFont(.headline)) {
         Button("Import Offline Map (.mbtiles)") {
           showingFileImporter = true

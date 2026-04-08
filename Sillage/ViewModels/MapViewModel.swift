@@ -320,14 +320,12 @@ class MapViewModel: ObservableObject {
 
     if savedSource == "remoteGeoGarage", let savedLayerID = preferencesService.savedGeoGarageLayerID {
       switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: savedLayerID))
-    } else if savedSource == "openSeaMap" {
-      switchMapSource(to: .openSeaMap)
     } else if let savedFileName = savedSource,
             let url = Bundle.main.url(forResource: savedFileName, withExtension: "mbtiles") {
       switchMapSource(to: .localMBTiles(url: url))
     } else {
-      // Default to the predefined local MBTiles
-      loadMBTilesData()
+      // Default to OpenSeaMap.
+      switchMapSource(to: .openSeaMap)
     }
 
     // Ensure camera state overrides any defaults populated by switchMapSource

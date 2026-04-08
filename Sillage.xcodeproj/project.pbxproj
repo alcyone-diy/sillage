@@ -17,13 +17,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		020ACF642F6CD0D1002C5C1B /* Exceptions for "maps" folder in "Sillage" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				7413/7413_pal300.mbtiles,
-			);
-			target = 020ACF252F6C9E66002C5C1B /* Sillage */;
-		};
 		0229A83D2F82CD2400A37C2B /* Exceptions for "Sillage" folder in "Sillage" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -40,14 +33,6 @@
 				0229A83D2F82CD2400A37C2B /* Exceptions for "Sillage" folder in "Sillage" target */,
 			);
 			path = Sillage;
-			sourceTree = "<group>";
-		};
-		020ACF622F6CD0C6002C5C1B /* maps */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				020ACF642F6CD0D1002C5C1B /* Exceptions for "maps" folder in "Sillage" target */,
-			);
-			path = maps;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -68,7 +53,6 @@
 			isa = PBXGroup;
 			children = (
 				020ACFC02F6F699B002C5C1B /* LaRochelle_Test.gpx */,
-				020ACF622F6CD0C6002C5C1B /* maps */,
 				020ACF282F6C9E66002C5C1B /* Sillage */,
 				020ACF272F6C9E66002C5C1B /* Products */,
 				1D1F25430CE99BC84D383856 /* Secrets.xcconfig */,
