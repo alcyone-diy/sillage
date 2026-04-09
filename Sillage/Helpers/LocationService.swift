@@ -30,6 +30,21 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
   let locationPublisher = PassthroughSubject<CLLocation, Never>()
   let authorizationStatusPublisher = PassthroughSubject<CLAuthorizationStatus, Never>()
 
+  // MARK: - State variables for Heading Stabilization
+  private enum MovementState {
+    case moving
+    case stopped
+  }
+
+  private var movementState: MovementState = .stopped
+  private var lastSmoothedCourse: CLLocationDirection = -1.0
+  private var courseBuffer: [CLLocationDirection] = []
+  private let maxBufferSize = 4
+
+  // Speed thresholds in m/s (1 knot = 0.514444 m/s)
+  private let cutOffSpeed: CLLocationSpeed = 0.8 * 0.514444
+  private let resumeSpeed: CLLocationSpeed = 1.5 * 0.514444
+
   private override init() {
     self.locationManager = CLLocationManager()
     super.init()
@@ -83,7 +98,64 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
     // Filter out inaccurate GPS points (horizontal accuracy > 50m or invalid < 0)
     let accuracy = latestLocation.horizontalAccuracy
     if accuracy >= 0 && accuracy <= 50 {
-      locationPublisher.send(latestLocation)
+
+      let speed = latestLocation.speed
+
+      // Hysteresis State Machine
+      if movementState == .moving && speed >= 0 && speed < cutOffSpeed {
+        movementState = .stopped
+      } else if movementState == .stopped && speed >= resumeSpeed {
+        movementState = .moving
+      }
+
+      var finalCourse = lastSmoothedCourse
+
+      if movementState == .moving {
+        let rawCourse = latestLocation.course
+        if rawCourse >= 0 {
+          courseBuffer.append(rawCourse)
+          if courseBuffer.count > maxBufferSize {
+            courseBuffer.removeFirst()
+          }
+
+          var sumX = 0.0
+          var sumY = 0.0
+
+          for c in courseBuffer {
+            let radians = c * .pi / 180.0
+            sumX += cos(radians)
+            sumY += sin(radians)
+          }
+
+          let avgX = sumX / Double(courseBuffer.count)
+          let avgY = sumY / Double(courseBuffer.count)
+
+          var smoothedAngle = atan2(avgY, avgX) * 180.0 / .pi
+          if smoothedAngle < 0 {
+            smoothedAngle += 360.0
+          }
+
+          finalCourse = smoothedAngle
+          lastSmoothedCourse = smoothedAngle
+        } else {
+          // invalid course received while moving
+          finalCourse = lastSmoothedCourse
+        }
+      }
+
+      let filteredLocation = CLLocation(
+        coordinate: latestLocation.coordinate,
+        altitude: latestLocation.altitude,
+        horizontalAccuracy: latestLocation.horizontalAccuracy,
+        verticalAccuracy: latestLocation.verticalAccuracy,
+        course: finalCourse,
+        courseAccuracy: latestLocation.courseAccuracy,
+        speed: latestLocation.speed,
+        speedAccuracy: latestLocation.speedAccuracy,
+        timestamp: latestLocation.timestamp
+      )
+
+      locationPublisher.send(filteredLocation)
     } else {
       print("LocationService ignored coordinate due to low accuracy: \(accuracy)m")
     }
