@@ -14,9 +14,15 @@ import CoreLocation
 import SwiftUI
 import MapLibre
 
+enum MapTrackingMode {
+  case free
+  case northUp
+  case courseUp
+}
+
 class MapViewModel: ObservableObject {
 
-  @Published var isTrackingUser: Bool = false
+  @Published var trackingMode: MapTrackingMode = .free
   @Published var currentMapSource: MapSource?
   @Published var mapBounds: MBTilesBounds?
   @Published var maxZoom: Double?
@@ -53,7 +59,7 @@ class MapViewModel: ObservableObject {
 
   // Publisher to trigger a one-off camera animation to a specific location
   // We optionally pass a target zoom level if we want a specific viewport
-  let cameraMovePublisher = PassthroughSubject<(CLLocationCoordinate2D, Double?), Never>()
+  let cameraMovePublisher = PassthroughSubject<(CLLocationCoordinate2D, Double?, CLLocationDirection?), Never>()
 
   // Store the last received location to center on it when requested
   private var lastKnownLocation: CLLocation?
@@ -200,7 +206,11 @@ class MapViewModel: ObservableObject {
       self.headingLineFeature = nil
     }
 
-    // Tracking is handled natively by MapLibreView observing isTrackingUser
+    // Push explicit camera updates if tracking
+    if trackingMode != .free {
+      let heading = (trackingMode == .courseUp && course >= 0) ? course : 0.0
+      cameraMovePublisher.send((location.coordinate, nil, heading))
+    }
   }
 
   func switchMapSource(to source: MapSource) {
@@ -253,7 +263,7 @@ class MapViewModel: ObservableObject {
   }
 
   func mapInteractedByUser() {
-    // Left empty or handled. Tracking state updates are now synced via mapView(_:didChange:animated:) in MapLibreView
+    trackingMode = .free
   }
 
   private func formatCoordinate(_ degrees: CLLocationDegrees, isLatitude: Bool) -> String {
@@ -265,11 +275,19 @@ class MapViewModel: ObservableObject {
     return String(format: "%02d°%06.3f' %@", intDegrees, minutes, direction)
   }
 
-  func activateTracking() {
-    print("Recenter button tapped. Tracking activated.")
-    isTrackingUser = true
-    // Note: Calling centerOnUserLocation() manually here might interrupt native tracking.
-    // Setting `isTrackingUser` triggers `mapView.userTrackingMode = .follow` which natively centers on user.
+  func toggleTrackingMode() {
+    switch trackingMode {
+    case .free, .courseUp:
+      trackingMode = .northUp
+    case .northUp:
+      trackingMode = .courseUp
+    }
+
+    if trackingMode != .free, let location = lastKnownLocation {
+      let course = location.course
+      let heading = (trackingMode == .courseUp && course >= 0) ? course : 0.0
+      cameraMovePublisher.send((location.coordinate, nil, heading))
+    }
   }
 
   func centerOnUserLocation() {
@@ -279,7 +297,9 @@ class MapViewModel: ObservableObject {
     }
 
     // Pass `nil` for zoomLevel to allow MapLibreView to use `mapView.zoomLevel` and preserve it.
-    cameraMovePublisher.send((location.coordinate, nil))
+    let course = location.course
+    let heading = (trackingMode == .courseUp && course >= 0) ? course : 0.0
+    cameraMovePublisher.send((location.coordinate, nil, heading))
   }
 
   func saveCameraState() {

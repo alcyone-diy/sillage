@@ -68,6 +68,19 @@ struct MapLibreView: UIViewRepresentable {
     if let style = uiView.style {
       context.coordinator.updateOpenSeaMapOverlay(isEnabled: viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: uiView)
     }
+
+    // Handle Content Inset for Look-ahead in Course Up mode
+    let newInset: UIEdgeInsets
+    if viewModel.trackingMode == .courseUp {
+      let lookAheadOffset = uiView.bounds.height / 3.0
+      newInset = UIEdgeInsets(top: lookAheadOffset, left: 0, bottom: 0, right: 0)
+    } else {
+      newInset = .zero
+    }
+
+    if uiView.contentInset != newInset {
+      uiView.setContentInset(newInset, animated: true)
+    }
   }
 
   func makeCoordinator() -> Coordinator {
@@ -97,13 +110,17 @@ struct MapLibreView: UIViewRepresentable {
     func setupSubscription(for mapView: MLNMapView) {
       parent.viewModel.cameraMovePublisher
         .receive(on: DispatchQueue.main)
-        .sink { (coordinate, requestedZoom) in
+        .sink { (coordinate, requestedZoom, heading) in
           let targetZoom = requestedZoom ?? mapView.zoomLevel
 
           // We pass the targetZoom explicitly. If the raster chart doesn't support this
           // zoom level (e.g., maxZoom is 14), MapLibre might show a white screen
           // depending on how over-zooming is handled by the raster source style.
-          mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
+          if let heading = heading {
+            mapView.setCenter(coordinate, zoomLevel: targetZoom, direction: heading, animated: true, completionHandler: nil)
+          } else {
+            mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
+          }
         }
         .store(in: &cancellables)
 
@@ -128,13 +145,12 @@ struct MapLibreView: UIViewRepresentable {
         }
         .store(in: &cancellables)
 
-      parent.viewModel.$isTrackingUser
+      parent.viewModel.$trackingMode
         .receive(on: DispatchQueue.main)
-        .sink { [weak mapView] isTracking in
+        .sink { [weak mapView] mode in
           guard let mapView = mapView else { return }
-          if isTracking && mapView.userTrackingMode != .follow {
-            mapView.userTrackingMode = .follow
-          } else if !isTracking && mapView.userTrackingMode != .none {
+          // Force tracking mode to none, as we handle tracking explicitly
+          if mapView.userTrackingMode != .none {
             mapView.userTrackingMode = .none
           }
         }
@@ -352,10 +368,9 @@ struct MapLibreView: UIViewRepresentable {
 
     func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
       DispatchQueue.main.async {
-        if mode != .follow && self.parent.viewModel.isTrackingUser {
-          self.parent.viewModel.isTrackingUser = false
-        } else if mode == .follow && !self.parent.viewModel.isTrackingUser {
-          self.parent.viewModel.isTrackingUser = true
+        // Enforce userTrackingMode = .none
+        if mode != .none {
+          mapView.userTrackingMode = .none
         }
       }
     }
@@ -373,6 +388,16 @@ struct MapLibreView: UIViewRepresentable {
         return view
       }
       return nil
+    }
+
+    func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+      let isUserInteraction = !reason.contains(.programmatic)
+
+      if isUserInteraction {
+        DispatchQueue.main.async {
+          self.parent.viewModel.mapInteractedByUser()
+        }
+      }
     }
 
     // Capture user's map movements to break tracking ONLY when the movement stops, as requested
