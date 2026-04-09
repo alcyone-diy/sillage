@@ -390,10 +390,16 @@ struct MapLibreView: UIViewRepresentable {
       return nil
     }
 
-    func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
-      let isUserInteraction = !reason.contains(.programmatic)
+    private func shouldBreakTracking(for reason: MLNCameraChangeReason) -> Bool {
+      let isZooming = reason.contains(.gesturePinch) || reason.contains(.gestureZoomIn) || reason.contains(.gestureZoomOut) || reason.contains(.gestureOneFingerZoom)
+      let isPanningOrRotating = reason.contains(.gesturePan) || reason.contains(.gestureRotate)
 
-      if isUserInteraction {
+      // Break tracking ONLY if panning/rotating and NOT zooming
+      return isPanningOrRotating && !isZooming
+    }
+
+    func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+      if shouldBreakTracking(for: reason) {
         DispatchQueue.main.async {
           self.parent.viewModel.mapInteractedByUser()
         }
@@ -403,10 +409,6 @@ struct MapLibreView: UIViewRepresentable {
     // Capture user's map movements to break tracking ONLY when the movement stops, as requested
     // Also sync the final camera state back to the ViewModel so it knows where the map is.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
-      // Break tracking only if the change was caused by user interaction (like panning or zooming).
-      // Using `reason` is the most precise way in MapLibre.
-      let isUserInteraction = !reason.contains(.programmatic)
-
       DispatchQueue.main.async {
         // Keep ViewModel state in sync with the map
         self.parent.viewModel.centerCoordinate = mapView.centerCoordinate
@@ -417,7 +419,7 @@ struct MapLibreView: UIViewRepresentable {
         self.parent.viewModel.saveCameraState()
 
         // If it was a manual interaction, break tracking
-        if isUserInteraction {
+        if self.shouldBreakTracking(for: reason) {
           self.parent.viewModel.mapInteractedByUser()
         }
       }
