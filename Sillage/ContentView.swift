@@ -65,13 +65,13 @@ struct ContentView: View {
 
           // Recenter Button
           Button(action: {
-            mapViewModel.activateTracking()
+            mapViewModel.toggleTrackingMode()
           }) {
-            Image(systemName: mapViewModel.isTrackingUser ? "location.fill" : "location")
-              .font(.system(size: 24, weight: .bold))
+            Image(systemName: trackingIconName(for: mapViewModel.trackingMode))
+              .marineFont(.title3)
               .foregroundColor(.white)
           }
-          .buttonStyle(MarineFABStyle(backgroundColor: mapViewModel.isTrackingUser ? .blue : .gray))
+          .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: mapViewModel.trackingMode)))
           .padding()
           .padding(.bottom, 30) // Clears bottom safe area
       }
@@ -89,6 +89,21 @@ struct ContentView: View {
       Button("OK", role: .cancel) { }
     } message: { error in
       Text(error.localizedDescription)
+    }
+  }
+
+  private func trackingIconName(for mode: MapTrackingMode) -> String {
+    switch mode {
+    case .free: return "location"
+    case .northUp: return "location.fill"
+    case .courseUp: return "location.north.line.fill"
+    }
+  }
+
+  private func trackingBackgroundColor(for mode: MapTrackingMode) -> Color {
+    switch mode {
+    case .free: return MarineTheme.Colors.inactive
+    case .northUp, .courseUp: return MarineTheme.Colors.primary
     }
   }
 
