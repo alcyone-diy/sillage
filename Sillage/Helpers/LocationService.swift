@@ -41,9 +41,9 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
   private var courseBuffer: [CLLocationDirection] = []
   private let maxBufferSize = 4
 
-  // Speed thresholds in m/s (1 knot = 0.514444 m/s)
-  private let cutOffSpeed: CLLocationSpeed = 0.8 * 0.514444
-  private let resumeSpeed: CLLocationSpeed = 1.5 * 0.514444
+  // Speed thresholds
+  private let cutOffSpeed: CLLocationSpeed = Measurement(value: 0.8, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
+  private let resumeSpeed: CLLocationSpeed = Measurement(value: 1.5, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
 
   private override init() {
     self.locationManager = CLLocationManager()
