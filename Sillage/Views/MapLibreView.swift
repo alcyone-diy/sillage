@@ -131,10 +131,10 @@ struct MapLibreView: UIViewRepresentable {
         }
         .store(in: &cancellables)
 
-      parent.viewModel.$headingLineFeature
+      parent.viewModel.$headingVectorFeature
         .receive(on: DispatchQueue.main)
         .sink { [weak self] feature in
-          self?.updateHeadingLineFeature(feature, in: mapView)
+          self?.updateHeadingVectorFeature(feature, in: mapView)
         }
         .store(in: &cancellables)
 
@@ -175,7 +175,7 @@ struct MapLibreView: UIViewRepresentable {
       updateOpenSeaMapOverlay(isEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: mapView)
 
       // Ensure vessel layers are initialized after style finishes loading
-      updateHeadingLineFeature(parent.viewModel.headingLineFeature, in: mapView)
+      updateHeadingVectorFeature(parent.viewModel.headingVectorFeature, in: mapView)
       updateVesselFeature(parent.viewModel.vesselFeature, in: mapView)
       updateStaleState(parent.viewModel.isDataStale, in: mapView)
 
@@ -277,7 +277,7 @@ struct MapLibreView: UIViewRepresentable {
         style.removeLayer(vesselLayer)
         style.addLayer(vesselLayer)
       }
-      if let headingLayer = style.layer(withIdentifier: "heading-line-layer") {
+      if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
         style.removeLayer(headingLayer)
         if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
           style.insertLayer(headingLayer, below: vesselLayer)
@@ -317,11 +317,11 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
 
-    private func updateHeadingLineFeature(_ feature: MLNPolylineFeature?, in mapView: MLNMapView) {
+    private func updateHeadingVectorFeature(_ feature: MLNShapeCollectionFeature?, in mapView: MLNMapView) {
       guard let style = mapView.style else { return }
 
-      let sourceId = "heading-line-source"
-      let layerId = "heading-line-layer"
+      let sourceId = "heading-vector-source"
+      let layerId = "heading-vector-layer"
 
       if let source = style.source(withIdentifier: sourceId) as? MLNShapeSource {
         if let feature = feature {
@@ -336,11 +336,17 @@ struct MapLibreView: UIViewRepresentable {
         style.addSource(source)
 
         let layer = MLNLineStyleLayer(identifier: layerId, source: source)
-        layer.lineWidth = NSExpression(forConstantValue: MarineTheme.MapMetrics.headingLineWidth)
-        layer.lineColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.accent))
-        layer.lineDashPattern = NSExpression(forConstantValue: [3, 3])
 
-        // Ensure heading line is under the vessel layer
+        let lineWidthValue = MarineTheme.MapMetrics.headingLineWidth
+        let planningLineWidthValue = MarineTheme.MapMetrics.planningLineWidth
+        layer.lineWidth = NSExpression(format: "TERNARY(colorIndex == 2, %@, %@)", NSNumber(value: planningLineWidthValue), NSNumber(value: lineWidthValue))
+
+        let color0 = UIColor(MarineTheme.Colors.primary)
+        let color1 = UIColor(MarineTheme.Colors.primaryFaded)
+        let color2 = UIColor(MarineTheme.Colors.planningLine)
+        layer.lineColor = NSExpression(format: "TERNARY(colorIndex == 0, %@, TERNARY(colorIndex == 1, %@, %@))", color0, color1, color2)
+
+        // Ensure heading vector is under the vessel layer
         if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
           style.insertLayer(layer, below: vesselLayer)
         } else {
