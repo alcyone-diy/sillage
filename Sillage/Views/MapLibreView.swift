@@ -39,6 +39,9 @@ struct MapLibreView: UIViewRepresentable {
     mapView.attributionButton.isHidden = true
     mapView.logoView.isHidden = true
 
+    // Configure compass to remain permanently visible
+    mapView.compassView.compassVisibility = .visible
+
     // Load a minimal blank style so MapLibre initializes and fires `mapView(_:didFinishLoading:)`
     if let blankStyleURL = createBlankStyleJSON() {
       mapView.styleURL = blankStyleURL
@@ -81,6 +84,9 @@ struct MapLibreView: UIViewRepresentable {
     if uiView.contentInset != newInset {
       uiView.setContentInset(newInset, animated: true)
     }
+
+    // Disable compass interaction when in an automated tracking mode to prevent state conflicts
+    uiView.compassView.isUserInteractionEnabled = (viewModel.trackingMode != .courseUp)
   }
 
   func makeCoordinator() -> Coordinator {
