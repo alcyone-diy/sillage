@@ -49,7 +49,7 @@ class MapViewModel: ObservableObject {
 
   // Vessel Tracking Features
   @Published var vesselFeature: MLNPointFeature?
-  @Published var headingLineFeature: MLNPolylineFeature?
+  @Published var headingVectorFeature: MLNShapeCollectionFeature?
   @Published var isDataStale: Bool = true
 
   private var mapLayer: MapLayer?
@@ -188,29 +188,45 @@ class MapViewModel: ObservableObject {
     feature.attributes = ["course": course >= 0 ? course : 0.0]
     self.vesselFeature = feature
 
-    // Update Heading Line Feature (project 2 minutes ahead based on SOG)
-    if let sog = speedOverGround, let cog = courseOverGround, sog > 0 {
-      // sog is in knots. We need it in m/s for projection
-      // speedMeasurement was created using m/s. We can use location.speed directly.
-      let speedInMetersPerSecond = location.speed > 0 ? location.speed : 0
-      let distanceToProject = speedInMetersPerSecond * 120.0 // 2 minutes (120 seconds)
-
-      if distanceToProject > 0 {
-        let projectedCoordinate = location.coordinate.coordinate(at: distanceToProject, bearing: cog)
-        var coordinates = [location.coordinate, projectedCoordinate]
-        self.headingLineFeature = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
-      } else {
-        self.headingLineFeature = nil
-      }
-    } else {
-      self.headingLineFeature = nil
-    }
+    // Update Heading Vector Feature
+    self.headingVectorFeature = generateHeadingVector(location: location)
 
     // Push explicit camera updates if tracking
     if trackingMode != .free {
       let heading = (trackingMode == .courseUp && course >= 0) ? course : 0.0
       cameraMovePublisher.send((location.coordinate, nil, heading))
     }
+  }
+
+  private func generateHeadingVector(location: CLLocation) -> MLNShapeCollectionFeature? {
+    guard let sog = speedOverGround, let cog = courseOverGround, location.speed > 0 else {
+      return nil
+    }
+
+    // Hide vector if speed is less than 0.5 knots
+    if sog < 0.5 {
+      return nil
+    }
+
+    let speedInMetersPerSecond = location.speed
+    // 1 hour distance
+    let segmentDistance = speedInMetersPerSecond * 3600.0
+
+    var shapes: [MLNPolylineFeature] = []
+    var currentStart = location.coordinate
+
+    for i in 0..<10 {
+      let currentEnd = currentStart.coordinate(at: segmentDistance, bearing: cog)
+      var segmentCoordinates = [currentStart, currentEnd]
+
+      let segmentFeature = MLNPolylineFeature(coordinates: &segmentCoordinates, count: UInt(segmentCoordinates.count))
+      segmentFeature.attributes = ["colorIndex": i % 2]
+      shapes.append(segmentFeature)
+
+      currentStart = currentEnd
+    }
+
+    return MLNShapeCollectionFeature(shapes: shapes)
   }
 
   func switchMapSource(to source: MapSource) {

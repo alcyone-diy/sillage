@@ -21,6 +21,7 @@ struct MarineTheme {
     static let warning = Color.yellow
     static let background = Color.black
     static let overlay = Color.black.opacity(0.3)
+    static let primaryFaded = primary.opacity(0.4)
   }
 
   struct Spacing {
