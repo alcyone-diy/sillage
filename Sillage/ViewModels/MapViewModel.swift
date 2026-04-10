@@ -216,7 +216,7 @@ class MapViewModel: ObservableObject {
     var currentStart = location.coordinate
 
     for i in 0..<10 {
-      let currentEnd = currentStart.coordinate(at: segmentDistance, bearing: cog)
+      let currentEnd = currentStart.rhumbCoordinate(atDistance: segmentDistance, bearing: cog)
       var segmentCoordinates = [currentStart, currentEnd]
 
       let segmentFeature = MLNPolylineFeature(coordinates: &segmentCoordinates, count: UInt(segmentCoordinates.count))
@@ -227,7 +227,7 @@ class MapViewModel: ObservableObject {
     }
 
     // Add 11th "infinite" planning segment
-    let infiniteEnd = currentStart.coordinate(at: MarineTheme.MapMetrics.infinitePlanningDistance, bearing: cog)
+    let infiniteEnd = currentStart.rhumbCoordinate(atDistance: MarineTheme.MapMetrics.infinitePlanningDistance, bearing: cog)
     var infiniteCoordinates = [currentStart, infiniteEnd]
     let infiniteFeature = MLNPolylineFeature(coordinates: &infiniteCoordinates, count: UInt(infiniteCoordinates.count))
     infiniteFeature.attributes = ["colorIndex": 2]
