@@ -35,7 +35,7 @@ struct MarineTheme {
     static let vesselCursorBaseSize = CGSize(width: 24, height: 36)
     static let headingLineWidth: Double = 2.5
     static let planningLineWidth: Double = 1.0
-    static let infinitePlanningDistance: CLLocationDistance = 3_704_000.0 // 2000 NM
+    static let infinitePlanningDistance: Double = 3_704_000.0 // 2000 NM
   }
 
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false)
