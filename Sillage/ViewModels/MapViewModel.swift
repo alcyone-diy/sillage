@@ -226,6 +226,13 @@ class MapViewModel: ObservableObject {
       currentStart = currentEnd
     }
 
+    // Add 11th "infinite" planning segment
+    let infiniteEnd = currentStart.coordinate(at: MarineTheme.MapMetrics.infinitePlanningDistance, bearing: cog)
+    var infiniteCoordinates = [currentStart, infiniteEnd]
+    let infiniteFeature = MLNPolylineFeature(coordinates: &infiniteCoordinates, count: UInt(infiniteCoordinates.count))
+    infiniteFeature.attributes = ["colorIndex": 2]
+    shapes.append(infiniteFeature)
+
     return MLNShapeCollectionFeature(shapes: shapes)
   }
 

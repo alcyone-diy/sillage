@@ -22,6 +22,7 @@ struct MarineTheme {
     static let background = Color.black
     static let overlay = Color.black.opacity(0.3)
     static let primaryFaded = primary.opacity(0.4)
+    static let planningLine = primary.opacity(0.5)
   }
 
   struct Spacing {
@@ -33,6 +34,8 @@ struct MarineTheme {
   struct MapMetrics {
     static let vesselCursorBaseSize = CGSize(width: 24, height: 36)
     static let headingLineWidth: Double = 2.5
+    static let planningLineWidth: Double = 1.0
+    static let infinitePlanningDistance: CLLocationDistance = 3_704_000.0 // 2000 NM
   }
 
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false)

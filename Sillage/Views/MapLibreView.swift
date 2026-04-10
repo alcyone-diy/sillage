@@ -336,11 +336,15 @@ struct MapLibreView: UIViewRepresentable {
         style.addSource(source)
 
         let layer = MLNLineStyleLayer(identifier: layerId, source: source)
-        layer.lineWidth = NSExpression(forConstantValue: MarineTheme.MapMetrics.headingLineWidth)
+
+        let lineWidthValue = MarineTheme.MapMetrics.headingLineWidth
+        let planningLineWidthValue = MarineTheme.MapMetrics.planningLineWidth
+        layer.lineWidth = NSExpression(format: "TERNARY(colorIndex == 2, %@, %@)", NSNumber(value: planningLineWidthValue), NSNumber(value: lineWidthValue))
 
         let color0 = UIColor(MarineTheme.Colors.primary)
         let color1 = UIColor(MarineTheme.Colors.primaryFaded)
-        layer.lineColor = NSExpression(format: "TERNARY(colorIndex == 0, %@, %@)", color0, color1)
+        let color2 = UIColor(MarineTheme.Colors.planningLine)
+        layer.lineColor = NSExpression(format: "TERNARY(colorIndex == 0, %@, TERNARY(colorIndex == 1, %@, %@))", color0, color1, color2)
 
         // Ensure heading vector is under the vessel layer
         if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
