@@ -20,37 +20,40 @@ enum MapTrackingMode {
   case courseUp
 }
 
-class MapViewModel: ObservableObject {
+@Observable
+@MainActor
+class MapViewModel {
 
-  @Published var trackingMode: MapTrackingMode = .free
-  @Published var currentMapSource: MapSource?
-  @Published var mapBounds: MBTilesBounds?
-  @Published var maxZoom: Double?
-  @Published var minZoom: Double?
-  @Published var availableGeoGarageLayers: [GeoGarageLayer] = []
-  @Published var localOfflineMaps: [URL] = []
-  @Published var mapImportError: String?
-  @Published var showImportError: Bool = false
-  @Published var isOpenSeaMapOverlayEnabled: Bool = false {
+  var trackingMode: MapTrackingMode = .free
+  var currentMapSource: MapSource?
+  var mapBounds: MBTilesBounds?
+  var maxZoom: Double?
+  var minZoom: Double?
+  var availableGeoGarageLayers: [GeoGarageLayer] = []
+  var localOfflineMaps: [URL] = []
+  var mapImportError: String?
+  var showImportError: Bool = false
+  var isOpenSeaMapOverlayEnabled: Bool = false {
     didSet {
       preferencesService.isOpenSeaMapOverlayEnabled = isOpenSeaMapOverlayEnabled
     }
   }
 
   // Current Map State
-  @Published var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
-  @Published var zoomLevel: Double = 10.0
-  @Published var mapDirection: Double = 0.0
+  var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
+  var zoomLevel: Double = 10.0
+  var mapDirection: Double = 0.0
 
   // UI Properties
-  @Published var formattedCoordinates: String = "--"
-  @Published var speedOverGround: Double? = nil
-  @Published var courseOverGround: Double? = nil
+  var formattedCoordinates: String = "--"
+  var speedOverGround: Double? = nil
+  var courseOverGround: Double? = nil
 
   // Vessel Tracking Features
-  @Published var vesselFeature: MLNPointFeature?
-  @Published var headingVectorFeature: MLNShapeCollectionFeature?
-  @Published var isDataStale: Bool = true
+  var vesselFeature: MLNPointFeature?
+  var headingVectorFeature: MLNShapeCollectionFeature?
+  var isDataStale: Bool = true
+  var gpsAccuracyFeature: MLNPolygonFeature? = nil
 
   private var mapLayer: MapLayer?
   private var staleDataTimer: Timer?
@@ -59,7 +62,18 @@ class MapViewModel: ObservableObject {
 
   // Publisher to trigger a one-off camera animation to a specific location
   // We optionally pass a target zoom level if we want a specific viewport
-  let cameraMovePublisher = PassthroughSubject<(CLLocationCoordinate2D, Double?, CLLocationDirection?), Never>()
+  struct CameraMoveEvent: Equatable {
+    let id = UUID()
+    let coordinate: CLLocationCoordinate2D
+    let zoom: Double?
+    let heading: CLLocationDirection?
+
+    static func == (lhs: CameraMoveEvent, rhs: CameraMoveEvent) -> Bool {
+      lhs.id == rhs.id
+    }
+  }
+
+  var pendingCameraMove: CameraMoveEvent? = nil
 
   // Store the last received location to center on it when requested
   private var lastKnownLocation: CLLocation?
@@ -84,9 +98,7 @@ class MapViewModel: ObservableObject {
   private func loadLocalOfflineMaps() {
     Task {
       let maps = await LocalMapManager.shared.fetchLocalMaps()
-      await MainActor.run {
-        self.localOfflineMaps = maps
-      }
+      self.localOfflineMaps = maps
     }
   }
 
@@ -94,15 +106,11 @@ class MapViewModel: ObservableObject {
     Task {
       do {
         let importedURL = try await LocalMapManager.shared.importMap(from: url)
-        await MainActor.run {
-          self.localOfflineMaps.append(importedURL)
-          self.switchMapSource(to: .localMBTiles(url: importedURL))
-        }
+        self.localOfflineMaps.append(importedURL)
+        self.switchMapSource(to: .localMBTiles(url: importedURL))
       } catch {
-        await MainActor.run {
-          self.mapImportError = error.localizedDescription
-          self.showImportError = true
-        }
+        self.mapImportError = error.localizedDescription
+        self.showImportError = true
       }
     }
   }
@@ -120,9 +128,7 @@ class MapViewModel: ObservableObject {
       guard let self = self else { return }
       do {
         let settings = try await self.authService.fetchAccountSettings(accessToken: accessToken)
-        await MainActor.run {
-          self.availableGeoGarageLayers = settings.layers
-        }
+        self.availableGeoGarageLayers = settings.layers
       } catch {
         print("Silent fetch of GeoGarage layers failed: \(error)")
       }
@@ -191,10 +197,21 @@ class MapViewModel: ObservableObject {
     // Update Heading Vector Feature
     self.headingVectorFeature = generateHeadingVector(location: location)
 
+    // Update GPS Accuracy Feature
+    if location.horizontalAccuracy < 0 || location.horizontalAccuracy < 5.0 {
+      self.gpsAccuracyFeature = nil
+    } else {
+      let radius = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
+      let coordinates = CLLocationCoordinate2D.generateAccuracyPolygon(center: location.coordinate, radius: radius)
+      // Need to copy coordinates to array for MLNPolygonFeature
+      var coordsArray = coordinates
+      self.gpsAccuracyFeature = MLNPolygonFeature(coordinates: &coordsArray, count: UInt(coordsArray.count))
+    }
+
     // Push explicit camera updates if tracking
     if trackingMode != .free {
       let heading = (trackingMode == .courseUp && course >= 0) ? course : 0.0
-      cameraMovePublisher.send((location.coordinate, nil, heading))
+      pendingCameraMove = CameraMoveEvent(coordinate: location.coordinate, zoom: nil, heading: heading)
     }
   }
 
@@ -309,7 +326,7 @@ class MapViewModel: ObservableObject {
     if trackingMode != .free, let location = lastKnownLocation {
       let course = location.course
       let heading = (trackingMode == .courseUp && course >= 0) ? course : 0.0
-      cameraMovePublisher.send((location.coordinate, nil, heading))
+      pendingCameraMove = CameraMoveEvent(coordinate: location.coordinate, zoom: nil, heading: heading)
     }
   }
 
@@ -322,7 +339,7 @@ class MapViewModel: ObservableObject {
     // Pass `nil` for zoomLevel to allow MapLibreView to use `mapView.zoomLevel` and preserve it.
     let course = location.course
     let heading = (trackingMode == .courseUp && course >= 0) ? course : 0.0
-    cameraMovePublisher.send((location.coordinate, nil, heading))
+    pendingCameraMove = CameraMoveEvent(coordinate: location.coordinate, zoom: nil, heading: heading)
   }
 
   func saveCameraState() {

@@ -20,7 +20,7 @@ import Combine
 
 struct MapLibreView: UIViewRepresentable {
 
-  @ObservedObject var viewModel: MapViewModel
+  var viewModel: MapViewModel
 
   func makeUIView(context: Context) -> MLNMapView {
     // Initialization of the MapLibre view without a frame
@@ -50,8 +50,6 @@ struct MapLibreView: UIViewRepresentable {
     // Centering of the initial camera using ViewModel's state
     mapView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, direction: viewModel.mapDirection, animated: false)
 
-    // Setup subscription for explicit user location centering via Publisher
-    context.coordinator.setupSubscription(for: mapView)
 
     return mapView
   }
@@ -60,16 +58,44 @@ struct MapLibreView: UIViewRepresentable {
     // Updates the coordinator's parent to always point to the latest view (SwiftUI struct)
     context.coordinator.parent = self
 
-    // If the map source has changed, update the map's style/source
-    if let currentSource = viewModel.currentMapSource,
-     context.coordinator.lastMapSource != currentSource,
-     let style = uiView.style {
-      context.coordinator.updateMapSource(currentSource, style: style, mapView: uiView)
+    // Handle map camera update from publisher (We should use a new state for this, but since we are removing Combine...
+    // Let's actually add the observation logic here.
+
+
+    // Handle camera movement if requested
+    if let cameraMove = viewModel.pendingCameraMove {
+      DispatchQueue.main.async {
+        // Clear the state so it doesn't loop
+        viewModel.pendingCameraMove = nil
+      }
+      let targetZoom = cameraMove.zoom ?? uiView.zoomLevel
+      if let heading = cameraMove.heading {
+        uiView.setCenter(cameraMove.coordinate, zoomLevel: targetZoom, direction: heading, animated: true, completionHandler: nil)
+      } else {
+        uiView.setCenter(cameraMove.coordinate, zoomLevel: targetZoom, animated: true)
+      }
     }
 
-    // Handle OpenSeaMap overlay toggle
     if let style = uiView.style {
+      // If the map source has changed, update the map's style/source
+      if let currentSource = viewModel.currentMapSource,
+       context.coordinator.lastMapSource != currentSource {
+        context.coordinator.updateMapSource(currentSource, style: style, mapView: uiView)
+      }
+
+      // Handle OpenSeaMap overlay toggle
       context.coordinator.updateOpenSeaMapOverlay(isEnabled: viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: uiView)
+
+      // Update vessel tracking layers via standard SwiftUI Observation trigger
+      context.coordinator.updateVesselFeature(viewModel.vesselFeature, in: uiView)
+      context.coordinator.updateAccuracyFeature(viewModel.gpsAccuracyFeature, in: uiView)
+      context.coordinator.updateHeadingVectorFeature(viewModel.headingVectorFeature, in: uiView)
+      context.coordinator.updateStaleState(viewModel.isDataStale, in: uiView)
+
+      // Force userTrackingMode none if we changed it
+      if uiView.userTrackingMode != .none {
+        uiView.userTrackingMode = .none
+      }
     }
 
     // Handle Content Inset for Look-ahead in Course Up mode
@@ -88,7 +114,6 @@ struct MapLibreView: UIViewRepresentable {
     // Disable compass interaction when in an automated tracking mode to prevent state conflicts
     uiView.compassView.isUserInteractionEnabled = (viewModel.trackingMode != .courseUp)
   }
-
   func makeCoordinator() -> Coordinator {
     Coordinator(self)
   }
@@ -106,61 +131,10 @@ struct MapLibreView: UIViewRepresentable {
 
   class Coordinator: NSObject, MLNMapViewDelegate {
     var parent: MapLibreView
-    private var cancellables = Set<AnyCancellable>()
-    var lastMapSource: MapSource?
+        var lastMapSource: MapSource?
 
     init(_ parent: MapLibreView) {
       self.parent = parent
-    }
-
-    func setupSubscription(for mapView: MLNMapView) {
-      parent.viewModel.cameraMovePublisher
-        .receive(on: DispatchQueue.main)
-        .sink { (coordinate, requestedZoom, heading) in
-          let targetZoom = requestedZoom ?? mapView.zoomLevel
-
-          // We pass the targetZoom explicitly. If the raster chart doesn't support this
-          // zoom level (e.g., maxZoom is 14), MapLibre might show a white screen
-          // depending on how over-zooming is handled by the raster source style.
-          if let heading = heading {
-            mapView.setCenter(coordinate, zoomLevel: targetZoom, direction: heading, animated: true, completionHandler: nil)
-          } else {
-            mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
-          }
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$vesselFeature
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] feature in
-          self?.updateVesselFeature(feature, in: mapView)
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$headingVectorFeature
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] feature in
-          self?.updateHeadingVectorFeature(feature, in: mapView)
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$isDataStale
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] isStale in
-          self?.updateStaleState(isStale, in: mapView)
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$trackingMode
-        .receive(on: DispatchQueue.main)
-        .sink { [weak mapView] mode in
-          guard let mapView = mapView else { return }
-          // Force tracking mode to none, as we handle tracking explicitly
-          if mapView.userTrackingMode != .none {
-            mapView.userTrackingMode = .none
-          }
-        }
-        .store(in: &cancellables)
     }
 
     var lastOpenSeaMapOverlayEnabled: Bool = false
@@ -181,6 +155,7 @@ struct MapLibreView: UIViewRepresentable {
       updateOpenSeaMapOverlay(isEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: mapView)
 
       // Ensure vessel layers are initialized after style finishes loading
+      updateAccuracyFeature(parent.viewModel.gpsAccuracyFeature, in: mapView)
       updateHeadingVectorFeature(parent.viewModel.headingVectorFeature, in: mapView)
       updateVesselFeature(parent.viewModel.vesselFeature, in: mapView)
       updateStaleState(parent.viewModel.isDataStale, in: mapView)
@@ -279,21 +254,26 @@ struct MapLibreView: UIViewRepresentable {
       // After updating the map source, we need to ensure the vessel layers are still at the top.
       // But we shouldn't do it by constantly removing/adding in the feature updates.
       // Doing it once here when the base map changes is acceptable.
-      if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
-        style.removeLayer(vesselLayer)
-        style.addLayer(vesselLayer)
-      }
-      if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
-        style.removeLayer(headingLayer)
-        if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
-          style.insertLayer(headingLayer, below: vesselLayer)
-        } else {
-          style.addLayer(headingLayer)
-        }
-      }
+      // Re-order layers to ensure: Accuracy Fill -> Accuracy Stroke -> Heading -> Vessel
+      let vesselLayer = style.layer(withIdentifier: "vessel-layer")
+      let headingLayer = style.layer(withIdentifier: "heading-vector-layer")
+      let accuracyStrokeLayer = style.layer(withIdentifier: "gps-accuracy-stroke-layer")
+      let accuracyFillLayer = style.layer(withIdentifier: "gps-accuracy-fill-layer")
+
+      // Remove them
+      if let vl = vesselLayer { style.removeLayer(vl) }
+      if let hl = headingLayer { style.removeLayer(hl) }
+      if let asl = accuracyStrokeLayer { style.removeLayer(asl) }
+      if let afl = accuracyFillLayer { style.removeLayer(afl) }
+
+      // Add them back in correct order (bottom to top)
+      if let afl = accuracyFillLayer { style.addLayer(afl) }
+      if let asl = accuracyStrokeLayer { style.addLayer(asl) }
+      if let hl = headingLayer { style.addLayer(hl) }
+      if let vl = vesselLayer { style.addLayer(vl) }
     }
 
-    private func updateVesselFeature(_ feature: MLNPointFeature?, in mapView: MLNMapView) {
+    func updateVesselFeature(_ feature: MLNPointFeature?, in mapView: MLNMapView) {
       guard let style = mapView.style else { return }
 
       let sourceId = "vessel-source"
@@ -323,7 +303,7 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
 
-    private func updateHeadingVectorFeature(_ feature: MLNShapeCollectionFeature?, in mapView: MLNMapView) {
+    func updateHeadingVectorFeature(_ feature: MLNShapeCollectionFeature?, in mapView: MLNMapView) {
       guard let style = mapView.style else { return }
 
       let sourceId = "heading-vector-source"
@@ -361,7 +341,55 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
 
-    private func updateStaleState(_ isStale: Bool, in mapView: MLNMapView) {
+
+    func updateAccuracyFeature(_ feature: MLNPolygonFeature?, in mapView: MLNMapView) {
+      guard let style = mapView.style else { return }
+
+      let sourceId = "gps-accuracy-source"
+      let fillLayerId = "gps-accuracy-fill-layer"
+      let strokeLayerId = "gps-accuracy-stroke-layer"
+
+      if let source = style.source(withIdentifier: sourceId) as? MLNShapeSource {
+        if let feature = feature {
+          source.shape = feature
+        } else {
+          source.shape = nil
+        }
+      } else {
+        guard let feature = feature else { return }
+
+        let source = MLNShapeSource(identifier: sourceId, shape: feature, options: nil)
+        style.addSource(source)
+
+        let warningColor = UIColor(MarineTheme.Colors.warning)
+
+        // Fill Layer
+        let fillLayer = MLNFillStyleLayer(identifier: fillLayerId, source: source)
+        fillLayer.fillColor = NSExpression(forConstantValue: warningColor)
+        fillLayer.fillOpacity = NSExpression(forConstantValue: 0.2)
+
+        // Stroke Layer
+        let strokeLayer = MLNLineStyleLayer(identifier: strokeLayerId, source: source)
+        strokeLayer.lineColor = NSExpression(forConstantValue: warningColor)
+        strokeLayer.lineWidth = NSExpression(forConstantValue: 1.0)
+        strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.5)
+
+        // Insert below heading vector layer but above base raster layer
+        // First insert fill, then stroke above it
+        if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
+          style.insertLayer(fillLayer, below: headingLayer)
+          style.insertLayer(strokeLayer, above: fillLayer)
+        } else if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
+          style.insertLayer(fillLayer, below: vesselLayer)
+          style.insertLayer(strokeLayer, above: fillLayer)
+        } else {
+          style.addLayer(fillLayer)
+          style.addLayer(strokeLayer)
+        }
+      }
+    }
+
+    func updateStaleState(_ isStale: Bool, in mapView: MLNMapView) {
       guard let style = mapView.style, let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer else { return }
       layer.iconOpacity = NSExpression(forConstantValue: isStale ? 0.4 : 1.0)
     }

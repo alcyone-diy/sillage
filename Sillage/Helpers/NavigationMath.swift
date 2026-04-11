@@ -84,3 +84,27 @@ extension CLLocationCoordinate2D {
     )
   }
 }
+import Foundation
+import CoreLocation
+
+extension CLLocationCoordinate2D {
+  /// Generates a closed polygon representing the GPS accuracy circle.
+  static func generateAccuracyPolygon(center: CLLocationCoordinate2D, radius: Measurement<UnitLength>, pointsCount: Int = 64) -> [CLLocationCoordinate2D] {
+    let radiusInMeters = radius.converted(to: .meters).value
+    var coordinates: [CLLocationCoordinate2D] = []
+
+    let step = 360.0 / Double(pointsCount)
+    for i in 0..<pointsCount {
+      let bearing = Double(i) * step
+      let point = center.greatCircleCoordinate(atDistance: radiusInMeters, bearing: bearing)
+      coordinates.append(point)
+    }
+
+    // Explicitly append the first coordinate to mathematically close the linear ring
+    if let first = coordinates.first {
+      coordinates.append(first)
+    }
+
+    return coordinates
+  }
+}
