@@ -15,6 +15,8 @@ public struct CoordinateFormatStyle: FormatStyle {
   public typealias FormatInput = CLLocationCoordinate2D
   public typealias FormatOutput = String
 
+  public init() {}
+
   public func format(_ value: CLLocationCoordinate2D) -> String {
     let lat = formatComponent(value.latitude, isLatitude: true)
     let lon = formatComponent(value.longitude, isLatitude: false)
