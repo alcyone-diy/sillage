@@ -37,6 +37,9 @@
     "Done" : {
 
     },
+    "E" : {
+      "comment" : "East cardinal point"
+    },
     "Error loading document" : {
 
     },
@@ -118,6 +121,9 @@
     "Maritime Navigation Warning" : {
 
     },
+    "N" : {
+      "comment" : "North cardinal point"
+    },
     "Navigational markers overlay. Zoom in (level 10+) on coasts to see marks." : {
 
     },
@@ -145,6 +151,9 @@
     "Please enter a valid username." : {
 
     },
+    "S" : {
+      "comment" : "South cardinal point"
+    },
     "Safety & Legal" : {
 
     },
@@ -162,6 +171,9 @@
     },
     "Version" : {
 
+    },
+    "W" : {
+      "comment" : "West cardinal point"
     },
     "WARNING: Alcyone Sillage is an electronic navigational aid designed for situational awareness only. It must not be used as the primary means of navigation. This application does not replace official government charts, official notices to mariners, or prudent seamanship. The captain of the vessel assumes all responsibility and liability for the safety of the ship and its crew. Never rely on a single source of information and always maintain a proper visual lookout." : {
 
