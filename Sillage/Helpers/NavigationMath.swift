@@ -17,6 +17,8 @@ extension CLLocationCoordinate2D {
   /// - Returns: An array of 65 coordinates (64 points + 1 closing point) forming the polygon.
   func accuracyPolygon(radius: Measurement<UnitLength>) -> [CLLocationCoordinate2D] {
     let radiusInMeters = radius.converted(to: .meters).value
+    guard radiusInMeters > 0 else { return [] }
+
     var coordinates = [CLLocationCoordinate2D]()
     coordinates.reserveCapacity(65)
 
