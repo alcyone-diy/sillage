@@ -199,8 +199,7 @@ class MapViewModel {
     // Update GPS Accuracy Polygon Feature
     if location.horizontalAccuracy > 0 {
       let accuracyMeasurement = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
-      var accuracyCoords = location.coordinate.accuracyPolygon(radius: accuracyMeasurement)
-      if !accuracyCoords.isEmpty {
+      if var accuracyCoords = location.coordinate.accuracyPolygon(radius: accuracyMeasurement) {
         self.gpsAccuracyFeature = MLNPolygonFeature(coordinates: &accuracyCoords, count: UInt(accuracyCoords.count))
       } else {
         self.gpsAccuracyFeature = nil
