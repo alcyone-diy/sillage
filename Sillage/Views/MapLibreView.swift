@@ -219,7 +219,7 @@ struct MapLibreView: UIViewRepresentable {
           if let heading = event.heading {
             await mapView.setCenter(event.coordinate, zoomLevel: targetZoom, direction: heading.converted(to: .degrees).value, animated: true)
           } else {
-            await mapView.setCenter(event.coordinate, zoomLevel: targetZoom, animated: true)
+            mapView.setCenter(event.coordinate, zoomLevel: targetZoom, animated: true)
           }
         }
       }
