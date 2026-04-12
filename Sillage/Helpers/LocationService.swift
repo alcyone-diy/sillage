@@ -27,7 +27,7 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
   private let locationManager: CLLocationManager
 
   // Multicast support for Location Updates
-  private var locationContinuations: [UUID: AsyncStream<CLLocation>.Continuation] = [:]
+  nonisolated(unsafe) private var locationContinuations: [UUID: AsyncStream<CLLocation>.Continuation] = [:]
   private let locationContinuationsLock = NSLock()
   var locationUpdates: AsyncStream<CLLocation> {
     let (stream, continuation) = AsyncStream.makeStream(of: CLLocation.self)
@@ -46,7 +46,7 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
   }
 
   // Multicast support for Authorization Status
-  private var authContinuations: [UUID: AsyncStream<CLAuthorizationStatus>.Continuation] = [:]
+  nonisolated(unsafe) private var authContinuations: [UUID: AsyncStream<CLAuthorizationStatus>.Continuation] = [:]
   private let authContinuationsLock = NSLock()
   var authorizationStatusStream: AsyncStream<CLAuthorizationStatus> {
     let (stream, continuation) = AsyncStream.makeStream(of: CLAuthorizationStatus.self)

@@ -67,7 +67,7 @@ class MapViewModel {
 
   private var mapLayer: MapLayer?
   private var staleDataTask: Task<Void, Never>?
-  private var locationUpdatesTask: Task<Void, Never>?
+  nonisolated(unsafe) private var locationUpdatesTask: Task<Void, Never>?
   private let locationService: LocationServiceProtocol
 
   // Multicast Stream for Camera Move Events
@@ -161,14 +161,14 @@ class MapViewModel {
   }
 
   private func setupLocationService() {
+    let service = self.locationService
     locationUpdatesTask = Task { [weak self] in
       let clock = ContinuousClock()
       // Initialize to past to allow the first event to pass immediately
       var lastProcessedTime = clock.now.advanced(by: .seconds(-2))
 
       // locationService.locationUpdates creates a new stream on access
-      guard let self = self else { return }
-      for await location in self.locationService.locationUpdates {
+      for await location in service.locationUpdates {
         guard !Task.isCancelled else { break }
 
         let now = clock.now
@@ -178,7 +178,7 @@ class MapViewModel {
         lastProcessedTime = now
 
         await MainActor.run {
-          self.handleNewLocation(location)
+          self?.handleNewLocation(location)
         }
       }
     }
