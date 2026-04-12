@@ -52,7 +52,7 @@ class MapViewModel {
   var courseOverGround: Double? = nil
 
   // Navigation Constants
-  let infinitePlanningDistance = Measurement<UnitLength>(value: 2000, unit: .nauticalMiles)
+  let infiniteCOGVectorDistance = Measurement<UnitLength>(value: 2000, unit: .nauticalMiles)
 
   // Vessel Tracking Features
   var vesselFeature: MLNPointFeature?
@@ -248,7 +248,7 @@ class MapViewModel {
     }
 
     // Add 11th "infinite" planning segment
-    let infiniteEnd = currentStart.rhumbCoordinate(atDistance: infinitePlanningDistance, bearing: cog)
+    let infiniteEnd = currentStart.rhumbCoordinate(atDistance: infiniteCOGVectorDistance, bearing: cog)
     var infiniteCoordinates = [currentStart, infiniteEnd]
     let infiniteFeature = MLNPolylineFeature(coordinates: &infiniteCoordinates, count: UInt(infiniteCoordinates.count))
     infiniteFeature.attributes = ["colorIndex": 2]
