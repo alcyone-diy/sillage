@@ -24,7 +24,10 @@ public struct CoordinateFormatStyle: FormatStyle {
   }
 
   private func formatComponent(_ degrees: CLLocationDegrees, isLatitude: Bool) -> String {
-    let direction = isLatitude ? (degrees >= 0 ? "N" : "S") : (degrees >= 0 ? "E" : "W")
+    let direction = isLatitude ?
+      (degrees >= 0 ? String(localized: "N", comment: "North cardinal point") : String(localized: "S", comment: "South cardinal point")) :
+      (degrees >= 0 ? String(localized: "E", comment: "East cardinal point") : String(localized: "W", comment: "West cardinal point"))
+
     let absDegrees = abs(degrees)
     let intDegrees = Int(absDegrees)
     let minutes = (absDegrees - Double(intDegrees)) * 60.0
