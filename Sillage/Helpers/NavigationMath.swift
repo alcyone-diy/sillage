@@ -15,9 +15,9 @@ extension CLLocationCoordinate2D {
   /// Generates a mathematically closed polygon (circle) of coordinates representing a radius around a center point.
   /// - Parameter radius: The physical radius as a `Measurement<UnitLength>`.
   /// - Returns: An array of 65 coordinates (64 points + 1 closing point) forming the polygon.
-  func accuracyPolygon(radius: Measurement<UnitLength>) -> [CLLocationCoordinate2D] {
+  func accuracyPolygon(radius: Measurement<UnitLength>) -> [CLLocationCoordinate2D]? {
     let radiusInMeters = radius.converted(to: .meters).value
-    guard radiusInMeters > 0 else { return [] }
+    guard radiusInMeters > 0 else { return nil }
 
     var coordinates = [CLLocationCoordinate2D]()
     coordinates.reserveCapacity(65)
