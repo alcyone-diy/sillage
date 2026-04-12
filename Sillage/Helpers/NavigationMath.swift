@@ -26,8 +26,8 @@ extension CLLocationCoordinate2D {
     let degreeStep = 360.0 / Double(numberOfPoints)
 
     for i in 0..<numberOfPoints {
-      let bearing = Double(i) * degreeStep
-      if let coordinate = self.greatCircleCoordinate(atDistance: radius, bearing: bearing) {
+      let bearingMeasurement = Measurement<UnitAngle>(value: Double(i) * degreeStep, unit: .degrees)
+      if let coordinate = self.greatCircleCoordinate(atDistance: radius, bearing: bearingMeasurement) {
         coordinates.append(coordinate)
       }
     }
@@ -44,8 +44,8 @@ extension CLLocationCoordinate2D {
   ///   - distance: Distance as a `Measurement<UnitLength>`.
   ///   - bearing: Bearing in degrees (0 = North).
   /// - Returns: The projected coordinate.
-  func greatCircleCoordinate(atDistance distance: Measurement<UnitLength>, bearing: CLLocationDirection) -> CLLocationCoordinate2D? {
-    guard distance.value >= 0, !bearing.isNaN, !bearing.isInfinite else { return nil }
+  func greatCircleCoordinate(atDistance distance: Measurement<UnitLength>, bearing: Measurement<UnitAngle>) -> CLLocationCoordinate2D? {
+    guard distance.value >= 0, !bearing.value.isNaN, !bearing.value.isInfinite else { return nil }
 
     let earthRadius = 6371000.0 // meters
     let distanceInMeters = distance.converted(to: .meters).value
@@ -54,7 +54,7 @@ extension CLLocationCoordinate2D {
     let lon1 = self.longitude * .pi / 180.0
 
     let angularDistance = distanceInMeters / earthRadius
-    let trueCourse = bearing * .pi / 180.0
+    let trueCourse = bearing.converted(to: .radians).value
 
     let lat2 = asin(sin(lat1) * cos(angularDistance) + cos(lat1) * sin(angularDistance) * cos(trueCourse))
 
@@ -79,8 +79,8 @@ extension CLLocationCoordinate2D {
   ///   - distance: Distance as a `Measurement<UnitLength>`.
   ///   - bearing: Bearing in degrees (0 = North).
   /// - Returns: The projected coordinate.
-  func rhumbCoordinate(atDistance distance: Measurement<UnitLength>, bearing: CLLocationDirection) -> CLLocationCoordinate2D? {
-    guard distance.value >= 0, !bearing.isNaN, !bearing.isInfinite else { return nil }
+  func rhumbCoordinate(atDistance distance: Measurement<UnitLength>, bearing: Measurement<UnitAngle>) -> CLLocationCoordinate2D? {
+    guard distance.value >= 0, !bearing.value.isNaN, !bearing.value.isInfinite else { return nil }
 
     let earthRadius = 6371000.0 // meters
     let distanceInMeters = distance.converted(to: .meters).value
@@ -89,7 +89,7 @@ extension CLLocationCoordinate2D {
     let lon1 = self.longitude * .pi / 180.0
 
     let angularDistance = distanceInMeters / earthRadius
-    let trueCourse = bearing * .pi / 180.0
+    let trueCourse = bearing.converted(to: .radians).value
 
     let lat2 = lat1 + angularDistance * cos(trueCourse)
 
