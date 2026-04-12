@@ -54,6 +54,7 @@ class MapViewModel {
   // Vessel Tracking Features
   var vesselFeature: MLNPointFeature?
   var headingVectorFeature: MLNShapeCollectionFeature?
+  var gpsAccuracyFeature: MLNPolygonFeature?
   var isDataStale: Bool = true
 
   private var mapLayer: MapLayer?
@@ -194,6 +195,19 @@ class MapViewModel {
 
     // Update Heading Vector Feature
     self.headingVectorFeature = generateHeadingVector(location: location)
+
+    // Update GPS Accuracy Polygon Feature
+    if location.horizontalAccuracy > 0 {
+      let accuracyMeasurement = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
+      var accuracyCoords = location.coordinate.accuracyPolygon(radius: accuracyMeasurement)
+      if !accuracyCoords.isEmpty {
+        self.gpsAccuracyFeature = MLNPolygonFeature(coordinates: &accuracyCoords, count: UInt(accuracyCoords.count))
+      } else {
+        self.gpsAccuracyFeature = nil
+      }
+    } else {
+      self.gpsAccuracyFeature = nil
+    }
 
     // Push explicit camera updates if tracking
     if trackingMode != .free {
