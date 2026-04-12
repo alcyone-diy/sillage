@@ -237,7 +237,9 @@ class MapViewModel {
     var currentStart = location.coordinate
 
     for i in 0..<10 {
-      let currentEnd = currentStart.rhumbCoordinate(atDistance: segmentDistance, bearing: cog)
+      guard let currentEnd = currentStart.rhumbCoordinate(atDistance: segmentDistance, bearing: cog) else {
+        break
+      }
       var segmentCoordinates = [currentStart, currentEnd]
 
       let segmentFeature = MLNPolylineFeature(coordinates: &segmentCoordinates, count: UInt(segmentCoordinates.count))
@@ -248,11 +250,12 @@ class MapViewModel {
     }
 
     // Add 11th "infinite" planning segment
-    let infiniteEnd = currentStart.rhumbCoordinate(atDistance: infiniteCOGVectorDistance, bearing: cog)
-    var infiniteCoordinates = [currentStart, infiniteEnd]
-    let infiniteFeature = MLNPolylineFeature(coordinates: &infiniteCoordinates, count: UInt(infiniteCoordinates.count))
-    infiniteFeature.attributes = ["colorIndex": 2]
-    shapes.append(infiniteFeature)
+    if let infiniteEnd = currentStart.rhumbCoordinate(atDistance: infiniteCOGVectorDistance, bearing: cog) {
+      var infiniteCoordinates = [currentStart, infiniteEnd]
+      let infiniteFeature = MLNPolylineFeature(coordinates: &infiniteCoordinates, count: UInt(infiniteCoordinates.count))
+      infiniteFeature.attributes = ["colorIndex": 2]
+      shapes.append(infiniteFeature)
+    }
 
     return MLNShapeCollectionFeature(shapes: shapes)
   }
