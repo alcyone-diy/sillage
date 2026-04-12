@@ -232,12 +232,13 @@ class MapViewModel {
     // 1 hour distance
     let segmentDistanceMeters = speedInMetersPerSecond * 3600.0
     let segmentDistance = Measurement<UnitLength>(value: segmentDistanceMeters, unit: .meters)
+    let cogMeasurement = Measurement<UnitAngle>(value: cog, unit: .degrees)
 
     var shapes: [MLNPolylineFeature] = []
     var currentStart = location.coordinate
 
     for i in 0..<10 {
-      guard let currentEnd = currentStart.rhumbCoordinate(atDistance: segmentDistance, bearing: cog) else {
+      guard let currentEnd = currentStart.rhumbCoordinate(atDistance: segmentDistance, bearing: cogMeasurement) else {
         break
       }
       var segmentCoordinates = [currentStart, currentEnd]
@@ -250,7 +251,7 @@ class MapViewModel {
     }
 
     // Add 11th "infinite" planning segment
-    if let infiniteEnd = currentStart.rhumbCoordinate(atDistance: infiniteCOGVectorDistance, bearing: cog) {
+    if let infiniteEnd = currentStart.rhumbCoordinate(atDistance: infiniteCOGVectorDistance, bearing: cogMeasurement) {
       var infiniteCoordinates = [currentStart, infiniteEnd]
       let infiniteFeature = MLNPolylineFeature(coordinates: &infiniteCoordinates, count: UInt(infiniteCoordinates.count))
       infiniteFeature.attributes = ["colorIndex": 2]
