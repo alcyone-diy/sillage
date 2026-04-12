@@ -51,6 +51,9 @@ class MapViewModel {
   var speedOverGround: Double? = nil
   var courseOverGround: Double? = nil
 
+  // Navigation Constants
+  let infinitePlanningDistance = Measurement<UnitLength>(value: 2000, unit: .nauticalMiles)
+
   // Vessel Tracking Features
   var vesselFeature: MLNPointFeature?
   var headingVectorFeature: MLNShapeCollectionFeature?
@@ -227,7 +230,8 @@ class MapViewModel {
 
     let speedInMetersPerSecond = location.speed
     // 1 hour distance
-    let segmentDistance = speedInMetersPerSecond * 3600.0
+    let segmentDistanceMeters = speedInMetersPerSecond * 3600.0
+    let segmentDistance = Measurement<UnitLength>(value: segmentDistanceMeters, unit: .meters)
 
     var shapes: [MLNPolylineFeature] = []
     var currentStart = location.coordinate
@@ -244,7 +248,7 @@ class MapViewModel {
     }
 
     // Add 11th "infinite" planning segment
-    let infiniteEnd = currentStart.rhumbCoordinate(atDistance: MarineTheme.MapMetrics.infinitePlanningDistance, bearing: cog)
+    let infiniteEnd = currentStart.rhumbCoordinate(atDistance: infinitePlanningDistance, bearing: cog)
     var infiniteCoordinates = [currentStart, infiniteEnd]
     let infiniteFeature = MLNPolylineFeature(coordinates: &infiniteCoordinates, count: UInt(infiniteCoordinates.count))
     infiniteFeature.attributes = ["colorIndex": 2]

@@ -27,7 +27,7 @@ extension CLLocationCoordinate2D {
 
     for i in 0..<numberOfPoints {
       let bearing = Double(i) * degreeStep
-      let coordinate = self.greatCircleCoordinate(atDistance: radiusInMeters, bearing: bearing)
+      let coordinate = self.greatCircleCoordinate(atDistance: radius, bearing: bearing)
       coordinates.append(coordinate)
     }
 
@@ -38,18 +38,19 @@ extension CLLocationCoordinate2D {
     return coordinates
   }
 
-  /// Projects a coordinate given a distance (in meters) and bearing (in degrees) using the Haversine/Vincenty spherical model.
+  /// Projects a coordinate given a distance and bearing (in degrees) using the Haversine/Vincenty spherical model.
   /// - Parameters:
-  ///   - distance: Distance in meters.
+  ///   - distance: Distance as a `Measurement<UnitLength>`.
   ///   - bearing: Bearing in degrees (0 = North).
   /// - Returns: The projected coordinate.
-  func greatCircleCoordinate(atDistance distance: CLLocationDistance, bearing: CLLocationDirection) -> CLLocationCoordinate2D {
+  func greatCircleCoordinate(atDistance distance: Measurement<UnitLength>, bearing: CLLocationDirection) -> CLLocationCoordinate2D {
     let earthRadius = 6371000.0 // meters
+    let distanceInMeters = distance.converted(to: .meters).value
 
     let lat1 = self.latitude * .pi / 180.0
     let lon1 = self.longitude * .pi / 180.0
 
-    let angularDistance = distance / earthRadius
+    let angularDistance = distanceInMeters / earthRadius
     let trueCourse = bearing * .pi / 180.0
 
     let lat2 = asin(sin(lat1) * cos(angularDistance) + cos(lat1) * sin(angularDistance) * cos(trueCourse))
@@ -65,19 +66,20 @@ extension CLLocationCoordinate2D {
     )
   }
 
-  /// Projects a coordinate given a distance (in meters) and bearing (in degrees) using the Rhumb Line (loxodromic) model.
+  /// Projects a coordinate given a distance and bearing (in degrees) using the Rhumb Line (loxodromic) model.
   /// This maintains a constant compass heading, rendering as a straight line on a Mercator projection.
   /// - Parameters:
-  ///   - distance: Distance in meters.
+  ///   - distance: Distance as a `Measurement<UnitLength>`.
   ///   - bearing: Bearing in degrees (0 = North).
   /// - Returns: The projected coordinate.
-  func rhumbCoordinate(atDistance distance: CLLocationDistance, bearing: CLLocationDirection) -> CLLocationCoordinate2D {
+  func rhumbCoordinate(atDistance distance: Measurement<UnitLength>, bearing: CLLocationDirection) -> CLLocationCoordinate2D {
     let earthRadius = 6371000.0 // meters
+    let distanceInMeters = distance.converted(to: .meters).value
 
     let lat1 = self.latitude * .pi / 180.0
     let lon1 = self.longitude * .pi / 180.0
 
-    let angularDistance = distance / earthRadius
+    let angularDistance = distanceInMeters / earthRadius
     let trueCourse = bearing * .pi / 180.0
 
     let lat2 = lat1 + angularDistance * cos(trueCourse)

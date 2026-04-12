@@ -35,7 +35,6 @@ struct MarineTheme {
     static let vesselCursorBaseSize = CGSize(width: 24, height: 36)
     static let headingLineWidth: Double = 2.5
     static let planningLineWidth: Double = 1.0
-    static let infinitePlanningDistance: Double = 3_704_000.0 // 2000 NM
     static let gpsAccuracyFillOpacity: Double = 0.15
     static let gpsAccuracyStrokeOpacity: Double = 0.4
     static let gpsAccuracyLineWidth: Double = 1.0
