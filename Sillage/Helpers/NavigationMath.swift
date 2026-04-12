@@ -27,8 +27,9 @@ extension CLLocationCoordinate2D {
 
     for i in 0..<numberOfPoints {
       let bearing = Double(i) * degreeStep
-      let coordinate = self.greatCircleCoordinate(atDistance: radius, bearing: bearing)
-      coordinates.append(coordinate)
+      if let coordinate = self.greatCircleCoordinate(atDistance: radius, bearing: bearing) {
+        coordinates.append(coordinate)
+      }
     }
 
     if let first = coordinates.first {
@@ -43,7 +44,9 @@ extension CLLocationCoordinate2D {
   ///   - distance: Distance as a `Measurement<UnitLength>`.
   ///   - bearing: Bearing in degrees (0 = North).
   /// - Returns: The projected coordinate.
-  func greatCircleCoordinate(atDistance distance: Measurement<UnitLength>, bearing: CLLocationDirection) -> CLLocationCoordinate2D {
+  func greatCircleCoordinate(atDistance distance: Measurement<UnitLength>, bearing: CLLocationDirection) -> CLLocationCoordinate2D? {
+    guard distance.value >= 0, !bearing.isNaN, !bearing.isInfinite else { return nil }
+
     let earthRadius = 6371000.0 // meters
     let distanceInMeters = distance.converted(to: .meters).value
 
@@ -60,8 +63,12 @@ extension CLLocationCoordinate2D {
     let degreesLon = lon2 * 180.0 / .pi
     let normalizedLon = (degreesLon + 540.0).truncatingRemainder(dividingBy: 360.0) - 180.0
 
+    let lat2Deg = lat2 * 180.0 / .pi
+
+    guard !lat2Deg.isNaN, !lat2Deg.isInfinite, !normalizedLon.isNaN, !normalizedLon.isInfinite, lat2Deg >= -90.0, lat2Deg <= 90.0 else { return nil }
+
     return CLLocationCoordinate2D(
-      latitude: lat2 * 180.0 / .pi,
+      latitude: lat2Deg,
       longitude: normalizedLon
     )
   }
@@ -72,7 +79,9 @@ extension CLLocationCoordinate2D {
   ///   - distance: Distance as a `Measurement<UnitLength>`.
   ///   - bearing: Bearing in degrees (0 = North).
   /// - Returns: The projected coordinate.
-  func rhumbCoordinate(atDistance distance: Measurement<UnitLength>, bearing: CLLocationDirection) -> CLLocationCoordinate2D {
+  func rhumbCoordinate(atDistance distance: Measurement<UnitLength>, bearing: CLLocationDirection) -> CLLocationCoordinate2D? {
+    guard distance.value >= 0, !bearing.isNaN, !bearing.isInfinite else { return nil }
+
     let earthRadius = 6371000.0 // meters
     let distanceInMeters = distance.converted(to: .meters).value
 
@@ -105,6 +114,8 @@ extension CLLocationCoordinate2D {
 
     let degreesLon = lon2 * 180.0 / .pi
     let normalizedLon = (degreesLon + 540.0).truncatingRemainder(dividingBy: 360.0) - 180.0
+
+    guard !lat2Deg.isNaN, !lat2Deg.isInfinite, !normalizedLon.isNaN, !normalizedLon.isInfinite, lat2Deg >= -90.0, lat2Deg <= 90.0 else { return nil }
 
     return CLLocationCoordinate2D(
       latitude: lat2Deg,
