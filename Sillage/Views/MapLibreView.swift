@@ -217,9 +217,9 @@ struct MapLibreView: UIViewRepresentable {
           // zoom level (e.g., maxZoom is 14), MapLibre might show a white screen
           // depending on how over-zooming is handled by the raster source style.
           if let heading = event.heading {
-            mapView.setCenter(event.coordinate, zoomLevel: targetZoom, direction: heading.converted(to: .degrees).value, animated: true, completionHandler: nil)
+            await mapView.setCenter(event.coordinate, zoomLevel: targetZoom, direction: heading.converted(to: .degrees).value, animated: true)
           } else {
-            mapView.setCenter(event.coordinate, zoomLevel: targetZoom, animated: true)
+            await mapView.setCenter(event.coordinate, zoomLevel: targetZoom, animated: true)
           }
         }
       }

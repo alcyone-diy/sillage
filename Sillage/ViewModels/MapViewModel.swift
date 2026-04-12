@@ -67,7 +67,7 @@ class MapViewModel {
 
   private var mapLayer: MapLayer?
   private var staleDataTask: Task<Void, Never>?
-  nonisolated(unsafe) private var locationUpdatesTask: Task<Void, Never>?
+  private var locationUpdatesTask: Task<Void, Never>?
   private let locationService: LocationServiceProtocol
 
   // Multicast Stream for Camera Move Events
@@ -106,10 +106,6 @@ class MapViewModel {
     setupLocationService()
     silentlyFetchGeoGarageLayers()
     loadLocalOfflineMaps()
-  }
-
-  deinit {
-    locationUpdatesTask?.cancel()
   }
 
   private func loadLocalOfflineMaps() {
