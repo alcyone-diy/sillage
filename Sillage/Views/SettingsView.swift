@@ -33,6 +33,39 @@ struct SettingsView: View {
           }
         }
 
+        Section(header: Text("Local Charts").marineFont(.headline)) {
+          if viewModel.localCharts.isEmpty {
+            ContentUnavailableView {
+              Label("No Local Charts", systemImage: "map")
+                .marineFont(.headline)
+            } description: {
+              Text("Place .mbtiles files into the Documents/Charts directory.")
+                .marineFont(.body)
+            }
+          } else {
+            ForEach(viewModel.localCharts) { chart in
+              HStack {
+                Text(chart.filename)
+                  .marineFont(.body)
+                Spacer()
+                if let fileSize = chart.fileSize {
+                  Text(MarineFormatters.fileSizeFormatter.string(from: fileSize))
+                    .marineFont(.body)
+                    .foregroundColor(.secondary)
+                }
+              }
+              .marineListCell()
+            }
+          }
+
+          Button("Refresh") {
+            Task {
+              await viewModel.loadLocalCharts()
+            }
+          }
+          .marineButtonStyle()
+        }
+
         Section(header: Text("Accounts").marineFont(.headline)) {
           NavigationLink(destination: GeoGarageLoginView()) {
             Label("GeoGarage Account", systemImage: "person.crop.circle")
@@ -69,6 +102,9 @@ struct SettingsView: View {
             dismiss()
           }
         }
+      }
+      .task {
+        await viewModel.loadLocalCharts()
       }
     }
   }
