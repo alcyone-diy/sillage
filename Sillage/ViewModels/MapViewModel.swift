@@ -57,7 +57,7 @@ class MapViewModel {
   var isDataStale: Bool = true
 
   private var mapLayer: MapLayer?
-  private var staleDataTimer: Timer?
+  private var staleDataTask: Task<Void, Never>?
   private let locationService: LocationServiceProtocol
   private var cancellables = Set<AnyCancellable>()
 
@@ -78,7 +78,7 @@ class MapViewModel {
     self.locationService = locationService ?? LocationService.shared
     self.preferencesService = preferencesService ?? PreferencesService.shared
     self.authService = authService ?? GeoGarageAuthService()
-    self.isOpenSeaMapOverlayEnabled = preferencesService.isOpenSeaMapOverlayEnabled
+    self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
 
     loadSavedMapSource()
     setupLocationService()
@@ -155,16 +155,13 @@ class MapViewModel {
 
     lastKnownLocation = location
 
-    // Reset stale data timer (ensure run loop on main thread)
-    DispatchQueue.main.async { [weak self] in
-      guard let self = self else { return }
-      self.isDataStale = false
-      self.staleDataTimer?.invalidate()
-      self.staleDataTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-        Task { @MainActor in
-          self?.isDataStale = true
-        }
-      }
+    // Reset stale data task
+    self.isDataStale = false
+    self.staleDataTask?.cancel()
+    self.staleDataTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+      guard !Task.isCancelled else { return }
+      self?.isDataStale = true
     }
 
     // Update formatted coordinates (Degrees, Minutes, Decimals)

@@ -21,6 +21,7 @@ final class GeoGarageLoginViewModel {
 
   private let authService: GeoGarageAuthServiceProtocol
 
+  @MainActor
   init(authService: GeoGarageAuthServiceProtocol? = nil) {
     self.authService = authService ?? GeoGarageAuthService()
   }
