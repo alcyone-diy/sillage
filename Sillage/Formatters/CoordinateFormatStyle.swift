@@ -34,3 +34,9 @@ public struct CoordinateFormatStyle: FormatStyle {
 public extension FormatStyle where Self == CoordinateFormatStyle {
   static var marineCoordinate: CoordinateFormatStyle { .init() }
 }
+
+public extension CLLocationCoordinate2D {
+  func formatted(_ style: CoordinateFormatStyle = .init()) -> String {
+    return style.format(self)
+  }
+}

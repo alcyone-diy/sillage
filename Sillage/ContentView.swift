@@ -113,7 +113,7 @@ struct ContentView: View {
         // TODO: Need to find a way to add it back without taking too much space.
         /*
         if let coordinate = mapViewModel.currentCoordinate {
-          Text(coordinate, format: .marineCoordinate)
+          Text(coordinate.formatted(.marineCoordinate))
             .marineFont(.instrumentData)
             .foregroundColor(.yellow)
         } else {
