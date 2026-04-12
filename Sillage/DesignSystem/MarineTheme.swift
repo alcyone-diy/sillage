@@ -36,6 +36,9 @@ struct MarineTheme {
     static let headingLineWidth: Double = 2.5
     static let planningLineWidth: Double = 1.0
     static let infinitePlanningDistance: Double = 3_704_000.0 // 2000 NM
+    static let gpsAccuracyFillOpacity: Double = 0.15
+    static let gpsAccuracyStrokeOpacity: Double = 0.4
+    static let gpsAccuracyLineWidth: Double = 1.0
   }
 
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false)
