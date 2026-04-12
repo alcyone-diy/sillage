@@ -71,12 +71,13 @@ class MapViewModel {
   private var preferencesService: PreferencesServiceProtocol
   private let authService: GeoGarageAuthServiceProtocol
 
-  init(locationService: LocationServiceProtocol = LocationService.shared,
-       preferencesService: PreferencesServiceProtocol = PreferencesService.shared,
-       authService: GeoGarageAuthServiceProtocol = GeoGarageAuthService()) {
-    self.locationService = locationService
-    self.preferencesService = preferencesService
-    self.authService = authService
+  @MainActor
+  init(locationService: LocationServiceProtocol? = nil,
+       preferencesService: PreferencesServiceProtocol? = nil,
+       authService: GeoGarageAuthServiceProtocol? = nil) {
+    self.locationService = locationService ?? LocationService.shared
+    self.preferencesService = preferencesService ?? PreferencesService.shared
+    self.authService = authService ?? GeoGarageAuthService()
     self.isOpenSeaMapOverlayEnabled = preferencesService.isOpenSeaMapOverlayEnabled
 
     loadSavedMapSource()
@@ -160,7 +161,9 @@ class MapViewModel {
       self.isDataStale = false
       self.staleDataTimer?.invalidate()
       self.staleDataTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-        self?.isDataStale = true
+        Task { @MainActor in
+          self?.isDataStale = true
+        }
       }
     }
 
