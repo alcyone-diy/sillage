@@ -105,7 +105,7 @@ struct MapLibreView: UIViewRepresentable {
     }
 
     // Centering of the initial camera using ViewModel's state
-    mapView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, direction: viewModel.mapDirection, animated: false)
+    mapView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, direction: viewModel.mapDirection.converted(to: .degrees).value, animated: false)
 
     // Setup subscription for explicit user location centering via Publisher
     context.coordinator.setupSubscription(for: mapView)
@@ -214,7 +214,7 @@ struct MapLibreView: UIViewRepresentable {
           // zoom level (e.g., maxZoom is 14), MapLibre might show a white screen
           // depending on how over-zooming is handled by the raster source style.
           if let heading = heading {
-            mapView.setCenter(coordinate, zoomLevel: targetZoom, direction: heading, animated: true, completionHandler: nil)
+            mapView.setCenter(coordinate, zoomLevel: targetZoom, direction: heading.converted(to: .degrees).value, animated: true, completionHandler: nil)
           } else {
             mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
           }
@@ -260,7 +260,7 @@ struct MapLibreView: UIViewRepresentable {
       // Instead, we simply jump the camera back to the exact metadata `centerCoordinate` and `zoomLevel`.
       // This is required because loading the blank JSON style resets the map to (0,0), which leaves it looking at
       // the African coast where no French marine chart tiles exist, causing the map to appear blank.
-      mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection, animated: false)
+      mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection.converted(to: .degrees).value, animated: false)
     }
 
     func updateMapSource(_ source: MapSource, style: MLNStyle, mapView: MLNMapView) {
@@ -343,7 +343,7 @@ struct MapLibreView: UIViewRepresentable {
       }
 
       // Re-center on the new source's preferred coordinate and zoom if needed
-      mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection, animated: false)
+      mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection.converted(to: .degrees).value, animated: false)
 
       // After updating the map source, we need to ensure the vessel layers are still at the top.
       // But we shouldn't do it by constantly removing/adding in the feature updates.
@@ -449,7 +449,7 @@ struct MapLibreView: UIViewRepresentable {
         // Keep ViewModel state in sync with the map
         self.parent.viewModel.centerCoordinate = mapView.centerCoordinate
         self.parent.viewModel.zoomLevel = mapView.zoomLevel
-        self.parent.viewModel.mapDirection = mapView.direction
+        self.parent.viewModel.mapDirection = Measurement(value: mapView.direction, unit: UnitAngle.degrees)
 
         // Save the camera state to UserDefaults
         self.parent.viewModel.saveCameraState()

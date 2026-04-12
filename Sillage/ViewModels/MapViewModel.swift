@@ -44,12 +44,12 @@ class MapViewModel {
   // Current Map State
   var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
   var zoomLevel: Double = 10.0
-  var mapDirection: Double = 0.0
+  var mapDirection: Measurement<UnitAngle> = Measurement(value: 0.0, unit: UnitAngle.degrees)
 
   // UI Properties
   var formattedCoordinates: String = "--"
   var speedOverGround: Measurement<UnitSpeed>? = nil
-  var courseOverGround: Double? = nil
+  var courseOverGround: Measurement<UnitAngle>? = nil
 
   // Navigation Constants
   let infiniteCOGVectorDistance = Measurement<UnitLength>(value: 2000, unit: .nauticalMiles)
@@ -67,7 +67,7 @@ class MapViewModel {
 
   // Publisher to trigger a one-off camera animation to a specific location
   // We optionally pass a target zoom level if we want a specific viewport
-  let cameraMovePublisher = PassthroughSubject<(CLLocationCoordinate2D, Double?, CLLocationDirection?), Never>()
+  let cameraMovePublisher = PassthroughSubject<(CLLocationCoordinate2D, Double?, Measurement<UnitAngle>?), Never>()
 
   // Store the last received location to center on it when requested
   private var lastKnownLocation: CLLocation?
@@ -184,7 +184,7 @@ class MapViewModel {
     // Update COG
     let course = location.course
     if course >= 0 {
-      courseOverGround = course
+      courseOverGround = Measurement(value: course, unit: UnitAngle.degrees)
     } else {
       courseOverGround = nil
     }
@@ -192,7 +192,11 @@ class MapViewModel {
     // Update Vessel Feature
     let feature = MLNPointFeature()
     feature.coordinate = location.coordinate
-    feature.attributes = ["course": course >= 0 ? course : 0.0]
+    var attributes: [String: Any] = [:]
+    if let cog = courseOverGround {
+      attributes["course"] = cog.converted(to: .degrees).value
+    }
+    feature.attributes = attributes
     self.vesselFeature = feature
 
     // Update Heading Vector Feature
@@ -212,7 +216,7 @@ class MapViewModel {
 
     // Push explicit camera updates if tracking
     if trackingMode != .free {
-      let heading = (trackingMode == .courseUp && course >= 0) ? course : 0.0
+      let heading = (trackingMode == .courseUp && course >= 0) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
       cameraMovePublisher.send((location.coordinate, nil, heading))
     }
   }
@@ -232,13 +236,12 @@ class MapViewModel {
     // 1 hour distance
     let segmentDistanceMeters = speedInMetersPerSecond * 3600.0
     let segmentDistance = Measurement<UnitLength>(value: segmentDistanceMeters, unit: .meters)
-    let cogMeasurement = Measurement<UnitAngle>(value: cog, unit: .degrees)
 
     var shapes: [MLNPolylineFeature] = []
     var currentStart = location.coordinate
 
     for i in 0..<10 {
-      guard let currentEnd = currentStart.rhumbCoordinate(atDistance: segmentDistance, bearing: cogMeasurement) else {
+      guard let currentEnd = currentStart.rhumbCoordinate(atDistance: segmentDistance, bearing: cog) else {
         break
       }
       var segmentCoordinates = [currentStart, currentEnd]
@@ -251,7 +254,7 @@ class MapViewModel {
     }
 
     // Add 11th "infinite" planning segment
-    if let infiniteEnd = currentStart.rhumbCoordinate(atDistance: infiniteCOGVectorDistance, bearing: cogMeasurement) {
+    if let infiniteEnd = currentStart.rhumbCoordinate(atDistance: infiniteCOGVectorDistance, bearing: cog) {
       var infiniteCoordinates = [currentStart, infiniteEnd]
       let infiniteFeature = MLNPolylineFeature(coordinates: &infiniteCoordinates, count: UInt(infiniteCoordinates.count))
       infiniteFeature.attributes = ["colorIndex": 2]
@@ -333,7 +336,7 @@ class MapViewModel {
 
     if trackingMode != .free, let location = lastKnownLocation {
       let course = location.course
-      let heading = (trackingMode == .courseUp && course >= 0) ? course : 0.0
+      let heading = (trackingMode == .courseUp && course >= 0) ? Measurement(value: course, unit: UnitAngle.degrees) : Measurement(value: 0.0, unit: UnitAngle.degrees)
       cameraMovePublisher.send((location.coordinate, nil, heading))
     }
   }
@@ -346,19 +349,19 @@ class MapViewModel {
 
     // Pass `nil` for zoomLevel to allow MapLibreView to use `mapView.zoomLevel` and preserve it.
     let course = location.course
-    let heading = (trackingMode == .courseUp && course >= 0) ? course : 0.0
+    let heading = (trackingMode == .courseUp && course >= 0) ? Measurement(value: course, unit: UnitAngle.degrees) : Measurement(value: 0.0, unit: UnitAngle.degrees)
     cameraMovePublisher.send((location.coordinate, nil, heading))
   }
 
   func saveCameraState() {
-    preferencesService.saveCameraState(coordinate: centerCoordinate, zoom: zoomLevel, direction: mapDirection)
+    preferencesService.saveCameraState(coordinate: centerCoordinate, zoom: zoomLevel, direction: mapDirection.converted(to: .degrees).value)
   }
 
   func loadSavedCameraState() {
     if let state = preferencesService.loadCameraState() {
       self.centerCoordinate = state.coordinate
       self.zoomLevel = state.zoom
-      self.mapDirection = state.direction
+      self.mapDirection = Measurement(value: state.direction, unit: UnitAngle.degrees)
     }
   }
 
