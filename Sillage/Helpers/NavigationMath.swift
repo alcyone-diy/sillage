@@ -12,6 +12,30 @@ import CoreLocation
 
 extension CLLocationCoordinate2D {
 
+  /// Generates a mathematically closed polygon (circle) of coordinates representing a radius around a center point.
+  /// - Parameter radius: The physical radius as a `Measurement<UnitLength>`.
+  /// - Returns: An array of 65 coordinates (64 points + 1 closing point) forming the polygon.
+  func accuracyPolygon(radius: Measurement<UnitLength>) -> [CLLocationCoordinate2D] {
+    let radiusInMeters = radius.converted(to: .meters).value
+    var coordinates = [CLLocationCoordinate2D]()
+    coordinates.reserveCapacity(65)
+
+    let numberOfPoints = 64
+    let degreeStep = 360.0 / Double(numberOfPoints)
+
+    for i in 0..<numberOfPoints {
+      let bearing = Double(i) * degreeStep
+      let coordinate = self.greatCircleCoordinate(atDistance: radiusInMeters, bearing: bearing)
+      coordinates.append(coordinate)
+    }
+
+    if let first = coordinates.first {
+      coordinates.append(first)
+    }
+
+    return coordinates
+  }
+
   /// Projects a coordinate given a distance (in meters) and bearing (in degrees) using the Haversine/Vincenty spherical model.
   /// - Parameters:
   ///   - distance: Distance in meters.
