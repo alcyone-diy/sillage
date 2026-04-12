@@ -139,7 +139,7 @@ struct ContentView: View {
               .foregroundColor(.secondary)
             Group {
               if let cog = mapViewModel.courseOverGround {
-                Text("\(cog.formatted(.number.precision(.fractionLength(0))))°")
+                Text("\(cog.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
               } else {
                 Text("--°")
               }
