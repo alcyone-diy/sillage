@@ -12,6 +12,8 @@ import CoreLocation
 
 extension CLLocationCoordinate2D {
 
+  private static let earthRadius = Measurement<UnitLength>(value: 6371000.0, unit: .meters)
+
   /// Generates a mathematically closed polygon (circle) of coordinates representing a radius around a center point.
   /// - Parameter radius: The physical radius as a `Measurement<UnitLength>`.
   /// - Returns: An array of 65 coordinates (64 points + 1 closing point) forming the polygon.
@@ -47,29 +49,28 @@ extension CLLocationCoordinate2D {
   func greatCircleCoordinate(atDistance distance: Measurement<UnitLength>, bearing: Measurement<UnitAngle>) -> CLLocationCoordinate2D? {
     guard distance.value >= 0, !bearing.value.isNaN, !bearing.value.isInfinite else { return nil }
 
-    let earthRadius = 6371000.0 // meters
     let distanceInMeters = distance.converted(to: .meters).value
 
-    let lat1 = self.latitude * .pi / 180.0
-    let lon1 = self.longitude * .pi / 180.0
+    let lat1Radians = self.latitude * .pi / 180.0
+    let lon1Radians = self.longitude * .pi / 180.0
 
-    let angularDistance = distanceInMeters / earthRadius
-    let trueCourse = bearing.converted(to: .radians).value
+    let angularDistanceRadians = distanceInMeters / Self.earthRadius.value
+    let trueCourseRadians = bearing.converted(to: .radians).value
 
-    let lat2 = asin(sin(lat1) * cos(angularDistance) + cos(lat1) * sin(angularDistance) * cos(trueCourse))
+    let lat2Radians = asin(sin(lat1Radians) * cos(angularDistanceRadians) + cos(lat1Radians) * sin(angularDistanceRadians) * cos(trueCourseRadians))
 
-    let lon2 = lon1 + atan2(sin(trueCourse) * sin(angularDistance) * cos(lat1), cos(angularDistance) - sin(lat1) * sin(lat2))
+    let lon2Radians = lon1Radians + atan2(sin(trueCourseRadians) * sin(angularDistanceRadians) * cos(lat1Radians), cos(angularDistanceRadians) - sin(lat1Radians) * sin(lat2Radians))
 
-    let degreesLon = lon2 * 180.0 / .pi
-    let normalizedLon = (degreesLon + 540.0).truncatingRemainder(dividingBy: 360.0) - 180.0
+    let degreesLon = lon2Radians * 180.0 / .pi
+    let normalizedLonDeg = (degreesLon + 540.0).truncatingRemainder(dividingBy: 360.0) - 180.0
 
-    let lat2Deg = lat2 * 180.0 / .pi
+    let lat2Deg = lat2Radians * 180.0 / .pi
 
-    guard !lat2Deg.isNaN, !lat2Deg.isInfinite, !normalizedLon.isNaN, !normalizedLon.isInfinite, lat2Deg >= -90.0, lat2Deg <= 90.0 else { return nil }
+    guard !lat2Deg.isNaN, !lat2Deg.isInfinite, !normalizedLonDeg.isNaN, !normalizedLonDeg.isInfinite, lat2Deg >= -90.0, lat2Deg <= 90.0 else { return nil }
 
     return CLLocationCoordinate2D(
       latitude: lat2Deg,
-      longitude: normalizedLon
+      longitude: normalizedLonDeg
     )
   }
 
@@ -82,44 +83,43 @@ extension CLLocationCoordinate2D {
   func rhumbCoordinate(atDistance distance: Measurement<UnitLength>, bearing: Measurement<UnitAngle>) -> CLLocationCoordinate2D? {
     guard distance.value >= 0, !bearing.value.isNaN, !bearing.value.isInfinite else { return nil }
 
-    let earthRadius = 6371000.0 // meters
     let distanceInMeters = distance.converted(to: .meters).value
 
-    let lat1 = self.latitude * .pi / 180.0
-    let lon1 = self.longitude * .pi / 180.0
+    let lat1Radians = self.latitude * .pi / 180.0
+    let lon1Radians = self.longitude * .pi / 180.0
 
-    let angularDistance = distanceInMeters / earthRadius
-    let trueCourse = bearing.converted(to: .radians).value
+    let angularDistanceRadians = distanceInMeters / Self.earthRadius.value
+    let trueCourseRadians = bearing.converted(to: .radians).value
 
-    let lat2 = lat1 + angularDistance * cos(trueCourse)
+    let lat2Radians = lat1Radians + angularDistanceRadians * cos(trueCourseRadians)
 
-    var lat2Deg = lat2 * 180.0 / .pi
+    var lat2Deg = lat2Radians * 180.0 / .pi
     // Clamp latitude to avoid division by zero (infinity) at the poles in Mercator projections
     if lat2Deg > 89.9 { lat2Deg = 89.9 }
     if lat2Deg < -89.9 { lat2Deg = -89.9 }
 
-    let clampedLat2 = lat2Deg * .pi / 180.0
+    let clampedLat2Radians = lat2Deg * .pi / 180.0
 
-    let dPhi = log(tan(.pi / 4.0 + clampedLat2 / 2.0) / tan(.pi / 4.0 + lat1 / 2.0))
+    let dPhi = log(tan(.pi / 4.0 + clampedLat2Radians / 2.0) / tan(.pi / 4.0 + lat1Radians / 2.0))
 
     let q: Double
     if abs(dPhi) > 1e-12 {
-      q = (clampedLat2 - lat1) / dPhi
+      q = (clampedLat2Radians - lat1Radians) / dPhi
     } else {
-      q = cos(lat1)
+      q = cos(lat1Radians)
     }
 
-    let dLon = angularDistance * sin(trueCourse) / q
-    let lon2 = lon1 + dLon
+    let dLonRadians = angularDistanceRadians * sin(trueCourseRadians) / q
+    let lon2Radians = lon1Radians + dLonRadians
 
-    let degreesLon = lon2 * 180.0 / .pi
-    let normalizedLon = (degreesLon + 540.0).truncatingRemainder(dividingBy: 360.0) - 180.0
+    let degreesLon = lon2Radians * 180.0 / .pi
+    let normalizedLonDeg = (degreesLon + 540.0).truncatingRemainder(dividingBy: 360.0) - 180.0
 
-    guard !lat2Deg.isNaN, !lat2Deg.isInfinite, !normalizedLon.isNaN, !normalizedLon.isInfinite, lat2Deg >= -90.0, lat2Deg <= 90.0 else { return nil }
+    guard !lat2Deg.isNaN, !lat2Deg.isInfinite, !normalizedLonDeg.isNaN, !normalizedLonDeg.isInfinite, lat2Deg >= -90.0, lat2Deg <= 90.0 else { return nil }
 
     return CLLocationCoordinate2D(
       latitude: lat2Deg,
-      longitude: normalizedLon
+      longitude: normalizedLonDeg
     )
   }
 }
