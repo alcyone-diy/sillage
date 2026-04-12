@@ -233,16 +233,7 @@ class MapViewModel {
     self.headingVectorFeature = generateHeadingVector(location: location)
 
     // Update GPS Accuracy Polygon Feature
-    if location.horizontalAccuracy > 0 {
-      let accuracyMeasurement = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
-      if var accuracyCoords = location.coordinate.accuracyPolygon(radius: accuracyMeasurement) {
-        self.gpsAccuracyFeature = MLNPolygonFeature(coordinates: &accuracyCoords, count: UInt(accuracyCoords.count))
-      } else {
-        self.gpsAccuracyFeature = nil
-      }
-    } else {
-      self.gpsAccuracyFeature = nil
-    }
+    self.gpsAccuracyFeature = generateAccuracyFeature(for: location)
 
     // Push explicit camera updates if tracking
     if trackingMode != .free {
@@ -295,6 +286,19 @@ class MapViewModel {
     }
 
     return MLNShapeCollectionFeature(shapes: shapes)
+  }
+
+  private func generateAccuracyFeature(for location: CLLocation) -> MLNPolygonFeature? {
+    guard location.horizontalAccuracy > 0 else {
+      return nil
+    }
+
+    let accuracyMeasurement = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
+    guard var accuracyCoords = location.coordinate.accuracyPolygon(radius: accuracyMeasurement) else {
+      return nil
+    }
+
+    return MLNPolygonFeature(coordinates: &accuracyCoords, count: UInt(accuracyCoords.count))
   }
 
   func switchMapSource(to source: MapSource) {
