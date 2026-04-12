@@ -79,11 +79,12 @@ struct MapLibreView: UIViewRepresentable {
   }
 
   func makeUIView(context: Context) -> MLNMapView {
-    // Initialization of the MapLibre view without a frame
-    let mapView = MLNMapView(frame: .zero)
+    // Use a small non-zero frame instead of .zero to avoid early layout warning triggers
+    let mapView = MLNMapView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
 
     // Explicitly disable automatic inset adjustments to avoid conflicts with SwiftUI Safe Areas
-    mapView.automaticallyAdjustContentInset = false
+    mapView.automaticallyAdjustsContentInset = false
+    // Note: MLNMapView legacy warning persists due to internal SDK check on UIHostingController. Layout is correctly managed by SwiftUI.
 
     mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
