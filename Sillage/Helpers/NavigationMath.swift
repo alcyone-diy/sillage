@@ -39,11 +39,11 @@ extension CLLocationCoordinate2D {
     return coordinates
   }
 
-  /// Projects a coordinate given a distance and bearing (in degrees) using the Haversine/Vincenty spherical model.
+  /// Projects a coordinate given a distance and bearing using the Haversine/Vincenty spherical model.
   /// - Parameters:
   ///   - distance: Distance as a `Measurement<UnitLength>`.
-  ///   - bearing: Bearing in degrees (0 = North).
-  /// - Returns: The projected coordinate.
+  ///   - bearing: The compass bearing as a `Measurement<UnitAngle>` (0 = True North).
+  /// - Returns: The projected coordinate, or nil if inputs/outputs are mathematically invalid.
   func greatCircleCoordinate(atDistance distance: Measurement<UnitLength>, bearing: Measurement<UnitAngle>) -> CLLocationCoordinate2D? {
     guard distance.value >= 0, !bearing.value.isNaN, !bearing.value.isInfinite else { return nil }
 
@@ -73,12 +73,12 @@ extension CLLocationCoordinate2D {
     )
   }
 
-  /// Projects a coordinate given a distance and bearing (in degrees) using the Rhumb Line (loxodromic) model.
+  /// Projects a coordinate given a distance and bearing using the Rhumb Line (loxodromic) model.
   /// This maintains a constant compass heading, rendering as a straight line on a Mercator projection.
   /// - Parameters:
   ///   - distance: Distance as a `Measurement<UnitLength>`.
-  ///   - bearing: Bearing in degrees (0 = North).
-  /// - Returns: The projected coordinate.
+  ///   - bearing: The compass bearing as a `Measurement<UnitAngle>` (0 = True North).
+  /// - Returns: The projected coordinate, or nil if inputs/outputs are mathematically invalid.
   func rhumbCoordinate(atDistance distance: Measurement<UnitLength>, bearing: Measurement<UnitAngle>) -> CLLocationCoordinate2D? {
     guard distance.value >= 0, !bearing.value.isNaN, !bearing.value.isInfinite else { return nil }
 
