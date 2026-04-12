@@ -11,7 +11,7 @@ import SwiftUI
 
 struct GeoGarageLoginView: View {
   @Environment(\.marineTheme) private var marineTheme
-  @EnvironmentObject private var mapViewModel: MapViewModel
+  @Environment(MapViewModel.self) private var mapViewModel
   @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
   @State private var viewModel = GeoGarageLoginViewModel()
   @Environment(\.dismiss) private var dismiss

@@ -16,7 +16,7 @@ import CoreLocation
 struct ContentView: View {
 
   @Environment(AppViewModel.self) private var appViewModel
-  @EnvironmentObject var mapViewModel: MapViewModel
+  @Environment(MapViewModel.self) var mapViewModel
 
   // State for showing the settings sheet
   @State private var isShowingSettings = false
@@ -159,5 +159,5 @@ struct ContentView: View {
 
 #Preview {
   ContentView()
-    .environmentObject(MapViewModel())
+    .environment(MapViewModel())
 }

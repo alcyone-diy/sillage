@@ -12,6 +12,7 @@ import Foundation
 import Combine
 import CoreLocation
 import SwiftUI
+import Observation
 import MapLibre
 
 enum MapTrackingMode {
@@ -20,37 +21,40 @@ enum MapTrackingMode {
   case courseUp
 }
 
-class MapViewModel: ObservableObject {
 
-  @Published var trackingMode: MapTrackingMode = .free
-  @Published var currentMapSource: MapSource?
-  @Published var mapBounds: MBTilesBounds?
-  @Published var maxZoom: Double?
-  @Published var minZoom: Double?
-  @Published var availableGeoGarageLayers: [GeoGarageLayer] = []
-  @Published var localOfflineMaps: [URL] = []
-  @Published var mapImportError: String?
-  @Published var showImportError: Bool = false
-  @Published var isOpenSeaMapOverlayEnabled: Bool = false {
+@Observable
+@MainActor
+class MapViewModel {
+
+  var trackingMode: MapTrackingMode = .free
+  var currentMapSource: MapSource?
+  var mapBounds: MBTilesBounds?
+  var maxZoom: Double?
+  var minZoom: Double?
+  var availableGeoGarageLayers: [GeoGarageLayer] = []
+  var localOfflineMaps: [URL] = []
+  var mapImportError: String?
+  var showImportError: Bool = false
+  var isOpenSeaMapOverlayEnabled: Bool = false {
     didSet {
       preferencesService.isOpenSeaMapOverlayEnabled = isOpenSeaMapOverlayEnabled
     }
   }
 
   // Current Map State
-  @Published var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
-  @Published var zoomLevel: Double = 10.0
-  @Published var mapDirection: Double = 0.0
+  var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
+  var zoomLevel: Double = 10.0
+  var mapDirection: Double = 0.0
 
   // UI Properties
-  @Published var formattedCoordinates: String = "--"
-  @Published var speedOverGround: Double? = nil
-  @Published var courseOverGround: Double? = nil
+  var formattedCoordinates: String = "--"
+  var speedOverGround: Double? = nil
+  var courseOverGround: Double? = nil
 
   // Vessel Tracking Features
-  @Published var vesselFeature: MLNPointFeature?
-  @Published var headingVectorFeature: MLNShapeCollectionFeature?
-  @Published var isDataStale: Bool = true
+  var vesselFeature: MLNPointFeature?
+  var headingVectorFeature: MLNShapeCollectionFeature?
+  var isDataStale: Bool = true
 
   private var mapLayer: MapLayer?
   private var staleDataTimer: Timer?

@@ -20,7 +20,7 @@ import Combine
 
 struct MapLibreView: UIViewRepresentable {
 
-  @ObservedObject var viewModel: MapViewModel
+  var viewModel: MapViewModel
 
   func makeUIView(context: Context) -> MLNMapView {
     // Initialization of the MapLibre view without a frame
