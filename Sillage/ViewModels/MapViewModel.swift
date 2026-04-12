@@ -48,7 +48,7 @@ class MapViewModel {
 
   // UI Properties
   var formattedCoordinates: String = "--"
-  var speedOverGround: Double? = nil
+  var speedOverGround: Measurement<UnitSpeed>? = nil
   var courseOverGround: Double? = nil
 
   // Navigation Constants
@@ -173,11 +173,10 @@ class MapViewModel {
     let lon = formatCoordinate(location.coordinate.longitude, isLatitude: false)
     formattedCoordinates = "\(lat) / \(lon)"
 
-    // Update SOG (m/s to knots) using Apple's Measurement
+    // Update SOG using Apple's Measurement
     let speed = location.speed
     if speed >= 0 {
-      let speedMeasurement = Measurement(value: speed, unit: UnitSpeed.metersPerSecond)
-      speedOverGround = speedMeasurement.converted(to: .knots).value
+      speedOverGround = Measurement(value: speed, unit: UnitSpeed.metersPerSecond)
     } else {
       speedOverGround = nil
     }
@@ -219,12 +218,13 @@ class MapViewModel {
   }
 
   private func generateHeadingVector(location: CLLocation) -> MLNShapeCollectionFeature? {
-    guard let sog = speedOverGround, let cog = courseOverGround, location.speed > 0 else {
+    guard let sogMeasurement = speedOverGround, let cog = courseOverGround, location.speed > 0 else {
       return nil
     }
 
     // Hide vector if speed is less than 0.5 knots
-    if sog < 0.5 {
+    let sogKnots = sogMeasurement.converted(to: .knots).value
+    if sogKnots < 0.5 {
       return nil
     }
 

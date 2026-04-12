@@ -122,8 +122,9 @@ struct ContentView: View {
               .marineFont(.instrumentLabel)
               .foregroundColor(.secondary)
             Group {
-              if let sog = mapViewModel.speedOverGround {
-                Text("\(sog.formatted(.number.precision(.fractionLength(1)))) kts")
+              if let sogMeasurement = mapViewModel.speedOverGround {
+                let sogKnots = sogMeasurement.converted(to: .knots).value
+                Text("\(sogKnots.formatted(.number.precision(.fractionLength(1)))) kts")
               } else {
                 Text("-- kts")
               }
