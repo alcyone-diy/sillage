@@ -16,7 +16,7 @@ public struct MBTileFile: Identifiable, Sendable {
   public let fileURL: URL
   public let fileSize: Measurement<UnitInformationStorage>?
 
-  public init(id: UUID = UUID(), filename: String, fileURL: URL, fileSize: Measurement<UnitInformationStorage>?) {
+  public nonisolated init(id: UUID = UUID(), filename: String, fileURL: URL, fileSize: Measurement<UnitInformationStorage>?) {
     self.id = id
     self.filename = filename
     self.fileURL = fileURL

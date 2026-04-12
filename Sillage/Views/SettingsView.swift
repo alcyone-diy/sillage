@@ -63,7 +63,7 @@ struct SettingsView: View {
               await viewModel.loadLocalCharts()
             }
           }
-          .marineButtonStyle()
+          .buttonStyle(MarineButtonStyle())
         }
 
         Section(header: Text("Accounts").marineFont(.headline)) {
