@@ -110,11 +110,17 @@ struct ContentView: View {
   // Marine Dashboard View
   private var marineDashboard: some View {
       VStack(spacing: 8) {
-        // TODO: Need to find a way to add it back without taking too much space. Probably display it when tapping on the instructions.
+        // TODO: Need to find a way to add it back without taking too much space.
         /*
-        Text(mapViewModel.formattedCoordinates)
-          .marineFont(.instrumentData)
-          .foregroundColor(.yellow)
+        if let coordinate = mapViewModel.currentCoordinate {
+          Text(coordinate, format: .marineCoordinate)
+            .marineFont(.instrumentData)
+            .foregroundColor(.yellow)
+        } else {
+          Text("-- / --")
+            .marineFont(.instrumentData)
+            .foregroundColor(.yellow)
+        }
         */
         HStack(spacing: 40) {
           VStack {

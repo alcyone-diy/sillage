@@ -52,7 +52,7 @@ class MapViewModel {
   var mapDirection: Measurement<UnitAngle> = Measurement(value: 0.0, unit: UnitAngle.degrees)
 
   // UI Properties
-  var formattedCoordinates: String = "--"
+  var currentCoordinate: CLLocationCoordinate2D? = nil
   var speedOverGround: Measurement<UnitSpeed>? = nil
   var courseOverGround: Measurement<UnitAngle>? = nil
 
@@ -200,10 +200,8 @@ class MapViewModel {
       self?.isDataStale = true
     }
 
-    // Update formatted coordinates (Degrees, Minutes, Decimals)
-    let lat = formatCoordinate(location.coordinate.latitude, isLatitude: true)
-    let lon = formatCoordinate(location.coordinate.longitude, isLatitude: false)
-    formattedCoordinates = "\(lat) / \(lon)"
+    // Update current coordinate
+    currentCoordinate = location.coordinate
 
     // Update SOG using Apple's Measurement
     let speed = location.speed
@@ -350,15 +348,6 @@ class MapViewModel {
 
   func mapInteractedByUser() {
     trackingMode = .free
-  }
-
-  private func formatCoordinate(_ degrees: CLLocationDegrees, isLatitude: Bool) -> String {
-    let direction = isLatitude ? (degrees >= 0 ? "N" : "S") : (degrees >= 0 ? "E" : "W")
-    let absDegrees = abs(degrees)
-    let intDegrees = Int(absDegrees)
-    let minutes = (absDegrees - Double(intDegrees)) * 60.0
-
-    return String(format: "%02d°%06.3f' %@", intDegrees, minutes, direction)
   }
 
   func toggleTrackingMode() {
