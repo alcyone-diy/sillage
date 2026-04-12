@@ -29,9 +29,27 @@ struct MapLibreView: UIViewRepresentable {
     let vesselLayerId = "vessel-layer"
     let headingSourceId = "heading-vector-source"
     let headingLayerId = "heading-vector-layer"
+    let gpsAccuracySourceId = "gps-accuracy-source"
+    let gpsAccuracyLayerId = "gps-accuracy-layer"
+    let gpsAccuracyStrokeLayerId = "gps-accuracy-stroke-layer"
 
     if style.source(withIdentifier: vesselSourceId) == nil {
-      // Create Heading Source and Layer first so it's beneath the vessel
+      // Create GPS Accuracy Source and Layers first so they are beneath the heading vector and vessel
+      let gpsAccuracySource = MLNShapeSource(identifier: gpsAccuracySourceId, shape: nil, options: nil)
+      style.addSource(gpsAccuracySource)
+
+      let gpsAccuracyFillLayer = MLNFillStyleLayer(identifier: gpsAccuracyLayerId, source: gpsAccuracySource)
+      gpsAccuracyFillLayer.fillColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.accent))
+      gpsAccuracyFillLayer.fillOpacity = NSExpression(forConstantValue: MarineTheme.MapMetrics.gpsAccuracyFillOpacity)
+      style.addLayer(gpsAccuracyFillLayer)
+
+      let gpsAccuracyStrokeLayer = MLNLineStyleLayer(identifier: gpsAccuracyStrokeLayerId, source: gpsAccuracySource)
+      gpsAccuracyStrokeLayer.lineColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.accent))
+      gpsAccuracyStrokeLayer.lineOpacity = NSExpression(forConstantValue: MarineTheme.MapMetrics.gpsAccuracyStrokeOpacity)
+      gpsAccuracyStrokeLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.MapMetrics.gpsAccuracyLineWidth)
+      style.insertLayer(gpsAccuracyStrokeLayer, above: gpsAccuracyFillLayer)
+
+      // Create Heading Source and Layer so it's above gps accuracy but beneath the vessel
       let headingSource = MLNShapeSource(identifier: headingSourceId, shape: nil, options: nil)
       style.addSource(headingSource)
 
@@ -111,6 +129,11 @@ struct MapLibreView: UIViewRepresentable {
       // Heading vector feature update
       if let source = style.source(withIdentifier: "heading-vector-source") as? MLNShapeSource {
         source.shape = viewModel.headingVectorFeature
+      }
+
+      // GPS accuracy feature update
+      if let source = style.source(withIdentifier: "gps-accuracy-source") as? MLNShapeSource {
+        source.shape = viewModel.gpsAccuracyFeature
       }
 
       // Data Stale state update (Opacity)
@@ -220,6 +243,9 @@ struct MapLibreView: UIViewRepresentable {
       parent.ensureVesselLayersExist(in: style, with: parent.marineTheme)
       if let source = style.source(withIdentifier: "heading-vector-source") as? MLNShapeSource {
         source.shape = parent.viewModel.headingVectorFeature
+      }
+      if let source = style.source(withIdentifier: "gps-accuracy-source") as? MLNShapeSource {
+        source.shape = parent.viewModel.gpsAccuracyFeature
       }
       if let source = style.source(withIdentifier: "vessel-source") as? MLNShapeSource {
         source.shape = parent.viewModel.vesselFeature
@@ -332,6 +358,28 @@ struct MapLibreView: UIViewRepresentable {
           style.insertLayer(headingLayer, below: vesselLayer)
         } else {
           style.addLayer(headingLayer)
+        }
+      }
+      if let gpsAccuracyStrokeLayer = style.layer(withIdentifier: "gps-accuracy-stroke-layer") {
+        style.removeLayer(gpsAccuracyStrokeLayer)
+        if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
+          style.insertLayer(gpsAccuracyStrokeLayer, below: headingLayer)
+        } else if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
+          style.insertLayer(gpsAccuracyStrokeLayer, below: vesselLayer)
+        } else {
+          style.addLayer(gpsAccuracyStrokeLayer)
+        }
+      }
+      if let gpsAccuracyFillLayer = style.layer(withIdentifier: "gps-accuracy-layer") {
+        style.removeLayer(gpsAccuracyFillLayer)
+        if let strokeLayer = style.layer(withIdentifier: "gps-accuracy-stroke-layer") {
+          style.insertLayer(gpsAccuracyFillLayer, below: strokeLayer)
+        } else if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
+          style.insertLayer(gpsAccuracyFillLayer, below: headingLayer)
+        } else if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
+          style.insertLayer(gpsAccuracyFillLayer, below: vesselLayer)
+        } else {
+          style.addLayer(gpsAccuracyFillLayer)
         }
       }
     }
