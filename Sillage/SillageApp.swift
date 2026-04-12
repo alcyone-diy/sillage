@@ -16,7 +16,7 @@ import MapLibre
 @main
 struct SillageApp: App {
   @State private var appViewModel = AppViewModel()
-  @StateObject private var mapViewModel = MapViewModel()
+  @State private var mapViewModel = MapViewModel()
   @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
   
   init() {
@@ -45,7 +45,7 @@ struct SillageApp: App {
         ContentView()
           .environment(\.marineTheme, appViewModel.marineTheme)
           .environment(appViewModel)
-          .environmentObject(mapViewModel)
+          .environment(mapViewModel)
           .onOpenURL { url in
             appViewModel.handleIncomingURL(url)
           }

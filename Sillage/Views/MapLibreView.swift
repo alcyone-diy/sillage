@@ -20,7 +20,46 @@ import Combine
 
 struct MapLibreView: UIViewRepresentable {
 
-  @ObservedObject var viewModel: MapViewModel
+  @Environment(\.marineTheme) var marineTheme
+  var viewModel: MapViewModel
+
+
+  private func ensureVesselLayersExist(in style: MLNStyle, with theme: MarineTheme) {
+    let vesselSourceId = "vessel-source"
+    let vesselLayerId = "vessel-layer"
+    let headingSourceId = "heading-vector-source"
+    let headingLayerId = "heading-vector-layer"
+
+    if style.source(withIdentifier: vesselSourceId) == nil {
+      // Create Heading Source and Layer first so it's beneath the vessel
+      let headingSource = MLNShapeSource(identifier: headingSourceId, shape: nil, options: nil)
+      style.addSource(headingSource)
+
+      let headingLayer = MLNLineStyleLayer(identifier: headingLayerId, source: headingSource)
+      let lineWidthValue = MarineTheme.MapMetrics.headingLineWidth
+      let planningLineWidthValue = MarineTheme.MapMetrics.planningLineWidth
+      headingLayer.lineWidth = NSExpression(format: "TERNARY(colorIndex == 2, %@, %@)", NSNumber(value: planningLineWidthValue), NSNumber(value: lineWidthValue))
+
+      let color0 = UIColor(MarineTheme.Colors.primary)
+      let color1 = UIColor(MarineTheme.Colors.primaryFaded)
+      let color2 = UIColor(MarineTheme.Colors.planningLine)
+      headingLayer.lineColor = NSExpression(format: "TERNARY(colorIndex == 0, %@, TERNARY(colorIndex == 1, %@, %@))", color0, color1, color2)
+      style.addLayer(headingLayer)
+
+      // Create Vessel Source and Layer
+      let vesselSource = MLNShapeSource(identifier: vesselSourceId, shape: nil, options: nil)
+      style.addSource(vesselSource)
+
+      let vesselLayer = MLNSymbolStyleLayer(identifier: vesselLayerId, source: vesselSource)
+      vesselLayer.iconImageName = NSExpression(forConstantValue: "vessel-cursor")
+      vesselLayer.iconRotationAlignment = NSExpression(forConstantValue: "map")
+      vesselLayer.iconRotation = NSExpression(forKeyPath: "course")
+      vesselLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
+      vesselLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
+      vesselLayer.iconOpacity = NSExpression(forConstantValue: 1.0)
+      style.addLayer(vesselLayer)
+    }
+  }
 
   func makeUIView(context: Context) -> MLNMapView {
     // Initialization of the MapLibre view without a frame
@@ -60,6 +99,35 @@ struct MapLibreView: UIViewRepresentable {
     // Updates the coordinator's parent to always point to the latest view (SwiftUI struct)
     context.coordinator.parent = self
 
+    // Defensive Update for Vessel and Heading Features
+    if let style = uiView.style {
+      ensureVesselLayersExist(in: style, with: marineTheme)
+
+      // Vessel feature update
+      if let source = style.source(withIdentifier: "vessel-source") as? MLNShapeSource {
+        source.shape = viewModel.vesselFeature
+      }
+
+      // Heading vector feature update
+      if let source = style.source(withIdentifier: "heading-vector-source") as? MLNShapeSource {
+        source.shape = viewModel.headingVectorFeature
+      }
+
+      // Data Stale state update (Opacity)
+      if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
+        layer.iconOpacity = NSExpression(forConstantValue: viewModel.isDataStale ? 0.4 : 1.0)
+      }
+    }
+
+
+    // Force tracking mode to none if it deviated, since tracking is explicitly handled in the viewModel
+    _ = viewModel.trackingMode
+    if uiView.userTrackingMode != .none {
+      uiView.userTrackingMode = .none
+    }
+
+
+
     // If the map source has changed, update the map's style/source
     if let currentSource = viewModel.currentMapSource,
      context.coordinator.lastMapSource != currentSource,
@@ -82,7 +150,7 @@ struct MapLibreView: UIViewRepresentable {
     }
 
     if uiView.contentInset != newInset {
-      uiView.setContentInset(newInset, animated: true)
+      uiView.setContentInset(newInset, animated: true, completionHandler: nil)
     }
 
     // Disable compass interaction when in an automated tracking mode to prevent state conflicts
@@ -129,38 +197,6 @@ struct MapLibreView: UIViewRepresentable {
           }
         }
         .store(in: &cancellables)
-
-      parent.viewModel.$vesselFeature
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] feature in
-          self?.updateVesselFeature(feature, in: mapView)
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$headingVectorFeature
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] feature in
-          self?.updateHeadingVectorFeature(feature, in: mapView)
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$isDataStale
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] isStale in
-          self?.updateStaleState(isStale, in: mapView)
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$trackingMode
-        .receive(on: DispatchQueue.main)
-        .sink { [weak mapView] mode in
-          guard let mapView = mapView else { return }
-          // Force tracking mode to none, as we handle tracking explicitly
-          if mapView.userTrackingMode != .none {
-            mapView.userTrackingMode = .none
-          }
-        }
-        .store(in: &cancellables)
     }
 
     var lastOpenSeaMapOverlayEnabled: Bool = false
@@ -181,9 +217,16 @@ struct MapLibreView: UIViewRepresentable {
       updateOpenSeaMapOverlay(isEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: mapView)
 
       // Ensure vessel layers are initialized after style finishes loading
-      updateHeadingVectorFeature(parent.viewModel.headingVectorFeature, in: mapView)
-      updateVesselFeature(parent.viewModel.vesselFeature, in: mapView)
-      updateStaleState(parent.viewModel.isDataStale, in: mapView)
+      parent.ensureVesselLayersExist(in: style, with: parent.marineTheme)
+      if let source = style.source(withIdentifier: "heading-vector-source") as? MLNShapeSource {
+        source.shape = parent.viewModel.headingVectorFeature
+      }
+      if let source = style.source(withIdentifier: "vessel-source") as? MLNShapeSource {
+        source.shape = parent.viewModel.vesselFeature
+      }
+      if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
+        layer.iconOpacity = NSExpression(forConstantValue: parent.viewModel.isDataStale ? 0.4 : 1.0)
+      }
 
       // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
       // In SwiftUI, `didFinishLoading` can fire before the map view has a non-zero frame.
@@ -293,78 +336,11 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
 
-    private func updateVesselFeature(_ feature: MLNPointFeature?, in mapView: MLNMapView) {
-      guard let style = mapView.style else { return }
 
-      let sourceId = "vessel-source"
-      let layerId = "vessel-layer"
 
-      if let source = style.source(withIdentifier: sourceId) as? MLNShapeSource {
-        if let feature = feature {
-          source.shape = feature
-        } else {
-          source.shape = nil
-        }
-      } else {
-        guard let feature = feature else { return }
 
-        let source = MLNShapeSource(identifier: sourceId, shape: feature, options: nil)
-        style.addSource(source)
 
-        let layer = MLNSymbolStyleLayer(identifier: layerId, source: source)
-        layer.iconImageName = NSExpression(forConstantValue: "vessel-cursor")
-        layer.iconRotationAlignment = NSExpression(forConstantValue: "map")
-        layer.iconRotation = NSExpression(forKeyPath: "course")
-        layer.iconAllowsOverlap = NSExpression(forConstantValue: true)
-        layer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
-        layer.iconOpacity = NSExpression(forConstantValue: parent.viewModel.isDataStale ? 0.4 : 1.0)
 
-        style.addLayer(layer) // Add at top
-      }
-    }
-
-    private func updateHeadingVectorFeature(_ feature: MLNShapeCollectionFeature?, in mapView: MLNMapView) {
-      guard let style = mapView.style else { return }
-
-      let sourceId = "heading-vector-source"
-      let layerId = "heading-vector-layer"
-
-      if let source = style.source(withIdentifier: sourceId) as? MLNShapeSource {
-        if let feature = feature {
-          source.shape = feature
-        } else {
-          source.shape = nil
-        }
-      } else {
-        guard let feature = feature else { return }
-
-        let source = MLNShapeSource(identifier: sourceId, shape: feature, options: nil)
-        style.addSource(source)
-
-        let layer = MLNLineStyleLayer(identifier: layerId, source: source)
-
-        let lineWidthValue = MarineTheme.MapMetrics.headingLineWidth
-        let planningLineWidthValue = MarineTheme.MapMetrics.planningLineWidth
-        layer.lineWidth = NSExpression(format: "TERNARY(colorIndex == 2, %@, %@)", NSNumber(value: planningLineWidthValue), NSNumber(value: lineWidthValue))
-
-        let color0 = UIColor(MarineTheme.Colors.primary)
-        let color1 = UIColor(MarineTheme.Colors.primaryFaded)
-        let color2 = UIColor(MarineTheme.Colors.planningLine)
-        layer.lineColor = NSExpression(format: "TERNARY(colorIndex == 0, %@, TERNARY(colorIndex == 1, %@, %@))", color0, color1, color2)
-
-        // Ensure heading vector is under the vessel layer
-        if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
-          style.insertLayer(layer, below: vesselLayer)
-        } else {
-          style.addLayer(layer)
-        }
-      }
-    }
-
-    private func updateStaleState(_ isStale: Bool, in mapView: MLNMapView) {
-      guard let style = mapView.style, let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer else { return }
-      layer.iconOpacity = NSExpression(forConstantValue: isStale ? 0.4 : 1.0)
-    }
 
     func updateOpenSeaMapOverlay(isEnabled: Bool, style: MLNStyle, mapView: MLNMapView) {
       if lastOpenSeaMapOverlayEnabled != isEnabled {

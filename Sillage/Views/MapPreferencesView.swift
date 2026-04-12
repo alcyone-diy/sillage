@@ -12,7 +12,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct MapPreferencesView: View {
-  @EnvironmentObject var mapViewModel: MapViewModel
+  @Environment(MapViewModel.self) var mapViewModel
   @State private var showingFileImporter = false
 
   // A helper enum to easily toggle between the specific sources
@@ -36,6 +36,7 @@ struct MapPreferencesView: View {
   }
 
   var body: some View {
+    @Bindable var mapViewModel = mapViewModel
     Form {
       Section(header: Text("Local Offline Charts").marineFont(.headline)) {
         Button("Import Offline Map (.mbtiles)") {
@@ -177,6 +178,6 @@ private struct MapSourceRowView: View {
 #Preview {
   NavigationStack {
     MapPreferencesView()
-      .environmentObject(MapViewModel())
+      .environment(MapViewModel())
   }
 }

@@ -12,6 +12,7 @@ import Foundation
 import Combine
 import CoreLocation
 import SwiftUI
+import Observation
 import MapLibre
 
 enum MapTrackingMode {
@@ -20,40 +21,43 @@ enum MapTrackingMode {
   case courseUp
 }
 
-class MapViewModel: ObservableObject {
 
-  @Published var trackingMode: MapTrackingMode = .free
-  @Published var currentMapSource: MapSource?
-  @Published var mapBounds: MBTilesBounds?
-  @Published var maxZoom: Double?
-  @Published var minZoom: Double?
-  @Published var availableGeoGarageLayers: [GeoGarageLayer] = []
-  @Published var localOfflineMaps: [URL] = []
-  @Published var mapImportError: String?
-  @Published var showImportError: Bool = false
-  @Published var isOpenSeaMapOverlayEnabled: Bool = false {
+@Observable
+@MainActor
+class MapViewModel {
+
+  var trackingMode: MapTrackingMode = .free
+  var currentMapSource: MapSource?
+  var mapBounds: MBTilesBounds?
+  var maxZoom: Double?
+  var minZoom: Double?
+  var availableGeoGarageLayers: [GeoGarageLayer] = []
+  var localOfflineMaps: [URL] = []
+  var mapImportError: String?
+  var showImportError: Bool = false
+  var isOpenSeaMapOverlayEnabled: Bool = false {
     didSet {
       preferencesService.isOpenSeaMapOverlayEnabled = isOpenSeaMapOverlayEnabled
     }
   }
 
   // Current Map State
-  @Published var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
-  @Published var zoomLevel: Double = 10.0
-  @Published var mapDirection: Double = 0.0
+  var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
+  var zoomLevel: Double = 10.0
+  var mapDirection: Double = 0.0
 
   // UI Properties
-  @Published var formattedCoordinates: String = "--"
-  @Published var speedOverGround: Double? = nil
-  @Published var courseOverGround: Double? = nil
+  var formattedCoordinates: String = "--"
+  var speedOverGround: Double? = nil
+  var courseOverGround: Double? = nil
 
   // Vessel Tracking Features
-  @Published var vesselFeature: MLNPointFeature?
-  @Published var headingVectorFeature: MLNShapeCollectionFeature?
-  @Published var isDataStale: Bool = true
+  var vesselFeature: MLNPointFeature?
+  var headingVectorFeature: MLNShapeCollectionFeature?
+  var isDataStale: Bool = true
 
   private var mapLayer: MapLayer?
-  private var staleDataTimer: Timer?
+  private var staleDataTask: Task<Void, Never>?
   private let locationService: LocationServiceProtocol
   private var cancellables = Set<AnyCancellable>()
 
@@ -67,13 +71,14 @@ class MapViewModel: ObservableObject {
   private var preferencesService: PreferencesServiceProtocol
   private let authService: GeoGarageAuthServiceProtocol
 
-  init(locationService: LocationServiceProtocol = LocationService.shared,
-       preferencesService: PreferencesServiceProtocol = PreferencesService.shared,
-       authService: GeoGarageAuthServiceProtocol = GeoGarageAuthService()) {
-    self.locationService = locationService
-    self.preferencesService = preferencesService
-    self.authService = authService
-    self.isOpenSeaMapOverlayEnabled = preferencesService.isOpenSeaMapOverlayEnabled
+  @MainActor
+  init(locationService: LocationServiceProtocol? = nil,
+       preferencesService: PreferencesServiceProtocol? = nil,
+       authService: GeoGarageAuthServiceProtocol? = nil) {
+    self.locationService = locationService ?? LocationService.shared
+    self.preferencesService = preferencesService ?? PreferencesService.shared
+    self.authService = authService ?? GeoGarageAuthService()
+    self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
 
     loadSavedMapSource()
     setupLocationService()
@@ -150,14 +155,13 @@ class MapViewModel: ObservableObject {
 
     lastKnownLocation = location
 
-    // Reset stale data timer (ensure run loop on main thread)
-    DispatchQueue.main.async { [weak self] in
-      guard let self = self else { return }
-      self.isDataStale = false
-      self.staleDataTimer?.invalidate()
-      self.staleDataTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-        self?.isDataStale = true
-      }
+    // Reset stale data task
+    self.isDataStale = false
+    self.staleDataTask?.cancel()
+    self.staleDataTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+      guard !Task.isCancelled else { return }
+      self?.isDataStale = true
     }
 
     // Update formatted coordinates (Degrees, Minutes, Decimals)
