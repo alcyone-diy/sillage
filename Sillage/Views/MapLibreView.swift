@@ -60,6 +60,30 @@ struct MapLibreView: UIViewRepresentable {
     // Updates the coordinator's parent to always point to the latest view (SwiftUI struct)
     context.coordinator.parent = self
 
+    // Defensive Update for Vessel and Heading Features
+    if let style = uiView.style {
+      // Vessel feature update
+      if let source = style.source(withIdentifier: "vessel-source") as? MLNShapeSource {
+        source.shape = viewModel.vesselFeature
+      }
+
+      // Heading vector feature update
+      if let source = style.source(withIdentifier: "heading-vector-source") as? MLNShapeSource {
+        source.shape = viewModel.headingVectorFeature
+      }
+
+      // Data Stale state update (Opacity)
+      if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
+        layer.iconOpacity = NSExpression(forConstantValue: viewModel.isDataStale ? 0.4 : 1.0)
+      }
+    }
+
+    // Force tracking mode to none if it deviated, since tracking is explicitly handled in the viewModel
+    if uiView.userTrackingMode != .none {
+      uiView.userTrackingMode = .none
+    }
+
+
     // If the map source has changed, update the map's style/source
     if let currentSource = viewModel.currentMapSource,
      context.coordinator.lastMapSource != currentSource,
@@ -82,7 +106,7 @@ struct MapLibreView: UIViewRepresentable {
     }
 
     if uiView.contentInset != newInset {
-      uiView.setContentInset(newInset, animated: true)
+      uiView.setContentInset(newInset, animated: true, completionHandler: nil)
     }
 
     // Disable compass interaction when in an automated tracking mode to prevent state conflicts
@@ -126,38 +150,6 @@ struct MapLibreView: UIViewRepresentable {
             mapView.setCenter(coordinate, zoomLevel: targetZoom, direction: heading, animated: true, completionHandler: nil)
           } else {
             mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
-          }
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$vesselFeature
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] feature in
-          self?.updateVesselFeature(feature, in: mapView)
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$headingVectorFeature
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] feature in
-          self?.updateHeadingVectorFeature(feature, in: mapView)
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$isDataStale
-        .receive(on: DispatchQueue.main)
-        .sink { [weak self] isStale in
-          self?.updateStaleState(isStale, in: mapView)
-        }
-        .store(in: &cancellables)
-
-      parent.viewModel.$trackingMode
-        .receive(on: DispatchQueue.main)
-        .sink { [weak mapView] mode in
-          guard let mapView = mapView else { return }
-          // Force tracking mode to none, as we handle tracking explicitly
-          if mapView.userTrackingMode != .none {
-            mapView.userTrackingMode = .none
           }
         }
         .store(in: &cancellables)
