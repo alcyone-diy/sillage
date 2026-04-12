@@ -9,11 +9,16 @@
 //
 
 import Foundation
-import Combine
 import CoreLocation
 import SwiftUI
 import Observation
 import MapLibre
+
+struct CameraMoveEvent {
+  let coordinate: CLLocationCoordinate2D
+  let zoom: Double?
+  let heading: Measurement<UnitAngle>?
+}
 
 enum MapTrackingMode {
   case free
@@ -62,12 +67,25 @@ class MapViewModel {
 
   private var mapLayer: MapLayer?
   private var staleDataTask: Task<Void, Never>?
+  private var locationUpdatesTask: Task<Void, Never>?
   private let locationService: LocationServiceProtocol
-  private var cancellables = Set<AnyCancellable>()
 
-  // Publisher to trigger a one-off camera animation to a specific location
-  // We optionally pass a target zoom level if we want a specific viewport
-  let cameraMovePublisher = PassthroughSubject<(CLLocationCoordinate2D, Double?, Measurement<UnitAngle>?), Never>()
+  // Multicast Stream for Camera Move Events
+  private var cameraMoveContinuations: [UUID: AsyncStream<CameraMoveEvent>.Continuation] = [:]
+  var cameraMoveStream: AsyncStream<CameraMoveEvent> {
+    let (stream, continuation) = AsyncStream.makeStream(of: CameraMoveEvent.self)
+    let id = UUID()
+    // We are on @MainActor, no lock needed
+    cameraMoveContinuations[id] = continuation
+
+    continuation.onTermination = { [weak self] _ in
+      guard let self = self else { return }
+      Task { @MainActor in
+        self.cameraMoveContinuations.removeValue(forKey: id)
+      }
+    }
+    return stream
+  }
 
   // Store the last received location to center on it when requested
   private var lastKnownLocation: CLLocation?
@@ -88,6 +106,10 @@ class MapViewModel {
     setupLocationService()
     silentlyFetchGeoGarageLayers()
     loadLocalOfflineMaps()
+  }
+
+  deinit {
+    locationUpdatesTask?.cancel()
   }
 
   private func loadLocalOfflineMaps() {
@@ -139,13 +161,27 @@ class MapViewModel {
   }
 
   private func setupLocationService() {
-    locationService.locationPublisher
-      .throttle(for: .seconds(1), scheduler: DispatchQueue.main, latest: true)
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] location in
-        self?.handleNewLocation(location)
+    locationUpdatesTask = Task { [weak self] in
+      let clock = ContinuousClock()
+      // Initialize to past to allow the first event to pass immediately
+      var lastProcessedTime = clock.now.advanced(by: .seconds(-2))
+
+      // locationService.locationUpdates creates a new stream on access
+      guard let self = self else { return }
+      for await location in self.locationService.locationUpdates {
+        guard !Task.isCancelled else { break }
+
+        let now = clock.now
+        if now.duration(to: lastProcessedTime) > .seconds(-1) {
+          continue
+        }
+        lastProcessedTime = now
+
+        await MainActor.run {
+          self.handleNewLocation(location)
+        }
       }
-      .store(in: &cancellables)
+    }
 
     locationService.requestAuthorization()
   }
@@ -217,7 +253,10 @@ class MapViewModel {
     // Push explicit camera updates if tracking
     if trackingMode != .free {
       let heading = (trackingMode == .courseUp && course >= 0) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
-      cameraMovePublisher.send((location.coordinate, nil, heading))
+      let event = CameraMoveEvent(coordinate: location.coordinate, zoom: nil, heading: heading)
+      for continuation in cameraMoveContinuations.values {
+        continuation.yield(event)
+      }
     }
   }
 
@@ -337,7 +376,10 @@ class MapViewModel {
     if trackingMode != .free, let location = lastKnownLocation {
       let course = location.course
       let heading = (trackingMode == .courseUp && course >= 0) ? Measurement(value: course, unit: UnitAngle.degrees) : Measurement(value: 0.0, unit: UnitAngle.degrees)
-      cameraMovePublisher.send((location.coordinate, nil, heading))
+      let event = CameraMoveEvent(coordinate: location.coordinate, zoom: nil, heading: heading)
+      for continuation in cameraMoveContinuations.values {
+        continuation.yield(event)
+      }
     }
   }
 
@@ -350,7 +392,10 @@ class MapViewModel {
     // Pass `nil` for zoomLevel to allow MapLibreView to use `mapView.zoomLevel` and preserve it.
     let course = location.course
     let heading = (trackingMode == .courseUp && course >= 0) ? Measurement(value: course, unit: UnitAngle.degrees) : Measurement(value: 0.0, unit: UnitAngle.degrees)
-    cameraMovePublisher.send((location.coordinate, nil, heading))
+    let event = CameraMoveEvent(coordinate: location.coordinate, zoom: nil, heading: heading)
+    for continuation in cameraMoveContinuations.values {
+      continuation.yield(event)
+    }
   }
 
   func saveCameraState() {

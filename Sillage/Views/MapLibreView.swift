@@ -16,7 +16,6 @@
 import SwiftUI
 import MapLibre
 import CoreLocation
-import Combine
 
 struct MapLibreView: UIViewRepresentable {
 
@@ -107,7 +106,7 @@ struct MapLibreView: UIViewRepresentable {
     // Centering of the initial camera using ViewModel's state
     mapView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, direction: viewModel.mapDirection.converted(to: .degrees).value, animated: false)
 
-    // Setup subscription for explicit user location centering via Publisher
+    // Setup subscription for explicit user location centering via AsyncStream
     context.coordinator.setupSubscription(for: mapView)
 
     return mapView
@@ -197,29 +196,33 @@ struct MapLibreView: UIViewRepresentable {
 
   class Coordinator: NSObject, MLNMapViewDelegate {
     var parent: MapLibreView
-    private var cancellables = Set<AnyCancellable>()
+    private var streamTask: Task<Void, Never>?
     var lastMapSource: MapSource?
 
     init(_ parent: MapLibreView) {
       self.parent = parent
     }
 
+    deinit {
+      streamTask?.cancel()
+    }
+
     func setupSubscription(for mapView: MLNMapView) {
-      parent.viewModel.cameraMovePublisher
-        .receive(on: DispatchQueue.main)
-        .sink { (coordinate, requestedZoom, heading) in
-          let targetZoom = requestedZoom ?? mapView.zoomLevel
+      streamTask?.cancel()
+      streamTask = Task { @MainActor in
+        for await event in parent.viewModel.cameraMoveStream {
+          let targetZoom = event.zoom ?? mapView.zoomLevel
 
           // We pass the targetZoom explicitly. If the raster chart doesn't support this
           // zoom level (e.g., maxZoom is 14), MapLibre might show a white screen
           // depending on how over-zooming is handled by the raster source style.
-          if let heading = heading {
-            mapView.setCenter(coordinate, zoomLevel: targetZoom, direction: heading.converted(to: .degrees).value, animated: true, completionHandler: nil)
+          if let heading = event.heading {
+            mapView.setCenter(event.coordinate, zoomLevel: targetZoom, direction: heading.converted(to: .degrees).value, animated: true, completionHandler: nil)
           } else {
-            mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
+            mapView.setCenter(event.coordinate, zoomLevel: targetZoom, animated: true)
           }
         }
-        .store(in: &cancellables)
+      }
     }
 
     var lastOpenSeaMapOverlayEnabled: Bool = false

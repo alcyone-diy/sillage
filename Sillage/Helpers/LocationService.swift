@@ -10,11 +10,10 @@
 
 import Foundation
 import CoreLocation
-import Combine
 
 protocol LocationServiceProtocol {
-  var locationPublisher: PassthroughSubject<CLLocation, Never> { get }
-  var authorizationStatusPublisher: PassthroughSubject<CLAuthorizationStatus, Never> { get }
+  var locationUpdates: AsyncStream<CLLocation> { get }
+  var authorizationStatusStream: AsyncStream<CLAuthorizationStatus> { get }
 
   func requestAuthorization()
   func startUpdatingLocation()
@@ -27,8 +26,43 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
 
   private let locationManager: CLLocationManager
 
-  let locationPublisher = PassthroughSubject<CLLocation, Never>()
-  let authorizationStatusPublisher = PassthroughSubject<CLAuthorizationStatus, Never>()
+  // Multicast support for Location Updates
+  private var locationContinuations: [UUID: AsyncStream<CLLocation>.Continuation] = [:]
+  private let locationContinuationsLock = NSLock()
+  var locationUpdates: AsyncStream<CLLocation> {
+    let (stream, continuation) = AsyncStream.makeStream(of: CLLocation.self)
+    let id = UUID()
+    locationContinuationsLock.lock()
+    locationContinuations[id] = continuation
+    locationContinuationsLock.unlock()
+
+    continuation.onTermination = { [weak self] _ in
+      guard let self = self else { return }
+      self.locationContinuationsLock.lock()
+      self.locationContinuations.removeValue(forKey: id)
+      self.locationContinuationsLock.unlock()
+    }
+    return stream
+  }
+
+  // Multicast support for Authorization Status
+  private var authContinuations: [UUID: AsyncStream<CLAuthorizationStatus>.Continuation] = [:]
+  private let authContinuationsLock = NSLock()
+  var authorizationStatusStream: AsyncStream<CLAuthorizationStatus> {
+    let (stream, continuation) = AsyncStream.makeStream(of: CLAuthorizationStatus.self)
+    let id = UUID()
+    authContinuationsLock.lock()
+    authContinuations[id] = continuation
+    authContinuationsLock.unlock()
+
+    continuation.onTermination = { [weak self] _ in
+      guard let self = self else { return }
+      self.authContinuationsLock.lock()
+      self.authContinuations.removeValue(forKey: id)
+      self.authContinuationsLock.unlock()
+    }
+    return stream
+  }
 
   // MARK: - State variables for Heading Stabilization
   private enum MovementState {
@@ -82,7 +116,11 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
   // MARK: - CLLocationManagerDelegate
 
   func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-    authorizationStatusPublisher.send(manager.authorizationStatus)
+    authContinuationsLock.lock()
+    for continuation in authContinuations.values {
+      continuation.yield(manager.authorizationStatus)
+    }
+    authContinuationsLock.unlock()
 
     switch manager.authorizationStatus {
     case .authorizedWhenInUse, .authorizedAlways:
@@ -155,7 +193,11 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
         timestamp: latestLocation.timestamp
       )
 
-      locationPublisher.send(filteredLocation)
+      locationContinuationsLock.lock()
+      for continuation in locationContinuations.values {
+        continuation.yield(filteredLocation)
+      }
+      locationContinuationsLock.unlock()
     } else {
       print("LocationService ignored coordinate due to low accuracy: \(accuracy)m")
     }
