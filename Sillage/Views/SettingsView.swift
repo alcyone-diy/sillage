@@ -33,14 +33,6 @@ struct SettingsView: View {
           }
         }
 
-        Section(header: Text("Accounts").marineFont(.headline)) {
-          NavigationLink(destination: GeoGarageLoginView()) {
-            Label("GeoGarage Account", systemImage: "person.crop.circle")
-              .marineFont(.body)
-              .marineListCell()
-          }
-        }
-
         Section(header: Text("Safety & Legal").marineFont(.headline)) {
           NavigationLink(destination: LegalListView(documents: viewModel.legalDocuments)) {
             Label("Legal & Licenses", systemImage: "doc.text")
