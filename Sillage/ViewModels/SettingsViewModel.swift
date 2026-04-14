@@ -15,12 +15,8 @@ import Observation
 @Observable
 class SettingsViewModel {
   var legalDocuments: [LegalDocument] = []
-  var localCharts: [MBTileFile] = []
 
-  private let storageService: ChartStorageService
-
-  init(storageService: ChartStorageService = ChartStorageService()) {
-    self.storageService = storageService
+  init() {
     self.legalDocuments = [
       LegalDocument(
         title: "Maritime Navigation Warning",
@@ -47,9 +43,5 @@ class SettingsViewModel {
         fileExtension: "txt"
       ),
     ]
-  }
-
-  func loadLocalCharts() async {
-    self.localCharts = await storageService.discoverMBTiles()
   }
 }
