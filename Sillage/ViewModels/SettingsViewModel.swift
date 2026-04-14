@@ -11,6 +11,7 @@
 import Foundation
 import Observation
 
+@MainActor
 @Observable
 class SettingsViewModel {
   var legalDocuments: [LegalDocument] = []
