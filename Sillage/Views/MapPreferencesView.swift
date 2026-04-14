@@ -59,12 +59,6 @@ struct MapPreferencesView: View {
     Form {
       // MARK: - Local Offline Charts Section
       Section(header: Text("Local Offline Charts").marineFont(.headline)) {
-        
-        // Button triggering the iOS native file picker
-        Button("Import Offline Map (.mbtiles)") {
-          showingFileImporter = true
-        }
-        .buttonStyle(MarineButtonStyle())
 
         // Dynamically list all imported local MBTiles files
         ForEach(mapViewModel.localOfflineMaps, id: \.filename) { mapFile in
@@ -95,6 +89,12 @@ struct MapPreferencesView: View {
           }
           .buttonStyle(.plain)
         }
+        
+        // Button triggering the iOS native file picker
+        Button("Import Offline Map (.mbtiles)…") {
+          showingFileImporter = true
+        }
+        .buttonStyle(MarineButtonStyle())
       }
 
       // MARK: - Online Charts Section

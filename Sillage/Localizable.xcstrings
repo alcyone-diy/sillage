@@ -76,7 +76,7 @@
     "Import Failed" : {
 
     },
-    "Import Offline Map (.mbtiles)" : {
+    "Import Offline Map (.mbtiles)…" : {
 
     },
     "Import succeeded, but failed to clean up the original file: %@" : {
