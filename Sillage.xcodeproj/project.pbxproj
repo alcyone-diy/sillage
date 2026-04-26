@@ -287,7 +287,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Sillage;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your position is required to display your vessel on the chart and provide navigation data (SOG/COG).";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Sillage requires your background location to record your GPS track and maintain navigation alarms while the screen is off.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Sillage requires your location to display your vessel on the chart in real-time.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -320,14 +321,15 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5XUSE5U6X4;
+				DEVELOPMENT_TEAM = 2XJ35D8M93;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sillage/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Sillage;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.navigation";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Your position is required to display your vessel on the chart and provide navigation data (SOG/COG).";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Sillage requires your background location to record your GPS track and maintain navigation alarms while the screen is off.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Sillage requires your location to display your vessel on the chart in real-time.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -337,7 +339,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = alcyone.Sillage;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.alcyone-sillage.sillage";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
