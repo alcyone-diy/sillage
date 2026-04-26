@@ -83,3 +83,5 @@ iOSInjectionProject/
 # Custom specific ignores
 /maps/
 Secrets.xcconfig
+instructions.txt
+
