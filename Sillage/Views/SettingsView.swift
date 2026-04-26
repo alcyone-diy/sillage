@@ -13,6 +13,7 @@ import SwiftUI
 struct SettingsView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(AppViewModel.self) private var appViewModel
+  @Environment(\.marineTheme) private var marineTheme
   @State private var viewModel = SettingsViewModel()
 
   var body: some View {
@@ -24,12 +25,10 @@ struct SettingsView: View {
             Label("Glove Mode", systemImage: "hand.raised.fill")
               .marineFont(.body)
           }
-          .marineListCell()
 
           NavigationLink(destination: MapPreferencesView()) {
             Label("Map Preferences", systemImage: "map")
               .marineFont(.body)
-              .marineListCell()
           }
         }
 
@@ -37,7 +36,6 @@ struct SettingsView: View {
           NavigationLink(destination: LegalListView(documents: viewModel.legalDocuments)) {
             Label("Legal & Licenses", systemImage: "doc.text")
               .marineFont(.body)
-              .marineListCell()
           }
         }
 
@@ -50,15 +48,19 @@ struct SettingsView: View {
               .marineFont(.body)
               .foregroundColor(.secondary)
           }
-          .marineListCell()
         }
       }
+      .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
       .navigationTitle("Settings")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .navigationBarTrailing) {
-          Button("Done") {
+          Button(action: {
             dismiss()
+          }) {
+            Image(systemName: "xmark.circle.fill")
+              .foregroundStyle(.tertiary)
+              .font(.title2)
           }
         }
       }

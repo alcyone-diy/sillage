@@ -18,6 +18,9 @@ struct MapPreferencesView: View {
   /// The central view model managing the map's state and data sources.
   @Environment(MapViewModel.self) var mapViewModel
   
+  /// Injects the global design system theme.
+  @Environment(\.marineTheme) private var marineTheme
+  
   /// Controls the presentation of the system file picker for importing charts.
   @State private var showingFileImporter = false
 
@@ -94,7 +97,9 @@ struct MapPreferencesView: View {
         Button("Import Offline Map (.mbtiles)…") {
           showingFileImporter = true
         }
-        .buttonStyle(MarineButtonStyle())
+        .marineFont(.body)
+        .foregroundColor(.primary)
+        .marineListCell()
       }
 
       // MARK: - Online Charts Section
@@ -118,8 +123,9 @@ struct MapPreferencesView: View {
         if mapViewModel.availableGeoGarageLayers.isEmpty {
           NavigationLink(destination: GeoGarageLoginView()) {
             Text("Login to GeoGarage")
+              .marineFont(.body)
           }
-          .buttonStyle(MarineButtonStyle())
+          .marineListCell()
         } else {
           // List all authorized GeoGarage layers fetched from the API
           ForEach(mapViewModel.availableGeoGarageLayers) { layer in
@@ -161,6 +167,7 @@ struct MapPreferencesView: View {
         .marineListCell()
       }
     }
+    .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .navigationTitle("Map Preferences")
     .navigationBarTitleDisplayMode(.inline)
     
@@ -223,5 +230,6 @@ private struct MapSourceRowView: View {
   NavigationStack {
     MapPreferencesView()
       .environment(MapViewModel())
+      .environment(\.marineTheme, .standard)
   }
 }

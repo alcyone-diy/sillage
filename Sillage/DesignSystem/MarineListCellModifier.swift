@@ -11,12 +11,8 @@
 import SwiftUI
 
 struct MarineListCellModifier: ViewModifier {
-  @Environment(\.marineTheme) private var marineTheme
-  @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
-
   func body(content: Content) -> some View {
     content
-      .frame(minHeight: marineTheme.minTouchTarget * scaleFactor)
       .contentShape(Rectangle())
   }
 }
