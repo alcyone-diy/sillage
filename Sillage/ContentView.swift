@@ -18,63 +18,111 @@ struct ContentView: View {
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(MapViewModel.self) var mapViewModel
   @Environment(CommandPanelViewModel.self) private var commandPanelViewModel
+  @Environment(\.verticalSizeClass) var verticalSizeClass
+  @Environment(\.marineTheme) private var marineTheme
 
   var body: some View {
     // ZStack so the map occupies the entire space (ignoring safe areas)
     ZStack {
 
-    // Conditional display of the map (if the current map source was successfully found)
-    if mapViewModel.currentMapSource != nil {
-      MapLibreView(viewModel: mapViewModel)
-        .ignoresSafeArea() // Essential for full-screen immersion
+      // Conditional display of the map (if the current map source was successfully found)
+      if mapViewModel.currentMapSource != nil {
+        MapLibreView(viewModel: mapViewModel)
+          .ignoresSafeArea() // Essential for full-screen immersion
 
-    } else {
-      // Fallback view if MBTiles data cannot be loaded
-      VStack {
-        ProgressView()
-          .padding()
-        Text("Loading marine charts…")
-          .foregroundColor(.secondary)
+      } else {
+        // Fallback view if MBTiles data cannot be loaded
+        VStack {
+          ProgressView()
+            .padding()
+          Text("Loading marine charts…")
+            .foregroundColor(.secondary)
+        }
       }
-    }
 
-    // UI Overlay
-    VStack {
-      // Top Marine Dashboard
-      marineDashboard
+      // UI Overlay
+      VStack {
+        // Top Marine Dashboard
+        marineDashboard
 
-      Spacer()
+        Spacer()
 
-      // Bottom Floating Action Buttons
-      HStack {
-          // Command Panel Button
-          CommandButtonView()
+        // Bottom Floating Action Buttons
+        HStack {
+            // Command Panel Button
+            CommandButtonView()
+              .padding()
+              .padding(.bottom, 30) // Clears bottom safe area
+
+            Spacer()
+
+            // Recenter Button
+            Button(action: {
+              mapViewModel.toggleTrackingMode()
+            }) {
+              Image(systemName: trackingIconName(for: mapViewModel.trackingMode))
+                .marineFont(.title3)
+                .foregroundColor(.white)
+            }
+            .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: mapViewModel.trackingMode)))
             .padding()
             .padding(.bottom, 30) // Clears bottom safe area
+        }
+      }
 
-          Spacer()
-
-          // Recenter Button
-          Button(action: {
-            mapViewModel.toggleTrackingMode()
-          }) {
-            Image(systemName: trackingIconName(for: mapViewModel.trackingMode))
-              .marineFont(.title3)
-              .foregroundColor(.white)
+      // Custom adaptive drawer
+      if commandPanelViewModel.isPanelOpen {
+        // Dimming Background
+        Color.black.opacity(0.3)
+          .ignoresSafeArea()
+          .onTapGesture {
+            commandPanelViewModel.isPanelOpen = false
           }
-          .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: mapViewModel.trackingMode)))
-          .padding()
-          .padding(.bottom, 30) // Clears bottom safe area
+          .transition(.opacity)
+
+        // Drawer
+        GeometryReader { geometry in
+          if verticalSizeClass == .compact {
+            // Landscape (Trailing Drawer)
+            HStack(spacing: 0) {
+              Spacer(minLength: 0)
+              CommandPanelView()
+                .frame(width: marineTheme.commandPanelWidth)
+                .clipShape(
+                  UnevenRoundedRectangle(
+                    topLeadingRadius: marineTheme.drawerCornerRadius,
+                    bottomLeadingRadius: marineTheme.drawerCornerRadius,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: 0,
+                    style: .continuous
+                  )
+                )
+                .ignoresSafeArea(edges: [.top, .bottom, .trailing])
+                .transition(.move(edge: .trailing))
+            }
+          } else {
+            // Portrait (Bottom Drawer)
+            VStack(spacing: 0) {
+              Spacer(minLength: 0)
+              CommandPanelView()
+                .frame(height: geometry.size.height * marineTheme.commandPanelPortraitHeightFraction)
+                .clipShape(
+                  UnevenRoundedRectangle(
+                    topLeadingRadius: marineTheme.drawerCornerRadius,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: marineTheme.drawerCornerRadius,
+                    style: .continuous
+                  )
+                )
+                .ignoresSafeArea(edges: [.bottom])
+                .transition(.move(edge: .bottom))
+            }
+          }
+        }
       }
     }
-    }
-    .inspector(isPresented: Bindable(commandPanelViewModel).isPanelOpen) {
-      CommandPanelView()
-        .inspectorColumnWidth(ideal: 320)
-        .presentationDetents([.medium, .large])
-        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-        .presentationDragIndicator(.visible)
-    }
+    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: commandPanelViewModel.isPanelOpen)
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
       error: appViewModel.importError
