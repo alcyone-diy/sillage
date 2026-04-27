@@ -83,51 +83,51 @@ struct ContentView: View {
             }
             .transition(.opacity)
             .zIndex(0)
-
-          // Drawer
-          Group {
-            if verticalSizeClass == .compact {
-              // Landscape (Trailing Drawer)
-              HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                CommandPanelView()
-                  .frame(width: marineTheme.commandPanelWidth)
-                  .clipShape(
-                    UnevenRoundedRectangle(
-                      topLeadingRadius: marineTheme.drawerCornerRadius,
-                      bottomLeadingRadius: marineTheme.drawerCornerRadius,
-                      bottomTrailingRadius: 0,
-                      topTrailingRadius: 0,
-                      style: .continuous
-                    )
-                  )
-                  .ignoresSafeArea(edges: [.top, .bottom, .trailing])
-                  .transition(.move(edge: .trailing))
-              }
-            } else {
-              // Portrait (Bottom Drawer)
-              VStack(spacing: 0) {
-                Spacer(minLength: 0)
-                CommandPanelView()
-                  .containerRelativeFrame(.vertical, alignment: .bottom) { length, _ in
-                    length * marineTheme.commandPanelPortraitHeightFraction
-                  }
-                  .clipShape(
-                    UnevenRoundedRectangle(
-                      topLeadingRadius: marineTheme.drawerCornerRadius,
-                      bottomLeadingRadius: 0,
-                      bottomTrailingRadius: 0,
-                      topTrailingRadius: marineTheme.drawerCornerRadius,
-                      style: .continuous
-                    )
-                  )
-                  .ignoresSafeArea(edges: [.bottom])
-                  .transition(.move(edge: .bottom))
-              }
-            }
-          }
-          .zIndex(1) // Critical for keeping the drawer above the fading background during dismissal
         }
+
+        // Drawer
+        Group {
+          if verticalSizeClass == .compact {
+            // Landscape (Trailing Drawer)
+            HStack(spacing: 0) {
+              Spacer(minLength: 0)
+              CommandPanelView()
+                .frame(width: marineTheme.commandPanelWidth)
+                .clipShape(
+                  UnevenRoundedRectangle(
+                    topLeadingRadius: marineTheme.drawerCornerRadius,
+                    bottomLeadingRadius: marineTheme.drawerCornerRadius,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: 0,
+                    style: .continuous
+                  )
+                )
+                .ignoresSafeArea(edges: [.top, .bottom, .trailing])
+            }
+            .offset(x: commandPanelViewModel.isPanelOpen ? 0 : marineTheme.commandPanelWidth)
+          } else {
+            // Portrait (Bottom Drawer)
+            VStack(spacing: 0) {
+              Spacer(minLength: 0)
+              CommandPanelView()
+                .containerRelativeFrame(.vertical, alignment: .bottom) { length, _ in
+                  length * marineTheme.commandPanelPortraitHeightFraction
+                }
+                .clipShape(
+                  UnevenRoundedRectangle(
+                    topLeadingRadius: marineTheme.drawerCornerRadius,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: marineTheme.drawerCornerRadius,
+                    style: .continuous
+                  )
+                )
+                .ignoresSafeArea(edges: [.bottom])
+            }
+            .offset(y: commandPanelViewModel.isPanelOpen ? 0 : 2000)
+          }
+        }
+        .zIndex(1) // Critical for keeping the drawer above the fading background during dismissal
       }
     }
     .alert(
