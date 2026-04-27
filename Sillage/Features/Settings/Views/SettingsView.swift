@@ -17,10 +17,9 @@ struct SettingsView: View {
   @State private var viewModel = SettingsViewModel()
 
   var body: some View {
-    NavigationStack {
-      Form {
-        Section(header: Text("General").marineFont(.headline)) {
-          @Bindable var bindableAppViewModel = appViewModel
+    Form {
+      Section(header: Text("General").marineFont(.headline)) {
+        @Bindable var bindableAppViewModel = appViewModel
           Toggle(isOn: $bindableAppViewModel.isGloveModeEnabled) {
             Label("Glove Mode", systemImage: "hand.raised.fill")
               .marineFont(.body)
@@ -32,39 +31,27 @@ struct SettingsView: View {
           }
         }
 
-        Section(header: Text("Safety & Legal").marineFont(.headline)) {
-          NavigationLink(destination: LegalListView(documents: viewModel.legalDocuments)) {
-            Label("Legal & Licenses", systemImage: "doc.text")
-              .marineFont(.body)
-          }
-        }
-
-        Section(header: Text("About").marineFont(.headline)) {
-          HStack {
-            Label("Version", systemImage: "info.circle")
-              .marineFont(.body)
-            Spacer()
-            Text("1.0.0")
-              .marineFont(.body)
-              .foregroundColor(.secondary)
-          }
+      Section(header: Text("Safety & Legal").marineFont(.headline)) {
+        NavigationLink(destination: LegalListView(documents: viewModel.legalDocuments)) {
+          Label("Legal & Licenses", systemImage: "doc.text")
+            .marineFont(.body)
         }
       }
-      .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-      .navigationTitle("Settings")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .navigationBarTrailing) {
-          Button(action: {
-            dismiss()
-          }) {
-            Image(systemName: "xmark.circle.fill")
-              .foregroundStyle(.tertiary)
-              .font(.title2)
-          }
+
+      Section(header: Text("About").marineFont(.headline)) {
+        HStack {
+          Label("Version", systemImage: "info.circle")
+            .marineFont(.body)
+          Spacer()
+          Text("1.0.0")
+            .marineFont(.body)
+            .foregroundColor(.secondary)
         }
       }
     }
+    .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+    .navigationTitle("Settings")
+    .navigationBarTitleDisplayMode(.inline)
   }
 }
 
