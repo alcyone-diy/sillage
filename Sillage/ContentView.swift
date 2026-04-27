@@ -17,9 +17,8 @@ struct ContentView: View {
 
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(MapViewModel.self) var mapViewModel
-
-  // State for showing the settings sheet
-  @State private var isShowingSettings = false
+  @Environment(CommandPanelViewModel.self) private var commandPanelViewModel
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
     // ZStack so the map occupies the entire space (ignoring safe areas)
@@ -49,18 +48,6 @@ struct ContentView: View {
 
       // Bottom Floating Action Buttons
       HStack {
-          // Settings Button
-          Button(action: {
-            isShowingSettings = true
-          }) {
-            Image(systemName: "gearshape.fill")
-              .font(.system(size: 24, weight: .bold))
-              .foregroundColor(.white)
-          }
-          .buttonStyle(MarineFABStyle(backgroundColor: .blue))
-          .padding()
-          .padding(.bottom, 30) // Clears bottom safe area
-
           Spacer()
 
           // Recenter Button
@@ -74,13 +61,29 @@ struct ContentView: View {
           .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: mapViewModel.trackingMode)))
           .padding()
           .padding(.bottom, 30) // Clears bottom safe area
+
+          // Command Panel Button
+          CommandButtonView()
+          .padding()
+          .padding(.bottom, 30) // Clears bottom safe area
       }
     }
     }
-    .sheet(isPresented: $isShowingSettings) {
-      SettingsView()
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+    .sheet(isPresented: Binding(
+        get: { horizontalSizeClass == .compact && commandPanelViewModel.isPanelOpen },
+        set: { commandPanelViewModel.isPanelOpen = $0 }
+    )) {
+        CommandPanelView()
+            .presentationDetents([.medium, .large])
+            .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+            .presentationDragIndicator(.visible)
+    }
+    .inspector(isPresented: Binding(
+        get: { horizontalSizeClass != .compact && commandPanelViewModel.isPanelOpen },
+        set: { commandPanelViewModel.isPanelOpen = $0 }
+    )) {
+        CommandPanelView()
+            .inspectorColumnWidth(ideal: 320)
     }
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
