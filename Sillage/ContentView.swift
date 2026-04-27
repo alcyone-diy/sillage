@@ -71,6 +71,9 @@ struct ContentView: View {
     .inspector(isPresented: Bindable(commandPanelViewModel).isPanelOpen) {
       CommandPanelView()
         .inspectorColumnWidth(ideal: 320)
+        .presentationDetents([.medium, .large])
+        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        .presentationDragIndicator(.visible)
     }
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
