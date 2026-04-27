@@ -77,7 +77,7 @@ struct ContentView: View {
           Color.black.opacity(0.3)
             .ignoresSafeArea()
             .onTapGesture {
-              withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+              withAnimation(.spring(duration: 0.35, bounce: 0.0)) {
                 commandPanelViewModel.isPanelOpen = false
               }
             }
@@ -102,9 +102,9 @@ struct ContentView: View {
                     style: .continuous
                   )
                 )
-                .ignoresSafeArea(edges: [.top, .bottom, .trailing])
             }
-            .offset(x: commandPanelViewModel.isPanelOpen ? 0 : marineTheme.commandPanelWidth)
+            .ignoresSafeArea(edges: [.top, .bottom])
+            .offset(x: commandPanelViewModel.isPanelOpen ? 0 : marineTheme.commandPanelWidth + 150)
           } else {
             // Portrait (Bottom Drawer)
             VStack(spacing: 0) {
@@ -122,9 +122,9 @@ struct ContentView: View {
                     style: .continuous
                   )
                 )
-                .ignoresSafeArea(edges: [.bottom])
             }
-            .offset(y: commandPanelViewModel.isPanelOpen ? 0 : 2000)
+            .ignoresSafeArea(edges: [.bottom])
+            .offset(y: commandPanelViewModel.isPanelOpen ? 0 : 1500)
           }
         }
         .zIndex(1) // Critical for keeping the drawer above the fading background during dismissal
