@@ -20,6 +20,11 @@ struct ContentView: View {
   @Environment(CommandPanelViewModel.self) private var commandPanelViewModel
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+  @ViewBuilder
+  private var commandPanelContent: some View {
+      CommandPanelView()
+  }
+
   var body: some View {
     // ZStack so the map occupies the entire space (ignoring safe areas)
     ZStack {
@@ -73,16 +78,17 @@ struct ContentView: View {
         get: { horizontalSizeClass == .compact && commandPanelViewModel.isPanelOpen },
         set: { commandPanelViewModel.isPanelOpen = $0 }
     )) {
-        CommandPanelView()
+        commandPanelContent
             .presentationDetents([.medium, .large])
             .presentationBackgroundInteraction(.enabled(upThrough: .medium))
             .presentationDragIndicator(.visible)
+            .presentationCompactAdaptation(.none) // Forces detents to be respected even in landscape
     }
     .inspector(isPresented: Binding(
         get: { horizontalSizeClass != .compact && commandPanelViewModel.isPanelOpen },
         set: { commandPanelViewModel.isPanelOpen = $0 }
     )) {
-        CommandPanelView()
+        commandPanelContent
             .inspectorColumnWidth(ideal: 320)
     }
     .alert(
