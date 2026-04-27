@@ -7,7 +7,7 @@ struct CommandButtonView: View {
   var body: some View {
     @Bindable var bindableViewModel = viewModel
     Button(action: {
-      withAnimation(.spring(duration: 0.35, bounce: 0.0)) {
+      withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
         bindableViewModel.isPanelOpen = true
       }
     }) {

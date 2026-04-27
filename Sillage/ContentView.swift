@@ -77,7 +77,7 @@ struct ContentView: View {
           Color.black.opacity(0.3)
             .ignoresSafeArea()
             .onTapGesture {
-              withAnimation(.spring(duration: 0.35, bounce: 0.0)) {
+              withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
                 commandPanelViewModel.isPanelOpen = false
               }
             }
@@ -103,8 +103,8 @@ struct ContentView: View {
                   )
                 )
             }
-            .ignoresSafeArea(edges: [.top, .bottom])
-            .offset(x: commandPanelViewModel.isPanelOpen ? 0 : marineTheme.commandPanelWidth + 150)
+            .ignoresSafeArea(.all)
+            .offset(x: commandPanelViewModel.isPanelOpen ? 0 : marineTheme.commandPanelWidth + 200)
           } else {
             // Portrait (Bottom Drawer)
             VStack(spacing: 0) {
@@ -123,7 +123,7 @@ struct ContentView: View {
                   )
                 )
             }
-            .ignoresSafeArea(edges: [.bottom])
+            .ignoresSafeArea(.all)
             .offset(y: commandPanelViewModel.isPanelOpen ? 0 : 1500)
           }
         }

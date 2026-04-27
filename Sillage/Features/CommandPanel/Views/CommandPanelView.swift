@@ -35,7 +35,7 @@ struct CommandPanelView: View {
       .toolbar {
         ToolbarItem(placement: .navigationBarTrailing) {
           Button(action: {
-            withAnimation(.spring(duration: 0.35, bounce: 0.0)) {
+            withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
               bindableViewModel.isPanelOpen = false
             }
           }) {
