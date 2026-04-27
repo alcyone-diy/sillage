@@ -35,7 +35,9 @@ struct CommandPanelView: View {
       .toolbar {
         ToolbarItem(placement: .navigationBarTrailing) {
           Button(action: {
-            bindableViewModel.isPanelOpen = false
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+              bindableViewModel.isPanelOpen = false
+            }
           }) {
             Image(systemName: "xmark.circle.fill")
               .foregroundStyle(.tertiary)

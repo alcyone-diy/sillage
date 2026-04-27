@@ -72,16 +72,18 @@ struct ContentView: View {
 
       // Custom adaptive drawer
       if commandPanelViewModel.isPanelOpen {
-        // Dimming Background
-        Color.black.opacity(0.3)
-          .ignoresSafeArea()
-          .onTapGesture {
-            commandPanelViewModel.isPanelOpen = false
-          }
-          .transition(.opacity)
+        ZStack {
+          // Dimming Background
+          Color.black.opacity(0.3)
+            .ignoresSafeArea()
+            .onTapGesture {
+              withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                commandPanelViewModel.isPanelOpen = false
+              }
+            }
+            .transition(.opacity)
 
-        // Drawer
-        GeometryReader { geometry in
+          // Drawer
           if verticalSizeClass == .compact {
             // Landscape (Trailing Drawer)
             HStack(spacing: 0) {
@@ -105,7 +107,9 @@ struct ContentView: View {
             VStack(spacing: 0) {
               Spacer(minLength: 0)
               CommandPanelView()
-                .frame(height: geometry.size.height * marineTheme.commandPanelPortraitHeightFraction)
+                .containerRelativeFrame(.vertical, alignment: .bottom) { length, _ in
+                  length * marineTheme.commandPanelPortraitHeightFraction
+                }
                 .clipShape(
                   UnevenRoundedRectangle(
                     topLeadingRadius: marineTheme.drawerCornerRadius,
@@ -120,9 +124,9 @@ struct ContentView: View {
             }
           }
         }
+        .zIndex(1)
       }
     }
-    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: commandPanelViewModel.isPanelOpen)
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
       error: appViewModel.importError

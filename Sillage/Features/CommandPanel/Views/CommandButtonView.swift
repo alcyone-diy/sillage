@@ -7,7 +7,9 @@ struct CommandButtonView: View {
   var body: some View {
     @Bindable var bindableViewModel = viewModel
     Button(action: {
-      bindableViewModel.isPanelOpen = true
+      withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        bindableViewModel.isPanelOpen = true
+      }
     }) {
       Image(systemName: "line.3.horizontal")
         .font(.system(size: 24, weight: .bold)) // Keeping font size similar to previous but FAB style manages padding
