@@ -23,6 +23,7 @@ struct CommandPanelView: View {
         }
         .marineListCell()
       }
+      .scrollContentBackground(.hidden)
       .navigationTitle("Command Panel")
       .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(for: CommandPanelViewModel.Route.self) { route in

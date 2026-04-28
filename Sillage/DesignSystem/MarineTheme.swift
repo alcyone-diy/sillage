@@ -13,6 +13,9 @@ import SwiftUI
 struct MarineTheme {
   let minTouchTarget: CGFloat
   let isGloveMode: Bool
+  let commandPanelWidth: CGFloat
+  let commandPanelPortraitHeightFraction: Double
+  let drawerCornerRadius: CGFloat
 
   struct Colors {
     static let primary = Color.blue
@@ -40,8 +43,21 @@ struct MarineTheme {
     static let gpsAccuracyLineWidth: Double = 1.0
   }
 
-  static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false)
-  static let gloveMode = MarineTheme(minTouchTarget: 66, isGloveMode: true)
+  static let standard = MarineTheme(
+    minTouchTarget: 44,
+    isGloveMode: false,
+    commandPanelWidth: 320,
+    commandPanelPortraitHeightFraction: 0.45,
+    drawerCornerRadius: 24.0
+  )
+
+  static let gloveMode = MarineTheme(
+    minTouchTarget: 66,
+    isGloveMode: true,
+    commandPanelWidth: 360,
+    commandPanelPortraitHeightFraction: 0.45,
+    drawerCornerRadius: 24.0
+  )
 
   func fontSettings(for style: MarineTextStyle) -> (size: Font.TextStyle, weight: Font.Weight?) {
     switch style {

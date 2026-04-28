@@ -18,62 +18,67 @@ struct ContentView: View {
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(MapViewModel.self) var mapViewModel
   @Environment(CommandPanelViewModel.self) private var commandPanelViewModel
+  @Environment(\.verticalSizeClass) var verticalSizeClass
+  @Environment(\.marineTheme) private var marineTheme
 
   var body: some View {
     // ZStack so the map occupies the entire space (ignoring safe areas)
     ZStack {
 
-    // Conditional display of the map (if the current map source was successfully found)
-    if mapViewModel.currentMapSource != nil {
-      MapLibreView(viewModel: mapViewModel)
-        .ignoresSafeArea() // Essential for full-screen immersion
+      // Conditional display of the map (if the current map source was successfully found)
+      if mapViewModel.currentMapSource != nil {
+        MapLibreView(viewModel: mapViewModel)
+          .ignoresSafeArea() // Essential for full-screen immersion
 
-    } else {
-      // Fallback view if MBTiles data cannot be loaded
-      VStack {
-        ProgressView()
-          .padding()
-        Text("Loading marine charts…")
-          .foregroundColor(.secondary)
+      } else {
+        // Fallback view if MBTiles data cannot be loaded
+        VStack {
+          ProgressView()
+            .padding()
+          Text("Loading marine charts…")
+            .foregroundColor(.secondary)
+        }
       }
-    }
 
-    // UI Overlay
-    VStack {
-      // Top Marine Dashboard
-      marineDashboard
+      // UI Overlay
+      VStack {
+        // Top Marine Dashboard
+        marineDashboard
 
-      Spacer()
+        Spacer()
 
-      // Bottom Floating Action Buttons
-      HStack {
-          // Command Panel Button
-          CommandButtonView()
+        // Bottom Floating Action Buttons
+        HStack {
+            // Command Panel Button
+            CommandButtonView()
+              .padding()
+              .padding(.bottom, 30) // Clears bottom safe area
+
+            Spacer()
+
+            // Recenter Button
+            Button(action: {
+              mapViewModel.toggleTrackingMode()
+            }) {
+              Image(systemName: trackingIconName(for: mapViewModel.trackingMode))
+                .marineFont(.title3)
+                .foregroundColor(.white)
+            }
+            .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: mapViewModel.trackingMode)))
             .padding()
             .padding(.bottom, 30) // Clears bottom safe area
-
-          Spacer()
-
-          // Recenter Button
-          Button(action: {
-            mapViewModel.toggleTrackingMode()
-          }) {
-            Image(systemName: trackingIconName(for: mapViewModel.trackingMode))
-              .marineFont(.title3)
-              .foregroundColor(.white)
-          }
-          .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: mapViewModel.trackingMode)))
-          .padding()
-          .padding(.bottom, 30) // Clears bottom safe area
+        }
       }
     }
-    }
-    .inspector(isPresented: Bindable(commandPanelViewModel).isPanelOpen) {
+    .sheet(isPresented: Bindable(commandPanelViewModel).isPanelOpen) {
       CommandPanelView()
-        .inspectorColumnWidth(ideal: 320)
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.fraction(0.25), .medium, .large])
         .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         .presentationDragIndicator(.visible)
+        .presentationBackground(.thickMaterial)
+        .presentationCornerRadius(marineTheme.drawerCornerRadius)
+        .interactiveDismissDisabled(false)
+        .presentationCompactAdaptation(.none)
     }
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
