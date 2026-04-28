@@ -35,9 +35,7 @@ struct CommandPanelView: View {
       .toolbar {
         ToolbarItem(placement: .navigationBarTrailing) {
           Button(action: {
-            withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
-              bindableViewModel.isPanelOpen = false
-            }
+            bindableViewModel.isPanelOpen = false
           }) {
             Image(systemName: "xmark.circle.fill")
               .foregroundStyle(.tertiary)
@@ -45,7 +43,6 @@ struct CommandPanelView: View {
           }
         }
       }
-      .background(.thickMaterial)
     }
   }
 }

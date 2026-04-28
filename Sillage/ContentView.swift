@@ -69,66 +69,16 @@ struct ContentView: View {
             .padding(.bottom, 30) // Clears bottom safe area
         }
       }
-
-      // Permanent Overlay Layer
-      ZStack {
-        if commandPanelViewModel.isPanelOpen {
-          // Dimming Background
-          Color.black.opacity(0.3)
-            .ignoresSafeArea()
-            .onTapGesture {
-              withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
-                commandPanelViewModel.isPanelOpen = false
-              }
-            }
-            .transition(.opacity)
-            .zIndex(0)
-        }
-
-        // Drawer
-        Group {
-          if verticalSizeClass == .compact {
-            // Landscape (Trailing Drawer)
-            HStack(spacing: 0) {
-              Spacer(minLength: 0)
-              CommandPanelView()
-                .frame(width: marineTheme.commandPanelWidth)
-                .clipShape(
-                  UnevenRoundedRectangle(
-                    topLeadingRadius: marineTheme.drawerCornerRadius,
-                    bottomLeadingRadius: marineTheme.drawerCornerRadius,
-                    bottomTrailingRadius: 0,
-                    topTrailingRadius: 0,
-                    style: .continuous
-                  )
-                )
-            }
-            .ignoresSafeArea(.all)
-            .offset(x: commandPanelViewModel.isPanelOpen ? 0 : marineTheme.commandPanelWidth + 200)
-          } else {
-            // Portrait (Bottom Drawer)
-            VStack(spacing: 0) {
-              Spacer(minLength: 0)
-              CommandPanelView()
-                .containerRelativeFrame(.vertical, alignment: .bottom) { length, _ in
-                  length * marineTheme.commandPanelPortraitHeightFraction
-                }
-                .clipShape(
-                  UnevenRoundedRectangle(
-                    topLeadingRadius: marineTheme.drawerCornerRadius,
-                    bottomLeadingRadius: 0,
-                    bottomTrailingRadius: 0,
-                    topTrailingRadius: marineTheme.drawerCornerRadius,
-                    style: .continuous
-                  )
-                )
-            }
-            .ignoresSafeArea(.all)
-            .offset(y: commandPanelViewModel.isPanelOpen ? 0 : 1500)
-          }
-        }
-        .zIndex(1) // Critical for keeping the drawer above the fading background during dismissal
-      }
+    }
+    .sheet(isPresented: Bindable(commandPanelViewModel).isPanelOpen) {
+      CommandPanelView()
+        .presentationDetents([.fraction(0.25), .medium, .large])
+        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        .presentationDragIndicator(.visible)
+        .presentationBackground(.thickMaterial)
+        .presentationCornerRadius(marineTheme.drawerCornerRadius)
+        .interactiveDismissDisabled(false)
+        .presentationCompactAdaptation(.none)
     }
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
