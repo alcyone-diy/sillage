@@ -142,10 +142,16 @@ struct ContentView: View {
       }
       // 3. The Native Bottom Drawer (For iPhone Portrait ONLY)
       .sheet(isPresented: $localSheetPresented) {
-        panelView
-          .presentationDetents([.medium, .large])
-          .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-          .presentationDragIndicator(.visible)
+        if useNativeSheet {
+          panelView
+            .presentationDetents([.medium, .large])
+            .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+            .presentationDragIndicator(.visible)
+        } else {
+          // Immediately render nothing during UIKit's teardown phase to prevent center-screen flashing
+          Color.clear
+            .presentationBackground(.clear)
+        }
       }
     }
     .ignoresSafeArea()
