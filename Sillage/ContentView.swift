@@ -120,13 +120,17 @@ struct ContentView: View {
         if useNativeSheet { localSheetPresented = (newPanel != .none) }
       }
       .onChange(of: useNativeSheet) { _, isNowSheet in
-        if isNowSheet {
-          // Landscape -> Portrait: ZStack vanishes, pass state to Native Sheet
-          localSheetPresented = (panelManagerViewModel.activePanel != .none)
-        } else {
-          // Portrait -> Landscape: ZStack appears instantly. Kill Native Sheet quietly.
-          // Because `useNativeSheet` is already false, the next onChange will NOT trigger closePanel().
-          localSheetPresented = false
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+
+        withTransaction(transaction) {
+          if isNowSheet {
+            // Landscape -> Portrait: ZStack vanishes instantly, Native Sheet appears instantly.
+            localSheetPresented = (panelManagerViewModel.activePanel != .none)
+          } else {
+            // Portrait -> Landscape: Native Sheet vanishes instantly, ZStack appears instantly.
+            localSheetPresented = false
+          }
         }
       }
       .onChange(of: localSheetPresented) { _, isPresented in
