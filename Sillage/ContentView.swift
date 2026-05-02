@@ -93,8 +93,7 @@ struct ContentView: View {
                   Spacer()
                   panelView
                       .background(Material.thickMaterial)
-                      // Use 50% of screen height for the bottom drawer
-                      .containerRelativeFrame(.vertical, count: 2, span: 1, spacing: 0)
+                      .frame(height: geo.size.height * 0.40)
                       .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
                       .ignoresSafeArea(.all, edges: .bottom)
               }
@@ -120,11 +119,11 @@ struct ContentView: View {
       .onChange(of: panelManagerViewModel.activePanel, initial: true) { _, newPanel in
         if useNativeSheet { localSheetPresented = (newPanel != .none) }
       }
-      .onChange(of: useNativeSheet) { _, isNowSheet in
-        if isNowSheet {
-          localSheetPresented = (panelManagerViewModel.activePanel != .none)
-        } else {
-          localSheetPresented = false
+      .onChange(of: useNativeSheet) { _, _ in
+        // A major UI paradigm shift occurred (Native Sheet <-> Custom ZStack).
+        // To prevent UIKit animation glitches during size class mutation, we cleanly close the menu.
+        if panelManagerViewModel.activePanel != .none {
+            panelManagerViewModel.closePanel()
         }
       }
       .onChange(of: localSheetPresented) { _, isPresented in
