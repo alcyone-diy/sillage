@@ -47,13 +47,9 @@ struct ContentView: View {
 
       // Bottom Floating Action Buttons
       HStack {
-          // Command Panel Button
-          CommandButtonView()
-            .padding()
-            .padding(.bottom, 30) // Clears bottom safe area
+        Spacer()
 
-          Spacer()
-
+        VStack(spacing: 16) {
           // Recenter Button
           Button(action: {
             mapViewModel.toggleTrackingMode()
@@ -63,8 +59,12 @@ struct ContentView: View {
               .foregroundColor(.white)
           }
           .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: mapViewModel.trackingMode)))
-          .padding()
-          .padding(.bottom, 30) // Clears bottom safe area
+
+          // Command Panel Button
+          CommandButtonView()
+        }
+        .padding()
+        .padding(.bottom, 30) // Clears bottom safe area
       }
     }
     }

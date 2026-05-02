@@ -9,6 +9,11 @@ public final class CommandPanelViewModel {
 
   /// Represents the navigation routes within the Command Panel.
   public enum Route: Hashable {
+    case charts
+    case checklists
+    case anchorAlarm
+    case trackManager
+    case pressureAlarm
     case settings
   }
 
