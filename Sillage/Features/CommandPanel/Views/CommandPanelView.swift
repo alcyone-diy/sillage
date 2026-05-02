@@ -8,10 +8,10 @@ struct CommandPanelView: View {
   var body: some View {
     @Bindable var bindableViewModel = viewModel
 
-    NavigationStack(path: $bindableViewModel.navigationPath) {
+    NavigationStack(path: $bindableViewModel.commandNavigationPath) {
       List {
         Button(action: {
-          bindableViewModel.navigationPath.append(PanelManagerViewModel.Route.settings)
+          bindableViewModel.commandNavigationPath.append(PanelManagerViewModel.Route.settings)
         }) {
           HStack {
             Image(systemName: "gearshape.fill")
