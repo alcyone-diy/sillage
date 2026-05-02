@@ -19,19 +19,12 @@ struct ContentView: View {
   @Environment(MapViewModel.self) var mapViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
 
+  @State private var localSheetPresented: Bool = false
+
   var body: some View {
     GeometryReader { geo in
       let isPortrait = geo.size.height > geo.size.width
       let useSheet = isPortrait
-
-      let activePanelBinding = Binding(
-          get: { panelManagerViewModel.activePanel != .none },
-          set: { isVisible in
-              if !isVisible {
-                  panelManagerViewModel.closePanel()
-              }
-          }
-      )
 
       // ZStack so the map occupies the entire space (ignoring safe areas)
       ZStack {
@@ -102,7 +95,27 @@ struct ContentView: View {
         .zIndex(1)
       }
       }
-      .sheet(isPresented: useSheet ? activePanelBinding : .constant(false)) {
+      .onChange(of: panelManagerViewModel.activePanel, initial: true) { _, newPanel in
+        if useSheet {
+          localSheetPresented = (newPanel != .none)
+        }
+      }
+      .onChange(of: useSheet) { _, isNowSheet in
+        if isNowSheet {
+          localSheetPresented = (panelManagerViewModel.activePanel != .none)
+        } else {
+          // Kill the sheet gracefully without touching the global state
+          localSheetPresented = false
+        }
+      }
+      .onChange(of: localSheetPresented) { _, isPresented in
+        // If the sheet closed, AND we are still in portrait mode (meaning it wasn't a rotation),
+        // THEN it means the user manually swiped it down. We must sync back to the global state.
+        if !isPresented && useSheet && panelManagerViewModel.activePanel != .none {
+          panelManagerViewModel.closePanel()
+        }
+      }
+      .sheet(isPresented: $localSheetPresented) {
         panelView
           .presentationDetents([.medium, .large])
           .presentationBackgroundInteraction(.enabled(upThrough: .medium))
