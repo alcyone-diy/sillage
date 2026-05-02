@@ -15,6 +15,8 @@ import CoreLocation
 
 struct ContentView: View {
 
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.verticalSizeClass) private var verticalSizeClass
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(MapViewModel.self) var mapViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
@@ -22,12 +24,10 @@ struct ContentView: View {
   @State private var localSheetPresented: Bool = false
 
   var body: some View {
-    GeometryReader { geo in
-      let isPortrait = geo.size.height > geo.size.width
-      let useSheet = isPortrait
+    let useSheet = horizontalSizeClass == .compact && verticalSizeClass == .regular
 
-      // ZStack so the map occupies the entire space (ignoring safe areas)
-      ZStack {
+    // ZStack so the map occupies the entire space (ignoring safe areas)
+    ZStack {
 
       // Conditional display of the map (if the current map source was successfully found)
       if mapViewModel.currentMapSource != nil {
@@ -81,21 +81,25 @@ struct ContentView: View {
       }
     }
 
-      // Regular Size Class Overlay (ZStack overlay on trailing edge)
+      // Floating Glass Card Overlay for non-sheet modes (e.g. iPad, iPhone Landscape)
       if !useSheet && panelManagerViewModel.activePanel != .none {
         HStack {
           Spacer()
-          panelView
-            .background(Material.thickMaterial)
-            .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0) // Dynamically take 1/3 of the screen width
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
-            .ignoresSafeArea()
+          VStack {
+            Spacer()
+            panelView
+              .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0) // Dynamically take 1/3 of the screen width
+              .background(Material.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 16))
+              .shadow(radius: 10)
+              .padding()
+              .padding(.bottom, 80) // Clear the space for the FAB below it
+          }
         }
-        .transition(.move(edge: .trailing))
+        .transition(.move(edge: .trailing).combined(with: .opacity))
         .zIndex(1)
       }
-      }
-      .onChange(of: panelManagerViewModel.activePanel, initial: true) { _, newPanel in
+    }
+    .onChange(of: panelManagerViewModel.activePanel, initial: true) { _, newPanel in
         if useSheet {
           localSheetPresented = (newPanel != .none)
         }
@@ -115,14 +119,12 @@ struct ContentView: View {
           panelManagerViewModel.closePanel()
         }
       }
-      .sheet(isPresented: $localSheetPresented) {
-        panelView
-          .presentationDetents([.medium, .large])
-          .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-          .presentationDragIndicator(.visible)
-      }
+    .sheet(isPresented: $localSheetPresented) {
+      panelView
+        .presentationDetents([.medium, .large])
+        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+        .presentationDragIndicator(.visible)
     }
-    .ignoresSafeArea()
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
       error: appViewModel.importError
