@@ -15,26 +15,28 @@ import CoreLocation
 
 struct ContentView: View {
 
-  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(MapViewModel.self) var mapViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
 
-  private var isCompact: Bool {
-    horizontalSizeClass == .compact
-  }
-
   private func isSheetPresented(useSheet: Bool) -> Binding<Bool> {
     Binding(
       get: { useSheet && panelManagerViewModel.activePanel != .none },
-      set: { if !$0 { panelManagerViewModel.closePanel() } }
+      set: { newValue in
+        // Only close the panel if the dismissal was user-initiated within the sheet context.
+        // If newValue is false but useSheet is false, it means rotation killed the sheet,
+        // so we preserve activePanel for the landscape ZStack.
+        if !newValue && useSheet {
+          panelManagerViewModel.closePanel()
+        }
+      }
     )
   }
 
   var body: some View {
     GeometryReader { geo in
       let isPortrait = geo.size.height > geo.size.width
-      let useSheet = isCompact || isPortrait
+      let useSheet = isPortrait
 
       // ZStack so the map occupies the entire space (ignoring safe areas)
       ZStack {
