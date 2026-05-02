@@ -28,6 +28,9 @@
     "COG" : {
 
     },
+    "Command Panel" : {
+
+    },
     "Could not create the Charts directory." : {
 
     },
@@ -152,6 +155,9 @@
 
     },
     "SOG" : {
+
+    },
+    "Telemetry Panel" : {
 
     },
     "The provided URL is not a valid file." : {

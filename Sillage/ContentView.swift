@@ -33,88 +33,87 @@ struct ContentView: View {
       // ZStack so the map occupies the entire space (ignoring safe areas)
       ZStack {
 
-      // Conditional display of the map (if the current map source was successfully found)
-      if mapViewModel.currentMapSource != nil {
-        MapLibreView(viewModel: mapViewModel)
-          .ignoresSafeArea() // Essential for full-screen immersion
-          .simultaneousGesture(
-            TapGesture().onEnded {
-              if panelManagerViewModel.activePanel != .none {
-                panelManagerViewModel.closePanel()
+        // Conditional display of the map (if the current map source was successfully found)
+        if mapViewModel.currentMapSource != nil {
+          MapLibreView(viewModel: mapViewModel)
+            .ignoresSafeArea() // Essential for full-screen immersion
+            .simultaneousGesture(
+              TapGesture().onEnded {
+                if panelManagerViewModel.activePanel != .none {
+                  panelManagerViewModel.closePanel()
+                }
               }
-            }
-          )
+            )
 
-      } else {
-      // Fallback view if MBTiles data cannot be loaded
-      VStack {
-        ProgressView()
-          .padding()
-        Text("Loading marine charts…")
-          .foregroundColor(.secondary)
-      }
-    }
+        } else {
+          // Fallback view if MBTiles data cannot be loaded
+          VStack {
+            ProgressView()
+              .padding()
+            Text("Loading marine charts…")
+              .foregroundColor(.secondary)
+          }
+        }
 
-    // UI Overlay
-    VStack {
-      // Top Marine Dashboard
-      marineDashboard
-
-      Spacer()
-
-      // Bottom Floating Action Buttons
-      HStack {
-          // Command Panel Button
-          CommandButtonView()
-            .padding()
-            .padding(.bottom, 30) // Clears bottom safe area
+        // UI Overlay
+        VStack {
+          // Top Marine Dashboard
+          marineDashboard
 
           Spacer()
 
-          // Recenter Button
-          Button(action: {
-            mapViewModel.toggleTrackingMode()
-          }) {
-            Image(systemName: trackingIconName(for: mapViewModel.trackingMode))
-              .marineFont(.title3)
-              .foregroundColor(.white)
-          }
-          .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: mapViewModel.trackingMode)))
-          .padding()
-          .padding(.bottom, 30) // Clears bottom safe area
-      }
-    }
+          // Bottom Floating Action Buttons
+          HStack {
+            // Command Panel Button
+            CommandButtonView()
+              .padding()
+              .padding(.bottom, 30) // Clears bottom safe area
 
-      // 2. Custom Drawers (For iPad and iPhone Landscape)
-      if !useNativeSheet && panelManagerViewModel.activePanel != .none {
+            Spacer()
+
+            // Recenter Button
+            Button(action: {
+              mapViewModel.toggleTrackingMode()
+            }) {
+              Image(systemName: trackingIconName(for: mapViewModel.trackingMode))
+                .marineFont(.title3)
+                .foregroundColor(.white)
+            }
+            .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: mapViewModel.trackingMode)))
+            .padding()
+            .padding(.bottom, 30) // Clears bottom safe area
+          }
+        }
+
+        // 2. Custom Drawers (For iPad and iPhone Landscape)
+        if !useNativeSheet && panelManagerViewModel.activePanel != .none {
           if isPortrait {
-              // iPad Portrait: Custom Bottom Drawer
-              VStack(spacing: 0) {
-                  Spacer()
-                  panelView
-                      .background(Material.thickMaterial)
-                      .frame(height: geo.size.height * 0.40)
-                      .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
-                      .ignoresSafeArea(.all, edges: .bottom)
-              }
-              .transition(.move(edge: .bottom))
-              .zIndex(1)
-
+            // iPad Portrait: Custom Bottom Drawer
+            VStack(spacing: 0) {
+              Spacer()
+              panelView
+                  .background(Material.thickMaterial)
+                  .frame(height: geo.size.height * 0.40)
+                  .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
+                  .ignoresSafeArea(.all, edges: .bottom)
+            }
+            .transition(.move(edge: .bottom))
+            .zIndex(1)
           } else {
-              // Landscape (iPhone & iPad): Custom Trailing Drawer
-              HStack(spacing: 0) {
-                  Spacer()
-                  panelView
-                      .background(Material.thickMaterial)
-                      // Use 33% of screen width for the side drawer
-                      .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0)
-                      .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
-                      .ignoresSafeArea(.all, edges: [.top, .bottom, .trailing])
-              }
-              .transition(.move(edge: .trailing))
-              .zIndex(1)
+            // Landscape (iPhone & iPad): Custom Trailing Drawer
+            HStack(spacing: 0) {
+                Spacer()
+                panelView
+                    .background(Material.thickMaterial)
+                    // Use 33% of screen width for the side drawer
+                    .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0)
+                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
+                    .ignoresSafeArea(.all, edges: [.top, .bottom, .trailing])
+            }
+            .transition(.move(edge: .trailing))
+            .zIndex(1)
           }
-      }
+        }
       }
       .onChange(of: panelManagerViewModel.activePanel, initial: true) { _, newPanel in
         if useNativeSheet { localSheetPresented = (newPanel != .none) }
