@@ -15,9 +15,21 @@ import CoreLocation
 
 struct ContentView: View {
 
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(MapViewModel.self) var mapViewModel
-  @Environment(CommandPanelViewModel.self) private var commandPanelViewModel
+  @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
+
+  private var isCompact: Bool {
+    horizontalSizeClass == .compact
+  }
+
+  private var isSheetPresented: Binding<Bool> {
+    Binding(
+      get: { isCompact && panelManagerViewModel.activePanel != .none },
+      set: { if !$0 { panelManagerViewModel.closePanel() } }
+    )
+  }
 
   var body: some View {
     // ZStack so the map occupies the entire space (ignoring safe areas)
@@ -67,10 +79,30 @@ struct ContentView: View {
           .padding(.bottom, 30) // Clears bottom safe area
       }
     }
+
+    // Regular Size Class Overlay (ZStack overlay on trailing edge)
+    if !isCompact && panelManagerViewModel.activePanel != .none {
+      Color.black.opacity(0.001) // Invisible tap target
+        .ignoresSafeArea()
+        .onTapGesture {
+          panelManagerViewModel.closePanel()
+        }
+
+      HStack {
+        Spacer()
+        panelView
+          .background(Material.thickMaterial)
+          .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0) // Dynamically take 1/3 of the screen width
+          .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
+          .ignoresSafeArea()
+          .transition(.move(edge: .trailing))
+      }
+      .zIndex(1)
     }
-    .inspector(isPresented: Bindable(commandPanelViewModel).isPanelOpen) {
-      CommandPanelView()
-        .inspectorColumnWidth(ideal: 320)
+    }
+    .animation(.spring(response: 0.45, dampingFraction: 1.0), value: panelManagerViewModel.activePanel)
+    .sheet(isPresented: isSheetPresented) {
+      panelView
         .presentationDetents([.medium, .large])
         .presentationBackgroundInteraction(.enabled(upThrough: .medium))
         .presentationDragIndicator(.visible)
@@ -82,6 +114,19 @@ struct ContentView: View {
       Button("OK", role: .cancel) { }
     } message: { error in
       Text(error.localizedDescription)
+    }
+  }
+
+  @ViewBuilder
+  private var panelView: some View {
+    switch panelManagerViewModel.activePanel {
+    case .command:
+      CommandPanelView()
+    case .telemetry:
+      // Placeholder for telemetry
+      Text("Telemetry Panel")
+    case .none:
+      EmptyView()
     }
   }
 

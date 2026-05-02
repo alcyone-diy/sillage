@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor
 struct CommandPanelView: View {
-  @Environment(CommandPanelViewModel.self) private var viewModel
+  @Environment(PanelManagerViewModel.self) private var viewModel
   @Environment(\.marineTheme) private var marineTheme
 
   var body: some View {
@@ -11,7 +11,7 @@ struct CommandPanelView: View {
     NavigationStack(path: $bindableViewModel.navigationPath) {
       List {
         Button(action: {
-          bindableViewModel.navigationPath.append(CommandPanelViewModel.Route.settings)
+          bindableViewModel.navigationPath.append(PanelManagerViewModel.Route.settings)
         }) {
           HStack {
             Image(systemName: "gearshape.fill")
@@ -25,7 +25,7 @@ struct CommandPanelView: View {
       }
       .navigationTitle("Command Panel")
       .navigationBarTitleDisplayMode(.inline)
-      .navigationDestination(for: CommandPanelViewModel.Route.self) { route in
+      .navigationDestination(for: PanelManagerViewModel.Route.self) { route in
         switch route {
         case .settings:
           SettingsView()
@@ -34,7 +34,7 @@ struct CommandPanelView: View {
       .toolbar {
         ToolbarItem(placement: .navigationBarTrailing) {
           Button(action: {
-            bindableViewModel.isPanelOpen = false
+            bindableViewModel.closePanel()
           }) {
             Image(systemName: "xmark.circle.fill")
               .foregroundStyle(.tertiary)
@@ -48,6 +48,6 @@ struct CommandPanelView: View {
 
 #Preview {
   CommandPanelView()
-    .environment(CommandPanelViewModel())
+    .environment(PanelManagerViewModel())
     .environment(\.marineTheme, .standard)
 }
