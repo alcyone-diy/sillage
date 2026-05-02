@@ -24,30 +24,41 @@ struct ContentView: View {
     horizontalSizeClass == .compact
   }
 
-  private var isSheetPresented: Binding<Bool> {
+  private func isSheetPresented(useSheet: Bool) -> Binding<Bool> {
     Binding(
-      get: { isCompact && panelManagerViewModel.activePanel != .none },
+      get: { useSheet && panelManagerViewModel.activePanel != .none },
       set: { if !$0 { panelManagerViewModel.closePanel() } }
     )
   }
 
   var body: some View {
-    // ZStack so the map occupies the entire space (ignoring safe areas)
-    ZStack {
+    GeometryReader { geo in
+      let isPortrait = geo.size.height > geo.size.width
+      let useSheet = isCompact || isPortrait
 
-    // Conditional display of the map (if the current map source was successfully found)
-    if mapViewModel.currentMapSource != nil {
-      MapLibreView(viewModel: mapViewModel)
-        .ignoresSafeArea() // Essential for full-screen immersion
-        .simultaneousGesture(
-          TapGesture().onEnded {
-            if panelManagerViewModel.activePanel != .none {
-              panelManagerViewModel.closePanel()
+      // ZStack so the map occupies the entire space (ignoring safe areas)
+      ZStack {
+
+      // Conditional display of the map (if the current map source was successfully found)
+      if mapViewModel.currentMapSource != nil {
+        MapLibreView(viewModel: mapViewModel)
+          .ignoresSafeArea() // Essential for full-screen immersion
+          .simultaneousGesture(
+            TapGesture().onEnded {
+              if panelManagerViewModel.activePanel != .none {
+                panelManagerViewModel.closePanel()
+              }
             }
-          }
-        )
+          )
+          .simultaneousGesture(
+            DragGesture().onChanged { _ in
+              if panelManagerViewModel.activePanel != .none {
+                panelManagerViewModel.closePanel()
+              }
+            }
+          )
 
-    } else {
+      } else {
       // Fallback view if MBTiles data cannot be loaded
       VStack {
         ProgressView()
@@ -87,26 +98,28 @@ struct ContentView: View {
       }
     }
 
-    // Regular Size Class Overlay (ZStack overlay on trailing edge)
-    if !isCompact && panelManagerViewModel.activePanel != .none {
-      HStack {
-        Spacer()
-        panelView
-          .background(Material.thickMaterial)
-          .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0) // Dynamically take 1/3 of the screen width
-          .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
-          .ignoresSafeArea()
-          .transition(.move(edge: .trailing))
+      // Regular Size Class Overlay (ZStack overlay on trailing edge)
+      if !useSheet && panelManagerViewModel.activePanel != .none {
+        HStack {
+          Spacer()
+          panelView
+            .background(Material.thickMaterial)
+            .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0) // Dynamically take 1/3 of the screen width
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
+            .ignoresSafeArea()
+        }
+        .transition(.move(edge: .trailing))
+        .zIndex(1)
       }
-      .zIndex(1)
+      }
+      .sheet(isPresented: isSheetPresented(useSheet: useSheet)) {
+        panelView
+          .presentationDetents([.medium, .large])
+          .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+          .presentationDragIndicator(.visible)
+      }
     }
-    }
-    .sheet(isPresented: isSheetPresented) {
-      panelView
-        .presentationDetents([.medium, .large])
-        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-        .presentationDragIndicator(.visible)
-    }
+    .ignoresSafeArea()
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
       error: appViewModel.importError
