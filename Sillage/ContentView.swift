@@ -85,18 +85,36 @@ struct ContentView: View {
       }
     }
 
-      // 2. The Custom Trailing Drawer (For Landscape/iPad)
+      // 2. Custom Drawers (For iPad and iPhone Landscape)
       if !useNativeSheet && panelManagerViewModel.activePanel != .none {
-        HStack(spacing: 0) {
-          Spacer()
-          panelView
-            .background(Material.thickMaterial)
-            .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0)
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
-            .ignoresSafeArea(.all, edges: [.top, .bottom, .trailing])
-        }
-        .transition(.move(edge: .trailing))
-        .zIndex(1)
+          if isPortrait {
+              // iPad Portrait: Custom Bottom Drawer
+              VStack(spacing: 0) {
+                  Spacer()
+                  panelView
+                      .background(Material.thickMaterial)
+                      // Use 50% of screen height for the bottom drawer
+                      .containerRelativeFrame(.vertical, count: 2, span: 1, spacing: 0)
+                      .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
+                      .ignoresSafeArea(.all, edges: .bottom)
+              }
+              .transition(.move(edge: .bottom))
+              .zIndex(1)
+
+          } else {
+              // Landscape (iPhone & iPad): Custom Trailing Drawer
+              HStack(spacing: 0) {
+                  Spacer()
+                  panelView
+                      .background(Material.thickMaterial)
+                      // Use 33% of screen width for the side drawer
+                      .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0)
+                      .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
+                      .ignoresSafeArea(.all, edges: [.top, .bottom, .trailing])
+              }
+              .transition(.move(edge: .trailing))
+              .zIndex(1)
+          }
       }
       }
       .onChange(of: panelManagerViewModel.activePanel, initial: true) { _, newPanel in
