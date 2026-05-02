@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 import Observation
 
-/// A view model managing the state and routing for UI panels.
+/// A view model managing the state and UI flow for panels.
 @MainActor
 @Observable
 public final class PanelManagerViewModel {
@@ -13,16 +13,16 @@ public final class PanelManagerViewModel {
     case telemetry
   }
 
-  /// Represents the navigation routes within the Command Panel.
-  public enum Route: Hashable {
+  /// Represents the UI destinations within the Command Panel.
+  public enum CommandDestination: Hashable {
     case settings
   }
 
   /// The currently active panel visible to the user.
   public var activePanel: ActivePanel = .none
 
-  /// The navigation stack path for the Command Panel.
-  public var commandNavigationPath: [Route] = []
+  /// The view stack path for the Command Panel.
+  public var commandPath: [CommandDestination] = []
 
   public init() {}
 
@@ -33,14 +33,14 @@ public final class PanelManagerViewModel {
     }
   }
 
-  /// Closes any active panel and resets the routing state after the animation completes.
+  /// Closes any active panel and resets the UI path state after the animation completes.
   public func closePanel() {
     // iOS 17+ native completion handler
     withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
       activePanel = .none
     } completion: {
-      // Clean up routing only AFTER the panel is completely off-screen
-      self.resetRouting()
+      // Clean up the UI path only AFTER the panel is completely off-screen
+      self.resetCommandPath()
     }
   }
 
@@ -54,8 +54,8 @@ public final class PanelManagerViewModel {
     }
   }
 
-  /// Resets the navigation path to the root menu.
-  private func resetRouting() {
-    commandNavigationPath.removeAll()
+  /// Resets the UI path to the root menu.
+  private func resetCommandPath() {
+    commandPath.removeAll()
   }
 }
