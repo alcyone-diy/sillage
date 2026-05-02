@@ -15,19 +15,16 @@ import CoreLocation
 
 struct ContentView: View {
 
-  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-  @Environment(\.verticalSizeClass) private var verticalSizeClass
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(MapViewModel.self) var mapViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
 
-  @State private var localSheetPresented: Bool = false
-
   var body: some View {
-    let useSheet = horizontalSizeClass == .compact && verticalSizeClass == .regular
+    GeometryReader { geo in
+      let isPortrait = geo.size.height > geo.size.width
 
-    // ZStack so the map occupies the entire space (ignoring safe areas)
-    ZStack {
+      // ZStack so the map occupies the entire space (ignoring safe areas)
+      ZStack {
 
       // Conditional display of the map (if the current map source was successfully found)
       if mapViewModel.currentMapSource != nil {
@@ -81,50 +78,40 @@ struct ContentView: View {
       }
     }
 
-      // Floating Glass Card Overlay for non-sheet modes (e.g. iPad, iPhone Landscape)
-      if !useSheet && panelManagerViewModel.activePanel != .none {
-        HStack {
-          Spacer()
-          VStack {
+      // Custom Modal Overlays
+      if panelManagerViewModel.activePanel != .none {
+        if isPortrait {
+          // Custom Bottom Drawer
+          VStack(spacing: 0) {
             Spacer()
             panelView
-              .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0) // Dynamically take 1/3 of the screen width
-              .background(Material.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 16))
-              .shadow(radius: 10)
-              .padding()
-              .padding(.bottom, 80) // Clear the space for the FAB below it
+              .background(Material.thickMaterial)
+              // Take exactly 50% of the screen height
+              .containerRelativeFrame(.vertical, count: 2, span: 1, spacing: 0)
+              .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
+              .ignoresSafeArea(.all, edges: .bottom)
           }
-        }
-        .transition(.move(edge: .trailing).combined(with: .opacity))
-        .zIndex(1)
-      }
-    }
-    .onChange(of: panelManagerViewModel.activePanel, initial: true) { _, newPanel in
-        if useSheet {
-          localSheetPresented = (newPanel != .none)
-        }
-      }
-      .onChange(of: useSheet) { _, isNowSheet in
-        if isNowSheet {
-          localSheetPresented = (panelManagerViewModel.activePanel != .none)
+          .transition(.move(edge: .bottom))
+          .zIndex(1)
+
         } else {
-          // Kill the sheet gracefully without touching the global state
-          localSheetPresented = false
+          // Custom Trailing Drawer
+          HStack(spacing: 0) {
+            Spacer()
+            panelView
+              .background(Material.thickMaterial)
+              // Take exactly 33% of the screen width
+              .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0)
+              .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
+              .ignoresSafeArea(.all, edges: [.top, .bottom, .trailing])
+          }
+          .transition(.move(edge: .trailing))
+          .zIndex(1)
         }
       }
-      .onChange(of: localSheetPresented) { _, isPresented in
-        // If the sheet closed, AND we are still in portrait mode (meaning it wasn't a rotation),
-        // THEN it means the user manually swiped it down. We must sync back to the global state.
-        if !isPresented && useSheet && panelManagerViewModel.activePanel != .none {
-          panelManagerViewModel.closePanel()
-        }
       }
-    .sheet(isPresented: $localSheetPresented) {
-      panelView
-        .presentationDetents([.medium, .large])
-        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-        .presentationDragIndicator(.visible)
     }
+    .ignoresSafeArea()
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
       error: appViewModel.importError
