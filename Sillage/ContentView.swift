@@ -39,6 +39,13 @@ struct ContentView: View {
     if mapViewModel.currentMapSource != nil {
       MapLibreView(viewModel: mapViewModel)
         .ignoresSafeArea() // Essential for full-screen immersion
+        .simultaneousGesture(
+          TapGesture().onEnded {
+            if panelManagerViewModel.activePanel != .none {
+              panelManagerViewModel.closePanel()
+            }
+          }
+        )
 
     } else {
       // Fallback view if MBTiles data cannot be loaded
@@ -82,12 +89,6 @@ struct ContentView: View {
 
     // Regular Size Class Overlay (ZStack overlay on trailing edge)
     if !isCompact && panelManagerViewModel.activePanel != .none {
-      Color.black.opacity(0.001) // Invisible tap target
-        .ignoresSafeArea()
-        .onTapGesture {
-          panelManagerViewModel.closePanel()
-        }
-
       HStack {
         Spacer()
         panelView
@@ -100,7 +101,6 @@ struct ContentView: View {
       .zIndex(1)
     }
     }
-    .animation(.spring(response: 0.45, dampingFraction: 1.0), value: panelManagerViewModel.activePanel)
     .sheet(isPresented: isSheetPresented) {
       panelView
         .presentationDetents([.medium, .large])

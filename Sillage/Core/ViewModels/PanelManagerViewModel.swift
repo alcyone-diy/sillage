@@ -28,12 +28,16 @@ public final class PanelManagerViewModel {
 
   /// Opens the specified panel.
   public func openPanel(_ panel: ActivePanel) {
-    activePanel = panel
+    withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
+      activePanel = panel
+    }
   }
 
   /// Closes any active panel and resets the routing state.
   public func closePanel() {
-    activePanel = .none
+    withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
+      activePanel = .none
+    }
     resetRouting()
   }
 
