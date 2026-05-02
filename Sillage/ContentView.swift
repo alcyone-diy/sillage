@@ -19,24 +19,19 @@ struct ContentView: View {
   @Environment(MapViewModel.self) var mapViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
 
-  private func isSheetPresented(useSheet: Bool) -> Binding<Bool> {
-    Binding(
-      get: { useSheet && panelManagerViewModel.activePanel != .none },
-      set: { newValue in
-        // Only close the panel if the dismissal was user-initiated within the sheet context.
-        // If newValue is false but useSheet is false, it means rotation killed the sheet,
-        // so we preserve activePanel for the landscape ZStack.
-        if !newValue && useSheet {
-          panelManagerViewModel.closePanel()
-        }
-      }
-    )
-  }
-
   var body: some View {
     GeometryReader { geo in
       let isPortrait = geo.size.height > geo.size.width
       let useSheet = isPortrait
+
+      let activePanelBinding = Binding(
+          get: { panelManagerViewModel.activePanel != .none },
+          set: { isVisible in
+              if !isVisible {
+                  panelManagerViewModel.closePanel()
+              }
+          }
+      )
 
       // ZStack so the map occupies the entire space (ignoring safe areas)
       ZStack {
@@ -107,7 +102,7 @@ struct ContentView: View {
         .zIndex(1)
       }
       }
-      .sheet(isPresented: isSheetPresented(useSheet: useSheet)) {
+      .sheet(isPresented: useSheet ? activePanelBinding : .constant(false)) {
         panelView
           .presentationDetents([.medium, .large])
           .presentationBackgroundInteraction(.enabled(upThrough: .medium))
