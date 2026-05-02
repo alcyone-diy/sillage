@@ -2,15 +2,15 @@ import SwiftUI
 
 @MainActor
 struct CommandButtonView: View {
-  @Environment(CommandPanelViewModel.self) private var viewModel
+  @Environment(PanelManagerViewModel.self) private var viewModel
 
   var body: some View {
     @Bindable var bindableViewModel = viewModel
     Button(action: {
-      bindableViewModel.isPanelOpen = true
+      bindableViewModel.openPanel(.command)
     }) {
       Image(systemName: "line.3.horizontal")
-        .font(.system(size: 24, weight: .bold)) // Keeping font size similar to previous but FAB style manages padding
+        .marineFont(.title2)
         .foregroundColor(.white)
     }
     .buttonStyle(MarineFABStyle(backgroundColor: .blue))
@@ -19,5 +19,5 @@ struct CommandButtonView: View {
 
 #Preview {
   CommandButtonView()
-    .environment(CommandPanelViewModel())
+    .environment(PanelManagerViewModel())
 }
