@@ -15,13 +15,20 @@ import CoreLocation
 
 struct ContentView: View {
 
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.verticalSizeClass) private var verticalSizeClass
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(MapViewModel.self) var mapViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
 
+  @State private var localSheetPresented: Bool = false
+
   var body: some View {
     GeometryReader { geo in
       let isPortrait = geo.size.height > geo.size.width
+      let isPhone = horizontalSizeClass == .compact || verticalSizeClass == .compact
+      // Only use the native sheet if it's a Phone AND it's physically in portrait orientation.
+      let useNativeSheet = isPhone && isPortrait
 
       // ZStack so the map occupies the entire space (ignoring safe areas)
       ZStack {
@@ -78,37 +85,41 @@ struct ContentView: View {
       }
     }
 
-      // Custom Modal Overlays
-      if panelManagerViewModel.activePanel != .none {
-        if isPortrait {
-          // Custom Bottom Drawer
-          VStack(spacing: 0) {
-            Spacer()
-            panelView
-              .background(Material.thickMaterial)
-              // Take exactly 50% of the screen height
-              .containerRelativeFrame(.vertical, count: 2, span: 1, spacing: 0)
-              .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
-              .ignoresSafeArea(.all, edges: .bottom)
-          }
-          .transition(.move(edge: .bottom))
-          .zIndex(1)
-
+      // 2. The Custom Trailing Drawer (For Landscape/iPad)
+      if !useNativeSheet && panelManagerViewModel.activePanel != .none {
+        HStack(spacing: 0) {
+          Spacer()
+          panelView
+            .background(Material.thickMaterial)
+            .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0)
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
+            .ignoresSafeArea(.all, edges: [.top, .bottom, .trailing])
+        }
+        .transition(.move(edge: .trailing))
+        .zIndex(1)
+      }
+      }
+      .onChange(of: panelManagerViewModel.activePanel, initial: true) { _, newPanel in
+        if useNativeSheet { localSheetPresented = (newPanel != .none) }
+      }
+      .onChange(of: useNativeSheet) { _, isNowSheet in
+        if isNowSheet {
+          localSheetPresented = (panelManagerViewModel.activePanel != .none)
         } else {
-          // Custom Trailing Drawer
-          HStack(spacing: 0) {
-            Spacer()
-            panelView
-              .background(Material.thickMaterial)
-              // Take exactly 33% of the screen width
-              .containerRelativeFrame(.horizontal, count: 3, span: 1, spacing: 0)
-              .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20))
-              .ignoresSafeArea(.all, edges: [.top, .bottom, .trailing])
-          }
-          .transition(.move(edge: .trailing))
-          .zIndex(1)
+          localSheetPresented = false
         }
       }
+      .onChange(of: localSheetPresented) { _, isPresented in
+        if !isPresented && useNativeSheet && panelManagerViewModel.activePanel != .none {
+          panelManagerViewModel.closePanel()
+        }
+      }
+      // 3. The Native Bottom Drawer (For iPhone Portrait ONLY)
+      .sheet(isPresented: $localSheetPresented) {
+        panelView
+          .presentationDetents([.medium, .large])
+          .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+          .presentationDragIndicator(.visible)
       }
     }
     .ignoresSafeArea()
