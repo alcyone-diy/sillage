@@ -119,14 +119,19 @@ struct ContentView: View {
       .onChange(of: panelManagerViewModel.activePanel, initial: true) { _, newPanel in
         if useNativeSheet { localSheetPresented = (newPanel != .none) }
       }
-      .onChange(of: useNativeSheet) { _, _ in
-        // A major UI paradigm shift occurred (Native Sheet <-> Custom ZStack).
-        // To prevent UIKit animation glitches during size class mutation, we cleanly close the menu.
-        if panelManagerViewModel.activePanel != .none {
-            panelManagerViewModel.closePanel()
+      .onChange(of: useNativeSheet) { _, isNowSheet in
+        if isNowSheet {
+          // Landscape -> Portrait: ZStack vanishes, pass state to Native Sheet
+          localSheetPresented = (panelManagerViewModel.activePanel != .none)
+        } else {
+          // Portrait -> Landscape: ZStack appears instantly. Kill Native Sheet quietly.
+          // Because `useNativeSheet` is already false, the next onChange will NOT trigger closePanel().
+          localSheetPresented = false
         }
       }
       .onChange(of: localSheetPresented) { _, isPresented in
+        // Only bubble up the dismissal to global state if we are STILL in Native Sheet mode.
+        // This confirms it was an explicit user swipe down, not a device rotation layout shift.
         if !isPresented && useNativeSheet && panelManagerViewModel.activePanel != .none {
           panelManagerViewModel.closePanel()
         }
