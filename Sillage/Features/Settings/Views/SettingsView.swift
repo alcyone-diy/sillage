@@ -24,11 +24,13 @@ struct SettingsView: View {
             Label("Glove Mode", systemImage: "hand.raised.fill")
               .marineFont(.body)
           }
+          .marineListCell()
 
           NavigationLink(destination: MapPreferencesView()) {
             Label("Map Preferences", systemImage: "map")
               .marineFont(.body)
           }
+          .marineListCell()
         }
 
       Section(header: Text("Safety & Legal").marineFont(.headline)) {
@@ -36,6 +38,7 @@ struct SettingsView: View {
           Label("Legal & Licenses", systemImage: "doc.text")
             .marineFont(.body)
         }
+        .marineListCell()
       }
 
       Section(header: Text("About").marineFont(.headline)) {
@@ -45,8 +48,9 @@ struct SettingsView: View {
           Spacer()
           Text("1.0.0")
             .marineFont(.body)
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
         }
+        .marineListCell()
       }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
