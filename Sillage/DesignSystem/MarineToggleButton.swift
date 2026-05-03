@@ -19,23 +19,25 @@ struct MarineToggleButton: View {
   @Environment(\.marineTheme) private var marineTheme
 
   var body: some View {
-    Button(action: {
-      let impact = UIImpactFeedbackGenerator(style: .heavy)
-      impact.impactOccurred()
-      isOn.toggle()
-    }) {
-      VStack(spacing: MarineTheme.Spacing.small) {
-        Image(systemName: systemImage)
-          .font(.title2)
-        Text(title)
-          .marineFont(.caption)
-      }
-      .frame(maxWidth: .infinity, minHeight: marineTheme.metrics.touchTarget)
-      .foregroundColor(isOn ? MarineTheme.Colors.textOnActive : MarineTheme.Colors.textSecondary)
-      .background(isOn ? MarineTheme.Colors.activeToggle : MarineTheme.Colors.surfaceBackground)
-      .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
+    VStack(spacing: MarineTheme.Spacing.small) {
+      Image(systemName: systemImage)
+        .font(.title2)
+      Text(title)
+        .marineFont(.caption)
     }
-    .buttonStyle(PlainButtonStyle()) // Ensures our custom background and foreground are respected without dimming from standard button styles.
+    .frame(maxWidth: .infinity, minHeight: marineTheme.metrics.touchTarget)
+    .foregroundColor(isOn ? MarineTheme.Colors.textOnActive : MarineTheme.Colors.textSecondary)
+    .background(isOn ? MarineTheme.Colors.activeToggle : MarineTheme.Colors.secondarySurface)
+    .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
+    .contentShape(Rectangle())
+    .scaleEffect(isOn ? 1.02 : 1.0)
+    .onTapGesture {
+      let impact = UIImpactFeedbackGenerator(style: .medium)
+      impact.impactOccurred()
+      withAnimation(.spring(response: 0.3, dampingFraction: 0.6, blendDuration: 0)) {
+        isOn.toggle()
+      }
+    }
   }
 }
 

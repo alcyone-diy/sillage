@@ -34,10 +34,11 @@ public final class PanelManagerViewModel {
   /// The view stack path for the Command Panel.
   public var commandPath: [CommandDestination] = []
 
-  /// Computed property for Glove Mode, synchronizing with user preferences.
-  public var isGloveModeEnabled: Bool {
-    get { PreferencesService.shared.gloveModeEnabled }
-    set { PreferencesService.shared.gloveModeEnabled = newValue }
+  /// Stored property for Glove Mode, synchronizing with user preferences.
+  public var isGloveModeEnabled: Bool = PreferencesService.shared.gloveModeEnabled {
+    didSet {
+      PreferencesService.shared.gloveModeEnabled = isGloveModeEnabled
+    }
   }
 
   public init() {}

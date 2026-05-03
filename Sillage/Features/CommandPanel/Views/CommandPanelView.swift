@@ -76,7 +76,7 @@ struct CommandPanelView: View {
               }
               .marineListCell()
             }
-            .background(MarineTheme.Colors.surfaceBackground)
+            .background(MarineTheme.Colors.secondarySurface)
             .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
           }
 
@@ -100,14 +100,14 @@ struct CommandPanelView: View {
               }
               .marineListCell()
             }
-            .background(MarineTheme.Colors.surfaceBackground)
+            .background(MarineTheme.Colors.secondarySurface)
             .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
           }
 
         }
         .padding(MarineTheme.Spacing.medium)
       }
-      .background(Color.clear) // To allow map beneath to show if applicable, or parent manages background
+      .background(MarineTheme.Colors.panelBackground)
       .navigationTitle("Command Panel")
       .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(for: PanelManagerViewModel.CommandDestination.self) { destination in
