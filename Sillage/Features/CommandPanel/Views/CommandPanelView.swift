@@ -50,7 +50,7 @@ struct CommandPanelView: View {
               Text("Anchor Alarm")
                 .foregroundStyle(.primary)
             } icon: {
-              Image(systemName: "anchor")
+              Image(systemName: "lifepreserver")
                 .foregroundStyle(.secondary)
             }
             .marineFont(.body)
