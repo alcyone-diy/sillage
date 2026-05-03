@@ -46,27 +46,29 @@ struct CommandPanelView: View {
           Button(action: {
             // Placeholder
           }) {
-            HStack {
-              Image(systemName: "anchor")
-                .foregroundColor(.secondary)
+            Label {
               Text("Anchor Alarm")
-                .marineFont(.body)
-                .foregroundColor(.primary)
-              Spacer()
+                .foregroundStyle(.primary)
+            } icon: {
+              Image(systemName: "anchor")
+                .foregroundStyle(.secondary)
             }
+            .marineFont(.body)
+            .marineListCell()
           }
 
           Button(action: {
             // Placeholder
           }) {
-            HStack {
-              Image(systemName: "barometer")
-                .foregroundColor(.secondary)
+            Label {
               Text("Baro Alarm")
-                .marineFont(.body)
-                .foregroundColor(.primary)
-              Spacer()
+                .foregroundStyle(.primary)
+            } icon: {
+              Image(systemName: "barometer")
+                .foregroundStyle(.secondary)
             }
+            .marineFont(.body)
+            .marineListCell()
           }
         }
 
@@ -75,17 +77,19 @@ struct CommandPanelView: View {
           Button(action: {
             bindableViewModel.commandPath.append(PanelManagerViewModel.CommandDestination.settings)
           }) {
-            HStack {
-              Image(systemName: "gearshape.fill")
-                .foregroundColor(.secondary)
+            Label {
               Text("Settings")
-                .marineFont(.body)
-                .foregroundColor(.primary)
-              Spacer()
+                .foregroundStyle(.primary)
+            } icon: {
+              Image(systemName: "gearshape.fill")
+                .foregroundStyle(.secondary)
             }
+            .marineFont(.body)
+            .marineListCell()
           }
         }
       }
+      .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
       .listStyle(.insetGrouped)
       .scrollContentBackground(.hidden)
       .background(MarineTheme.Colors.panelBackground)
