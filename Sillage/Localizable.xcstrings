@@ -22,7 +22,13 @@
     "Alcyone Sillage (MIT License)" : {
 
     },
+    "Anchor Alarm" : {
+
+    },
     "Authentication failed. Please check your network connection or credentials." : {
+
+    },
+    "Baro Alarm" : {
 
     },
     "COG" : {
@@ -145,8 +151,14 @@
     "Please enter a valid username." : {
 
     },
+    "Quick Actions" : {
+
+    },
     "S" : {
       "comment" : "South cardinal point"
+    },
+    "Safety" : {
+
     },
     "Safety & Legal" : {
 
@@ -157,10 +169,16 @@
     "SOG" : {
 
     },
+    "System" : {
+
+    },
     "Telemetry Panel" : {
 
     },
     "The provided URL is not a valid file." : {
+
+    },
+    "Track" : {
 
     },
     "Username" : {
