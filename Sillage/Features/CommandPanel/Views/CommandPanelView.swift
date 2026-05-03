@@ -44,49 +44,34 @@ struct CommandPanelView: View {
         // Zone 2: Safety
         Section(header: Text("Safety")) {
           Button(action: {
-            // Placeholder
-          }) {
-            Label {
-              Text("Anchor Alarm")
-                .foregroundStyle(.primary)
-            } icon: {
-              Image(systemName: "lifepreserver")
-                .foregroundStyle(.secondary)
-            }
-            .marineFont(.body)
-            .marineListCell()
-          }
-
+              }) {
+                  Label {
+                      Text("Anchor Alarm").foregroundStyle(.primary)
+                  } icon: {
+                      Image(systemName: "lifepreserver").foregroundStyle(.blue)
+                  }
+                  .marineFont(.body)
+                  .marineListCell()
+              }.tint(.primary)
           Button(action: {
-            // Placeholder
-          }) {
-            Label {
-              Text("Baro Alarm")
-                .foregroundStyle(.primary)
-            } icon: {
-              Image(systemName: "barometer")
-                .foregroundStyle(.secondary)
-            }
-            .marineFont(.body)
-            .marineListCell()
-          }
+              }) {
+                  Label {
+                      Text("Baro Alarm").foregroundStyle(.primary)
+                  } icon: {
+                      Image(systemName: "barometer").foregroundStyle(.blue)
+                  }
+                  .marineFont(.body)
+                  .marineListCell()
+              }.tint(.primary)
         }
 
         // Zone 3: System
         Section(header: Text("System")) {
-          Button(action: {
-            bindableViewModel.commandPath.append(PanelManagerViewModel.CommandDestination.settings)
-          }) {
-            Label {
-              Text("Settings")
-                .foregroundStyle(.primary)
-            } icon: {
-              Image(systemName: "gearshape.fill")
-                .foregroundStyle(.secondary)
-            }
-            .marineFont(.body)
-            .marineListCell()
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.settings) {
+            Label("Settings", systemImage: "gearshape.fill")
+              .marineFont(.body)
           }
+          .marineListCell()
         }
       }
       .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
