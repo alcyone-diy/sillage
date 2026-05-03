@@ -47,26 +47,22 @@ struct CommandPanelView: View {
           }) {
             Label {
               Text("Anchor Alarm").marineFont(.body)
-                .foregroundColor(.primary)
             } icon: {
               Image(systemName: "anchor")
                 .foregroundStyle(Color.accentColor)
             }
           }
-          .marineListCell()
 
           Button(action: {
             // Placeholder
           }) {
             Label {
               Text("Baro Alarm").marineFont(.body)
-                .foregroundColor(.primary)
             } icon: {
               Image(systemName: "barometer")
                 .foregroundStyle(Color.accentColor)
             }
           }
-          .marineListCell()
         }
 
         // Zone 3: System
@@ -79,11 +75,10 @@ struct CommandPanelView: View {
                 .foregroundStyle(Color.accentColor)
             }
           }
-          .marineListCell()
         }
       }
       .listStyle(.insetGrouped)
-      .background(MarineTheme.Colors.panelBackground)
+      .environment(\.defaultMinListRowHeight, marineTheme.metrics.touchTarget)
       .navigationTitle("Command Panel")
       .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(for: PanelManagerViewModel.CommandDestination.self) { destination in

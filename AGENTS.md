@@ -30,7 +30,7 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 ## 5. Design System (MarineTheme)
 - **Anti-Hardcoding:** No hardcoded frames or font sizes.
 - **Typography:** Use the custom `.marineFont(_ style: MarineTextStyle)` modifier.
-- **Lists:** Every `List` or `Form` row must apply `.marineListCell()`.
+- **Lists:** For `List` or `Form`, use native SwiftUI lists styled as `.listStyle(.insetGrouped)` and apply `.environment(\.defaultMinListRowHeight, marineTheme.metrics.touchTarget)` to support Glove Mode dynamically.
 - **Buttons:** Use `MarineButtonStyle()` or `MarineFABStyle()`.
 - **Scaling:** Ensure all elements respect `marineTheme.isGloveMode` (min target 66pt).
 

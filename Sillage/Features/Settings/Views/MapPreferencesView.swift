@@ -88,7 +88,6 @@ struct MapPreferencesView: View {
               subtitle: subtitle,
               isSelected: isSelected
             )
-            .marineListCell()
           }
           .buttonStyle(.plain)
         }
@@ -99,7 +98,6 @@ struct MapPreferencesView: View {
         }
         .marineFont(.body)
         .foregroundColor(.primary)
-        .marineListCell()
       }
 
       // MARK: - Online Charts Section
@@ -114,7 +112,6 @@ struct MapPreferencesView: View {
             subtitle: "Global map",
             isSelected: currentSelection == .openSeaMap
           )
-          .marineListCell()
         }
         .buttonStyle(.plain)
 
@@ -125,7 +122,6 @@ struct MapPreferencesView: View {
             Text("Login to GeoGarage")
               .marineFont(.body)
           }
-          .marineListCell()
         } else {
           // List all authorized GeoGarage layers fetched from the API
           ForEach(mapViewModel.availableGeoGarageLayers) { layer in
@@ -144,7 +140,6 @@ struct MapPreferencesView: View {
                 subtitle: "Valid until \(layer.valid_until)",
                 isSelected: isSelected
               )
-              .marineListCell()
             }
             .buttonStyle(.plain)
           }
@@ -164,10 +159,10 @@ struct MapPreferencesView: View {
           }
         }
         .tint(MarineTheme.Colors.primary)
-        .marineListCell()
       }
     }
-    .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+    .listStyle(.insetGrouped)
+    .environment(\.defaultMinListRowHeight, marineTheme.metrics.touchTarget)
     .navigationTitle("Map Preferences")
     .navigationBarTitleDisplayMode(.inline)
     
