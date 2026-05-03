@@ -11,9 +11,11 @@
 import SwiftUI
 
 struct MarineListCellModifier: ViewModifier {
+  @Environment(\.marineTheme) private var marineTheme
+
   func body(content: Content) -> some View {
     content
-      .contentShape(Rectangle())
+      .frame(minHeight: marineTheme.metrics.touchTarget)
   }
 }
 
