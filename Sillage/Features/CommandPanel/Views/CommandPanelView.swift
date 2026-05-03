@@ -13,10 +13,12 @@ import SwiftUI
 @MainActor
 struct CommandPanelView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
+  @Environment(AppViewModel.self) private var appViewModel
   @Environment(\.marineTheme) private var marineTheme
 
   var body: some View {
     @Bindable var bindableViewModel = viewModel
+    @Bindable var bindableAppViewModel = appViewModel
 
     NavigationStack(path: $bindableViewModel.commandPath) {
       List {
@@ -26,7 +28,7 @@ struct CommandPanelView: View {
             MarineToggleButton(
               title: "Glove Mode",
               systemImage: "hand.raised.fill",
-              isOn: $bindableViewModel.isGloveModeEnabled
+              isOn: $bindableAppViewModel.isGloveModeEnabled
             )
 
             MarineToggleButton(
