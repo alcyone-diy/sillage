@@ -1,0 +1,47 @@
+--- ./Sillage/Features/CommandPanel/Views/CommandPanelView.swift
++++ ./Sillage/Features/CommandPanel/Views/CommandPanelView.swift
+@@ -50,13 +50,12 @@
+               Button(action: {
+                 // Placeholder
+               }) {
+-                HStack {
++                HStack(spacing: MarineTheme.Spacing.small) {
+                   Image(systemName: "anchor")
+                     .foregroundColor(.secondary)
+                   Text("Anchor Alarm")
+                     .marineFont(.body)
+                     .foregroundColor(.primary)
+-                  Spacer()
+                 }
+               }
+               .marineListCell()
+@@ -64,13 +63,12 @@
+               Button(action: {
+                 // Placeholder
+               }) {
+-                HStack {
++                HStack(spacing: MarineTheme.Spacing.small) {
+                   Image(systemName: "barometer")
+                     .foregroundColor(.secondary)
+                   Text("Baro Alarm")
+                     .marineFont(.body)
+                     .foregroundColor(.primary)
+-                  Spacer()
+                 }
+               }
+               .marineListCell()
+@@ -88,13 +86,12 @@
+               Button(action: {
+                 bindableViewModel.commandPath.append(PanelManagerViewModel.CommandDestination.settings)
+               }) {
+-                HStack {
++                HStack(spacing: MarineTheme.Spacing.small) {
+                   Image(systemName: "gearshape.fill")
+                     .foregroundColor(.secondary)
+                   Text("Settings")
+                     .marineFont(.body)
+                     .foregroundColor(.primary)
+-                  Spacer()
+                 }
+               }
+               .marineListCell()

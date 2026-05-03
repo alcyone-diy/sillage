@@ -51,12 +51,13 @@ struct CommandPanelView: View {
               Button(action: {
                 // Placeholder
               }) {
-                HStack(spacing: MarineTheme.Spacing.small) {
+                HStack {
                   Image(systemName: "anchor")
                     .foregroundColor(.secondary)
                   Text("Anchor Alarm")
                     .marineFont(.body)
                     .foregroundColor(.primary)
+                  Spacer()
                 }
               }
               .marineListCell()
@@ -64,12 +65,13 @@ struct CommandPanelView: View {
               Button(action: {
                 // Placeholder
               }) {
-                HStack(spacing: MarineTheme.Spacing.small) {
+                HStack {
                   Image(systemName: "barometer")
                     .foregroundColor(.secondary)
                   Text("Baro Alarm")
                     .marineFont(.body)
                     .foregroundColor(.primary)
+                  Spacer()
                 }
               }
               .marineListCell()
@@ -87,12 +89,13 @@ struct CommandPanelView: View {
               Button(action: {
                 bindableViewModel.commandPath.append(PanelManagerViewModel.CommandDestination.settings)
               }) {
-                HStack(spacing: MarineTheme.Spacing.small) {
+                HStack {
                   Image(systemName: "gearshape.fill")
                     .foregroundColor(.secondary)
                   Text("Settings")
                     .marineFont(.body)
                     .foregroundColor(.primary)
+                  Spacer()
                 }
               }
               .marineListCell()
