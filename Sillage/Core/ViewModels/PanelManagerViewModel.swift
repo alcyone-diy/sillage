@@ -34,6 +34,12 @@ public final class PanelManagerViewModel {
   /// The view stack path for the Command Panel.
   public var commandPath: [CommandDestination] = []
 
+  /// Computed property for Glove Mode, synchronizing with user preferences.
+  public var isGloveModeEnabled: Bool {
+    get { PreferencesService.shared.gloveModeEnabled }
+    set { PreferencesService.shared.gloveModeEnabled = newValue }
+  }
+
   public init() {}
 
   /// Opens the specified panel.

@@ -23,6 +23,21 @@ struct MarineTheme {
     static let overlay = Color.black.opacity(0.3)
     static let primaryFaded = primary.opacity(0.4)
     static let planningLine = primary.opacity(0.5)
+
+    // New colors
+    static let surfaceBackground = Color(uiColor: .secondarySystemGroupedBackground)
+    static let activeToggle = Color.cyan
+    static let textOnActive = Color.white
+    static let textSecondary = Color.secondary
+  }
+
+  struct Metrics {
+    let touchTarget: CGFloat
+    static let cornerRadius: CGFloat = 12.0
+  }
+
+  var metrics: Metrics {
+    Metrics(touchTarget: minTouchTarget)
   }
 
   struct Spacing {
