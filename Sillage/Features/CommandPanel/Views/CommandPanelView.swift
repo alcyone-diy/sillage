@@ -41,7 +41,7 @@ struct CommandPanelView: View {
         }
 
         // Zone 2: Safety
-        Section(header: Text("Safety").marineFont(.headline)) {
+        Section(header: Text("Safety")) {
           Button(action: {
             // Placeholder
           }) {
@@ -49,8 +49,12 @@ struct CommandPanelView: View {
               Text("Anchor Alarm").marineFont(.body)
             } icon: {
               Image(systemName: "anchor")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(MarineTheme.Colors.textOnActive)
+                .padding(MarineTheme.Spacing.small)
+                .background(Color.accentColor)
+                .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius / 2))
             }
+            .padding(.vertical, bindableViewModel.isGloveModeEnabled ? MarineTheme.Spacing.medium : 0)
           }
 
           Button(action: {
@@ -60,25 +64,32 @@ struct CommandPanelView: View {
               Text("Baro Alarm").marineFont(.body)
             } icon: {
               Image(systemName: "barometer")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(MarineTheme.Colors.textOnActive)
+                .padding(MarineTheme.Spacing.small)
+                .background(Color.accentColor)
+                .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius / 2))
             }
+            .padding(.vertical, bindableViewModel.isGloveModeEnabled ? MarineTheme.Spacing.medium : 0)
           }
         }
 
         // Zone 3: System
-        Section(header: Text("System").marineFont(.headline)) {
+        Section(header: Text("System")) {
           NavigationLink(value: PanelManagerViewModel.CommandDestination.settings) {
             Label {
               Text("Settings").marineFont(.body)
             } icon: {
               Image(systemName: "gearshape.fill")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(MarineTheme.Colors.textOnActive)
+                .padding(MarineTheme.Spacing.small)
+                .background(Color.secondary)
+                .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius / 2))
             }
+            .padding(.vertical, bindableViewModel.isGloveModeEnabled ? MarineTheme.Spacing.medium : 0)
           }
         }
       }
       .listStyle(.insetGrouped)
-      .environment(\.defaultMinListRowHeight, marineTheme.metrics.touchTarget)
       .navigationTitle("Command Panel")
       .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(for: PanelManagerViewModel.CommandDestination.self) { destination in

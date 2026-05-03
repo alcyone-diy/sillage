@@ -162,7 +162,6 @@ struct MapPreferencesView: View {
       }
     }
     .listStyle(.insetGrouped)
-    .environment(\.defaultMinListRowHeight, marineTheme.metrics.touchTarget)
     .navigationTitle("Map Preferences")
     .navigationBarTitleDisplayMode(.inline)
     
