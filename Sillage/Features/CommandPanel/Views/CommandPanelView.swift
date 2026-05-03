@@ -19,20 +19,95 @@ struct CommandPanelView: View {
     @Bindable var bindableViewModel = viewModel
 
     NavigationStack(path: $bindableViewModel.commandPath) {
-      List {
-        Button(action: {
-          bindableViewModel.commandPath.append(PanelManagerViewModel.CommandDestination.settings)
-        }) {
-          HStack {
-            Image(systemName: "gearshape.fill")
-              .foregroundColor(.secondary)
-            Text("Settings")
-              .marineFont(.body)
-              .foregroundColor(.primary)
+      ScrollView {
+        VStack(spacing: MarineTheme.Spacing.large) {
+
+          // Zone 1: Quick Actions
+          VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+            Text("Quick Actions")
+              .marineFont(.headline)
+
+            HStack(spacing: MarineTheme.Spacing.medium) {
+              MarineToggleButton(
+                title: "Glove Mode",
+                systemImage: "hand.raised.fill",
+                isOn: $bindableViewModel.isGloveModeEnabled
+              )
+
+              MarineToggleButton(
+                title: "Track",
+                systemImage: "record.circle",
+                isOn: .constant(false)
+              )
+            }
           }
+
+          // Zone 2: Safety
+          VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+            Text("Safety")
+              .marineFont(.headline)
+
+            VStack(spacing: 0) {
+              Button(action: {
+                // Placeholder
+              }) {
+                HStack {
+                  Image(systemName: "anchor")
+                    .foregroundColor(.secondary)
+                  Text("Anchor Alarm")
+                    .marineFont(.body)
+                    .foregroundColor(.primary)
+                  Spacer()
+                }
+              }
+              .marineListCell()
+
+              Button(action: {
+                // Placeholder
+              }) {
+                HStack {
+                  Image(systemName: "barometer")
+                    .foregroundColor(.secondary)
+                  Text("Baro Alarm")
+                    .marineFont(.body)
+                    .foregroundColor(.primary)
+                  Spacer()
+                }
+              }
+              .marineListCell()
+            }
+            .background(MarineTheme.Colors.secondarySurface)
+            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
+          }
+
+          // Zone 3: System
+          VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+            Text("System")
+              .marineFont(.headline)
+
+            VStack(spacing: 0) {
+              Button(action: {
+                bindableViewModel.commandPath.append(PanelManagerViewModel.CommandDestination.settings)
+              }) {
+                HStack {
+                  Image(systemName: "gearshape.fill")
+                    .foregroundColor(.secondary)
+                  Text("Settings")
+                    .marineFont(.body)
+                    .foregroundColor(.primary)
+                  Spacer()
+                }
+              }
+              .marineListCell()
+            }
+            .background(MarineTheme.Colors.secondarySurface)
+            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
+          }
+
         }
-        .marineListCell()
+        .padding(MarineTheme.Spacing.medium)
       }
+      .background(MarineTheme.Colors.panelBackground)
       .navigationTitle("Command Panel")
       .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(for: PanelManagerViewModel.CommandDestination.self) { destination in
