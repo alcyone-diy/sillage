@@ -71,9 +71,6 @@ class MapViewModel {
   var speedOverGround: Measurement<UnitSpeed>? = nil
   var courseOverGround: Measurement<UnitAngle>? = nil
 
-  /// The default length for the infinite course over ground (COG) projection.
-  let infiniteCOGVectorDistance = Measurement<UnitLength>(value: 2000, unit: .nauticalMiles)
-
   // MARK: - Map Features (Annotations)
   
   var vesselFeature: MLNPointFeature?
@@ -283,9 +280,12 @@ class MapViewModel {
     }
   }
 
-  /// Generates a visual polyline representing the vessel's projected path based on current Speed and Course.
-  /// The path is divided into 1-hour segments.
+  /// Generates a single, time-based predictive vector with optional point features serving as time ticks.
   private func generateHeadingVector(location: CLLocation) -> MLNShapeCollectionFeature? {
+    guard preferencesService.isCOGVectorEnabled else {
+      return nil
+    }
+
     guard let sogMeasurement = speedOverGround, let cog = courseOverGround, location.speed > 0 else {
       return nil
     }
@@ -296,33 +296,42 @@ class MapViewModel {
       return nil
     }
 
-    let speedInMetersPerSecond = location.speed
-    let segmentDistanceMeters = speedInMetersPerSecond * 3600.0 // Distance covered in 1 hour
-    let segmentDistance = Measurement<UnitLength>(value: segmentDistanceMeters, unit: .meters)
+    let speedInMetersPerSecond = sogMeasurement.converted(to: .metersPerSecond).value
+    let timeHorizonSeconds = preferencesService.cogVectorTimeHorizon.converted(to: .seconds).value
+    let totalDistanceMeters = speedInMetersPerSecond * timeHorizonSeconds
+    let totalDistance = Measurement<UnitLength>(value: totalDistanceMeters, unit: .meters)
 
-    var shapes: [MLNPolylineFeature] = []
-    var currentStart = location.coordinate
-
-    // Create 10 fixed-time segments
-    for i in 0..<10 {
-      guard let currentEnd = currentStart.rhumbCoordinate(atDistance: segmentDistance, bearing: cog) else {
-        break
-      }
-      var segmentCoordinates = [currentStart, currentEnd]
-
-      let segmentFeature = MLNPolylineFeature(coordinates: &segmentCoordinates, count: UInt(segmentCoordinates.count))
-      segmentFeature.attributes = ["colorIndex": i % 2]
-      shapes.append(segmentFeature)
-
-      currentStart = currentEnd
+    let startCoordinate = location.coordinate
+    guard let endCoordinate = startCoordinate.rhumbCoordinate(atDistance: totalDistance, bearing: cog) else {
+      return nil
     }
 
-    // Append the final "infinite" line segment for long-distance projection
-    if let infiniteEnd = currentStart.rhumbCoordinate(atDistance: infiniteCOGVectorDistance, bearing: cog) {
-      var infiniteCoordinates = [currentStart, infiniteEnd]
-      let infiniteFeature = MLNPolylineFeature(coordinates: &infiniteCoordinates, count: UInt(infiniteCoordinates.count))
-      infiniteFeature.attributes = ["colorIndex": 2]
-      shapes.append(infiniteFeature)
+    var shapes: [MLNShape] = []
+
+    // 1. Calculate Main Vector
+    var lineCoordinates = [startCoordinate, endCoordinate]
+    let lineFeature = MLNPolylineFeature(coordinates: &lineCoordinates, count: UInt(lineCoordinates.count))
+    lineFeature.attributes = ["featureType": "vectorLine"]
+    shapes.append(lineFeature)
+
+    // 2. Calculate Ticks
+    if preferencesService.isCOGVectorTicksEnabled {
+      let intervalSeconds: Double = timeHorizonSeconds <= 3600 ? 600 : 1800
+      var currentTickSeconds = intervalSeconds
+
+      while currentTickSeconds < timeHorizonSeconds {
+        let tickDistanceMeters = speedInMetersPerSecond * currentTickSeconds
+        let tickDistance = Measurement<UnitLength>(value: tickDistanceMeters, unit: .meters)
+
+        if let tickCoordinate = startCoordinate.rhumbCoordinate(atDistance: tickDistance, bearing: cog) {
+          let tickFeature = MLNPointFeature()
+          tickFeature.coordinate = tickCoordinate
+          tickFeature.attributes = ["featureType": "vectorTick"]
+          shapes.append(tickFeature)
+        }
+
+        currentTickSeconds += intervalSeconds
+      }
     }
 
     return MLNShapeCollectionFeature(shapes: shapes)

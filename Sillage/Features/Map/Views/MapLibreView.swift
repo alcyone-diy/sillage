@@ -53,15 +53,19 @@ struct MapLibreView: UIViewRepresentable {
       style.addSource(headingSource)
 
       let headingLayer = MLNLineStyleLayer(identifier: headingLayerId, source: headingSource)
-      let lineWidthValue = MarineTheme.MapMetrics.headingLineWidth
-      let planningLineWidthValue = MarineTheme.MapMetrics.planningLineWidth
-      headingLayer.lineWidth = NSExpression(format: "TERNARY(colorIndex == 2, %@, %@)", NSNumber(value: planningLineWidthValue), NSNumber(value: lineWidthValue))
-
-      let color0 = UIColor(MarineTheme.Colors.primary)
-      let color1 = UIColor(MarineTheme.Colors.primaryFaded)
-      let color2 = UIColor(MarineTheme.Colors.planningLine)
-      headingLayer.lineColor = NSExpression(format: "TERNARY(colorIndex == 0, %@, TERNARY(colorIndex == 1, %@, %@))", color0, color1, color2)
+      headingLayer.predicate = NSPredicate(format: "featureType == 'vectorLine'")
+      headingLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.MapMetrics.headingLineWidth)
+      headingLayer.lineColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.vectorCOG))
       style.addLayer(headingLayer)
+
+      let headingTickLayerId = "heading-vector-tick-layer"
+      let headingTickLayer = MLNCircleStyleLayer(identifier: headingTickLayerId, source: headingSource)
+      headingTickLayer.predicate = NSPredicate(format: "featureType == 'vectorTick'")
+      headingTickLayer.circleRadius = NSExpression(forConstantValue: 3.0)
+      headingTickLayer.circleColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.vectorCOG))
+      headingTickLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.0)
+      headingTickLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.systemBackground)
+      style.insertLayer(headingTickLayer, above: headingLayer)
 
       // Create Vessel Source and Layer
       let vesselSource = MLNShapeSource(identifier: vesselSourceId, shape: nil, options: nil)
@@ -366,6 +370,16 @@ struct MapLibreView: UIViewRepresentable {
           style.insertLayer(headingLayer, below: vesselLayer)
         } else {
           style.addLayer(headingLayer)
+        }
+      }
+      if let headingTickLayer = style.layer(withIdentifier: "heading-vector-tick-layer") {
+        style.removeLayer(headingTickLayer)
+        if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
+          style.insertLayer(headingTickLayer, below: vesselLayer)
+        } else if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
+          style.insertLayer(headingTickLayer, above: headingLayer)
+        } else {
+          style.addLayer(headingTickLayer)
         }
       }
       if let gpsAccuracyStrokeLayer = style.layer(withIdentifier: "gps-accuracy-stroke-layer") {

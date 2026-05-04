@@ -31,6 +31,12 @@ struct MarineTheme {
     static let textSecondary = Color.secondary
     static let panelBackground = Color(uiColor: .systemGroupedBackground)
     static let secondarySurface = Color(uiColor: .secondarySystemGroupedBackground)
+
+    // Marine Navigation Vectors
+    static let vectorCOG = Color(red: 1.0, green: 0.0, blue: 1.0) // Magenta
+    static let vectorHDG = Color(UIColor { traitCollection in
+      traitCollection.userInterfaceStyle == .dark ? .systemYellow : .darkGray
+    }) // Amber for dark mode, dark gray for light mode
   }
 
   struct Metrics {
