@@ -30,6 +30,7 @@ struct COGPreferencesView: View {
             Text(String(localized: "30 min")).tag(Measurement(value: 1800, unit: UnitDuration.seconds))
             Text(String(localized: "1 hr")).tag(Measurement(value: 3600, unit: UnitDuration.seconds))
             Text(String(localized: "3 hr")).tag(Measurement(value: 10800, unit: UnitDuration.seconds))
+            Text(String(localized: "6 hr")).tag(Measurement(value: 21600, unit: UnitDuration.seconds))
           }
           .pickerStyle(.segmented)
           .marineListCell()

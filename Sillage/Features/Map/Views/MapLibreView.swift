@@ -61,7 +61,7 @@ struct MapLibreView: UIViewRepresentable {
       let headingTickLayerId = "heading-vector-tick-layer"
       let headingTickLayer = MLNCircleStyleLayer(identifier: headingTickLayerId, source: headingSource)
       headingTickLayer.predicate = NSPredicate(format: "featureType == 'vectorTick'")
-      headingTickLayer.circleRadius = NSExpression(forConstantValue: 3.0)
+      headingTickLayer.circleRadius = NSExpression(format: "TERNARY(isMajorTick == YES, 4.0, 2.0)")
       headingTickLayer.circleColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.vectorCOG))
       headingTickLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.0)
       headingTickLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.systemBackground)
