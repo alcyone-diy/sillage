@@ -13,7 +13,19 @@
     "%@°" : {
 
     },
+    "1 hr" : {
+
+    },
     "1.0.0" : {
+
+    },
+    "3 hr" : {
+
+    },
+    "10 min" : {
+
+    },
+    "30 min" : {
 
     },
     "About" : {
@@ -42,6 +54,9 @@
     },
     "E" : {
       "comment" : "East cardinal point"
+    },
+    "Enable COG Vector" : {
+
     },
     "Error loading document" : {
 
@@ -124,6 +139,9 @@
     "N" : {
       "comment" : "North cardinal point"
     },
+    "Navigation" : {
+
+    },
     "Navigational markers overlay. Zoom in (level 10+) on coasts to see marks." : {
 
     },
@@ -151,6 +169,9 @@
     "Please enter a valid username." : {
 
     },
+    "Predictor Vector" : {
+
+    },
     "Quick Actions" : {
 
     },
@@ -166,6 +187,9 @@
     "Settings" : {
 
     },
+    "Show Time Ticks" : {
+
+    },
     "SOG" : {
 
     },
@@ -176,6 +200,9 @@
 
     },
     "The provided URL is not a valid file." : {
+
+    },
+    "Time Horizon" : {
 
     },
     "Track" : {
