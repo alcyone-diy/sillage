@@ -153,7 +153,6 @@ struct ContentView: View {
         }
       }
     }
-    .ignoresSafeArea()
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
       error: appViewModel.importError
