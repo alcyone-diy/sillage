@@ -48,7 +48,7 @@ struct CommandPanelView: View {
                   Label {
                       Text("Anchor Alarm").foregroundStyle(.primary)
                   } icon: {
-                      Image(systemName: "lifepreserver").foregroundStyle(.blue)
+                      Image(systemName: "location.viewfinder").foregroundStyle(.blue)
                   }
                   .marineFont(.body)
                   .marineListCell()
