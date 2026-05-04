@@ -12,6 +12,7 @@ import Foundation
 import Observation
 
 @Observable
+@MainActor
 final class AppViewModel {
   private var preferencesService: PreferencesServiceProtocol
   private let chartImportService: ChartImportService
