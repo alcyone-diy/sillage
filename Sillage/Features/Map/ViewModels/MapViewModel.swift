@@ -317,6 +317,7 @@ class MapViewModel {
     // 2. Calculate Ticks
     if preferencesService.isCOGVectorTicksEnabled {
       let intervalSeconds: Double = timeHorizonSeconds <= 3600 ? 600 : 1800
+      let majorIntervalSeconds: Double = timeHorizonSeconds <= 3600 ? 1800 : 3600
       var currentTickSeconds = intervalSeconds
 
       while currentTickSeconds < timeHorizonSeconds {
@@ -326,7 +327,8 @@ class MapViewModel {
         if let tickCoordinate = startCoordinate.rhumbCoordinate(atDistance: tickDistance, bearing: cog) {
           let tickFeature = MLNPointFeature()
           tickFeature.coordinate = tickCoordinate
-          tickFeature.attributes = ["featureType": "vectorTick"]
+          let isMajor = currentTickSeconds.truncatingRemainder(dividingBy: majorIntervalSeconds) == 0
+          tickFeature.attributes = ["featureType": "vectorTick", "isMajorTick": isMajor]
           shapes.append(tickFeature)
         }
 
