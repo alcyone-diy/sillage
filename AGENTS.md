@@ -12,7 +12,7 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **State Management:** Use the `@Observable` framework.
 - **PROHIBITED:** `Combine`, `ObservableObject`, and `@Published` are strictly forbidden.
 - **Indentation:** Strictly **2 spaces**.
-- **Localization:** All UI strings must use `String(localized:)`. Logs and developer comments must stay in English.
+- **Localization:** Rely on SwiftUI's native LocalizedStringKey for literals (e.g., `Text("Hello")`). Only use `String(localized:)` when passing localized strings to non-view variables, ViewModels, or custom components that don't accept LocalizedStringKey. Logs and developer comments must stay in English.
 
 ## 3. Error Handling & Idiomatic Swift
 - **No Forced Unwrapping:** Use `if let` or `guard let`. The `!` operator is banned.

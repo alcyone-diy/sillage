@@ -18,40 +18,40 @@ struct SettingsView: View {
 
   var body: some View {
     Form {
-      Section(header: Text(String(localized: "General"))) {
+      Section(header: Text("General")) {
         @Bindable var bindableAppViewModel = appViewModel
           Toggle(isOn: $bindableAppViewModel.isGloveModeEnabled) {
-            Label(String(localized: "Glove Mode"), systemImage: "hand.raised.fill")
+            Label("Glove Mode", systemImage: "hand.raised.fill")
               .marineFont(.body)
           }
           .marineListCell()
 
           NavigationLink(destination: MapPreferencesView()) {
-            Label(String(localized: "Map Preferences"), systemImage: "map")
+            Label("Map Preferences", systemImage: "map")
               .marineFont(.body)
           }
           .marineListCell()
         }
 
-      Section(header: Text(String(localized: "Navigation"))) {
+      Section(header: Text("Navigation")) {
         NavigationLink(destination: COGPreferencesView()) {
-          Label(String(localized: "Predictor Vector"), systemImage: "location.north.line.fill")
+          Label("Predictor Vector", systemImage: "location.north.line.fill")
             .marineFont(.body)
         }
         .marineListCell()
       }
 
-      Section(header: Text(String(localized: "Safety & Legal"))) {
+      Section(header: Text("Safety & Legal")) {
         NavigationLink(destination: LegalListView(documents: viewModel.legalDocuments)) {
-          Label(String(localized: "Legal & Licenses"), systemImage: "doc.text")
+          Label("Legal & Licenses", systemImage: "doc.text")
             .marineFont(.body)
         }
         .marineListCell()
       }
 
-      Section(header: Text(String(localized: "About"))) {
+      Section(header: Text("About")) {
         HStack {
-          Label(String(localized: "Version"), systemImage: "info.circle")
+          Label("Version", systemImage: "info.circle")
             .marineFont(.body)
           Spacer()
           Text("1.0.0")
@@ -62,7 +62,7 @@ struct SettingsView: View {
       }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-    .navigationTitle(String(localized: "Settings"))
+    .navigationTitle("Settings")
     .navigationBarTitleDisplayMode(.inline)
   }
 }
