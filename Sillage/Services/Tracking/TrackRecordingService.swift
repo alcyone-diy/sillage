@@ -17,7 +17,39 @@ import Observation
 public final class TrackRecordingService {
   public private(set) var trackPoints: [TrackPoint] = []
 
-  public init() {}
+  public var isRecording: Bool = false {
+    didSet {
+      if isRecording {
+        startRecording()
+      } else {
+        stopRecording()
+      }
+    }
+  }
+
+  private let locationService: LocationServiceProtocol
+  private var locationUpdatesTask: TaskCancellable?
+
+  init(locationService: LocationServiceProtocol? = nil) {
+    self.locationService = locationService ?? LocationService.shared
+  }
+
+  private func startRecording() {
+    let service = self.locationService
+    locationUpdatesTask = TaskCancellable(Task { [weak self] in
+      for await location in service.locationUpdates {
+        guard !Task.isCancelled else { break }
+        await MainActor.run {
+          self?.append(location: location)
+        }
+      }
+    })
+  }
+
+  private func stopRecording() {
+    locationUpdatesTask?.cancel()
+    locationUpdatesTask = nil
+  }
 
   public func append(location: CLLocation) {
     let accuracy = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
