@@ -26,6 +26,7 @@ public final class PanelManagerViewModel {
   /// Represents the UI destinations within the Command Panel.
   public enum CommandDestination: Hashable {
     case settings
+    case tracks
   }
 
   /// The currently active panel visible to the user.

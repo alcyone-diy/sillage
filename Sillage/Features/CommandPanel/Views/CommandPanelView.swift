@@ -68,16 +68,15 @@ struct CommandPanelView: View {
         }
 
         Section(header: Text("Navigation")) {
-          Button(action: {
-              }) {
-                  Label {
-                      Text("Tracks").foregroundStyle(.primary)
-                  } icon: {
-                      Image(systemName: "point.topleft.down.curvedto.point.bottomright.up").foregroundStyle(.blue)
-                  }
-                  .marineFont(.body)
-                  .marineListCell()
-              }.tint(.primary)
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
+            Label {
+              Text("Tracks").foregroundStyle(.primary)
+            } icon: {
+              Image(systemName: "point.topleft.down.curvedto.point.bottomright.up").foregroundStyle(.blue)
+            }
+            .marineFont(.body)
+          }
+          .marineListCell()
         }
 
         // Zone 3: System
@@ -99,6 +98,8 @@ struct CommandPanelView: View {
         switch destination {
         case .settings:
           SettingsView()
+        case .tracks:
+          TracksManagerView()
         }
       }
       .toolbar {
@@ -119,5 +120,7 @@ struct CommandPanelView: View {
 #Preview {
   CommandPanelView()
     .environment(PanelManagerViewModel())
+    .environment(AppViewModel())
+    .environment(TrackRecordingService())
     .environment(\.marineTheme, .standard)
 }

@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+
+    },
     "-- kts" : {
 
     },
@@ -34,6 +37,9 @@
     "About" : {
 
     },
+    "Active Trace" : {
+
+    },
     "Alcyone Sillage (MIT License)" : {
 
     },
@@ -49,10 +55,19 @@
     "COG" : {
 
     },
+    "Coming soon..." : {
+
+    },
     "Command Panel" : {
 
     },
     "Could not create the Charts directory." : {
+
+    },
+    "Distance" : {
+
+    },
+    "Duration" : {
 
     },
     "E" : {
@@ -178,6 +193,9 @@
     "Quick Actions" : {
 
     },
+    "Recording Status" : {
+
+    },
     "S" : {
       "comment" : "South cardinal point"
     },
@@ -185,6 +203,9 @@
 
     },
     "Safety & Legal" : {
+
+    },
+    "Saved Traces" : {
 
     },
     "Settings" : {
@@ -209,6 +230,12 @@
 
     },
     "Track" : {
+
+    },
+    "Track Manager" : {
+
+    },
+    "Tracks" : {
 
     },
     "Username" : {
