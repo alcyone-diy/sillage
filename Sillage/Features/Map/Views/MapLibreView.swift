@@ -20,6 +20,7 @@ import CoreLocation
 struct MapLibreView: UIViewRepresentable {
 
   @Environment(\.marineTheme) var marineTheme
+  @Environment(TrackRecordingService.self) private var trackRecordingService
   var viewModel: MapViewModel
 
 
@@ -31,6 +32,8 @@ struct MapLibreView: UIViewRepresentable {
     let gpsAccuracySourceId = "gps-accuracy-source"
     let gpsAccuracyLayerId = "gps-accuracy-layer"
     let gpsAccuracyStrokeLayerId = "gps-accuracy-stroke-layer"
+    let activeTrackSourceId = "active-track-source"
+    let activeTrackLayerId = "active-track-layer"
 
     if style.source(withIdentifier: vesselSourceId) == nil {
       // Create GPS Accuracy Source and Layers first so they are beneath the heading vector and vessel
@@ -47,6 +50,13 @@ struct MapLibreView: UIViewRepresentable {
       gpsAccuracyStrokeLayer.lineOpacity = NSExpression(forConstantValue: MarineTheme.MapMetrics.gpsAccuracyStrokeOpacity)
       gpsAccuracyStrokeLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.MapMetrics.gpsAccuracyLineWidth)
       style.insertLayer(gpsAccuracyStrokeLayer, above: gpsAccuracyFillLayer)
+
+      let activeTrackSource = MLNShapeSource(identifier: activeTrackSourceId, shape: nil, options: nil)
+      style.addSource(activeTrackSource)
+      let activeTrackLayer = MLNLineStyleLayer(identifier: activeTrackLayerId, source: activeTrackSource)
+      activeTrackLayer.lineWidth = NSExpression(forConstantValue: 4.0)
+      activeTrackLayer.lineColor = NSExpression(forConstantValue: UIColor.systemRed)
+      style.insertLayer(activeTrackLayer, above: gpsAccuracyStrokeLayer)
 
       // Create Heading Source and Layer so it's above gps accuracy but beneath the vessel
       let headingSource = MLNShapeSource(identifier: headingSourceId, shape: nil, options: nil)
@@ -144,6 +154,11 @@ struct MapLibreView: UIViewRepresentable {
         source.shape = viewModel.gpsAccuracyFeature
       }
 
+      // Active track feature update
+      if let source = style.source(withIdentifier: "active-track-source") as? MLNShapeSource {
+        source.shape = generateActiveTrackFeature(from: trackRecordingService.trackPoints)
+      }
+
       // Data Stale state update (Opacity)
       if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
         layer.iconOpacity = NSExpression(forConstantValue: viewModel.isDataStale ? 0.4 : 1.0)
@@ -186,6 +201,12 @@ struct MapLibreView: UIViewRepresentable {
 
     // Disable compass interaction when in an automated tracking mode to prevent state conflicts
     uiView.compassView.isUserInteractionEnabled = (viewModel.trackingMode != .courseUp)
+  }
+
+  private func generateActiveTrackFeature(from points: [TrackPoint]) -> MLNPolylineFeature? {
+    guard points.count >= 2 else { return nil }
+    var coordinates = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    return MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
   }
 
   func makeCoordinator() -> Coordinator {
@@ -261,6 +282,9 @@ struct MapLibreView: UIViewRepresentable {
       }
       if let source = style.source(withIdentifier: "vessel-source") as? MLNShapeSource {
         source.shape = parent.viewModel.vesselFeature
+      }
+      if let source = style.source(withIdentifier: "active-track-source") as? MLNShapeSource {
+        source.shape = parent.generateActiveTrackFeature(from: parent.trackRecordingService.trackPoints)
       }
       if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
         layer.iconOpacity = NSExpression(forConstantValue: parent.viewModel.isDataStale ? 0.4 : 1.0)
@@ -382,9 +406,21 @@ struct MapLibreView: UIViewRepresentable {
           style.addLayer(headingTickLayer)
         }
       }
+      if let activeTrackLayer = style.layer(withIdentifier: "active-track-layer") {
+        style.removeLayer(activeTrackLayer)
+        if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
+          style.insertLayer(activeTrackLayer, below: headingLayer)
+        } else if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
+          style.insertLayer(activeTrackLayer, below: vesselLayer)
+        } else {
+          style.addLayer(activeTrackLayer)
+        }
+      }
       if let gpsAccuracyStrokeLayer = style.layer(withIdentifier: "gps-accuracy-stroke-layer") {
         style.removeLayer(gpsAccuracyStrokeLayer)
-        if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
+        if let activeTrackLayer = style.layer(withIdentifier: "active-track-layer") {
+          style.insertLayer(gpsAccuracyStrokeLayer, below: activeTrackLayer)
+        } else if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
           style.insertLayer(gpsAccuracyStrokeLayer, below: headingLayer)
         } else if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
           style.insertLayer(gpsAccuracyStrokeLayer, below: vesselLayer)
