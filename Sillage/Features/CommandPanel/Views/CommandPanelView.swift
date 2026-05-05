@@ -67,6 +67,19 @@ struct CommandPanelView: View {
               }.tint(.primary)
         }
 
+        Section(header: Text("Navigation")) {
+          Button(action: {
+              }) {
+                  Label {
+                      Text("Tracks").foregroundStyle(.primary)
+                  } icon: {
+                      Image(systemName: "point.topleft.down.curvedto.point.bottomright.up").foregroundStyle(.blue)
+                  }
+                  .marineFont(.body)
+                  .marineListCell()
+              }.tint(.primary)
+        }
+
         // Zone 3: System
         Section(header: Text("System")) {
           NavigationLink(value: PanelManagerViewModel.CommandDestination.settings) {
