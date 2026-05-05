@@ -18,6 +18,7 @@ struct SillageApp: App {
   @State private var appViewModel = AppViewModel()
   @State private var mapViewModel = MapViewModel()
   @State private var panelManagerViewModel = PanelManagerViewModel()
+  @State private var trackRecordingService = TrackRecordingService()
   @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
   
   init() {
@@ -48,6 +49,7 @@ struct SillageApp: App {
           .environment(appViewModel)
           .environment(mapViewModel)
           .environment(panelManagerViewModel)
+          .environment(trackRecordingService)
           .onOpenURL { url in
             appViewModel.handleIncomingURL(url)
           }

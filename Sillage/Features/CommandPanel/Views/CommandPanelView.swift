@@ -14,11 +14,13 @@ import SwiftUI
 struct CommandPanelView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
   @Environment(AppViewModel.self) private var appViewModel
+  @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(\.marineTheme) private var marineTheme
 
   var body: some View {
     @Bindable var bindableViewModel = viewModel
     @Bindable var bindableAppViewModel = appViewModel
+    @Bindable var bindableTrackRecordingService = trackRecordingService
 
     NavigationStack(path: $bindableViewModel.commandPath) {
       List {
@@ -34,7 +36,7 @@ struct CommandPanelView: View {
             MarineToggleButton(
               title: "Track",
               systemImage: "record.circle",
-              isOn: .constant(false)
+              isOn: $bindableTrackRecordingService.isRecording
             )
           }
           .listRowBackground(Color.clear)
