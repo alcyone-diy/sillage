@@ -38,3 +38,17 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **Thread Safety:** All map updates (Layers/Sources) must occur on the `@MainActor`.
 - **Defensive Layering:** Always verify if a source/layer exists before modification to prevent crashes during style reloads.
 - **Offline-First:** Prioritize local `.mbtiles` files in the `Charts/` directory.
+
+## 7. Architecture & Domain-Driven Design
+- **Architecture:** MVVM is mandatory for all SwiftUI views.
+- **DDD Strictness:** Business terms like `Route`, `Navigation`, `Track`, and `Waypoint` are strictly forbidden in UI navigation code. Use terms like `CommandDestination` and `commandPath` to prevent cognitive collision with the ship's actual routing engine.
+
+## 8. UX & Animations
+- **No Pop Glitches:** When popping views from a `NavigationStack`, use iOS 17's `withAnimation(..., completion:)` to clear the stack only after the dismiss animation finishes.
+
+## 9. Legal & Security
+- **Licenses:** Any recommended library must be checked for App Store compatibility (no GPL contagion). Map/Data sources must display their license in the UI (MIT, BSD, ODbL).
+- **Remote Maps:** Distant map sources must be gated by a local token verification.
+
+## 10. Agent Behavior
+- **Responses:** Do not generate long blocks of code unnecessarily. Focus on architectural decisions, logical diagrams, and clear, concise specifications.
