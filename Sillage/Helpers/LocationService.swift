@@ -11,6 +11,10 @@
 import Foundation
 import CoreLocation
 
+public protocol BackgroundLocationToken: AnyObject {
+  func invalidate()
+}
+
 protocol LocationServiceProtocol {
   var locationUpdates: AsyncStream<CLLocation> { get }
   var authorizationStatusStream: AsyncStream<CLAuthorizationStatus> { get }
@@ -18,6 +22,8 @@ protocol LocationServiceProtocol {
   func requestAuthorization()
   func startUpdatingLocation()
   func stopUpdatingLocation()
+  
+  func requestBackgroundLocation() -> any BackgroundLocationToken
 }
 
 class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDelegate {
@@ -91,13 +97,67 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
     // Marine Activity Type: prevents automotive road-snapping algorithms
     self.locationManager.activityType = .otherNavigation
 
-    // Disable Auto-Pause: never pause updates
-     self.locationManager.pausesLocationUpdatesAutomatically = false
+    // Auto-Pause and Background Execution are managed dynamically
+    // via setBackgroundActivity(id:isActive:)
+    self.locationManager.pausesLocationUpdatesAutomatically = true
+    self.locationManager.allowsBackgroundLocationUpdates = false
+    self.locationManager.showsBackgroundLocationIndicator = false
+  }
 
-    // TODO: Enable background when needed.
-    // Background Execution
-    // self.locationManager.allowsBackgroundLocationUpdates = true
-    // self.locationManager.showsBackgroundLocationIndicator = true
+  // MARK: - Background Activity tracking
+  private var activeBackgroundSessions = Set<UUID>()
+  private let backgroundSessionsLock = NSLock()
+
+  private final class LocationActivityToken: BackgroundLocationToken {
+    let id = UUID()
+    let onInvalidate: (UUID) -> Void
+    private var isInvalidated = false
+    private let lock = NSLock()
+
+    init(onInvalidate: @escaping (UUID) -> Void) {
+      self.onInvalidate = onInvalidate
+    }
+
+    func invalidate() {
+      lock.lock()
+      defer { lock.unlock() }
+      guard !isInvalidated else { return }
+      isInvalidated = true
+      onInvalidate(id)
+    }
+
+    deinit {
+      invalidate()
+    }
+  }
+
+  func requestBackgroundLocation() -> any BackgroundLocationToken {
+    backgroundSessionsLock.lock()
+    defer { backgroundSessionsLock.unlock() }
+
+    let token = LocationActivityToken { [weak self] id in
+      self?.releaseBackgroundToken(id: id)
+    }
+    
+    activeBackgroundSessions.insert(token.id)
+    updateBackgroundLocationStatus()
+    
+    return token
+  }
+
+  private func releaseBackgroundToken(id: UUID) {
+    backgroundSessionsLock.lock()
+    defer { backgroundSessionsLock.unlock() }
+    
+    activeBackgroundSessions.remove(id)
+    updateBackgroundLocationStatus()
+  }
+  
+  private func updateBackgroundLocationStatus() {
+    let needsBackground = !activeBackgroundSessions.isEmpty
+    locationManager.pausesLocationUpdatesAutomatically = !needsBackground
+    locationManager.allowsBackgroundLocationUpdates = needsBackground
+    locationManager.showsBackgroundLocationIndicator = needsBackground
   }
 
   func requestAuthorization() {

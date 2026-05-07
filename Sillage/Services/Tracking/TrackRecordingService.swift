@@ -29,6 +29,7 @@ public final class TrackRecordingService {
 
   private let locationService: LocationServiceProtocol
   private var locationUpdatesTask: TaskCancellable?
+  private var backgroundLocationToken: (any BackgroundLocationToken)?
 
   init(locationService: LocationServiceProtocol? = nil) {
     self.locationService = locationService ?? LocationService.shared
@@ -36,6 +37,8 @@ public final class TrackRecordingService {
 
   private func startRecording() {
     let service = self.locationService
+    self.backgroundLocationToken = service.requestBackgroundLocation()
+    
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
       for await location in service.locationUpdates {
         guard !Task.isCancelled else { break }
@@ -49,6 +52,7 @@ public final class TrackRecordingService {
   private func stopRecording() {
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
+    self.backgroundLocationToken = nil
   }
 
   public func append(location: CLLocation) {
