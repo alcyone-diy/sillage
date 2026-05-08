@@ -53,6 +53,40 @@ public final class TrackRecordingService {
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
     self.backgroundLocationToken = nil
+
+    let pointsToSave = trackPoints
+    if !pointsToSave.isEmpty {
+      Task.detached {
+        await self.saveTrack(points: pointsToSave)
+      }
+    }
+    
+    trackPoints.removeAll()
+  }
+
+  private func saveTrack(points: [TrackPoint]) async {
+    let exporter = GPXExportService()
+    do {
+      let gpxString = try await exporter.export(track: points)
+      guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+      
+      let tracksDirectory = documentsDirectory.appendingPathComponent("Tracks", isDirectory: true)
+      if !FileManager.default.fileExists(atPath: tracksDirectory.path) {
+        try FileManager.default.createDirectory(at: tracksDirectory, withIntermediateDirectories: true, attributes: nil)
+      }
+      
+      var fileURL = tracksDirectory.appendingPathComponent("Track.gpx")
+      var counter = 1
+      while FileManager.default.fileExists(atPath: fileURL.path) {
+        fileURL = tracksDirectory.appendingPathComponent("Track_\(counter).gpx")
+        counter += 1
+      }
+      
+      try gpxString.write(to: fileURL, atomically: true, encoding: .utf8)
+      print("Successfully saved track to \(fileURL.path)")
+    } catch {
+      print("Failed to save track: \(error)")
+    }
   }
 
   public func append(location: CLLocation) {
