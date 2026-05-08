@@ -50,5 +50,10 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **Licenses:** Any recommended library must be checked for App Store compatibility (no GPL contagion). Map/Data sources must display their license in the UI (MIT, BSD, ODbL).
 - **Remote Maps:** Distant map sources must be gated by a local token verification.
 
-## 10. Agent Behavior
+## 10. Location & Background Execution
+- **Dynamic Background Privileges:** Never hardcode `allowsBackgroundLocationUpdates = true` permanently. Use the RAII/Token pattern (`BackgroundLocationToken`) to dynamically acquire and release background location privileges only when a session (like Track Recording or Anchor Alarm) is actively running.
+- **Continuous Tracking:** Always set `pausesLocationUpdatesAutomatically = false` and `showsBackgroundLocationIndicator = true` when acquiring the background token to guarantee iOS does not silently kill the GPS thread when the device is asleep.
+- **Memory Safety:** The token object must support an explicit `invalidate()` method to terminate the background session, while also enforcing a fallback cancellation in its `deinit` to prevent GPS battery leaks.
+
+## 11. Agent Behavior
 - **Responses:** Do not generate long blocks of code unnecessarily. Focus on architectural decisions, logical diagrams, and clear, concise specifications.
