@@ -10,14 +10,18 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **Target:** iOS 17+.
 - **Concurrency:** Strict Swift 6 Concurrency. Use `@MainActor` for all UI-related ViewModels. Prefer `Task` over `Timer`.
 - **State Management:** Use the `@Observable` framework.
-- **PROHIBITED:** `Combine`, `ObservableObject`, and `@Published` are strictly forbidden.
+- **PROHIBITED (State):** `Combine`, `ObservableObject`, and `@Published` are strictly forbidden.
+- **Locking & Synchronization:** Use Swift 6 `actor` to encapsulate isolated state. GCD (`DispatchQueue`), `NSLock`, and raw `os_unfair_lock` are strictly forbidden.
+  - *Exception:* If a synchronous lock is absolutely required in a non-isolated context (e.g., inside a `deinit` for a resource token), you must use `OSAllocatedUnfairLock` (iOS 16+).
 - **Indentation:** Strictly **2 spaces**.
 - **Localization:** Rely on SwiftUI's native LocalizedStringKey for literals (e.g., `Text("Hello")`). Only use `String(localized:)` when passing localized strings to non-view variables, ViewModels, or custom components that don't accept LocalizedStringKey. Logs and developer comments must stay in English.
 
 ## 3. Error Handling & Idiomatic Swift
 - **No Forced Unwrapping:** Use `if let` or `guard let`. The `!` operator is banned.
 - **Nil Over Defaults:** If data is invalid (e.g., negative radius, failed parsing, invalid SOG, invalid coordinates), return `nil`. 
-- **PROHIBITED:** Never return "dummy" values like `0`, `-1`, or `""` for invalid states. Force the caller to handle the optionality.
+- **PROHIBITED (Dummy Values):** Never return "dummy" values like `0`, `-1`, or `""` for invalid states. Force the caller to handle the optionality.
+  - *Framework Warning:* Beware of Apple's APIs returning dummy values for invalid states (e.g., `CLLocation` returning `-1.0` for invalid course or speed). These must be caught at the service boundary and mapped strictly to `nil`.
+- **Strict Logging:** The `print()` function is formally banned anywhere in the app. You must use `os.Logger` (`OSLog`) with predefined subsystems and categories (e.g., Navigation, Map, Sensors) to ensure critical telemetry survives app crashes.
 
 ## 4. Physical Units (Measurement API)
 - **Strict Typing:** It is **formally forbidden** to use `Double` or `Float` to represent physical quantities.
@@ -25,7 +29,8 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
     - Distance: `Measurement<UnitLength>`
     - Speed: `Measurement<UnitSpeed>`
     - Angles: `Measurement<UnitAngle>`
-- **Conversion:** Use `.converted(to:)` only for display purposes.
+- **No Manual Math Conversions:** Never use raw mathematical formulas (e.g., `* .pi / 180`) to convert degrees, radians, or knots. Rely entirely on the `Foundation.Measurement` conversion pipeline.
+- **High-Frequency Performance:** In high-frequency loops (e.g., `didUpdateLocations` or NMEA parsing), avoid `.converted(to:)` to prevent unnecessary CPU overhead. Instead, pre-calculate threshold values during initialization as `Measurement` objects in the exact base unit provided by the sensor (e.g., `metersPerSecond`). Wrap the incoming raw sensor value into a `Measurement` once, and compare the `Measurement` objects directly. **Never extract `.value` to raw `Double`**, as strict type safety must be maintained even in performance-critical code.
 
 ## 5. Design System (MarineTheme)
 - **Anti-Hardcoding:** No hardcoded frames or font sizes.
@@ -39,8 +44,9 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **Defensive Layering:** Always verify if a source/layer exists before modification to prevent crashes during style reloads.
 - **Offline-First:** Prioritize local `.mbtiles` files in the `Charts/` directory.
 
-## 7. Architecture & Domain-Driven Design
+## 7. Architecture & Domain-Driven Design (DDD)
 - **Architecture:** MVVM is mandatory for all SwiftUI views.
+- **Strict Framework Isolation:** Third-party or Apple Framework types (e.g., `CLLocation`, `CLHeading`, `CBMPeripheral`) must **never** leak into the UI or Domain streams. They must be intercepted at the Service boundary and mapped to pure Swift Domain structs (e.g., `MarineFix`).
 - **DDD Strictness:** Business terms like `Route`, `Navigation`, `Track`, and `Waypoint` are strictly forbidden in UI navigation code. Use terms like `CommandDestination` and `commandPath` to prevent cognitive collision with the ship's actual routing engine.
 
 ## 8. UX & Animations
@@ -53,7 +59,11 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 ## 10. Location & Background Execution
 - **Dynamic Background Privileges:** Never hardcode `allowsBackgroundLocationUpdates = true` permanently. Use the RAII/Token pattern (`BackgroundLocationToken`) to dynamically acquire and release background location privileges only when a session (like Track Recording or Anchor Alarm) is actively running.
 - **Continuous Tracking:** Always set `pausesLocationUpdatesAutomatically = false` and `showsBackgroundLocationIndicator = true` when acquiring the background token to guarantee iOS does not silently kill the GPS thread when the device is asleep.
+- **Throttling & Battery Conservation:** `kCLDistanceFilterNone` is strictly forbidden. Always apply a sensible `distanceFilter` to prevent CPU and battery drain from stationary GPS micro-fluctuations. This filter must be dynamically adjustable by the Domain layer depending on the context (e.g., setting 5-10 meters for active sailing, or 1 meter for an anchor watch). The Location/Infrastructure service must not know the business context; it only applies the requested filter in meters.
 - **Memory Safety:** The token object must support an explicit `invalidate()` method to terminate the background session, while also enforcing a fallback cancellation in its `deinit` to prevent GPS battery leaks.
 
 ## 11. Agent Behavior
 - **Responses:** Do not generate long blocks of code unnecessarily. Focus on architectural decisions, logical diagrams, and clear, concise specifications.
+
+## 12. Sensor Data & UI Awareness
+- **No Silent Filtering:** Services (like Location, NMEA) must never silently drop degraded data (e.g., GPS points with poor accuracy). Emit all raw/degraded states to the domain. The ViewModel is responsible for interpreting this degradation and updating the UI to warn the user explicitly (e.g., "Fix Lost", "Poor Accuracy polygon").
