@@ -12,6 +12,7 @@
 
 import SwiftUI
 import MapLibre
+import OSLog
 
 @main
 struct SillageApp: App {
@@ -78,13 +79,9 @@ struct SillageApp: App {
         let text = "Alcyone Sillage - Chart Plotter.\nPlease place your .mbtiles files in the 'Charts' directory."
         try text.write(to: dummyURL, atomically: true, encoding: .utf8)
       }
-#if DEBUG
-      print("⚓️ FileSystem ready: \(docsURL.path)")
-#endif
+      Logger.storage.debug("⚓️ FileSystem ready: \(docsURL.path)")
     } catch {
-#if DEBUG
-      print("❌ Critical FileSystem initialization error: \(error.localizedDescription)")
-#endif
+      Logger.storage.error("❌ Critical FileSystem initialization error: \(error.localizedDescription)")
     }
   }
 }
