@@ -13,6 +13,7 @@ import CoreLocation
 import SwiftUI
 import Observation
 import MapLibre
+import OSLog
 
 /// Represents a camera movement instruction to be consumed by the UI layer.
 struct CameraMoveEvent {
@@ -182,7 +183,7 @@ class MapViewModel {
           self.availableGeoGarageLayers = settings.layers
         }
       } catch {
-        print("Silent fetch of GeoGarage layers failed: \(error)")
+        Logger.network.error("Silent fetch of GeoGarage layers failed: \(error, privacy: .public)")
       }
     }
   }
@@ -433,7 +434,7 @@ class MapViewModel {
   /// Forces the map camera to jump to the user's last known location.
   func centerOnUserLocation() {
     guard let location = lastKnownLocation else {
-      print("Cannot center: lastKnownLocation is nil. Waiting for a valid GPS fix from LocationService.")
+      Logger.map.warning("Cannot center: lastKnownLocation is nil. Waiting for a valid GPS fix from LocationService.")
       return
     }
 
