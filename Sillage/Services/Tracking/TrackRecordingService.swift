@@ -76,10 +76,15 @@ public final class TrackRecordingService {
         try FileManager.default.createDirectory(at: tracksDirectory, withIntermediateDirectories: true, attributes: nil)
       }
       
-      var fileURL = tracksDirectory.appendingPathComponent("Track.gpx")
+      let dateFormatter = DateFormatter()
+      dateFormatter.dateFormat = "yyyyMMdd_HHmm"
+      let dateString = dateFormatter.string(from: Date())
+      let baseFilename = "\(dateString)_Sillage"
+      
+      var fileURL = tracksDirectory.appendingPathComponent("\(baseFilename).gpx")
       var counter = 1
       while FileManager.default.fileExists(atPath: fileURL.path) {
-        fileURL = tracksDirectory.appendingPathComponent("Track_\(counter).gpx")
+        fileURL = tracksDirectory.appendingPathComponent("\(baseFilename)_\(counter).gpx")
         counter += 1
       }
       
