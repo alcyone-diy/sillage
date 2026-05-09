@@ -11,6 +11,7 @@
 import Foundation
 import SQLite3
 import CoreLocation
+import OSLog
 
 struct MBTilesBounds {
   let minLon: Double
@@ -44,7 +45,7 @@ class MBTilesHelper {
 
     // Connect to the SQLite database (Read-Only)
     if sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) != SQLITE_OK {
-      print("Error: Cannot open the MBTiles database at \(url.path)")
+      Logger.storage.error("Cannot open the MBTiles database at \(url.path, privacy: .public)")
       return MBTilesMetadata(center: nil, defaultZoom: nil, bounds: nil, minZoom: nil, maxZoom: nil)
     }
 
@@ -98,7 +99,7 @@ class MBTilesHelper {
         }
       }
     } else {
-      print("Error: Failed to query metadata table.")
+      Logger.storage.error("Failed to query metadata table.")
     }
 
     sqlite3_finalize(statement)
