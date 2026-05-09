@@ -16,6 +16,7 @@
 import SwiftUI
 import MapLibre
 import CoreLocation
+import OSLog
 
 struct MapLibreView: UIViewRepresentable {
 
@@ -216,7 +217,7 @@ struct MapLibreView: UIViewRepresentable {
   /// Creates a minimal empty JSON style to force MapLibre to load its engine and fire the finish loading delegate method.
   private func createBlankStyleJSON() -> URL? {
     guard let styleURL = Bundle.main.url(forResource: "blank-style", withExtension: "json") else {
-      print("WARNING: blank-style.json not found in App Bundle. MapLibre may not initialize correctly.")
+      Logger.map.warning("blank-style.json not found in App Bundle. MapLibre may not initialize correctly.")
       return nil
     }
     return styleURL
@@ -259,7 +260,7 @@ struct MapLibreView: UIViewRepresentable {
 
     // Called when the map has finished loading its style
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-      print("MapLibre successfully loaded the default style.")
+      Logger.map.info("MapLibre successfully loaded the default style.")
 
       // Add vessel cursor image
       if let image = VesselGraphicsFactory.createVesselImage(size: MarineTheme.MapMetrics.vesselCursorBaseSize, color: UIColor(MarineTheme.Colors.accent)) {
@@ -336,7 +337,7 @@ struct MapLibreView: UIViewRepresentable {
           let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
           style.addLayer(rasterLayer)
 
-          print("Programmatically injected MBTiles raster source and layer.")
+          Logger.map.info("Programmatically injected MBTiles raster source and layer.")
         }
 
       case .remoteGeoGarage(_, let layerID):
@@ -353,7 +354,7 @@ struct MapLibreView: UIViewRepresentable {
         let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
         style.addLayer(rasterLayer)
 
-        print("Programmatically injected GeoGarage raster source and layer.")
+        Logger.map.info("Programmatically injected GeoGarage raster source and layer.")
 
       case .openSeaMap:
         let template = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -369,7 +370,7 @@ struct MapLibreView: UIViewRepresentable {
         let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
         style.addLayer(rasterLayer)
 
-        print("Programmatically injected OpenSeaMap raster source and layer.")
+        Logger.map.info("Programmatically injected OpenSeaMap raster source and layer.")
       }
 
       // Re-apply OpenSeaMap overlay if it was enabled, to ensure it stays on top of the new base map
@@ -521,7 +522,7 @@ struct MapLibreView: UIViewRepresentable {
 
     // Potential loading errors
     func mapViewDidFailLoadingMap(_ mapView: MLNMapView, withError error: Error) {
-      print("Error loading MapLibre map: \(error.localizedDescription)")
+      Logger.map.error("Error loading MapLibre map: \(error.localizedDescription, privacy: .public)")
     }
   }
 }
