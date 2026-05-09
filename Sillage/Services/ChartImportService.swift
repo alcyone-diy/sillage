@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import OSLog
 
 final class ChartImportService {
 
@@ -29,13 +30,9 @@ final class ChartImportService {
       if FileManager.default.fileExists(atPath: url.path) {
         do {
           try FileManager.default.removeItem(at: url)
-          #if DEBUG
-          print("Successfully cleaned up inbox file at \(url)")
-          #endif
+          Logger.storage.debug("Successfully cleaned up inbox file at \(url, privacy: .public)")
         } catch {
-          #if DEBUG
-          print("Failed to clean up inbox file at \(url): \(error)")
-          #endif
+          Logger.storage.error("Failed to clean up inbox file at \(url, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
       }
     }
@@ -74,9 +71,7 @@ final class ChartImportService {
 
     do {
       try fileManager.moveItem(at: url, to: destinationURL)
-      #if DEBUG
-      print("Successfully moved chart to \(destinationURL)")
-      #endif
+      Logger.storage.debug("Successfully moved chart to \(destinationURL, privacy: .public)")
     } catch {
       throw ChartImportError.moveFailed(error)
     }
