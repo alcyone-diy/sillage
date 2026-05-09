@@ -11,6 +11,7 @@
 import Foundation
 import CoreLocation
 import Observation
+import OSLog
 
 @MainActor
 @Observable
@@ -83,9 +84,9 @@ public final class TrackRecordingService {
       }
       
       try gpxString.write(to: fileURL, atomically: true, encoding: .utf8)
-      print("Successfully saved track to \(fileURL.path)")
+      Logger.storage.info("Successfully saved track to \(fileURL.path, privacy: .public)")
     } catch {
-      print("Failed to save track: \(error)")
+      Logger.storage.error("Failed to save track: \(error.localizedDescription, privacy: .public)")
     }
   }
 
