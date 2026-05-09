@@ -42,6 +42,11 @@ class SettingsViewModel {
         filename: "License_GeoGarage",
         fileExtension: "txt"
       ),
+      LegalDocument(
+        title: "GRDB",
+        filename: "License_GRDB",
+        fileExtension: "txt"
+      ),
     ]
   }
 }
