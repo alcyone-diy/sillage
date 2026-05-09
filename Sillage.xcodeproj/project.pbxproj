@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		020ACF672F6E43C1002C5C1B /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 020ACF662F6E43C1002C5C1B /* MapLibre */; };
+		0265CA132FAFE3FF0077046A /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA122FAFE3FF0077046A /* GRDB */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +44,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				020ACF672F6E43C1002C5C1B /* MapLibre in Frameworks */,
+				0265CA132FAFE3FF0077046A /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -56,6 +58,7 @@
 				020ACF282F6C9E66002C5C1B /* Sillage */,
 				020ACF272F6C9E66002C5C1B /* Products */,
 				1D1F25430CE99BC84D383856 /* Secrets.xcconfig */,
+				0265CA112FAFE3FF0077046A /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -65,6 +68,13 @@
 				020ACF262F6C9E66002C5C1B /* Sillage.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0265CA112FAFE3FF0077046A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -88,6 +98,7 @@
 			name = Sillage;
 			packageProductDependencies = (
 				020ACF662F6E43C1002C5C1B /* MapLibre */,
+				0265CA122FAFE3FF0077046A /* GRDB */,
 			);
 			productName = Sillage;
 			productReference = 020ACF262F6C9E66002C5C1B /* Sillage.app */;
@@ -119,6 +130,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				020ACF652F6E43C1002C5C1B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+				0265CA0A2FAFDFC10077046A /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 020ACF272F6C9E66002C5C1B /* Products */;
@@ -386,6 +398,14 @@
 				minimumVersion = 6.24.0;
 			};
 		};
+		0265CA0A2FAFDFC10077046A /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -393,6 +413,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 020ACF652F6E43C1002C5C1B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
 			productName = MapLibre;
+		};
+		0265CA122FAFE3FF0077046A /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0265CA0A2FAFDFC10077046A /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
