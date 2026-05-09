@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import OSLog
 
 @MainActor
 @Observable
@@ -56,7 +57,7 @@ final class GeoGarageLoginViewModel {
 
         // Log successful fetch
         let layerNames = settingsResponse.layers.map { $0.brand_name }.joined(separator: ", ")
-        print("\n--- SUCCESS: Successfully fetched layers: \(layerNames) ---\n")
+        Logger.network.info("Successfully fetched layers: \(layerNames, privacy: .public)")
       } catch let error as AuthError {
         errorMessage = error.localizedDescription
       } catch {
