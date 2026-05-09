@@ -10,6 +10,7 @@
 
 import Foundation
 import CoreLocation
+import OSLog
 
 public protocol BackgroundLocationToken: AnyObject {
   func invalidate()
@@ -258,11 +259,11 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
       }
       locationContinuationsLock.unlock()
     } else {
-      print("LocationService ignored coordinate due to low accuracy: \(accuracy)m")
+      Logger.telemetry.warning("LocationService ignored coordinate due to low accuracy: \(accuracy, privacy: .public)m")
     }
   }
 
   func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-    print("LocationService failed with error: \(error.localizedDescription) (Ensure Simulator -> Features -> Location is set)")
+    Logger.telemetry.error("LocationService failed with error: \(error.localizedDescription, privacy: .public) (Ensure Simulator -> Features -> Location is set)")
   }
 }

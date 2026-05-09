@@ -6,4 +6,5 @@ extension Logger {
     static let storage = Logger(subsystem: subsystem, category: "Storage")
     static let network = Logger(subsystem: subsystem, category: "Network")
     static let map = Logger(subsystem: subsystem, category: "Map")
+    static let telemetry = Logger(subsystem: subsystem, category: "Telemetry")
 }
