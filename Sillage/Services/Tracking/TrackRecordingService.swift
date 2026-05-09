@@ -57,15 +57,16 @@ public final class TrackRecordingService {
 
     let pointsToSave = trackPoints
     if !pointsToSave.isEmpty {
-      Task.detached {
-        await self.saveTrack(points: pointsToSave)
+      let startedAt = pointsToSave.first?.timestamp ?? Date()
+      Task.detached(priority: .utility) { [pointsToSave] in
+        await Self.saveTrack(points: pointsToSave, startedAt: startedAt)
       }
     }
-    
     trackPoints.removeAll()
   }
 
-  private func saveTrack(points: [TrackPoint]) async {
+  // `nonisolated static` guarantees pure execution off the MainActor
+  private nonisolated static func saveTrack(points: [TrackPoint], startedAt: Date) async {
     let exporter = GPXExportService()
     do {
       let gpxString = try await exporter.export(track: points)
@@ -76,9 +77,10 @@ public final class TrackRecordingService {
         try FileManager.default.createDirectory(at: tracksDirectory, withIntermediateDirectories: true, attributes: nil)
       }
       
-      let dateFormatter = DateFormatter()
-      dateFormatter.dateFormat = "yyyyMMdd_HHmm"
-      let dateString = dateFormatter.string(from: Date())
+      let formatter = DateFormatter()
+      formatter.locale = Locale(identifier: "en_US_POSIX")
+      formatter.dateFormat = "yyyyMMdd_HHmm"
+      let dateString = formatter.string(from: startedAt)
       let baseFilename = "\(dateString)_Sillage"
       
       var fileURL = tracksDirectory.appendingPathComponent("\(baseFilename).gpx")
