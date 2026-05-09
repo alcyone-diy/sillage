@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import OSLog
 
 public actor ChartStorageService {
   public init() {}
@@ -82,7 +83,7 @@ public actor ChartStorageService {
             let updatedFiles = try await self.discoverMBTiles()
             continuation.yield(updatedFiles)
           } catch {
-            print("Error reading files during observation: \(error)")
+            Logger.storage.error("Error reading files during observation: \(error.localizedDescription, privacy: .public)")
           }
         }
       }
