@@ -21,7 +21,7 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **Nil Over Defaults:** If data is invalid (e.g., negative radius, failed parsing, invalid SOG, invalid coordinates), return `nil`. 
 - **PROHIBITED (Dummy Values):** Never return "dummy" values like `0`, `-1`, or `""` for invalid states. Force the caller to handle the optionality.
   - *Framework Warning:* Beware of Apple's APIs returning dummy values for invalid states (e.g., `CLLocation` returning `-1.0` for invalid course or speed). These must be caught at the service boundary and mapped strictly to `nil`.
-- **Strict Logging:** The `print()` function is formally banned anywhere in the app. You must use `os.Logger` (`OSLog`) with predefined subsystems and categories (e.g., Navigation, Map, Sensors) to ensure critical telemetry survives app crashes.
+- **Strict Logging & Centralization:** The `print()` function is formally banned anywhere in the app. You must exclusively use `os.Logger` (`OSLog`). All loggers MUST be defined as static properties within the single source of truth: `Sillage/Core/Logger+Sillage.swift`. Always check this file to use an existing category before creating a new one. Local instantiation of `Logger` is strictly forbidden. Furthermore, you must explicitly manage log privacy (e.g., `\(variable, privacy: .public)`) for interpolated non-PII variables to prevent the macOS/iOS Console from silently masking critical diagnostic data with `<private>`.
 
 ## 4. Physical Units (Measurement API)
 - **Strict Typing:** It is **formally forbidden** to use `Double` or `Float` to represent physical quantities.
