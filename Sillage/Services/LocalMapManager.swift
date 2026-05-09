@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import OSLog
 
 actor LocalMapManager {
   static let shared = LocalMapManager()
@@ -24,7 +25,7 @@ actor LocalMapManager {
       let urls = try fileManager.contentsOfDirectory(at: documentsDirectory, includingPropertiesForKeys: nil)
       return urls.filter { $0.pathExtension == "mbtiles" }
     } catch {
-      print("Error fetching local maps: \(error)")
+      Logger.storage.error("Error fetching local maps: \(error.localizedDescription, privacy: .public)")
       return []
     }
   }
