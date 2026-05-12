@@ -9,67 +9,82 @@
 //
 
 import Foundation
+import GRDB
 
 public enum GPXExportError: Error {
   case emptyTrack
+  case fileCreationFailure
 }
 
-public actor GPXExportService {
-  private let dateFormatter: ISO8601DateFormatter
-
-  public init() {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime]
-    self.dateFormatter = formatter
-  }
-
-  public func export(track: [TrackPoint]) throws -> String {
-    guard !track.isEmpty else {
-      throw GPXExportError.emptyTrack
+public struct GPXExportService: Sendable {
+  public nonisolated static func export(cursor: RecordCursor<TrackPointRecord>, to fileURL: URL) throws -> Int {
+    if !FileManager.default.fileExists(atPath: fileURL.path) {
+      guard FileManager.default.createFile(atPath: fileURL.path, contents: nil, attributes: nil) else {
+        throw GPXExportError.fileCreationFailure
+      }
     }
 
-    var xml = """
+    let fileHandle = try FileHandle(forWritingTo: fileURL)
+    defer { try? fileHandle.close() }
+
+    let header = """
     <?xml version="1.0" encoding="UTF-8"?>
     <gpx version="1.1" creator="Alcyone Sillage" xmlns="http://www.topografix.com/GPX/1/1" xmlns:sillage="http://alcyone.com/sillage/gpx">
       <trk>
         <trkseg>
     """
+    if let headerData = header.data(using: .utf8) {
+      try fileHandle.write(contentsOf: headerData)
+    }
 
-    for point in track {
-      // Force en_US locale to use '.' instead of ',' for decimals
+    var count = 0
+    while let record = try cursor.next() {
+      let point = record.domainModel
       let latString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.latitude)
       let lonString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.longitude)
-      let timeString = dateFormatter.string(from: point.timestamp)
+      let timeString = point.timestamp.ISO8601Format()
 
-      xml += "\n      <trkpt lat=\"\(latString)\" lon=\"\(lonString)\">"
-      xml += "\n        <time>\(timeString)</time>"
+      var pointXml = "\n      <trkpt lat=\"\(latString)\" lon=\"\(lonString)\">"
+      pointXml += "\n        <time>\(timeString)</time>"
 
       if point.sog != nil || point.cog != nil {
-        xml += "\n        <extensions>"
+        pointXml += "\n        <extensions>"
 
         if let sog = point.sog {
           let sogString = String(format: "%.2f", locale: Locale(identifier: "en_US"), sog.converted(to: .knots).value)
-          xml += "\n          <sillage:sog>\(sogString)</sillage:sog>"
+          pointXml += "\n          <sillage:sog>\(sogString)</sillage:sog>"
         }
 
         if let cog = point.cog {
           let cogString = String(format: "%.1f", locale: Locale(identifier: "en_US"), cog.converted(to: .degrees).value)
-          xml += "\n          <sillage:cog>\(cogString)</sillage:cog>"
+          pointXml += "\n          <sillage:cog>\(cogString)</sillage:cog>"
         }
 
-        xml += "\n        </extensions>"
+        pointXml += "\n        </extensions>"
       }
 
-      xml += "\n      </trkpt>"
+      pointXml += "\n      </trkpt>"
+
+      if let pointData = pointXml.data(using: .utf8) {
+        try fileHandle.write(contentsOf: pointData)
+      }
+      count += 1
     }
 
-    xml += """
+    if count == 0 {
+      throw GPXExportError.emptyTrack
+    }
+
+    let footer = """
 
         </trkseg>
       </trk>
     </gpx>
     """
+    if let footerData = footer.data(using: .utf8) {
+      try fileHandle.write(contentsOf: footerData)
+    }
 
-    return xml
+    return count
   }
 }

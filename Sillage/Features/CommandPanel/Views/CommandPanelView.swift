@@ -43,6 +43,7 @@ struct CommandPanelView: View {
               )
             )
             .disabled(!appViewModel.isDatabaseReady)
+            .disabled(trackRecordingService.isSaving)
           }
           .listRowBackground(Color.clear)
           .listRowInsets(EdgeInsets())

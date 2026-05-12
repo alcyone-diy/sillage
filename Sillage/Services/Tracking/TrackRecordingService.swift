@@ -20,6 +20,7 @@ public final class TrackRecordingService {
   public private(set) var trackPoints: [TrackPoint] = []
 
   public private(set) var isRecording: Bool = false
+  public private(set) var isSaving: Bool = false
   public var recordingError: TrackRecordingError?
 
   private var currentSessionId: String?
@@ -53,7 +54,7 @@ public final class TrackRecordingService {
   }
 
   public func startRecording() throws {
-    guard !isRecording else { return }
+    guard !isRecording && !isSaving else { return }
     guard let dbManager = databaseManager else {
       throw TrackRecordingError.databaseUnavailable
     }
@@ -64,14 +65,14 @@ public final class TrackRecordingService {
     writeBuffer.removeAll()
     
     let sessionRecord = TrackSessionRecord(id: sessionId, startTime: Date())
-    Task {
-        do {
-            try await dbManager.dbPool.write { db in
-                try sessionRecord.insert(db)
-            }
-        } catch {
-            Logger.database.error("Failed to insert session: \(error)")
+    Task.detached(priority: .utility) { [dbManager] in
+      do {
+        try await dbManager.dbPool.write { db in
+          try sessionRecord.insert(db)
         }
+      } catch {
+        Logger.database.error("Failed to insert session: \(error)")
+      }
     }
     
     let service = self.locationService
@@ -92,6 +93,7 @@ public final class TrackRecordingService {
     locationUpdatesTask = nil
     self.backgroundLocationToken = nil
     self.isRecording = false
+    isSaving = true
 
     if !writeBuffer.isEmpty {
       Logger.database.info("Performing final buffer flush on stop")
@@ -100,30 +102,30 @@ public final class TrackRecordingService {
 
     if let sessionId = currentSessionId, let dbManager = databaseManager {
       let endTime = Date()
+      let pointsToFlush = writeBuffer
+      writeBuffer.removeAll()
       Task.detached(priority: .utility) {
         do {
-          try dbManager.dbPool.write { db in
+          try await dbManager.dbPool.write { db in
+            for record in pointsToFlush { try record.insert(db) }
             if var session = try TrackSessionRecord.fetchOne(db, key: sessionId) {
               session.endTime = endTime
               try session.update(db)
             }
           }
+          try await Self.runExport(sessionId: sessionId, dbManager: dbManager)
         } catch {
-          Logger.database.error("Failed to finalize session record: \(error.localizedDescription, privacy: .public)")
+          Logger.database.error("Failed to finalize session record or export: \(error.localizedDescription, privacy: .public)")
         }
+        await self.stopSavingState()
       }
     }
 
     currentSessionId = nil
     lastRecordedLocation = nil
-    
-    let pointsToSave = trackPoints
-    if !pointsToSave.isEmpty {
-      let startedAt = pointsToSave.first?.timestamp ?? Date()
-      Task.detached(priority: .utility) { [pointsToSave] in
-        await Self.saveTrack(points: pointsToSave, startedAt: startedAt)
-      }
-    }
+  }
+
+  public func clearActiveTrack() {
     trackPoints.removeAll()
   }
 
@@ -164,11 +166,15 @@ public final class TrackRecordingService {
     }
   }
 
-  // `nonisolated static` guarantees pure execution off the MainActor
-  private nonisolated static func saveTrack(points: [TrackPoint], startedAt: Date) async {
-    let exporter = GPXExportService()
+  private nonisolated static func runExport(sessionId: String, dbManager: DatabaseManager) async throws {
     do {
-      let gpxString = try await exporter.export(track: points)
+      let startedAt: Date = try await dbManager.dbPool.read { db in
+        if let session = try TrackSessionRecord.fetchOne(db, key: sessionId) {
+          return session.startTime
+        }
+        return Date()
+      }
+      
       guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
       
       let tracksDirectory = documentsDirectory.appendingPathComponent("Tracks", isDirectory: true)
@@ -188,11 +194,19 @@ public final class TrackRecordingService {
         fileURL = tracksDirectory.appendingPathComponent("\(baseFilename)_\(counter).gpx")
         counter += 1
       }
+      let finalFileURL = fileURL
       
-      try gpxString.write(to: fileURL, atomically: true, encoding: .utf8)
-      Logger.storage.info("Successfully saved track to \(fileURL.path, privacy: .public)")
+      Logger.storage.info("Starting GPX export for session \(sessionId, privacy: .public)")
+      
+      let count = try await dbManager.dbPool.read { db in
+        let cursor = try TrackPointRecord.filter(Column("sessionId") == sessionId).order(Column("timestamp")).fetchCursor(db)
+        return try GPXExportService.export(cursor: cursor, to: finalFileURL)
+      }
+      
+      Logger.storage.info("Successfully exported \(count) points to \(finalFileURL.path, privacy: .public)")
     } catch {
-      Logger.storage.error("Failed to save track: \(error.localizedDescription, privacy: .public)")
+      Logger.database.fault("GPX export failed: \(error.localizedDescription, privacy: .public)")
+      throw error
     }
   }
 
@@ -232,6 +246,9 @@ public final class TrackRecordingService {
     )
 
     trackPoints.append(trackPoint)
+    if trackPoints.count > 2000 {
+      trackPoints.removeFirst()
+    }
     
     if let sessionId = currentSessionId {
       let record = TrackPointRecord(domainModel: trackPoint, sessionId: sessionId)
@@ -241,5 +258,10 @@ public final class TrackRecordingService {
         flushBuffer()
       }
     }
+  }
+
+  @MainActor
+  private func stopSavingState() {
+    self.isSaving = false
   }
 }

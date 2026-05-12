@@ -24,6 +24,7 @@ struct TrackRecordingToggleView: View {
       )
     )
     .disabled(!appViewModel.isDatabaseReady)
+    .disabled(trackRecordingService.isSaving)
     .alert(
       "Recording Error",
       isPresented: Binding(
