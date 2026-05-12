@@ -12,6 +12,7 @@ import Foundation
 import CoreLocation
 import Observation
 import OSLog
+import GRDB
 
 @MainActor
 @Observable
@@ -52,13 +53,26 @@ public final class TrackRecordingService {
   }
 
   public func startRecording() throws {
-    guard databaseManager != nil else {
+    guard !isRecording else { return }
+    guard let dbManager = databaseManager else {
       throw TrackRecordingError.databaseUnavailable
     }
     
-    currentSessionId = UUID().uuidString
+    let sessionId = UUID().uuidString
+    currentSessionId = sessionId
     lastRecordedLocation = nil
     writeBuffer.removeAll()
+    
+    let sessionRecord = TrackSessionRecord(id: sessionId, startTime: Date())
+    Task {
+        do {
+            try await dbManager.dbPool.write { db in
+                try sessionRecord.insert(db)
+            }
+        } catch {
+            Logger.database.error("Failed to insert session: \(error)")
+        }
+    }
     
     let service = self.locationService
     self.backgroundLocationToken = service.requestBackgroundLocation()
@@ -74,19 +88,35 @@ public final class TrackRecordingService {
   }
 
   public func stopRecording() {
-    // Pseudo-flush before stopping
-    if !writeBuffer.isEmpty {
-      Logger.database.info("Buffer pseudo-flush on stop")
-      writeBuffer.removeAll()
-    }
-    currentSessionId = nil
-    lastRecordedLocation = nil
-    
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
     self.backgroundLocationToken = nil
     self.isRecording = false
 
+    if !writeBuffer.isEmpty {
+      Logger.database.info("Performing final buffer flush on stop")
+      flushBuffer()
+    }
+
+    if let sessionId = currentSessionId, let dbManager = databaseManager {
+      let endTime = Date()
+      Task.detached(priority: .utility) {
+        do {
+          try dbManager.dbPool.write { db in
+            if var session = try TrackSessionRecord.fetchOne(db, key: sessionId) {
+              session.endTime = endTime
+              try session.update(db)
+            }
+          }
+        } catch {
+          Logger.database.error("Failed to finalize session record: \(error.localizedDescription, privacy: .public)")
+        }
+      }
+    }
+
+    currentSessionId = nil
+    lastRecordedLocation = nil
+    
     let pointsToSave = trackPoints
     if !pointsToSave.isEmpty {
       let startedAt = pointsToSave.first?.timestamp ?? Date()
@@ -97,10 +127,25 @@ public final class TrackRecordingService {
     trackPoints.removeAll()
   }
 
-  private func checkBuffer() {
-    if writeBuffer.count >= flushThreshold {
-      Logger.database.info("Buffer reached threshold, ready for flush")
-      writeBuffer.removeAll()
+  private func flushBuffer() {
+    guard !writeBuffer.isEmpty else { return }
+    guard let dbManager = databaseManager else {
+      Logger.database.fault("DatabaseManager is nil during flushBuffer")
+      return
+    }
+    
+    let pointsToInsert = writeBuffer
+    writeBuffer.removeAll()
+    
+    Task.detached(priority: .utility) {
+      do {
+        try await dbManager.dbPool.write { db in
+          try pointsToInsert.forEach { try $0.insert(db) }
+        }
+        Logger.database.info("Successfully flushed \(pointsToInsert.count) points to disk.")
+      } catch {
+        Logger.database.error("Failed to flush points: \(error)")
+      }
     }
   }
 
@@ -191,7 +236,10 @@ public final class TrackRecordingService {
     if let sessionId = currentSessionId {
       let record = TrackPointRecord(domainModel: trackPoint, sessionId: sessionId)
       writeBuffer.append(record)
-      checkBuffer()
+      
+      if writeBuffer.count >= flushThreshold {
+        flushBuffer()
+      }
     }
   }
 }
