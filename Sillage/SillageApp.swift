@@ -20,7 +20,6 @@ struct SillageApp: App {
   @State private var mapViewModel = MapViewModel()
   @State private var panelManagerViewModel = PanelManagerViewModel()
   @State private var trackRecordingService = TrackRecordingService()
-  @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
   
   init() {
     URLProtocol.registerClass(TileProxyProtocol.self)
@@ -44,22 +43,13 @@ struct SillageApp: App {
   
   var body: some Scene {
     WindowGroup {
-      if hasAcceptedDisclaimer {
-        ContentView()
-          .environment(\.marineTheme, appViewModel.marineTheme)
-          .environment(appViewModel)
-          .environment(mapViewModel)
-          .environment(panelManagerViewModel)
-          .environment(trackRecordingService)
-          .onOpenURL { url in
-            appViewModel.handleIncomingURL(url)
-          }
-      } else {
-        DisclaimerView()
-          .onOpenURL { url in
-            // Handle URL opening even if disclaimer is not yet accepted
-            appViewModel.handleIncomingURL(url)
-          }
+      Group {
+        MainAppView(
+          appViewModel: appViewModel,
+          mapViewModel: mapViewModel,
+          panelManagerViewModel: panelManagerViewModel,
+          trackRecordingService: trackRecordingService
+        )
       }
     }
   }
@@ -82,6 +72,59 @@ struct SillageApp: App {
       Logger.storage.debug("⚓️ FileSystem ready: \(docsURL.path)")
     } catch {
       Logger.storage.error("❌ Critical FileSystem initialization error: \(error.localizedDescription)")
+    }
+  }
+}
+
+struct MainAppView: View {
+  @Bindable var appViewModel: AppViewModel
+  var mapViewModel: MapViewModel
+  var panelManagerViewModel: PanelManagerViewModel
+  var trackRecordingService: TrackRecordingService
+  
+  @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
+  
+  var body: some View {
+    Group {
+      if hasAcceptedDisclaimer {
+        ContentView()
+          .environment(\.marineTheme, appViewModel.marineTheme)
+          .environment(appViewModel)
+          .environment(mapViewModel)
+          .environment(panelManagerViewModel)
+          .environment(trackRecordingService)
+          .onOpenURL { url in
+            appViewModel.handleIncomingURL(url)
+          }
+      } else {
+        DisclaimerView()
+          .onOpenURL { url in
+            // Handle URL opening even if disclaimer is not yet accepted
+            appViewModel.handleIncomingURL(url)
+          }
+      }
+    }
+    .alert("System Failure (Storage)", isPresented: Binding(
+      get: { appViewModel.databaseErrorMessage != nil },
+      set: { if !$0 { appViewModel.databaseErrorMessage = nil } }
+    )) {
+      Button("OK", role: .cancel) { }
+    } message: {
+      if let message = appViewModel.databaseErrorMessage {
+        Text(message)
+      }
+    }
+    .task {
+      guard case .loading = appViewModel.dbState else { return }
+      do {
+        let dbManager = try await Task.detached {
+          try DatabaseManager()
+        }.value
+        trackRecordingService.inject(databaseManager: dbManager)
+        appViewModel.markDatabaseReady()
+      } catch {
+        appViewModel.markDatabaseError(error)
+      }
     }
   }
 }

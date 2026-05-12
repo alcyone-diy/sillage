@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import OSLog
 
 @MainActor
 struct CommandPanelView: View {
@@ -36,8 +37,12 @@ struct CommandPanelView: View {
             MarineToggleButton(
               title: "Track",
               systemImage: "record.circle",
-              isOn: $bindableTrackRecordingService.isRecording
+              isOn: Binding(
+                get: { trackRecordingService.isRecording },
+                set: { _ in trackRecordingService.toggleRecording() }
+              )
             )
+            .disabled(!appViewModel.isDatabaseReady)
           }
           .listRowBackground(Color.clear)
           .listRowInsets(EdgeInsets())
@@ -102,6 +107,7 @@ struct CommandPanelView: View {
           TracksManagerView()
         }
       }
+      .handleTrackRecordingErrors()
       .toolbar {
         ToolbarItem(placement: .navigationBarTrailing) {
           Button(action: {
@@ -115,12 +121,4 @@ struct CommandPanelView: View {
       }
     }
   }
-}
-
-#Preview {
-  CommandPanelView()
-    .environment(PanelManagerViewModel())
-    .environment(AppViewModel())
-    .environment(TrackRecordingService())
-    .environment(\.marineTheme, .standard)
 }

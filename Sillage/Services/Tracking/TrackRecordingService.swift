@@ -18,25 +18,39 @@ import OSLog
 public final class TrackRecordingService {
   public private(set) var trackPoints: [TrackPoint] = []
 
-  public var isRecording: Bool = false {
-    didSet {
-      if isRecording {
-        startRecording()
-      } else {
-        stopRecording()
+  public private(set) var isRecording: Bool = false
+  public var recordingError: TrackRecordingError?
+
+  public enum TrackRecordingError: LocalizedError {
+    case databaseUnavailable
+    
+    public var errorDescription: String? {
+      switch self {
+      case .databaseUnavailable:
+        return "Database is unavailable. Recording cannot start."
       }
     }
   }
 
   private let locationService: LocationServiceProtocol
+  private var databaseManager: DatabaseManager?
   private var locationUpdatesTask: TaskCancellable?
   private var backgroundLocationToken: (any BackgroundLocationToken)?
 
-  init(locationService: LocationServiceProtocol? = nil) {
+  init(locationService: LocationServiceProtocol? = nil, databaseManager: DatabaseManager? = nil) {
     self.locationService = locationService ?? LocationService.shared
+    self.databaseManager = databaseManager
   }
 
-  private func startRecording() {
+  public func inject(databaseManager: DatabaseManager) {
+    self.databaseManager = databaseManager
+  }
+
+  public func startRecording() throws {
+    guard databaseManager != nil else {
+      throw TrackRecordingError.databaseUnavailable
+    }
+    
     let service = self.locationService
     self.backgroundLocationToken = service.requestBackgroundLocation()
     
@@ -48,12 +62,15 @@ public final class TrackRecordingService {
         }
       }
     })
+    
+    self.isRecording = true
   }
 
-  private func stopRecording() {
+  public func stopRecording() {
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
     self.backgroundLocationToken = nil
+    self.isRecording = false
 
     let pointsToSave = trackPoints
     if !pointsToSave.isEmpty {
@@ -63,6 +80,22 @@ public final class TrackRecordingService {
       }
     }
     trackPoints.removeAll()
+  }
+
+  @MainActor
+  public func toggleRecording() {
+    if isRecording {
+      stopRecording()
+    } else {
+      do {
+        try startRecording()
+      } catch let error as TrackRecordingError {
+        self.recordingError = error
+        Logger.telemetry.error("Track recording error: \(error.localizedDescription, privacy: .public)")
+      } catch {
+        Logger.telemetry.error("Unhandled track recording error: \(error.localizedDescription, privacy: .public)")
+      }
+    }
   }
 
   // `nonisolated static` guarantees pure execution off the MainActor

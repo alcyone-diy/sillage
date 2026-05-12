@@ -10,6 +10,13 @@
 
 import Foundation
 import Observation
+import OSLog
+
+public enum DatabaseState {
+  case loading
+  case ready
+  case error(String)
+}
 
 @Observable
 @MainActor
@@ -20,6 +27,17 @@ final class AppViewModel {
   var importError: ChartImportError?
   var showImportError: Bool = false
 
+
+
+  var dbState: DatabaseState = .loading
+  var databaseErrorMessage: String? = nil
+
+  var isDatabaseReady: Bool {
+    if case .ready = dbState {
+      return true
+    }
+    return false
+  }
   var isGloveModeEnabled: Bool {
     didSet {
       preferencesService.gloveModeEnabled = isGloveModeEnabled
@@ -54,5 +72,14 @@ final class AppViewModel {
       self.importError = .moveFailed(error)
       self.showImportError = true
     }
+  }
+
+  func markDatabaseReady() {
+    self.dbState = .ready
+  }
+
+  func markDatabaseError(_ error: Error) {
+    self.dbState = .error(error.localizedDescription)
+    self.databaseErrorMessage = "Unable to initialize the logbook. Trace recording is disabled.\n\nDetails: \(error.localizedDescription)"
   }
 }

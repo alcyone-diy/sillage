@@ -7,10 +7,12 @@
 
 import SwiftUI
 import CoreLocation
+import OSLog
 
 @MainActor
 struct TracksManagerView: View {
   @Environment(TrackRecordingService.self) private var trackRecordingService
+  @Environment(AppViewModel.self) private var appViewModel
   @Environment(\.marineTheme) private var marineTheme
   
   var totalDistance: Measurement<UnitLength> {
@@ -41,16 +43,20 @@ struct TracksManagerView: View {
   }
 
   var body: some View {
-    @Bindable var bindableTrackService = trackRecordingService
+    @Bindable var bindableAppViewModel = appViewModel
     
     List {
       Section(header: Text("Active Trace")) {
         HStack {
           Text("Recording Status")
           Spacer()
-          Toggle("", isOn: $bindableTrackService.isRecording)
+          Toggle("", isOn: Binding(
+            get: { trackRecordingService.isRecording },
+            set: { _ in trackRecordingService.toggleRecording() }
+          ))
             .labelsHidden()
         }
+        .disabled(!appViewModel.isDatabaseReady)
         .marineListCell()
         .marineFont(.body)
         
@@ -85,15 +91,8 @@ struct TracksManagerView: View {
     .listStyle(.insetGrouped)
     .scrollContentBackground(.hidden)
     .background(MarineTheme.Colors.panelBackground)
+    .handleTrackRecordingErrors()
     .navigationTitle("Track Manager")
     .navigationBarTitleDisplayMode(.inline)
-  }
-}
-
-#Preview {
-  NavigationStack {
-    TracksManagerView()
-      .environment(TrackRecordingService())
-      .environment(\.marineTheme, .standard)
   }
 }

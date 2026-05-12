@@ -1,0 +1,92 @@
+//
+//  DatabaseManager.swift
+//  Alcyone Sillage
+//
+//  Created by Alcyone on 2026-05-10.
+//  Copyright © 2026 Alcyone. All rights reserved.
+//  This file is released under the MIT License.
+//  See LICENSE file in the project root for full license information.
+//
+
+import Foundation
+import GRDB
+import OSLog
+
+public enum DatabaseError: Error {
+  case directoryUnreachable
+}
+
+/// Manages the SQLite database connection and migrations using GRDB.
+public final class DatabaseManager: Sendable {
+    
+  /// The database pool for concurrent reads and writes (WAL mode).
+  public let dbPool: DatabasePool
+  
+  /// Initializes the database manager. Throws an error to be handled by the App state.
+  nonisolated public init() throws {
+    let fileManager = FileManager.default
+    guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+      Logger.database.fault("Application Support directory is unreachable")
+      throw DatabaseError.directoryUnreachable
+    }
+    
+    let dbDirectoryURL = appSupportURL.appendingPathComponent("Database", isDirectory: true)
+    
+    if !fileManager.fileExists(atPath: dbDirectoryURL.path) {
+      try fileManager.createDirectory(at: dbDirectoryURL, withIntermediateDirectories: true, attributes: [
+        // Allows background writing when the device is locked
+        .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
+      ])
+    }
+    
+    let dbURL = dbDirectoryURL.appendingPathComponent("sillage.sqlite")
+    
+    var configuration = Configuration()
+    configuration.maximumReaderCount = 5
+    
+    do {
+      let pool = try DatabasePool(path: dbURL.path, configuration: configuration)
+      try Self.migrator.migrate(pool)
+      self.dbPool = pool
+      Logger.database.info("Successfully initialized database at \(dbURL.path, privacy: .public)")
+    } catch {
+      Logger.database.fault("Failed to initialize database: \(error.localizedDescription, privacy: .public)")
+      throw error
+    }
+  }
+  
+  nonisolated private static var migrator: DatabaseMigrator {
+    var migrator = DatabaseMigrator()
+    
+    migrator.registerMigration("v1") { db in
+      // 1. Create the session table first
+      try db.create(table: "track_session") { t in
+        t.column("id", .text).primaryKey()
+        t.column("startTime", .datetime).notNull()
+        t.column("endTime", .datetime)
+        t.column("name", .text)
+      }
+      
+      // 2. Create the point table with foreign key
+      try db.create(table: "track_point") { t in
+        t.autoIncrementedPrimaryKey("id")
+        t.column("sessionId", .text)
+          .notNull()
+          .references("track_session", column: "id", onDelete: .cascade)
+        t.column("latitude_deg", .double).notNull()
+        t.column("longitude_deg", .double).notNull()
+        t.column("timestamp", .datetime).notNull()
+        t.column("sog_mps", .double)
+        t.column("cog_deg", .double)
+      }
+      
+      // 3. Create the index on the Database instance (db), outside the table definition
+      try db.create(
+        index: "idx_track_point_session_timestamp",
+        on: "track_point",
+        columns: ["sessionId", "timestamp"]
+      )
+    }
+    return migrator
+  }
+}
