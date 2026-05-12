@@ -21,6 +21,11 @@ public final class TrackRecordingService {
   public private(set) var isRecording: Bool = false
   public var recordingError: TrackRecordingError?
 
+  private var currentSessionId: String?
+  private var writeBuffer: [TrackPointRecord] = []
+  private let flushThreshold = 20
+  private var lastRecordedLocation: CLLocation?
+
   public enum TrackRecordingError: LocalizedError {
     case databaseUnavailable
     
@@ -51,15 +56,17 @@ public final class TrackRecordingService {
       throw TrackRecordingError.databaseUnavailable
     }
     
+    currentSessionId = UUID().uuidString
+    lastRecordedLocation = nil
+    writeBuffer.removeAll()
+    
     let service = self.locationService
     self.backgroundLocationToken = service.requestBackgroundLocation()
     
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
       for await location in service.locationUpdates {
         guard !Task.isCancelled else { break }
-        await MainActor.run {
-          self?.append(location: location)
-        }
+        self?.append(location: location)
       }
     })
     
@@ -67,6 +74,14 @@ public final class TrackRecordingService {
   }
 
   public func stopRecording() {
+    // Pseudo-flush before stopping
+    if !writeBuffer.isEmpty {
+      Logger.database.info("Buffer pseudo-flush on stop")
+      writeBuffer.removeAll()
+    }
+    currentSessionId = nil
+    lastRecordedLocation = nil
+    
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
     self.backgroundLocationToken = nil
@@ -82,7 +97,13 @@ public final class TrackRecordingService {
     trackPoints.removeAll()
   }
 
-  @MainActor
+  private func checkBuffer() {
+    if writeBuffer.count >= flushThreshold {
+      Logger.database.info("Buffer reached threshold, ready for flush")
+      writeBuffer.removeAll()
+    }
+  }
+
   public func toggleRecording() {
     if isRecording {
       stopRecording()
@@ -130,15 +151,22 @@ public final class TrackRecordingService {
     }
   }
 
-  public func append(location: CLLocation) {
+  private func append(location: CLLocation) {
     let accuracy = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
     guard accuracy.value >= 0, accuracy.value <= 50 else { return }
 
-    if let lastPoint = trackPoints.last {
-      let lastLocation = CLLocation(latitude: lastPoint.latitude, longitude: lastPoint.longitude)
-      let distance = Measurement(value: location.distance(from: lastLocation), unit: UnitLength.meters)
-      guard distance.value >= 15 else { return }
+    // Filtering Logic (Anti-Jitter)
+    if let lastLoc = lastRecordedLocation {
+      let distance = Measurement(value: location.distance(from: lastLoc), unit: UnitLength.meters)
+      let timePassed = location.timestamp.timeIntervalSince(lastLoc.timestamp)
+      
+      let hasMovedSignificantly = distance.value > 3.0
+      let hasSufficientTimePassed = timePassed > 30.0
+      
+      guard hasMovedSignificantly || hasSufficientTimePassed else { return }
     }
+
+    lastRecordedLocation = location
 
     var sog: Measurement<UnitSpeed>? = nil
     if location.speed >= 0 {
@@ -159,5 +187,11 @@ public final class TrackRecordingService {
     )
 
     trackPoints.append(trackPoint)
+    
+    if let sessionId = currentSessionId {
+      let record = TrackPointRecord(domainModel: trackPoint, sessionId: sessionId)
+      writeBuffer.append(record)
+      checkBuffer()
+    }
   }
 }
