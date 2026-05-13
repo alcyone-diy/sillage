@@ -29,10 +29,13 @@ public final class TrackRecordingService {
     internal struct Filtering {
       /// The maximum horizontal accuracy allowed. Points exceeding this threshold are discarded to prevent "jumps."
       nonisolated static let maxHorizontalAccuracy = Measurement(value: 50.0, unit: UnitLength.meters)
+      nonisolated static let maxHorizontalAccuracyMeters = maxHorizontalAccuracy.converted(to: .meters).value
       /// The minimum displacement required between points to mitigate GPS jitter, especially when at anchor.
       nonisolated static let minDistance = Measurement(value: 3.0, unit: UnitLength.meters)
+      nonisolated static let minDistanceMeters = minDistance.converted(to: .meters).value
       /// The minimum time interval between recorded points to ensure a heartbeat update even if stationary.
       nonisolated static let minTimeInterval = Measurement(value: 30.0, unit: UnitDuration.seconds)
+      nonisolated static let minTimeIntervalSeconds = minTimeInterval.converted(to: .seconds).value
     }
     
     /// Thresholds for memory management and database persistence.
@@ -234,16 +237,12 @@ public final class TrackRecordingService {
 
   private func append(location: CLLocation) {
     guard location.horizontalAccuracy >= 0 else { return }
-    let accuracy = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
-    guard accuracy <= Configuration.Filtering.maxHorizontalAccuracy else { return }
+    guard location.horizontalAccuracy <= Configuration.Filtering.maxHorizontalAccuracyMeters else { return }
 
     // Filtering Logic (Anti-Jitter)
     if let lastLoc = lastRecordedLocation {
-      let distance = Measurement(value: location.distance(from: lastLoc), unit: UnitLength.meters)
-      let timePassed = Measurement(value: location.timestamp.timeIntervalSince(lastLoc.timestamp), unit: UnitDuration.seconds)
-      
-      let hasMovedSignificantly = distance > Configuration.Filtering.minDistance
-      let hasSufficientTimePassed = timePassed > Configuration.Filtering.minTimeInterval
+      let hasMovedSignificantly = location.distance(from: lastLoc) > Configuration.Filtering.minDistanceMeters
+      let hasSufficientTimePassed = location.timestamp.timeIntervalSince(lastLoc.timestamp) > Configuration.Filtering.minTimeIntervalSeconds
       
       guard hasMovedSignificantly || hasSufficientTimePassed else { return }
     }
