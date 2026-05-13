@@ -47,17 +47,22 @@ public struct GPXExportService: Sendable {
       var pointXml = "\n      <trkpt lat=\"\(latString)\" lon=\"\(lonString)\">"
       pointXml += "\n        <time>\(timeString)</time>"
 
-      if point.sog != nil || point.cog != nil {
+      if point.sog != nil || point.cog != nil || point.accuracy != nil {
         pointXml += "\n        <extensions>"
 
         if let sog = point.sog {
           let sogString = String(format: "%.2f", locale: Locale(identifier: "en_US"), sog.converted(to: .knots).value)
-          pointXml += "\n          <sillage:sog>\(sogString)</sillage:sog>"
+          pointXml += "\n          <sillage:sog unit=\"knot\">\(sogString)</sillage:sog>"
         }
 
         if let cog = point.cog {
           let cogString = String(format: "%.1f", locale: Locale(identifier: "en_US"), cog.converted(to: .degrees).value)
-          pointXml += "\n          <sillage:cog>\(cogString)</sillage:cog>"
+          pointXml += "\n          <sillage:cog unit=\"degree\">\(cogString)</sillage:cog>"
+        }
+
+        if let accuracy = point.accuracy {
+          let accuracyString = String(format: "%.1f", locale: Locale(identifier: "en_US"), accuracy.converted(to: .meters).value)
+          pointXml += "\n          <sillage:accuracy unit=\"meter\">\(accuracyString)</sillage:accuracy>"
         }
 
         pointXml += "\n        </extensions>"

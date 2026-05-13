@@ -256,12 +256,18 @@ public final class TrackRecordingService {
       cog = Measurement(value: location.course, unit: UnitAngle.degrees)
     }
 
+    var accuracy: Measurement<UnitLength>? = nil
+    if location.horizontalAccuracy >= 0 {
+      accuracy = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
+    }
+
     let trackPoint = TrackPoint(
       latitude: location.coordinate.latitude,
       longitude: location.coordinate.longitude,
       timestamp: location.timestamp,
       sog: sog,
-      cog: cog
+      cog: cog,
+      accuracy: accuracy
     )
 
     trackPoints.append(trackPoint)

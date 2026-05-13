@@ -15,6 +15,7 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
   public var timestamp: Date
   public var sog_mps: Double?
   public var cog_deg: Double?
+  public var accuracy_m: Double?
 
   public static let databaseTableName = "track_point"
 
@@ -24,7 +25,7 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
     request(for: TrackPointRecord.trackSession)
   }
 
-  public init(id: Int64? = nil, sessionId: String, latitude_deg: Double, longitude_deg: Double, timestamp: Date, sog_mps: Double? = nil, cog_deg: Double? = nil) {
+  public init(id: Int64? = nil, sessionId: String, latitude_deg: Double, longitude_deg: Double, timestamp: Date, sog_mps: Double? = nil, cog_deg: Double? = nil, accuracy_m: Double? = nil) {
     self.id = id
     self.sessionId = sessionId
     self.latitude_deg = latitude_deg
@@ -32,6 +33,7 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
     self.timestamp = timestamp
     self.sog_mps = sog_mps
     self.cog_deg = cog_deg
+    self.accuracy_m = accuracy_m
   }
 }
 
@@ -47,7 +49,8 @@ extension TrackPointRecord {
       longitude_deg: domainModel.longitude,
       timestamp: domainModel.timestamp,
       sog_mps: domainModel.sog?.converted(to: .metersPerSecond).value,
-      cog_deg: domainModel.cog?.converted(to: .degrees).value
+      cog_deg: domainModel.cog?.converted(to: .degrees).value,
+      accuracy_m: domainModel.accuracy?.converted(to: .meters).value
     )
   }
 
@@ -55,13 +58,15 @@ extension TrackPointRecord {
   public var domainModel: TrackPoint {
     let sog: Measurement<UnitSpeed>? = sog_mps.map { Measurement(value: $0, unit: .metersPerSecond) }
     let cog: Measurement<UnitAngle>? = cog_deg.map { Measurement(value: $0, unit: .degrees) }
+    let accuracy: Measurement<UnitLength>? = accuracy_m.map { Measurement(value: $0, unit: .meters) }
     
     return TrackPoint(
       latitude: latitude_deg,
       longitude: longitude_deg,
       timestamp: timestamp,
       sog: sog,
-      cog: cog
+      cog: cog,
+      accuracy: accuracy
     )
   }
 }

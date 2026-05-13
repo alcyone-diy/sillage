@@ -87,6 +87,13 @@ public final class DatabaseManager: Sendable {
         columns: ["sessionId", "timestamp"]
       )
     }
+    
+    migrator.registerMigration("v2") { db in
+      try db.alter(table: "track_point") { t in
+        t.add(column: "accuracy_m", .double)
+      }
+    }
+    
     return migrator
   }
 }
