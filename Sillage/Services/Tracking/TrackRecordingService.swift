@@ -14,6 +14,9 @@ import Observation
 import OSLog
 import GRDB
 
+
+
+
 @MainActor
 @Observable
 public final class TrackRecordingService {
@@ -25,19 +28,6 @@ public final class TrackRecordingService {
 
   /// Centralized configuration for the track recording service logic.
   internal struct Configuration {
-    /// Parameters defining location filtering and noise reduction.
-    internal struct Filtering {
-      /// The maximum horizontal accuracy allowed. Points exceeding this threshold are discarded to prevent "jumps."
-      nonisolated static let maxHorizontalAccuracy = Measurement(value: 50.0, unit: UnitLength.meters)
-      nonisolated static let maxHorizontalAccuracyMeters = maxHorizontalAccuracy.converted(to: .meters).value
-      /// The minimum displacement required between points to mitigate GPS jitter, especially when at anchor.
-      nonisolated static let minDistance = Measurement(value: 3.0, unit: UnitLength.meters)
-      nonisolated static let minDistanceMeters = minDistance.converted(to: .meters).value
-      /// The minimum time interval between recorded points to ensure a heartbeat update even if stationary.
-      nonisolated static let minTimeInterval = Measurement(value: 30.0, unit: UnitDuration.seconds)
-      nonisolated static let minTimeIntervalSeconds = minTimeInterval.converted(to: .seconds).value
-    }
-    
     /// Thresholds for memory management and database persistence.
     internal struct RAMManagement {
       /// The number of points buffered in memory before a batch commit to the database.
@@ -60,6 +50,7 @@ public final class TrackRecordingService {
   private var currentSessionId: String?
   private var writeBuffer: [TrackPointRecord] = []
   private var lastRecordedLocation: CLLocation?
+  private var filters: TrackFilters
 
   public enum TrackRecordingError: LocalizedError {
     case databaseUnavailable
@@ -77,9 +68,15 @@ public final class TrackRecordingService {
   private var locationUpdatesTask: TaskCancellable?
   private var backgroundLocationToken: (any BackgroundLocationToken)?
 
-  init(locationService: LocationServiceProtocol? = nil, databaseManager: DatabaseManager? = nil) {
+  init(filters: TrackFilters = .default, locationService: LocationServiceProtocol? = nil, databaseManager: DatabaseManager? = nil) {
+    self.filters = filters
     self.locationService = locationService ?? LocationService.shared
     self.databaseManager = databaseManager
+  }
+
+  public func updateFilters(_ newFilters: TrackFilters) {
+    self.filters = newFilters
+    Logger.telemetry.info("Track filters updated: \(newFilters.minDistanceMeters)m, \(newFilters.minTimeIntervalSeconds)s, \(newFilters.maxHorizontalAccuracyMeters)m accuracy")
   }
 
   public func inject(databaseManager: DatabaseManager) {
@@ -237,12 +234,12 @@ public final class TrackRecordingService {
 
   private func append(location: CLLocation) {
     guard location.horizontalAccuracy >= 0 else { return }
-    guard location.horizontalAccuracy <= Configuration.Filtering.maxHorizontalAccuracyMeters else { return }
+    guard location.horizontalAccuracy <= filters.maxHorizontalAccuracyMeters else { return }
 
     // Filtering Logic (Anti-Jitter)
     if let lastLoc = lastRecordedLocation {
-      let hasMovedSignificantly = location.distance(from: lastLoc) > Configuration.Filtering.minDistanceMeters
-      let hasSufficientTimePassed = location.timestamp.timeIntervalSince(lastLoc.timestamp) > Configuration.Filtering.minTimeIntervalSeconds
+      let hasMovedSignificantly = location.distance(from: lastLoc) > filters.minDistanceMeters
+      let hasSufficientTimePassed = location.timestamp.timeIntervalSince(lastLoc.timestamp) > filters.minTimeIntervalSeconds
       
       guard hasMovedSignificantly || hasSufficientTimePassed else { return }
     }
