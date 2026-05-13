@@ -14,9 +14,6 @@ import Observation
 import OSLog
 import GRDB
 
-
-
-
 @MainActor
 @Observable
 public final class TrackRecordingService {
@@ -170,6 +167,21 @@ public final class TrackRecordingService {
       } catch {
         Logger.database.error("Failed to flush points: \(error)")
       }
+    }
+  }
+  
+  public func emergencyFlushAsync() async {
+    guard !writeBuffer.isEmpty, let dbManager = databaseManager else { return }
+    let pointsToInsert = writeBuffer
+    writeBuffer.removeAll()
+
+    do {
+      try await dbManager.dbPool.write { db in
+        try pointsToInsert.forEach { try $0.insert(db) }
+      }
+      Logger.database.info("Emergency flush successful: \(pointsToInsert.count) points saved.")
+    } catch {
+      Logger.database.error("Emergency flush failed: \(error.localizedDescription, privacy: .public)")
     }
   }
 

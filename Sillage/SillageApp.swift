@@ -16,6 +16,7 @@ import OSLog
 
 @main
 struct SillageApp: App {
+  @Environment(\.scenePhase) private var scenePhase
   @State private var appViewModel = AppViewModel()
   @State private var mapViewModel = MapViewModel()
   @State private var panelManagerViewModel = PanelManagerViewModel()
@@ -52,8 +53,29 @@ struct SillageApp: App {
         )
       }
     }
+    .onChange(of: scenePhase) { oldPhase, newPhase in
+      if newPhase == .background {
+        performEmergencySave()
+      }
+    }
   }
   
+  private func performEmergencySave() {
+    var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+
+    backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "EmergencyTrackFlush") {
+      Logger.system.warning("The survival time allotted by iOS expired before the flush was complete.")
+      UIApplication.shared.endBackgroundTask(backgroundTaskId)
+      backgroundTaskId = .invalid
+    }
+    Task {
+      await trackRecordingService.emergencyFlushAsync()
+      if backgroundTaskId != .invalid {
+        UIApplication.shared.endBackgroundTask(backgroundTaskId)
+      }
+    }
+  }
+
   private func setupFileSystem() {
     let fm = FileManager.default
     guard let docsURL = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
