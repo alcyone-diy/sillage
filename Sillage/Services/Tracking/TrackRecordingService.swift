@@ -23,9 +23,39 @@ public final class TrackRecordingService {
   public private(set) var isSaving: Bool = false
   public var recordingError: TrackRecordingError?
 
+  /// Centralized configuration for the track recording service logic.
+  internal struct Configuration {
+    /// Parameters defining location filtering and noise reduction.
+    internal struct Filtering {
+      /// The maximum horizontal accuracy allowed. Points exceeding this threshold are discarded to prevent "jumps."
+      nonisolated static let maxHorizontalAccuracy = Measurement(value: 50.0, unit: UnitLength.meters)
+      /// The minimum displacement required between points to mitigate GPS jitter, especially when at anchor.
+      nonisolated static let minDistance = Measurement(value: 3.0, unit: UnitLength.meters)
+      /// The minimum time interval between recorded points to ensure a heartbeat update even if stationary.
+      nonisolated static let minTimeInterval = Measurement(value: 30.0, unit: UnitDuration.seconds)
+    }
+    
+    /// Thresholds for memory management and database persistence.
+    internal struct RAMManagement {
+      /// The number of points buffered in memory before a batch commit to the database.
+      nonisolated static let flushThreshold = 20
+      /// The maximum number of points held in memory for real-time map rendering.
+      nonisolated static let maxTrackPoints = 2000
+    }
+    
+    /// Constants for file system operations and GPX serialization.
+    internal struct Export {
+      /// The sub-directory name within the Documents folder dedicated to track storage.
+      nonisolated static let directoryName = "Tracks"
+      /// The date format used for generating timestamped, unique file names.
+      nonisolated static let dateFormat = "yyyyMMdd_HHmm"
+      /// The branding suffix appended to every exported GPX file name.
+      nonisolated static let filenameSuffix = "_Sillage"
+    }
+  }
+
   private var currentSessionId: String?
   private var writeBuffer: [TrackPointRecord] = []
-  private let flushThreshold = 20
   private var lastRecordedLocation: CLLocation?
 
   public enum TrackRecordingError: LocalizedError {
@@ -169,16 +199,16 @@ public final class TrackRecordingService {
       
       guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
       
-      let tracksDirectory = documentsDirectory.appendingPathComponent("Tracks", isDirectory: true)
+      let tracksDirectory = documentsDirectory.appendingPathComponent(Configuration.Export.directoryName, isDirectory: true)
       if !FileManager.default.fileExists(atPath: tracksDirectory.path) {
         try FileManager.default.createDirectory(at: tracksDirectory, withIntermediateDirectories: true, attributes: nil)
       }
       
       let formatter = DateFormatter()
       formatter.locale = Locale(identifier: "en_US_POSIX")
-      formatter.dateFormat = "yyyyMMdd_HHmm"
+      formatter.dateFormat = Configuration.Export.dateFormat
       let dateString = formatter.string(from: startedAt)
-      let baseFilename = "\(dateString)_Sillage"
+      let baseFilename = "\(dateString)\(Configuration.Export.filenameSuffix)"
       
       var fileURL = tracksDirectory.appendingPathComponent("\(baseFilename).gpx")
       var counter = 1
@@ -203,16 +233,17 @@ public final class TrackRecordingService {
   }
 
   private func append(location: CLLocation) {
+    guard location.horizontalAccuracy >= 0 else { return }
     let accuracy = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
-    guard accuracy.value >= 0, accuracy.value <= 50 else { return }
+    guard accuracy <= Configuration.Filtering.maxHorizontalAccuracy else { return }
 
     // Filtering Logic (Anti-Jitter)
     if let lastLoc = lastRecordedLocation {
       let distance = Measurement(value: location.distance(from: lastLoc), unit: UnitLength.meters)
-      let timePassed = location.timestamp.timeIntervalSince(lastLoc.timestamp)
+      let timePassed = Measurement(value: location.timestamp.timeIntervalSince(lastLoc.timestamp), unit: UnitDuration.seconds)
       
-      let hasMovedSignificantly = distance.value > 3.0
-      let hasSufficientTimePassed = timePassed > 30.0
+      let hasMovedSignificantly = distance > Configuration.Filtering.minDistance
+      let hasSufficientTimePassed = timePassed > Configuration.Filtering.minTimeInterval
       
       guard hasMovedSignificantly || hasSufficientTimePassed else { return }
     }
@@ -238,7 +269,7 @@ public final class TrackRecordingService {
     )
 
     trackPoints.append(trackPoint)
-    if trackPoints.count > 2000 {
+    if trackPoints.count > Configuration.RAMManagement.maxTrackPoints {
       trackPoints.removeFirst()
     }
     
@@ -246,7 +277,7 @@ public final class TrackRecordingService {
       let record = TrackPointRecord(domainModel: trackPoint, sessionId: sessionId)
       writeBuffer.append(record)
       
-      if writeBuffer.count >= flushThreshold {
+      if writeBuffer.count >= Configuration.RAMManagement.flushThreshold {
         flushBuffer()
       }
     }
