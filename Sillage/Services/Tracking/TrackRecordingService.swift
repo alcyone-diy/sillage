@@ -63,6 +63,7 @@ public final class TrackRecordingService {
     currentSessionId = sessionId
     lastRecordedLocation = nil
     writeBuffer.removeAll()
+    trackPoints.removeAll()
     
     let sessionRecord = TrackSessionRecord(id: sessionId, startTime: Date())
     Task.detached(priority: .utility) { [dbManager] in
@@ -95,11 +96,6 @@ public final class TrackRecordingService {
     self.isRecording = false
     isSaving = true
 
-    if !writeBuffer.isEmpty {
-      Logger.database.info("Performing final buffer flush on stop")
-      flushBuffer()
-    }
-
     if let sessionId = currentSessionId, let dbManager = databaseManager {
       let endTime = Date()
       let pointsToFlush = writeBuffer
@@ -123,10 +119,6 @@ public final class TrackRecordingService {
 
     currentSessionId = nil
     lastRecordedLocation = nil
-  }
-
-  public func clearActiveTrack() {
-    trackPoints.removeAll()
   }
 
   private func flushBuffer() {
