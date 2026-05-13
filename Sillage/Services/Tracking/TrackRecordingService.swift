@@ -130,7 +130,7 @@ public final class TrackRecordingService {
       let endTime = Date()
       let pointsToFlush = writeBuffer
       writeBuffer.removeAll()
-      Task.detached(priority: .utility) {
+      Task.detached(priority: .utility) { [weak self] in
         do {
           try await dbManager.dbPool.write { db in
             for record in pointsToFlush { try record.insert(db) }
@@ -143,7 +143,7 @@ public final class TrackRecordingService {
         } catch {
           Logger.database.error("Failed to finalize session record or export: \(error.localizedDescription, privacy: .public)")
         }
-        await self.stopSavingState()
+        await self?.stopSavingState()
       }
     }
 
