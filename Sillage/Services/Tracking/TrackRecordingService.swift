@@ -64,6 +64,8 @@ public final class TrackRecordingService {
   private var databaseManager: DatabaseManager?
   private var locationUpdatesTask: TaskCancellable?
   private var backgroundLocationToken: (any BackgroundLocationToken)?
+  private var flushContinuation: AsyncStream<[TrackPointRecord]>.Continuation?
+  private var persistenceTask: Task<Void, Never>?
 
   init(filters: TrackFilters = .default, locationService: LocationServiceProtocol? = nil, databaseManager: DatabaseManager? = nil) {
     self.filters = filters
@@ -112,6 +114,20 @@ public final class TrackRecordingService {
         self?.append(location: location)
       }
     })
+
+    let (stream, continuation) = AsyncStream.makeStream(of: [TrackPointRecord].self)
+    self.flushContinuation = continuation
+    self.persistenceTask = Task.detached(priority: .utility) { [dbManager] in
+      for await batch in stream {
+        do {
+          try await dbManager.dbPool.write { db in
+            try batch.forEach { try $0.insert(db) }
+          }
+        } catch {
+          Logger.database.error("Failed to insert batch: \(error.localizedDescription, privacy: .public)")
+        }
+      }
+    }
     
     self.isRecording = true
   }
@@ -119,18 +135,18 @@ public final class TrackRecordingService {
   public func stopRecording() {
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
-    self.backgroundLocationToken = nil
-    self.isRecording = false
+    backgroundLocationToken = nil
+    isRecording = false
     isSaving = true
 
     if let sessionId = currentSessionId, let dbManager = databaseManager {
       let endTime = Date()
-      let pointsToFlush = writeBuffer
-      writeBuffer.removeAll()
-      Task.detached(priority: .utility) { [weak self] in
+      flushBuffer()
+      flushContinuation?.finish()
+      Task.detached(priority: .utility) { [weak self, dbManager] in
+        await self?.persistenceTask?.value
         do {
           try await dbManager.dbPool.write { db in
-            for record in pointsToFlush { try record.insert(db) }
             if var session = try TrackSessionRecord.fetchOne(db, key: sessionId) {
               session.endTime = endTime
               try session.update(db)
@@ -138,7 +154,7 @@ public final class TrackRecordingService {
           }
           try await Self.runExport(sessionId: sessionId, dbManager: dbManager)
         } catch {
-          Logger.database.error("Failed to finalize session record or export: \(error.localizedDescription, privacy: .public)")
+          Logger.database.error("Finalization failed: \(error.localizedDescription, privacy: .public)")
         }
         await self?.stopSavingState()
       }
@@ -150,24 +166,9 @@ public final class TrackRecordingService {
 
   private func flushBuffer() {
     guard !writeBuffer.isEmpty else { return }
-    guard let dbManager = databaseManager else {
-      Logger.database.fault("DatabaseManager is nil during flushBuffer")
-      return
-    }
-    
-    let pointsToInsert = writeBuffer
+    let batch = writeBuffer
     writeBuffer.removeAll()
-    
-    Task.detached(priority: .utility) {
-      do {
-        try await dbManager.dbPool.write { db in
-          try pointsToInsert.forEach { try $0.insert(db) }
-        }
-        Logger.database.info("Successfully flushed \(pointsToInsert.count) points to disk.")
-      } catch {
-        Logger.database.error("Failed to flush points: \(error)")
-      }
-    }
+    flushContinuation?.yield(batch)
   }
   
   public func emergencyFlushAsync() async {
