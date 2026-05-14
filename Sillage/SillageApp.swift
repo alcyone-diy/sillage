@@ -63,21 +63,8 @@ struct SillageApp: App {
   @MainActor
   private func performEmergencySave() {
     guard trackRecordingService.isRecording else { return }
-    let taskName = "EmergencyTrackFlush"
-    var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
-    backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: taskName) {
-      Logger.system.warning("iOS background time expired before flush completed.")
-      if backgroundTaskId != .invalid {
-        UIApplication.shared.endBackgroundTask(backgroundTaskId)
-        backgroundTaskId = .invalid
-      }
-    }
-    Task {
-      await trackRecordingService.emergencyFlushAsync()
-      if backgroundTaskId != .invalid {
-        UIApplication.shared.endBackgroundTask(backgroundTaskId)
-        backgroundTaskId = .invalid
-      }
+    BackgroundTaskRunner.execute(name: "EmergencyTrackFlush", priority: .high) { [weak trackRecordingService] in
+      await trackRecordingService?.emergencyFlushAsync()
     }
   }
 
