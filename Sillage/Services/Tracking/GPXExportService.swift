@@ -47,9 +47,11 @@ public struct GPXExportService: Sendable {
       var pointXml = "\n      <trkpt lat=\"\(latString)\" lon=\"\(lonString)\">"
       pointXml += "\n        <time>\(timeString)</time>"
 
-      if point.sog != nil || point.cog != nil || point.accuracy != nil {
-        pointXml += "\n        <extensions>"
+      pointXml += "\n        <extensions>"
+      let horizontalAccuracyString = String(format: "%.1f", locale: Locale(identifier: "en_US"), point.horizontalAccuracy.converted(to: .meters).value)
+      pointXml += "\n          <sillage:accuracy unit=\"meter\">\(horizontalAccuracyString)</sillage:accuracy>"
 
+      if point.sog != nil || point.cog != nil {
         if let sog = point.sog {
           let sogString = String(format: "%.2f", locale: Locale(identifier: "en_US"), sog.converted(to: .knots).value)
           pointXml += "\n          <sillage:sog unit=\"knot\">\(sogString)</sillage:sog>"
@@ -59,15 +61,8 @@ public struct GPXExportService: Sendable {
           let cogString = String(format: "%.1f", locale: Locale(identifier: "en_US"), cog.converted(to: .degrees).value)
           pointXml += "\n          <sillage:cog unit=\"degree\">\(cogString)</sillage:cog>"
         }
-
-        if let accuracy = point.accuracy {
-          let accuracyString = String(format: "%.1f", locale: Locale(identifier: "en_US"), accuracy.converted(to: .meters).value)
-          pointXml += "\n          <sillage:accuracy unit=\"meter\">\(accuracyString)</sillage:accuracy>"
-        }
-
-        pointXml += "\n        </extensions>"
       }
-
+      pointXml += "\n        </extensions>"
       pointXml += "\n      </trkpt>"
 
       if let pointData = pointXml.data(using: .utf8) {

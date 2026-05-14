@@ -32,6 +32,7 @@ public final class TrackRecordingService {
   }
 
   private var currentSessionId: String?
+  private var segmentIndex: Int = 0
   private var writeBuffer: [TrackPointRecord] = []
   private var lastRecordedLocation: CLLocation?
   private var filters: TrackFilters
@@ -76,6 +77,7 @@ public final class TrackRecordingService {
     }
     
     let sessionId = UUID().uuidString
+    segmentIndex = 0
     currentSessionId = sessionId
     lastRecordedLocation = nil
     writeBuffer.removeAll()
@@ -211,18 +213,16 @@ public final class TrackRecordingService {
       cog = Measurement(value: location.course, unit: UnitAngle.degrees)
     }
 
-    var accuracy: Measurement<UnitLength>? = nil
-    if location.horizontalAccuracy >= 0 {
-      accuracy = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
-    }
+    let horizontalAccuracy: Measurement<UnitLength> = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
 
     let trackPoint = TrackPoint(
+      timestamp: location.timestamp,
+      segmentIndex: segmentIndex,
       latitude: location.coordinate.latitude,
       longitude: location.coordinate.longitude,
-      timestamp: location.timestamp,
+      horizontalAccuracy: horizontalAccuracy,
       sog: sog,
       cog: cog,
-      accuracy: accuracy
     )
 
     trackPoints.append(trackPoint)

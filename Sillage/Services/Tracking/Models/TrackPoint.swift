@@ -12,19 +12,21 @@ import Foundation
 
 /// A representation of a single recorded track point.
 public struct TrackPoint: Sendable, Codable {
+  public let timestamp: Date
+  public let segmentIndex: Int
   public let latitude: Double
   public let longitude: Double
-  public let timestamp: Date
+  public let horizontalAccuracy: Measurement<UnitLength>
   public let sog: Measurement<UnitSpeed>?
   public let cog: Measurement<UnitAngle>?
-  public let accuracy: Measurement<UnitLength>?
 
-  public init(latitude: Double, longitude: Double, timestamp: Date, sog: Measurement<UnitSpeed>? = nil, cog: Measurement<UnitAngle>? = nil, accuracy: Measurement<UnitLength>? = nil) {
+  public init(timestamp: Date, segmentIndex: Int, latitude: Double, longitude: Double, horizontalAccuracy: Measurement<UnitLength>, sog: Measurement<UnitSpeed>? = nil, cog: Measurement<UnitAngle>? = nil) {
+    self.timestamp = timestamp
+    self.segmentIndex = segmentIndex
     self.latitude = latitude
     self.longitude = longitude
-    self.timestamp = timestamp
+    self.horizontalAccuracy = horizontalAccuracy
     self.sog = sog
     self.cog = cog
-    self.accuracy = accuracy
   }
 }
