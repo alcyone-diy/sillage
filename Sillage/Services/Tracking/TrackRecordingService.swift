@@ -143,7 +143,7 @@ public final class TrackRecordingService {
       let endTime = Date()
       flushBuffer()
       flushContinuation?.finish()
-      Task.detached(priority: .utility) { [weak self, dbManager] in
+      BackgroundTaskRunner.execute(name: "FinalizeTrack_\(sessionId)") { [weak self, dbManager] in
         await self?.persistenceTask?.value
         do {
           try await dbManager.dbPool.write { db in
@@ -152,11 +152,17 @@ public final class TrackRecordingService {
               try session.update(db)
             }
           }
-          try await Self.runExport(sessionId: sessionId, dbManager: dbManager)
         } catch {
           Logger.database.error("Finalization failed: \(error.localizedDescription, privacy: .public)")
         }
-        await self?.stopSavingState()
+        Task.detached(priority: .utility) { [weak self, dbManager] in
+          do {
+            try await Self.runExport(sessionId: sessionId, dbManager: dbManager)
+          } catch {
+            Logger.database.error("GPX Export failed or was interrupted: \(error.localizedDescription, privacy: .public)")
+          }
+          await self?.stopSavingState()
+        }
       }
     }
 
