@@ -89,6 +89,7 @@ public final class DatabaseManager: Sendable {
         t.column("sessionId", .text)
           .notNull()
           .references("track_session", column: "id", onDelete: .cascade)
+        t.column("segmentIndex", .integer).notNull().defaults(to: 0)
         t.column("timestamp", .datetime).notNull()
         t.column("latitude_deg", .double).notNull()
         t.column("longitude_deg", .double).notNull()
@@ -107,7 +108,7 @@ public final class DatabaseManager: Sendable {
       try db.create(
         index: "idx_track_point_session_timestamp",
         on: "track_point",
-        columns: ["sessionId", "timestamp"]
+        columns: ["sessionId", "segmentIndex", "timestamp"]
       )
     }
     
