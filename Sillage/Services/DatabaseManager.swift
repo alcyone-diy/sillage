@@ -65,6 +65,7 @@ public final class DatabaseManager: Sendable {
         t.column("startTime", .datetime).notNull()
         t.column("endTime", .datetime)
         t.column("name", .text)
+        t.column("description", .text)
       }
       
       // 2. Create the point table with foreign key
