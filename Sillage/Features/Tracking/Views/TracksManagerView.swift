@@ -24,33 +24,6 @@ struct TracksManagerView: View {
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(\.marineTheme) private var marineTheme
-  
-  var totalDistance: Measurement<UnitLength> {
-    let points = trackRecordingService.trackPoints
-    guard points.count >= 2 else { return Measurement(value: 0, unit: .meters) }
-    
-    var distance: Double = 0
-    for i in 1..<points.count {
-      let p1 = points[i-1]
-      let p2 = points[i]
-      let loc1 = CoreLocation.CLLocation(latitude: p1.latitude, longitude: p1.longitude)
-      let loc2 = CoreLocation.CLLocation(latitude: p2.latitude, longitude: p2.longitude)
-      distance += loc2.distance(from: loc1)
-    }
-    return Measurement(value: distance, unit: UnitLength.meters)
-  }
-
-  var totalDuration: String {
-    let points = trackRecordingService.trackPoints
-    guard let first = points.first, let last = points.last else { return "00:00:00" }
-    
-    let diff = last.timestamp.timeIntervalSince(first.timestamp)
-    let formatter = DateComponentsFormatter()
-    formatter.allowedUnits = [.hour, .minute, .second]
-    formatter.unitsStyle = .positional
-    formatter.zeroFormattingBehavior = .pad
-    return formatter.string(from: diff) ?? "00:00:00"
-  }
 
   var body: some View {
     @Bindable var bindableAppViewModel = appViewModel
@@ -73,8 +46,7 @@ struct TracksManagerView: View {
         HStack {
           Text("Duration")
           Spacer()
-          Text(totalDuration)
-            .foregroundStyle(.secondary)
+          durationValueView
         }
         .marineListCell()
         .marineFont(.body)
@@ -82,9 +54,16 @@ struct TracksManagerView: View {
         HStack {
           Text("Distance")
           Spacer()
-          let nm = totalDistance.converted(to: .nauticalMiles).value
-          Text(String(format: "%.2f NM", nm))
-            .foregroundStyle(.secondary)
+          if let distance = trackRecordingService.sessionDistance {
+            let nm = distance.converted(to: .nauticalMiles).value
+            Text(String(format: "%.2f NM", nm))
+              .monospacedDigit()
+              .foregroundStyle(.secondary)
+          } else {
+            Text(String(format: "-- NM"))
+              .monospacedDigit()
+              .foregroundStyle(.secondary)
+          }
         }
         .marineListCell()
         .marineFont(.body)
@@ -105,4 +84,28 @@ struct TracksManagerView: View {
     .navigationTitle("Track Manager")
     .navigationBarTitleDisplayMode(.inline)
   }
+
+@ViewBuilder
+private var durationValueView: some View {
+  if trackRecordingService.isRecording && !trackRecordingService.isPaused {
+    TimelineView(.periodic(from: .now, by: 1.0)) { context in
+      let liveDuration = trackRecordingService.activeSessionDuration(at: context.date) ?? .seconds(0)
+      Text(liveDuration, format: .time(pattern: .hourMinuteSecond))
+        .monospacedDigit()
+        .foregroundStyle(.secondary)
+    }
+  } else {
+    let staticDuration = trackRecordingService.activeSessionDuration(at: Date())
+    if let duration = staticDuration {
+      Text(duration, format: .time(pattern: .hourMinuteSecond))
+        .monospacedDigit()
+        .foregroundStyle(.secondary)
+    } else {
+      Text("--:--:--")
+        .monospacedDigit()
+        .foregroundStyle(.secondary)
+    }
+  }
+}
+
 }

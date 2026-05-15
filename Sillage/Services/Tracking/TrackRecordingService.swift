@@ -21,7 +21,14 @@ public final class TrackRecordingService {
 
   public private(set) var isRecording: Bool = false
   public private(set) var isSaving: Bool = false
+  public private(set) var isPaused: Bool = false
   public var recordingError: TrackRecordingError?
+    
+  // MARK: - Telemetry State
+  public private(set) var sessionStartTime: Date?
+  public private(set) var currentSegmentStartTime: Date?
+  public private(set) var sessionDistance: Measurement<UnitLength>?
+  public private(set) var sessionDuration: Duration?
 
   /// Centralized configuration for the track recording service logic.
   internal struct Configuration {
@@ -77,13 +84,19 @@ public final class TrackRecordingService {
     }
     
     let sessionId = UUID().uuidString
-    segmentIndex = 0
+    let startTime = Date()
+      
     currentSessionId = sessionId
+    segmentIndex = 0
+    sessionStartTime = startTime
+    currentSegmentStartTime = startTime
+    sessionDuration = .seconds(0)
+    sessionDistance = Measurement(value: 0, unit: UnitLength.meters)
     lastRecordedLocation = nil
     writeBuffer.removeAll()
     trackPoints.removeAll()
     
-    let sessionRecord = TrackSessionRecord(id: sessionId, startTime: Date())
+    let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
     Task.detached(priority: .utility) { [dbManager] in
       do {
         try await dbManager.dbPool.write { db in
@@ -100,7 +113,7 @@ public final class TrackRecordingService {
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
       for await location in service.locationUpdates {
         guard !Task.isCancelled else { break }
-        self?.append(location: location)
+        self?.processLocationUpdate(location)
       }
     })
 
@@ -152,6 +165,15 @@ public final class TrackRecordingService {
     lastRecordedLocation = nil
   }
 
+  public func activeSessionDuration(at referenceDate: Date = Date()) -> Duration? {
+    guard let start = currentSegmentStartTime, !isPaused else {
+      return sessionDuration
+    }
+    let currentSegmentSeconds = referenceDate.timeIntervalSince(start)
+    let currentSessionDuration = sessionDuration ?? .seconds(0)
+    return currentSessionDuration + .seconds(currentSegmentSeconds)
+  }
+
   private func flushBuffer() {
     guard !writeBuffer.isEmpty else { return }
     let batch = writeBuffer
@@ -189,16 +211,25 @@ public final class TrackRecordingService {
     }
   }
 
-  private func append(location: CLLocation) {
+  private func processLocationUpdate(_ location: CLLocation) {
     guard location.horizontalAccuracy >= 0 else { return }
     guard location.horizontalAccuracy <= filters.maxHorizontalAccuracyMeters else { return }
 
     // Filtering Logic (Anti-Jitter)
     if let lastLoc = lastRecordedLocation {
-      let hasMovedSignificantly = location.distance(from: lastLoc) > filters.minDistanceMeters
-      let hasSufficientTimePassed = location.timestamp.timeIntervalSince(lastLoc.timestamp) > filters.minTimeIntervalSeconds
+      let distanceSinceLast = location.distance(from: lastLoc)
+      let timeSinceLast = location.timestamp.timeIntervalSince(lastLoc.timestamp)
+      
+      let hasMovedSignificantly = distanceSinceLast > filters.minDistanceMeters
+      let hasSufficientTimePassed = timeSinceLast > filters.minTimeIntervalSeconds
       
       guard hasMovedSignificantly || hasSufficientTimePassed else { return }
+      
+      // Update cumulative distance only with validated points to prevent GPS noise inflation
+      if let currentDistance = sessionDistance {
+        let distanceIncrement = Measurement(value: distanceSinceLast, unit: UnitLength.meters)
+        sessionDistance = currentDistance + distanceIncrement
+      }
     }
 
     lastRecordedLocation = location
@@ -213,7 +244,7 @@ public final class TrackRecordingService {
       cog = Measurement(value: location.course, unit: UnitAngle.degrees)
     }
 
-    let horizontalAccuracy: Measurement<UnitLength> = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
+    let horizontalAccuracy = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
 
     let trackPoint = TrackPoint(
       timestamp: location.timestamp,
