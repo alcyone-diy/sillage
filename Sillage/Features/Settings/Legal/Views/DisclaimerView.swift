@@ -11,6 +11,8 @@
 import SwiftUI
 
 struct DisclaimerView: View {
+  private let maritimeNavigationWarning: LocalizedStringResource = "WARNING: Alcyone Sillage is an electronic navigational aid designed for situational awareness only. It must not be used as the primary means of navigation. This application does not replace official government charts, official notices to mariners, or prudent seamanship. The captain of the vessel assumes all responsibility and liability for the safety of the ship and its crew. Never rely on a single source of information and always maintain a proper visual lookout."
+
   var body: some View {
     VStack(spacing: 0) {
       ScrollView {
@@ -25,7 +27,7 @@ struct DisclaimerView: View {
             .multilineTextAlignment(.center)
             .foregroundColor(.primary)
 
-          Text(Constants.maritimeNavigationWarning)
+          Text(maritimeNavigationWarning)
             .font(.body)
             .fontWeight(.medium)
             .multilineTextAlignment(.leading)
