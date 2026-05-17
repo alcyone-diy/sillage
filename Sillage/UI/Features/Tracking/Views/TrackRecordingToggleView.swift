@@ -3,16 +3,9 @@
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-05-12.
-//  Copyright © 2026 Alcyone. All rights reserved.
+//  Copyright © 2026 Alcyone.
 //  This file is released under the MIT License.
 //  See LICENSE file in the project root for full license information.
-//
-
-//
-//  TrackRecordingToggleView.swift
-//  Alcyone Sillage
-//
-//  Created by Alcyone on 2026-05-12.
 //
 
 import SwiftUI

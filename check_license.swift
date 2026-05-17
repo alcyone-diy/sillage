@@ -42,7 +42,7 @@ while let filePath = enumerator.nextObject() as? String {
                 //  Alcyone Sillage
                 //
                 //  Created by Alcyone on \(dateString).
-                //  Copyright © \(yearString) Alcyone. All rights reserved.
+                //  Copyright © \(yearString) Alcyone.
                 //  This file is released under the MIT License.
                 //  See LICENSE file in the project root for full license information.
                 //

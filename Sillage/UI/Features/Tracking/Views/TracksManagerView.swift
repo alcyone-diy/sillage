@@ -2,17 +2,10 @@
 //  TracksManagerView.swift
 //  Alcyone Sillage
 //
-//  Created by Alcyone on 2026-05-12.
-//  Copyright © 2026 Alcyone. All rights reserved.
+//  Created by Alcyone on 2026-05-05.
+//  Copyright © 2026 Alcyone.
 //  This file is released under the MIT License.
 //  See LICENSE file in the project root for full license information.
-//
-
-//
-//  TracksManagerView.swift
-//  Alcyone Sillage
-//
-//  Created by Alcyone on 2026-05-05.
 //
 
 import SwiftUI
