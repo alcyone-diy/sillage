@@ -115,3 +115,15 @@ public final class DatabaseManager: Sendable {
     return migrator
   }
 }
+
+// MARK: - Database Extensions
+
+extension DatabaseManager {
+  /// Exposes the database pool as a reader.
+  nonisolated public var reader: DatabaseReader { dbPool }
+
+  /// Performs database writes in a transaction.
+  nonisolated public func write<T>(_ updates: @escaping @Sendable (Database) throws -> T) async throws -> T where T: Sendable {
+    try await dbPool.write(updates)
+  }
+}

@@ -20,7 +20,15 @@ public struct TrackPoint: Sendable, Codable {
   public let sog: Measurement<UnitSpeed>?
   public let cog: Measurement<UnitAngle>?
 
-  public init(timestamp: Date, segmentIndex: Int, latitude: Double, longitude: Double, horizontalAccuracy: Measurement<UnitLength>, sog: Measurement<UnitSpeed>? = nil, cog: Measurement<UnitAngle>? = nil) {
+  public init(
+    timestamp: Date,
+    segmentIndex: Int,
+    latitude: Double,
+    longitude: Double,
+    horizontalAccuracy: Measurement<UnitLength>,
+    sog: Measurement<UnitSpeed>? = nil,
+    cog: Measurement<UnitAngle>? = nil
+  ) {
     self.timestamp = timestamp
     self.segmentIndex = segmentIndex
     self.latitude = latitude

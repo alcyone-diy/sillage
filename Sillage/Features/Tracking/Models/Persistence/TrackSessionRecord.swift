@@ -48,3 +48,35 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
     request(for: TrackSessionRecord.trackPoints)
   }
 }
+
+// MARK: - Domain Mapping
+
+extension TrackSessionRecord {
+  /// Converts the persistence `TrackSessionRecord` into a domain `TrackSession`.
+  public func toDomain() -> TrackSession {
+    let duration: Duration? = durationSeconds.map { .seconds($0) }
+    return TrackSession(
+      id: id,
+      startTime: startTime,
+      endTime: endTime,
+      name: name,
+      duration: duration,
+      totalDistance: totalDistance
+    )
+  }
+
+  /// Converts the domain `TrackSession` into a persistence `TrackSessionRecord`.
+  public init(domainModel: TrackSession) {
+    let durationSecs: Double? = domainModel.duration.map { duration in
+      Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1e18)
+    }
+    self.init(
+      id: domainModel.id,
+      startTime: domainModel.startTime,
+      endTime: domainModel.endTime,
+      name: domainModel.name,
+      durationSeconds: durationSecs,
+      totalDistanceMetres: domainModel.totalDistance?.converted(to: .meters).value
+    )
+  }
+}
