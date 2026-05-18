@@ -17,14 +17,29 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
   public var startTime: Date
   public var endTime: Date?
   public var name: String?
+  public var totalDistance_m: Double?
 
   public static let databaseTableName = "track_session"
 
-  public init(id: String, startTime: Date, endTime: Date? = nil, name: String? = nil) {
+  public init(id: String, startTime: Date, endTime: Date? = nil, name: String? = nil, totalDistance_m: Double? = nil) {
     self.id = id
     self.startTime = startTime
     self.endTime = endTime
     self.name = name
+    self.totalDistance_m = totalDistance_m
+  }
+
+  public var totalDistance: Measurement<UnitLength>? {
+    guard let meters = totalDistance_m else { return nil }
+    return Measurement(value: meters, unit: .meters)
+  }
+
+  public enum Columns: String, ColumnExpression {
+    case id
+    case startTime
+    case endTime
+    case name
+    case totalDistance_m
   }
 
   // Association with TrackPointRecord
