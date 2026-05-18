@@ -131,34 +131,56 @@ public final class TrackRecordingService {
       }
     }
     
-    self.isRecording = true
+    isRecording = true
   }
 
   public func stopRecording() {
+    guard isRecording else { return }
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
     backgroundLocationToken = nil
     isRecording = false
     isSaving = true
+    let endTime = Date()
 
-    if let sessionId = currentSessionId, let dbManager = databaseManager {
-      let endTime = Date()
-      flushBuffer()
-      flushContinuation?.finish()
-      BackgroundTaskRunner.execute(name: "FinalizeTrack_\(sessionId)") { [weak self, dbManager] in
-        await self?.persistenceTask?.value
-        do {
-          try await dbManager.dbPool.write { db in
-            if var session = try TrackSessionRecord.fetchOne(db, key: sessionId) {
-              session.endTime = endTime
-              try session.update(db)
+    if let startTime = currentSegmentStartTime {
+      let finalSegmentSeconds = endTime.timeIntervalSince(startTime)
+      let previousDuration = sessionDuration ?? .seconds(0)
+      sessionDuration = previousDuration + .seconds(finalSegmentSeconds)
+    }
+
+    guard let sessionId = currentSessionId, let dbManager = databaseManager else {
+      isSaving = false
+      return
+    }
+    
+    let finalDurationSeconds = sessionDuration
+    let finalDistanceMeters = sessionDistance
+
+    flushBuffer()
+    flushContinuation?.finish()
+    let localPersistenceTask = persistenceTask
+    BackgroundTaskRunner.execute(name: "FinalizeTrack_\(sessionId)") { [weak self, dbManager, localPersistenceTask] in
+      _ = await localPersistenceTask?.value
+      do {
+        try await dbManager.dbPool.write { db in
+          if var session = try TrackSessionRecord.fetchOne(db, key: sessionId) {
+            if let duration = finalDurationSeconds {
+              let totalSeconds = Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1e18)
+              session.durationSeconds = totalSeconds
             }
+            if let distance = finalDistanceMeters {
+              session.totalDistanceMetres = distance.converted(to: .meters).value
+            }
+            session.endTime = endTime
+            try session.update(db)
           }
-        } catch {
-          Logger.database.error("Finalization failed: \(error.localizedDescription, privacy: .public)")
         }
-        await self?.stopSavingState()
+        Logger.database.info("Track session \(sessionId) finalized successfully with \(finalDurationSeconds?.components.seconds ?? 0)s and \(finalDistanceMeters?.converted(to: .meters).value ?? 0)m.")
+      } catch {
+        Logger.database.error("Finalization failed: \(error.localizedDescription, privacy: .public)")
       }
+      await self?.stopSavingState()
     }
 
     currentSessionId = nil
@@ -273,6 +295,6 @@ public final class TrackRecordingService {
 
   @MainActor
   private func stopSavingState() {
-    self.isSaving = false
+    isSaving = false
   }
 }
