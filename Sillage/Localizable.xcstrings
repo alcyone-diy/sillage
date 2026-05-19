@@ -46,6 +46,9 @@
     "Active Track" : {
 
     },
+    "ALCYONE SILLAGE" : {
+
+    },
     "Alcyone Sillage (MIT License)" : {
 
     },
@@ -68,6 +71,9 @@
 
     },
     "Could not create the Charts directory." : {
+
+    },
+    "Critical Error: Missing ViewModels" : {
 
     },
     "Distance" : {
@@ -128,6 +134,12 @@
 
     },
     "Import succeeded, but failed to clean up the original file: %@" : {
+
+    },
+    "Initialization Failed" : {
+
+    },
+    "Initializing Systems..." : {
 
     },
     "Invalid response from the server." : {
@@ -205,6 +217,9 @@
     "Recording Status" : {
 
     },
+    "Retry" : {
+
+    },
     "S" : {
       "comment" : "South cardinal point"
     },
@@ -227,9 +242,6 @@
 
     },
     "System" : {
-
-    },
-    "System Failure (Storage)" : {
 
     },
     "Telemetry Panel" : {

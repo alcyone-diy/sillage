@@ -15,40 +15,41 @@ import OSLog
 @main
 struct SillageApp: App {
   @Environment(\.scenePhase) private var scenePhase
-  @State private var appViewModel = AppViewModel()
-  @State private var mapViewModel = MapViewModel()
-  @State private var panelManagerViewModel = PanelManagerViewModel()
-  @State private var trackRecordingService = TrackRecordingService()
-  
-  init() {
-    URLProtocol.registerClass(TileProxyProtocol.self)
-    
-    guard let config = MLNNetworkConfiguration.sharedManager.sessionConfiguration else {
-      // If maplibre has no configuration, we can't inject. (Extremely rare).
-      return
-    }
-    
-    if let protocolClasses = config.protocolClasses {
-      var newProtocolClasses = protocolClasses
-      newProtocolClasses.insert(TileProxyProtocol.self, at: 0)
-      config.protocolClasses = newProtocolClasses
-    } else {
-      config.protocolClasses = [TileProxyProtocol.self]
-    }
-    // Explicitly reassign the configuration object to MapLibre
-    MLNNetworkConfiguration.sharedManager.sessionConfiguration = config
-    setupFileSystem()
-  }
+  @State private var environment = AppEnvironment()
   
   var body: some Scene {
     WindowGroup {
       Group {
-        MainAppView(
-          appViewModel: appViewModel,
-          mapViewModel: mapViewModel,
-          panelManagerViewModel: panelManagerViewModel,
-          trackRecordingService: trackRecordingService
-        )
+        switch environment.state {
+        case .uninitialized, .bootstrapping, .error:
+          SplashView(state: environment.state) {
+            Task {
+              await environment.bootstrap()
+            }
+          }
+        case .ready:
+          if let appVM = environment.appViewModel,
+             let mapVM = environment.mapViewModel,
+             let panelVM = environment.panelManagerViewModel,
+             let trackService = environment.trackRecordingService {
+            MainAppView(
+              appViewModel: appVM,
+              mapViewModel: mapVM,
+              panelManagerViewModel: panelVM,
+              trackRecordingService: trackService
+            )
+          } else {
+            // Fallback in case of an unexpected nil after .ready transition
+            Text("Critical Error: Missing ViewModels")
+              .marineFont(.headline)
+              .foregroundColor(.red)
+          }
+        }
+      }
+      .task {
+        if case .uninitialized = environment.state {
+          await environment.bootstrap()
+        }
       }
     }
     .onChange(of: scenePhase) { oldPhase, newPhase in
@@ -60,30 +61,9 @@ struct SillageApp: App {
   
   @MainActor
   private func performEmergencySave() {
-    guard trackRecordingService.isRecording else { return }
-    BackgroundTaskRunner.execute(name: "EmergencyTrackFlush", priority: .high) { [weak trackRecordingService] in
-      await trackRecordingService?.emergencyFlushAsync()
-    }
-  }
-
-  private func setupFileSystem() {
-    let fm = FileManager.default
-    guard let docsURL = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-    let chartsURL = docsURL.appendingPathComponent("Charts", isDirectory: true)
-    do {
-      // 1. Create the 'Charts' subdirectory if it doesn't exist
-      if !fm.fileExists(atPath: chartsURL.path) {
-        try fm.createDirectory(at: chartsURL, withIntermediateDirectories: true)
-      }
-      // 2. Write a dummy file to force iOS to expose the Sillage folder in the Files app
-      let dummyURL = docsURL.appendingPathComponent("Sillage_ReadMe.txt")
-      if !fm.fileExists(atPath: dummyURL.path) {
-        let text = "Alcyone Sillage - Chart Plotter.\nPlease place your .mbtiles files in the 'Charts' directory."
-        try text.write(to: dummyURL, atomically: true, encoding: .utf8)
-      }
-      Logger.storage.debug("⚓️ FileSystem ready: \(docsURL.path)")
-    } catch {
-      Logger.storage.error("❌ Critical FileSystem initialization error: \(error.localizedDescription)")
+    guard let trackService = environment.trackRecordingService, trackService.isRecording else { return }
+    BackgroundTaskRunner.execute(name: "EmergencyTrackFlush", priority: .high) { [weak trackService] in
+      await trackService?.emergencyFlushAsync()
     }
   }
 }
@@ -111,31 +91,8 @@ struct MainAppView: View {
       } else {
         DisclaimerView()
           .onOpenURL { url in
-            // Handle URL opening even if disclaimer is not yet accepted
             appViewModel.handleIncomingURL(url)
           }
-      }
-    }
-    .alert("System Failure (Storage)", isPresented: Binding(
-      get: { appViewModel.databaseErrorMessage != nil },
-      set: { if !$0 { appViewModel.databaseErrorMessage = nil } }
-    )) {
-      Button("OK", role: .cancel) { }
-    } message: {
-      if let message = appViewModel.databaseErrorMessage {
-        Text(message)
-      }
-    }
-    .task {
-      guard case .loading = appViewModel.dbState else { return }
-      do {
-        let dbManager = try await Task.detached {
-          try DatabaseManager()
-        }.value
-        trackRecordingService.inject(databaseManager: dbManager)
-        appViewModel.markDatabaseReady()
-      } catch {
-        appViewModel.markDatabaseError(error)
       }
     }
   }

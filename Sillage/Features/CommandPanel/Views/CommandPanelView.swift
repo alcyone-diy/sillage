@@ -42,7 +42,6 @@ struct CommandPanelView: View {
                 set: { _ in trackRecordingService.toggleRecording() }
               )
             )
-            .disabled(!appViewModel.isDatabaseReady)
             .disabled(trackRecordingService.isSaving)
           }
           .listRowBackground(Color.clear)

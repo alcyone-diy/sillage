@@ -27,7 +27,6 @@ struct TrackControlView: View {
                 ))
                 .labelsHidden()
             }
-            .disabled(!appViewModel.isDatabaseReady)
             .marineListCell()
             .marineFont(.body)
             
