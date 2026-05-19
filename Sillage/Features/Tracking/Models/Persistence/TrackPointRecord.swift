@@ -15,7 +15,7 @@ import GRDB
 public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
   public var id: Int64?
   public var sessionId: String
-  public var timestamp: Date
+  public var timestamp_unix: Double
   public var segmentIndex: Int
   public var latitude_deg: Double
   public var longitude_deg: Double
@@ -31,16 +31,26 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
     request(for: TrackPointRecord.trackSession)
   }
 
-  public init(id: Int64? = nil, sessionId: String, timestamp: Date, segmentIndex: Int, latitude_deg: Double, longitude_deg: Double, horizontalAccuracy_m: Double, sog_mps: Double? = nil, cog_deg: Double? = nil) {
+  public init(
+    id: Int64?,
+    sessionId: String,
+    timestamp: Date,
+    segmentIndex: Int,
+    latitude: Measurement<UnitAngle>,
+    longitude: Measurement<UnitAngle>,
+    horizontalAccuracy: Measurement<UnitLength>,
+    sog: Measurement<UnitSpeed>? = nil,
+    cog: Measurement<UnitAngle>? = nil,
+  ) {
     self.id = id
     self.sessionId = sessionId
-    self.timestamp = timestamp
+    self.timestamp_unix = timestamp.timeIntervalSince1970
     self.segmentIndex = segmentIndex
-    self.latitude_deg = latitude_deg
-    self.longitude_deg = longitude_deg
-    self.horizontalAccuracy_m = horizontalAccuracy_m
-    self.sog_mps = sog_mps
-    self.cog_deg = cog_deg
+    self.latitude_deg = latitude.converted(to: .degrees).value
+    self.longitude_deg = longitude.converted(to: .degrees).value
+    self.horizontalAccuracy_m = horizontalAccuracy.converted(to: .meters).value
+    self.sog_mps = sog.map { $0.converted(to: .metersPerSecond).value }
+    self.cog_deg = cog.map { $0.converted(to: .degrees).value }
   }
 }
 
@@ -54,11 +64,11 @@ extension TrackPointRecord {
       sessionId: sessionId,
       timestamp: domainModel.timestamp,
       segmentIndex: domainModel.segmentIndex,
-      latitude_deg: domainModel.latitude,
-      longitude_deg: domainModel.longitude,
-      horizontalAccuracy_m: domainModel.horizontalAccuracy.converted(to: .meters).value,
-      sog_mps: domainModel.sog?.converted(to: .metersPerSecond).value,
-      cog_deg: domainModel.cog?.converted(to: .degrees).value,
+      latitude: domainModel.latitude,
+      longitude: domainModel.longitude,
+      horizontalAccuracy: domainModel.horizontalAccuracy,
+      sog: domainModel.sog,
+      cog: domainModel.cog,
     )
   }
 
@@ -66,14 +76,13 @@ extension TrackPointRecord {
   public var domainModel: TrackPoint {
     let sog: Measurement<UnitSpeed>? = sog_mps.map { Measurement(value: $0, unit: .metersPerSecond) }
     let cog: Measurement<UnitAngle>? = cog_deg.map { Measurement(value: $0, unit: .degrees) }
-    let horizontalAccuracy: Measurement<UnitLength> = Measurement(value: horizontalAccuracy_m, unit: .meters)
     
     return TrackPoint(
-      timestamp: timestamp,
+      timestamp: Date(timeIntervalSince1970: timestamp_unix),
       segmentIndex: segmentIndex,
-      latitude: latitude_deg,
-      longitude: longitude_deg,
-      horizontalAccuracy: horizontalAccuracy,
+      latitude: Measurement(value: latitude_deg, unit: .degrees),
+      longitude: Measurement(value: longitude_deg, unit: .degrees),
+      horizontalAccuracy: Measurement(value: horizontalAccuracy_m, unit: .meters),
       sog: sog,
       cog: cog,
     )

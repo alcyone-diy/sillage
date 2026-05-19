@@ -25,7 +25,7 @@ public struct TrackService: Sendable {
   public func observeTrackSessions() -> some AsyncSequence<[TrackSession], Error> {
     let observation = ValueObservation.tracking { db in
       let records = try TrackSessionRecord
-        .order(TrackSessionRecord.Columns.startTime.desc)
+        .order(TrackSessionRecord.Columns.startTime_unix.desc)
         .fetchAll(db)
       
       // The mapping is performed on the database queue,

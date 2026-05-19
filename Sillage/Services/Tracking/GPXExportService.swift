@@ -40,8 +40,8 @@ public struct GPXExportService: Sendable {
     var count = 0
     while let record = try cursor.next() {
       let point = record.domainModel
-      let latString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.latitude)
-      let lonString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.longitude)
+      let latString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.latitude.converted(to: .degrees).value)
+      let lonString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.longitude.converted(to: .degrees).value)
       let timeString = point.timestamp.ISO8601Format()
 
       var pointXml = "\n      <trkpt lat=\"\(latString)\" lon=\"\(lonString)\">"

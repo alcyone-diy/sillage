@@ -43,6 +43,9 @@ public final class DatabaseManager: Sendable {
     
     var configuration = Configuration()
     configuration.maximumReaderCount = 5
+    configuration.prepareDatabase { db in
+      try db.execute(sql: "PRAGMA foreign_keys = ON")
+    }
     
     do {
       let pool = try DatabasePool(path: dbURL.path, configuration: configuration)
@@ -62,12 +65,12 @@ public final class DatabaseManager: Sendable {
       // 1. Create the session table first
       try db.create(table: "track_session") { t in
         t.column("id", .text).primaryKey()
-        t.column("startTime", .datetime).notNull()
-        t.column("endTime", .datetime)
+        t.column("startTime_unix", .double).notNull()
+        t.column("endTime_unix", .double)
         t.column("name", .text)
         t.column("description", .text)
-        t.column("durationSeconds", .double)
-        t.column("totalDistanceMetres", .double)
+        t.column("duration_s", .double)
+        t.column("totalDistance_m", .double)
         t.column("minLatitude_deg", .double)
         t.column("maxLatitude_deg", .double)
         t.column("minLongitude_deg", .double)
@@ -78,11 +81,12 @@ public final class DatabaseManager: Sendable {
         t.check(sql: "minLatitude_deg <= maxLatitude_deg")
         t.check(sql: "minLongitude_deg BETWEEN -180 AND 180")
         t.check(sql: "maxLongitude_deg BETWEEN -180 AND 180")
-        t.check(sql: "durationSeconds >= 0")
-        t.check(sql: "totalDistanceMetres >= 0")
-        // Constraints between minLongitude_deg and maxLongitude_deg, since a track can start at 179º, and move up to -179.
+        // Should have no constraints between minLongitude_deg and maxLongitude_deg,
+        // since a track can start at 179º, and move up to -179.
+        t.check(sql: "duration_s >= 0")
+        t.check(sql: "totalDistance_m >= 0")
       }
-      try db.create(index: "idx_track_session_startTime", on: "track_session", columns: ["startTime"])
+      try db.create(index: "idx_track_session_startTime", on: "track_session", columns: ["startTime_unix"])
       try db.create(index: "idx_track_session_name", on: "track_session", columns: ["name"])
 
       // 2. Create the point table with foreign key
@@ -92,7 +96,7 @@ public final class DatabaseManager: Sendable {
           .notNull()
           .references("track_session", column: "id", onDelete: .cascade)
         t.column("segmentIndex", .integer).notNull()
-        t.column("timestamp", .datetime).notNull()
+        t.column("timestamp_unix", .double).notNull()
         t.column("latitude_deg", .double).notNull()
         t.column("longitude_deg", .double).notNull()
         t.column("horizontalAccuracy_m", .double).notNull()
@@ -102,7 +106,7 @@ public final class DatabaseManager: Sendable {
         t.check(sql: "latitude_deg BETWEEN -90 AND 90")
         t.check(sql: "longitude_deg BETWEEN -180 AND 180")
         t.check(sql: "horizontalAccuracy_m >= 0")
-        t.check(sql: "cog_deg BETWEEN 0 AND 360")
+        t.check(sql: "cog_deg BETWEEN 0 AND 360 OR cog_deg IS NULL")
         t.check(sql: "sog_mps >= 0 OR sog_mps IS NULL")
       }
       
@@ -110,7 +114,7 @@ public final class DatabaseManager: Sendable {
       try db.create(
         index: "idx_track_point_session_timestamp",
         on: "track_point",
-        columns: ["sessionId", "segmentIndex", "timestamp"]
+        columns: ["sessionId", "segmentIndex", "timestamp_unix"]
       )
     }
     

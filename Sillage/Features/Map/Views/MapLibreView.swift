@@ -201,7 +201,12 @@ struct MapLibreView: UIViewRepresentable {
 
   private func generateActiveTrackFeature(from points: [TrackPoint]) -> MLNPolylineFeature? {
     guard points.count >= 2 else { return nil }
-    var coordinates = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+    var coordinates = points.map {
+      CLLocationCoordinate2D(
+        latitude: $0.latitude.converted(to: .degrees).value,
+        longitude: $0.longitude.converted(to: .degrees).value,
+      )
+    }
     return MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
   }
 

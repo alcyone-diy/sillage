@@ -167,12 +167,12 @@ public final class TrackRecordingService {
           if var session = try TrackSessionRecord.fetchOne(db, key: sessionId) {
             if let duration = finalDurationSeconds {
               let totalSeconds = Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1e18)
-              session.durationSeconds = totalSeconds
+              session.duration_s = totalSeconds
             }
             if let distance = finalDistanceMeters {
-              session.totalDistanceMetres = distance.converted(to: .meters).value
+              session.totalDistance_m = distance.converted(to: .meters).value
             }
-            session.endTime = endTime
+            session.endTime_unix = endTime.timeIntervalSince1970
             try session.update(db)
           }
         }
@@ -271,8 +271,8 @@ public final class TrackRecordingService {
     let trackPoint = TrackPoint(
       timestamp: location.timestamp,
       segmentIndex: segmentIndex,
-      latitude: location.coordinate.latitude,
-      longitude: location.coordinate.longitude,
+      latitude: Measurement(value: location.coordinate.latitude, unit: .degrees),
+      longitude: Measurement(value: location.coordinate.longitude, unit: .degrees),
       horizontalAccuracy: horizontalAccuracy,
       sog: sog,
       cog: cog,

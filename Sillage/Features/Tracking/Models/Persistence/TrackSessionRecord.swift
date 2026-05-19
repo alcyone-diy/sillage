@@ -14,35 +14,34 @@ import GRDB
 /// GRDB Persistence Model for Track Session
 public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
   public var id: String
-  public var startTime: Date
-  public var endTime: Date?
+  public var startTime_unix: Double
+  public var endTime_unix: Double?
   public var name: String?
-  public var durationSeconds: Double?
-  public var totalDistanceMetres: Double?
+  public var duration_s: Double?
+  public var totalDistance_m: Double?
+  public var minLatitude_deg: Double?
+  public var maxLatitude_deg: Double?
+  public var minLongitude_deg: Double?
+  public var maxLongitude_deg: Double?
 
   public static let databaseTableName = "track_session"
 
-  public init(id: String, startTime: Date, endTime: Date? = nil, name: String? = nil, durationSeconds: Double? = nil, totalDistanceMetres: Double? = nil) {
+  public init(id: String, startTime: Date) {
     self.id = id
-    self.startTime = startTime
-    self.endTime = endTime
-    self.name = name
-    self.durationSeconds = durationSeconds
-    self.totalDistanceMetres = totalDistanceMetres
-  }
-
-  public var totalDistance: Measurement<UnitLength>? {
-    guard let meters = totalDistanceMetres else { return nil }
-    return Measurement(value: meters, unit: .meters)
+    self.startTime_unix = startTime.timeIntervalSince1970
   }
 
   public enum Columns: String, ColumnExpression {
     case id
-    case startTime
-    case endTime
+    case startTime_unix
+    case endTime_unix
     case name
-    case durationSeconds
-    case totalDistanceMetres
+    case duration_s
+    case totalDistance_m
+    case minLatitude_deg
+    case maxLatitude_deg
+    case minLongitude_deg
+    case maxLongitude_deg
   }
 
   // Association with TrackPointRecord
@@ -57,14 +56,17 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
 extension TrackSessionRecord {
   /// Converts the persistence `TrackSessionRecord` into a domain `TrackSession`.
   public func toDomain() -> TrackSession {
-    let duration: Duration? = durationSeconds.map { .seconds($0) }
     return TrackSession(
       id: id,
-      startTime: startTime,
-      endTime: endTime,
+      startTime: Date(timeIntervalSince1970: startTime_unix),
+      endTime: endTime_unix.map { Date(timeIntervalSince1970: $0) },
       name: name,
-      duration: duration,
-      totalDistance: totalDistance
+      duration: duration_s.map { .seconds($0) },
+      totalDistance: totalDistance_m.map { Measurement(value: $0, unit: UnitLength.meters) },
+      minLatitude: minLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
+      maxLatitude: maxLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
+      minLongitude: minLongitude_deg.map { Measurement(value: $0, unit: .degrees) },
+      maxLongitude: maxLongitude_deg.map { Measurement(value: $0, unit: .degrees) }
     )
   }
 
@@ -73,13 +75,15 @@ extension TrackSessionRecord {
     let durationSecs: Double? = domainModel.duration.map { duration in
       Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1e18)
     }
-    self.init(
-      id: domainModel.id,
-      startTime: domainModel.startTime,
-      endTime: domainModel.endTime,
-      name: domainModel.name,
-      durationSeconds: durationSecs,
-      totalDistanceMetres: domainModel.totalDistance?.converted(to: .meters).value
-    )
+    self.id = domainModel.id
+    self.startTime_unix = domainModel.startTime.timeIntervalSince1970
+    self.endTime_unix = domainModel.endTime?.timeIntervalSince1970
+    self.name = domainModel.name
+    self.duration_s = durationSecs
+    self.totalDistance_m = domainModel.totalDistance?.converted(to: .meters).value
+    self.minLatitude_deg = domainModel.minLatitude?.converted(to: .degrees).value
+    self.maxLatitude_deg = domainModel.maxLatitude?.converted(to: .degrees).value
+    self.minLongitude_deg = domainModel.minLongitude?.converted(to: .degrees).value
+    self.maxLongitude_deg = domainModel.maxLongitude?.converted(to: .degrees).value
   }
 }
