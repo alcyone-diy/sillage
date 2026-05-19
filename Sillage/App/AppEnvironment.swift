@@ -19,7 +19,11 @@ final class AppEnvironment {
   private(set) var state: AppState = .uninitialized
 
   // Services
+  private(set) var preferencesService: PreferencesService?
+  private(set) var locationService: LocationService?
   private(set) var trackRecordingService: TrackRecordingService?
+  private(set) var trackService: TrackService?
+  private(set) var geoGarageAuthService: GeoGarageAuthService?
   
   // ViewModels
   private(set) var appViewModel: AppViewModel?
@@ -45,13 +49,31 @@ final class AppEnvironment {
       }.value
       
       // c. Other Services instantiation (injecting the ready DB)
-      let trackService = TrackRecordingService()
-      trackService.inject(databaseManager: databaseManager)
-      self.trackRecordingService = trackService
+      let preferencesService = PreferencesService()
+      self.preferencesService = preferencesService
+      
+      let locationService = LocationService()
+      self.locationService = locationService
+      
+      let trackRecordingService = TrackRecordingService(
+        locationService: locationService,
+        databaseManager: databaseManager
+      )
+      self.trackRecordingService = trackRecordingService
+      
+      let trackService = TrackService(databaseManager: databaseManager)
+      self.trackService = trackService
+
+      let geoGarageAuthService = GeoGarageAuthService()
+      self.geoGarageAuthService = geoGarageAuthService
       
       // d. ViewModels instantiation (injecting the ready Services)
       self.appViewModel = AppViewModel()
-      self.mapViewModel = MapViewModel()
+      self.mapViewModel = MapViewModel(
+        locationService: locationService,
+        preferencesService: preferencesService,
+        authService: geoGarageAuthService
+      )
       self.panelManagerViewModel = PanelManagerViewModel()
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")

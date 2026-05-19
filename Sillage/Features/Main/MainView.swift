@@ -245,8 +245,3 @@ struct ContentView: View {
       .padding(.top, 10)
   }
 }
-
-#Preview {
-  ContentView()
-    .environment(MapViewModel())
-}

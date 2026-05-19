@@ -29,8 +29,6 @@ protocol LocationServiceProtocol {
 
 class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDelegate {
 
-  static let shared = LocationService()
-
   private let locationManager: CLLocationManager
 
   // Multicast support for Location Updates
@@ -86,7 +84,7 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
   private let cutOffSpeed: CLLocationSpeed = Measurement(value: 0.8, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
   private let resumeSpeed: CLLocationSpeed = Measurement(value: 1.5, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
 
-  private override init() {
+  override init() {
     self.locationManager = CLLocationManager()
     super.init()
 

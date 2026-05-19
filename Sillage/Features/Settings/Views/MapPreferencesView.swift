@@ -225,11 +225,3 @@ private struct MapSourceRowView: View {
     }
   }
 }
-
-#Preview {
-  NavigationStack {
-    MapPreferencesView()
-      .environment(MapViewModel())
-      .environment(\.marineTheme, .standard)
-  }
-}

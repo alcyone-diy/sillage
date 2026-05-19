@@ -56,15 +56,19 @@ public final class TrackRecordingService {
   }
 
   private let locationService: LocationServiceProtocol
-  private var databaseManager: DatabaseManager?
+  private let databaseManager: DatabaseManager
   private var locationUpdatesTask: TaskCancellable?
   private var backgroundLocationToken: (any BackgroundLocationToken)?
   private var flushContinuation: AsyncStream<[TrackPointRecord]>.Continuation?
   private var persistenceTask: Task<Void, Never>?
 
-  init(filters: TrackFilters = .default, locationService: LocationServiceProtocol? = nil, databaseManager: DatabaseManager? = nil) {
+  init(
+    filters: TrackFilters = .default,
+    locationService: LocationServiceProtocol,
+    databaseManager: DatabaseManager
+  ) {
     self.filters = filters
-    self.locationService = locationService ?? LocationService.shared
+    self.locationService = locationService
     self.databaseManager = databaseManager
   }
 
@@ -73,15 +77,8 @@ public final class TrackRecordingService {
     Logger.telemetry.info("Track filters updated: \(newFilters.minDistanceMeters)m, \(newFilters.minTimeIntervalSeconds)s, \(newFilters.maxHorizontalAccuracyMeters)m accuracy")
   }
 
-  public func inject(databaseManager: DatabaseManager) {
-    self.databaseManager = databaseManager
-  }
-
-  public func startRecording() throws {
+  public func startRecording() {
     guard !isRecording && !isSaving else { return }
-    guard let dbManager = databaseManager else {
-      throw TrackRecordingError.databaseUnavailable
-    }
     
     let sessionId = UUID().uuidString
     let startTime = Date()
@@ -97,9 +94,9 @@ public final class TrackRecordingService {
     trackPoints.removeAll()
     
     let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
-    Task.detached(priority: .utility) { [dbManager] in
+    Task.detached(priority: .utility) { [databaseManager] in
       do {
-        try await dbManager.dbPool.write { db in
+        try await databaseManager.dbPool.write { db in
           try sessionRecord.insert(db)
         }
       } catch {
@@ -119,10 +116,10 @@ public final class TrackRecordingService {
 
     let (stream, continuation) = AsyncStream.makeStream(of: [TrackPointRecord].self)
     self.flushContinuation = continuation
-    self.persistenceTask = Task.detached(priority: .utility) { [dbManager] in
+    self.persistenceTask = Task.detached(priority: .utility) { [databaseManager] in
       for await batch in stream {
         do {
-          try await dbManager.dbPool.write { db in
+          try await databaseManager.dbPool.write { db in
             try batch.forEach { try $0.insert(db) }
           }
         } catch {
@@ -149,7 +146,7 @@ public final class TrackRecordingService {
       sessionDuration = previousDuration + .seconds(finalSegmentSeconds)
     }
 
-    guard let sessionId = currentSessionId, let dbManager = databaseManager else {
+    guard let sessionId = currentSessionId else {
       isSaving = false
       return
     }
@@ -160,10 +157,10 @@ public final class TrackRecordingService {
     flushBuffer()
     flushContinuation?.finish()
     let localPersistenceTask = persistenceTask
-    BackgroundTaskRunner.execute(name: "FinalizeTrack_\(sessionId)") { [weak self, dbManager, localPersistenceTask] in
+    BackgroundTaskRunner.execute(name: "FinalizeTrack_\(sessionId)") { [weak self, databaseManager, localPersistenceTask] in
       _ = await localPersistenceTask?.value
       do {
-        try await dbManager.dbPool.write { db in
+        try await databaseManager.dbPool.write { db in
           if var session = try TrackSessionRecord.fetchOne(db, key: sessionId) {
             if let duration = finalDurationSeconds {
               let totalSeconds = Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1e18)
@@ -204,12 +201,12 @@ public final class TrackRecordingService {
   }
   
   public func emergencyFlushAsync() async {
-    guard !writeBuffer.isEmpty, let dbManager = databaseManager else { return }
+    guard !writeBuffer.isEmpty else { return }
     let pointsToInsert = writeBuffer
     writeBuffer.removeAll()
 
     do {
-      try await dbManager.dbPool.write { db in
+      try await databaseManager.dbPool.write { db in
         try pointsToInsert.forEach { try $0.insert(db) }
       }
       Logger.database.info("Emergency flush successful: \(pointsToInsert.count) points saved.")
@@ -222,14 +219,7 @@ public final class TrackRecordingService {
     if isRecording {
       stopRecording()
     } else {
-      do {
-        try startRecording()
-      } catch let error as TrackRecordingError {
-        self.recordingError = error
-        Logger.telemetry.error("Track recording error: \(error.localizedDescription, privacy: .public)")
-      } catch {
-        Logger.telemetry.error("Unhandled track recording error: \(error.localizedDescription, privacy: .public)")
-      }
+      startRecording()
     }
   }
 

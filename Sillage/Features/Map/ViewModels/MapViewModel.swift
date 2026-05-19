@@ -120,12 +120,14 @@ class MapViewModel {
   // MARK: - Initialization
 
   @MainActor
-  init(locationService: LocationServiceProtocol? = nil,
-       preferencesService: PreferencesServiceProtocol? = nil,
-       authService: GeoGarageAuthServiceProtocol? = nil) {
-    self.locationService = locationService ?? LocationService.shared
-    self.preferencesService = preferencesService ?? PreferencesService.shared
-    self.authService = authService ?? GeoGarageAuthService()
+  init(
+    locationService: LocationServiceProtocol,
+    preferencesService: PreferencesServiceProtocol,
+    authService: GeoGarageAuthServiceProtocol
+  ) {
+    self.locationService = locationService
+    self.preferencesService = preferencesService
+    self.authService = authService
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
 
     loadSavedMapSource()
