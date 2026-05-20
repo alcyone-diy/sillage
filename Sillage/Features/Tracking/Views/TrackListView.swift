@@ -30,7 +30,7 @@ struct TrackListView: View {
                 Text(name)
                   .marineFont(.body)
               } else {
-                Text(session.startTime.formatted(date: .abbreviated, time: .shortened))
+                Text(session.startTime.formatted(date: .complete, time: .shortened))
                   .marineFont(.body)
               }
 
