@@ -66,9 +66,6 @@ struct TrackRowView: View {
   
   private func subtitle(for session: TrackSession) -> String? {
     var components: [String] = []
-    if session.name != nil {
-      components.append(session.startTime.formatted(date: .abbreviated, time: .shortened))
-    }
     if let distance = session.totalDistance {
       let distStr = distance.converted(to: .nauticalMiles).formatted(
         .measurement(
@@ -80,7 +77,10 @@ struct TrackRowView: View {
       components.append(distStr)
     }
     if let duration = session.duration {
-      components.append(duration.formatted(.time(pattern: .hourMinuteSecond(padHourToLength: 2))))
+      components.append(duration.marineFormatted)
+    }
+    if session.name != nil {
+      components.append(session.startTime.formatted(date: .abbreviated, time: .shortened))
     }
     if components.isEmpty { return nil }
     return components.joined(separator: " • ")

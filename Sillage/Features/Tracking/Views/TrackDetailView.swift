@@ -85,7 +85,7 @@ struct TrackDetailView: View {
 
           DetailRow(
             label: "Duration",
-            value: viewModel.session?.duration.map { $0.formatted(.time(pattern: .hourMinuteSecond(padHourToLength: 2))) } ?? "—"
+            value: viewModel.session?.duration?.marineFormatted ?? "—"
           )
           .marineListCell()
 

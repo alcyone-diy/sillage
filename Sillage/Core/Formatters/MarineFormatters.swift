@@ -18,3 +18,14 @@ public struct MarineFormatters {
     return formatter
   }()
 }
+
+extension Duration {
+  public var marineFormatted: String {
+    return self.formatted(
+      .units(
+        allowed: [.days, .hours, .minutes],
+        width: .abbreviated
+      )
+    )
+  }
+}
