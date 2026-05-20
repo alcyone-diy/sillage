@@ -12,16 +12,16 @@ import SwiftUI
 
 @MainActor
 struct TracksManagerView: View {
-    var body: some View {
-        List {
-            TrackControlView()
-            TrackListView()
-        }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(MarineTheme.Colors.panelBackground)
-        .handleTrackRecordingErrors()
-        .navigationTitle("Track Manager")
-        .navigationBarTitleDisplayMode(.inline)
+  var body: some View {
+    List {
+      TrackControlView()
+      TrackListView()
     }
+    .listStyle(.insetGrouped)
+    .scrollContentBackground(.hidden)
+    .background(MarineTheme.Colors.panelBackground)
+    .handleTrackRecordingErrors()
+    .navigationTitle("Track Manager")
+    .navigationBarTitleDisplayMode(.inline)
+  }
 }

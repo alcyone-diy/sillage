@@ -212,9 +212,13 @@ struct ContentView: View {
             Group {
               if let sogMeasurement = mapViewModel.speedOverGround {
                 let sogKnots = sogMeasurement.converted(to: .knots).value
-                Text("\(sogKnots.formatted(.number.precision(.fractionLength(1)))) kts")
+                Text(Measurement(value: sogKnots, unit: UnitSpeed.knots).formatted(
+                    .measurement(width: .abbreviated,
+                                 usage: .asProvided,
+                                 numberFormatStyle: .number.precision(.fractionLength(1)))))
+
               } else {
-                Text("-- kts")
+                Text("--")
               }
             }
               .marineFont(.instrumentData)

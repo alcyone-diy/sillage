@@ -14,7 +14,7 @@ import SwiftUI
 struct TrackListView: View {
   @Environment(\.trackService) private var trackService
   @State private var viewModel = TrackListViewModel()
-
+  
   var body: some View {
     Section(header: Text("Saved Tracks")) {
       if viewModel.sessions.isEmpty {
@@ -33,7 +33,7 @@ struct TrackListView: View {
                 Text(session.startTime.formatted(date: .complete, time: .shortened))
                   .marineFont(.body)
               }
-
+              
               if let subtitle = subtitle(for: session) {
                 Text(verbatim: subtitle)
                   .foregroundStyle(.secondary)
@@ -54,7 +54,7 @@ struct TrackListView: View {
       }
     }
   }
-
+  
   private func subtitle(for session: TrackSession) -> String? {
     var components: [String] = []
     if session.name != nil {
