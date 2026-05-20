@@ -64,9 +64,6 @@
     "COG" : {
 
     },
-    "Coming soon..." : {
-
-    },
     "Command Panel" : {
 
     },
@@ -185,6 +182,9 @@
 
     },
     "Network error: %@" : {
+
+    },
+    "No saved tracks yet" : {
 
     },
     "OK" : {
