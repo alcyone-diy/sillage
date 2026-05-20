@@ -27,6 +27,7 @@ public final class PanelManagerViewModel {
   public enum CommandDestination: Hashable {
     case settings
     case tracks
+    case sessionDetail(sessionId: TrackSession.ID)
   }
 
   /// The currently active panel visible to the user.

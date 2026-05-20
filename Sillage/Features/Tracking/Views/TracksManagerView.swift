@@ -12,6 +12,8 @@ import SwiftUI
 
 @MainActor
 struct TracksManagerView: View {
+  @Environment(\.marineTheme) private var marineTheme
+
   var body: some View {
     List {
       TrackControlView()
@@ -23,5 +25,6 @@ struct TracksManagerView: View {
     .handleTrackRecordingErrors()
     .navigationTitle("Track Manager")
     .navigationBarTitleDisplayMode(.inline)
+    .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
   }
 }

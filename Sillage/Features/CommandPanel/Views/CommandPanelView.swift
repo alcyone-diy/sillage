@@ -105,6 +105,8 @@ struct CommandPanelView: View {
           SettingsView()
         case .tracks:
           TracksManagerView()
+        case .sessionDetail(let sessionId):
+          TrackDetailView(sessionId: sessionId)
         }
       }
       .handleTrackRecordingErrors()

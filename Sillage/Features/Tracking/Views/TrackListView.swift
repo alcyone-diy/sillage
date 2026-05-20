@@ -16,33 +16,19 @@ struct TrackListView: View {
   @State private var viewModel = TrackListViewModel()
   
   var body: some View {
-    Section(header: Text("Saved Tracks")) {
+    Section(
+      header: Text("Saved Tracks")
+    ) {
       if viewModel.sessions.isEmpty {
         Text("No saved tracks yet")
           .foregroundStyle(.secondary)
-          .marineListCell()
           .marineFont(.body)
+          .listRowBackground(Color.clear)
+          .marineListCell()
       } else {
         ForEach(viewModel.sessions) { session in
-          HStack {
-            VStack(alignment: .leading, spacing: 4) {
-              if let name = session.name {
-                Text(name)
-                  .marineFont(.body)
-              } else {
-                Text(session.startTime.formatted(date: .complete, time: .shortened))
-                  .marineFont(.body)
-              }
-              
-              if let subtitle = subtitle(for: session) {
-                Text(verbatim: subtitle)
-                  .foregroundStyle(.secondary)
-                  .marineFont(.caption)
-              }
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-              .foregroundStyle(.secondary)
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.sessionDetail(sessionId: session.id)) {
+            TrackRowView(session: session)
           }
           .marineListCell()
         }
@@ -51,6 +37,29 @@ struct TrackListView: View {
     .task {
       if let trackService {
         await viewModel.observe(trackService: trackService)
+      }
+    }
+  }
+}
+
+@MainActor
+struct TrackRowView: View {
+  let session: TrackSession
+  
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      if let name = session.name {
+        Text(name)
+          .marineFont(.body)
+      } else {
+        Text(session.startTime.formatted(date: .complete, time: .shortened))
+          .marineFont(.body)
+      }
+      
+      if let subtitle = subtitle(for: session) {
+        Text(verbatim: subtitle)
+          .foregroundStyle(.secondary)
+          .marineFont(.caption)
       }
     }
   }
