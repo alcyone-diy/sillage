@@ -16,6 +16,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
   public let startTime: Date
   public let endTime: Date?
   public let name: String?
+  public let description: String?
   public let duration: Duration?
   public let totalDistance: Measurement<UnitLength>?
   public let minLatitude: Measurement<UnitAngle>?
@@ -28,6 +29,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     startTime: Date,
     endTime: Date? = nil,
     name: String? = nil,
+    description: String? = nil,
     duration: Duration? = nil,
     totalDistance: Measurement<UnitLength>? = nil,
     minLatitude: Measurement<UnitAngle>? = nil,
@@ -39,6 +41,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     self.startTime = startTime
     self.endTime = endTime
     self.name = name
+    self.description = description
     self.duration = duration
     self.totalDistance = totalDistance
     self.minLatitude = minLatitude

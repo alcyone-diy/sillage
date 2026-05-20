@@ -52,7 +52,13 @@
     "Authentication failed. Please check your network connection or credentials." : {
 
     },
+    "Average Speed" : {
+
+    },
     "Baro Alarm" : {
+
+    },
+    "Cancel" : {
 
     },
     "COG" : {
@@ -67,6 +73,15 @@
     "Critical Error: Missing ViewModels" : {
 
     },
+    "Delete" : {
+
+    },
+    "Description" : {
+
+    },
+    "Details" : {
+
+    },
     "Distance" : {
 
     },
@@ -76,7 +91,13 @@
     "E" : {
       "comment" : "East cardinal point"
     },
+    "Edit" : {
+
+    },
     "Enable COG Vector" : {
+
+    },
+    "End Time" : {
 
     },
     "Error loading document" : {
@@ -118,6 +139,9 @@
     "I Accept" : {
 
     },
+    "Identity" : {
+
+    },
     "Import Failed" : {
 
     },
@@ -137,6 +161,9 @@
 
     },
     "Legal & Licenses" : {
+
+    },
+    "Length" : {
 
     },
     "Loading marine charts…" : {
@@ -166,8 +193,14 @@
     "Maritime Navigation Warning" : {
 
     },
+    "Max Speed" : {
+
+    },
     "N" : {
       "comment" : "North cardinal point"
+    },
+    "Name" : {
+
     },
     "Navigation" : {
 
@@ -202,6 +235,9 @@
     "Please enter a valid username." : {
 
     },
+    "Points" : {
+
+    },
     "Predictor Vector" : {
 
     },
@@ -223,7 +259,13 @@
     "Safety & Legal" : {
 
     },
+    "Save" : {
+
+    },
     "Saved Tracks" : {
+
+    },
+    "Segments" : {
 
     },
     "Settings" : {
@@ -233,6 +275,9 @@
 
     },
     "SOG" : {
+
+    },
+    "Start Time" : {
 
     },
     "System" : {
@@ -250,19 +295,31 @@
     "Track" : {
 
     },
+    "Track Description" : {
+
+    },
     "Track Detail" : {
 
     },
     "Track Manager" : {
 
     },
+    "Track Name" : {
+
+    },
     "Tracks" : {
+
+    },
+    "Unnamed Track" : {
 
     },
     "Username" : {
 
     },
     "Version" : {
+
+    },
+    "View" : {
 
     },
     "W" : {

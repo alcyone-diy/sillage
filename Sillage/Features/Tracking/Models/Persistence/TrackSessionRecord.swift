@@ -17,6 +17,7 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
   public var startTime_unix: Double
   public var endTime_unix: Double?
   public var name: String?
+  public var description: String?
   public var duration_s: Double?
   public var totalDistance_m: Double?
   public var minLatitude_deg: Double?
@@ -36,6 +37,7 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
     case startTime_unix
     case endTime_unix
     case name
+    case description
     case duration_s
     case totalDistance_m
     case minLatitude_deg
@@ -61,6 +63,7 @@ extension TrackSessionRecord {
       startTime: Date(timeIntervalSince1970: startTime_unix),
       endTime: endTime_unix.map { Date(timeIntervalSince1970: $0) },
       name: name,
+      description: description,
       duration: duration_s.map { .seconds($0) },
       totalDistance: totalDistance_m.map { Measurement(value: $0, unit: UnitLength.meters) },
       minLatitude: minLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
@@ -79,6 +82,7 @@ extension TrackSessionRecord {
     self.startTime_unix = domainModel.startTime.timeIntervalSince1970
     self.endTime_unix = domainModel.endTime?.timeIntervalSince1970
     self.name = domainModel.name
+    self.description = domainModel.description
     self.duration_s = durationSecs
     self.totalDistance_m = domainModel.totalDistance?.converted(to: .meters).value
     self.minLatitude_deg = domainModel.minLatitude?.converted(to: .degrees).value
