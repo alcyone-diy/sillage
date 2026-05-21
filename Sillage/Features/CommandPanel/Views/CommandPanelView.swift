@@ -15,13 +15,14 @@ import OSLog
 struct CommandPanelView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
   @Environment(AppViewModel.self) private var appViewModel
-  @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(\.marineTheme) private var marineTheme
+  
+  @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   
   var body: some View {
     @Bindable var bindableViewModel = viewModel
     @Bindable var bindableAppViewModel = appViewModel
-    @Bindable var bindableTrackRecordingService = trackRecordingService
+    @Bindable var bindableActiveTrackViewModel = activeTrackViewModel
     
     NavigationStack(path: $bindableViewModel.commandPath) {
       List {
@@ -38,16 +39,11 @@ struct CommandPanelView: View {
               title: "Track",
               systemImage: "record.circle",
               isOn: Binding(
-                get: { 
-                  switch trackRecordingService.state {
-                  case .recording, .paused, .waitingForFix: return true
-                  case .idle, .saving: return false
-                  }
-                },
-                set: { _ in trackRecordingService.toggleRecording() }
+                get: { activeTrackViewModel.isRecording },
+                set: { _ in activeTrackViewModel.toggleRecording() }
               )
             )
-            .disabled(trackRecordingService.state == .saving)
+            .disabled(activeTrackViewModel.isSaving)
           }
           .listRowBackground(Color.clear)
           .listRowInsets(EdgeInsets())
@@ -115,6 +111,18 @@ struct CommandPanelView: View {
         }
       }
       .handleTrackRecordingErrors()
+      .alert(
+        "Track Recording",
+        isPresented: Binding(
+          get: { activeTrackViewModel.recordingError != nil },
+          set: { if !$0 { activeTrackViewModel.recordingError = nil } }
+        ),
+        presenting: activeTrackViewModel.recordingError
+      ) { _ in
+        Button("OK", role: .cancel) { }
+      } message: { error in
+        Text(error.errorDescription ?? "")
+      }
       .toolbar {
         ToolbarItem(placement: .navigationBarTrailing) {
           Button(action: {

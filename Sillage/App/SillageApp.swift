@@ -33,11 +33,13 @@ struct SillageApp: App {
              let panelVM = environment.panelManagerViewModel,
              let trackRecService = environment.trackRecordingService,
              let trackService = environment.trackService,
+             let activeTrackVM = environment.activeTrackViewModel,
              let preferences = environment.preferencesService {
             MainAppView(
               appViewModel: appVM,
               mapViewModel: mapVM,
               panelManagerViewModel: panelVM,
+              activeTrackViewModel: activeTrackVM,
               trackRecordingService: trackRecService,
               trackService: trackService,
               preferencesService: preferences
@@ -81,6 +83,7 @@ struct MainAppView: View {
   @Bindable var appViewModel: AppViewModel
   var mapViewModel: MapViewModel
   var panelManagerViewModel: PanelManagerViewModel
+  var activeTrackViewModel: ActiveTrackViewModel
   var trackRecordingService: TrackRecordingService
   var trackService: TrackService
   var preferencesService: PreferencesService
@@ -95,6 +98,7 @@ struct MainAppView: View {
           .environment(appViewModel)
           .environment(mapViewModel)
           .environment(panelManagerViewModel)
+          .environment(activeTrackViewModel)
           .environment(trackRecordingService)
           .environment(\.trackService, trackService)
           .onOpenURL { url in

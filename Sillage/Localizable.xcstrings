@@ -214,6 +214,9 @@
     "Network error: %@" : {
 
     },
+    "No active recording to stop." : {
+
+    },
     "No saved tracks yet" : {
 
     },
@@ -245,6 +248,9 @@
 
     },
     "Quick Actions" : {
+
+    },
+    "Recording aborted. No GPS fix was obtained." : {
 
     },
     "Recording Status" : {
@@ -311,6 +317,9 @@
 
     },
     "Track Name" : {
+
+    },
+    "Track Recording" : {
 
     },
     "Tracks" : {

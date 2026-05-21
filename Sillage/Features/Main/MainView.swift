@@ -18,6 +18,7 @@ struct ContentView: View {
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(MapViewModel.self) var mapViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
+  @Environment(TrackRecordingService.self) private var trackRecordingService
 
   @State private var localSheetPresented: Bool = false
 

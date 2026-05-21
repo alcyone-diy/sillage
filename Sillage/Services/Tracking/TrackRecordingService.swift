@@ -139,12 +139,19 @@ public final class TrackRecordingService {
     state = .waitingForFix
   }
   
-  public func stopRecording() {
+  public enum StopRecordingResult: Equatable, Sendable {
+    case savedAsync(sessionId: String)
+    case abortedNoFix
+    case noActiveRecording
+  }
+
+  @discardableResult
+  public func stopRecording() -> StopRecordingResult {
     switch state {
     case .recording, .paused, .waitingForFix:
       break
     case .idle, .saving:
-      return
+      return .noActiveRecording
     }
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
@@ -167,7 +174,7 @@ public final class TrackRecordingService {
     
     guard let sessionId = currentSessionId else {
       state = .idle
-      return
+      return .abortedNoFix
     }
     
     let finalDurationSeconds = sessionDuration
@@ -201,6 +208,8 @@ public final class TrackRecordingService {
     
     currentSessionId = nil
     lastRecordedLocation = nil
+    
+    return .savedAsync(sessionId: sessionId)
   }
   
   public func pauseRecording() {
@@ -291,12 +300,19 @@ public final class TrackRecordingService {
     }
   }
   
-  public func toggleRecording() {
+  public enum ToggleRecordingResult: Sendable {
+    case started
+    case stopped(StopRecordingResult)
+  }
+
+  @discardableResult
+  public func toggleRecording() -> ToggleRecordingResult {
     switch state {
     case .recording, .paused, .waitingForFix:
-      stopRecording()
+      return .stopped(stopRecording())
     case .idle, .saving:
       startRecording()
+      return .started
     }
   }
   

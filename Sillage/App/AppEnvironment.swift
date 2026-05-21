@@ -29,6 +29,7 @@ final class AppEnvironment {
   private(set) var appViewModel: AppViewModel?
   private(set) var mapViewModel: MapViewModel?
   private(set) var panelManagerViewModel: PanelManagerViewModel?
+  private(set) var activeTrackViewModel: ActiveTrackViewModel?
   
   init() {}
   
@@ -75,6 +76,7 @@ final class AppEnvironment {
         authService: geoGarageAuthService
       )
       self.panelManagerViewModel = PanelManagerViewModel()
+      self.activeTrackViewModel = ActiveTrackViewModel(trackRecordingService: trackRecordingService)
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
       state = .ready

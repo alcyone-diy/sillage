@@ -13,22 +13,20 @@ import CoreLocation
 
 @MainActor
 struct TrackControlView: View {
-  @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(AppViewModel.self) private var appViewModel
   
+  @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
+
   var body: some View {
+    @Bindable var bindableActiveTrackViewModel = activeTrackViewModel
+
     Section(header: Text("Active Track")) {
       HStack {
         Text("Recording Status")
         Spacer()
         Toggle("", isOn: Binding(
-          get: { 
-            switch trackRecordingService.state {
-            case .recording, .paused, .waitingForFix: return true
-            case .idle, .saving: return false
-            }
-          },
-          set: { _ in trackRecordingService.toggleRecording() }
+          get: { activeTrackViewModel.isRecording },
+          set: { _ in activeTrackViewModel.toggleRecording() }
         ))
         .labelsHidden()
       }
@@ -48,7 +46,7 @@ struct TrackControlView: View {
         Text("Distance")
         Spacer()
         
-        if let distance = trackRecordingService.sessionDistance {
+        if let distance = activeTrackViewModel.sessionDistance {
           Text(distance.converted(to: .nauticalMiles).formatted(
             .measurement(width: .abbreviated,
                          usage: .asProvided,
@@ -65,20 +63,32 @@ struct TrackControlView: View {
       .marineListCell()
       .marineFont(.body)
     }
+    .alert(
+      "Track Recording",
+      isPresented: Binding(
+        get: { activeTrackViewModel.recordingError != nil },
+        set: { if !$0 { activeTrackViewModel.recordingError = nil } }
+      ),
+      presenting: activeTrackViewModel.recordingError
+    ) { _ in
+      Button("OK", role: .cancel) { }
+    } message: { error in
+      Text(error.errorDescription ?? "")
+    }
   }
   
   @ViewBuilder
   private var durationValueView: some View {
-    switch trackRecordingService.state {
+    switch activeTrackViewModel.state {
     case .recording, .waitingForFix:
       TimelineView(.periodic(from: .now, by: 1.0)) { context in
-        let liveDuration = trackRecordingService.activeSessionDuration(at: context.date) ?? .seconds(0)
+        let liveDuration = activeTrackViewModel.activeSessionDuration(at: context.date) ?? .seconds(0)
         Text(liveDuration, format: .time(pattern: .hourMinuteSecond))
           .monospacedDigit()
           .foregroundStyle(.secondary)
       }
     case .idle, .paused, .saving:
-      let staticDuration = trackRecordingService.activeSessionDuration(at: Date())
+      let staticDuration = activeTrackViewModel.activeSessionDuration(at: Date())
       if let duration = staticDuration {
         Text(duration, format: .time(pattern: .hourMinuteSecond))
           .monospacedDigit()
