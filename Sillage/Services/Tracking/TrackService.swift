@@ -25,7 +25,7 @@ public struct TrackService: Sendable {
   public func observeTrackSessions() -> some AsyncSequence<[TrackSession], Error> {
     let observation = ValueObservation.tracking { db in
       let records = try TrackSessionRecord
-        .order(TrackSessionRecord.Columns.startTime_unix.desc)
+        .order(TrackSessionRecord.Columns.startTimestamp_unix.desc)
         .fetchAll(db)
       
       // The mapping is performed on the database queue,
@@ -59,16 +59,26 @@ public struct TrackService: Sendable {
     return observation.values(in: databaseManager.reader)
   }
 
-  /// Updates the name and description of a track session.
+  /// Updates the name, description, start location, and end location of a track session.
   /// - Parameters:
   ///   - id: The unique identifier of the track session.
   ///   - name: The new name (or nil).
   ///   - description: The new description (or nil).
-  public func updateSession(id: String, name: String?, description: String?) async throws {
+  ///   - startLocation: The new start location (or nil).
+  ///   - endLocation: The new end location (or nil).
+  public func updateSession(
+    id: String,
+    name: String?,
+    description: String?,
+    startLocation: String? = nil,
+    endLocation: String? = nil
+  ) async throws {
     _ = try await databaseManager.write { db in
       if var record = try TrackSessionRecord.fetchOne(db, key: id) {
         record.name = name
         record.description = description
+        record.startLocation = startLocation
+        record.endLocation = endLocation
         try record.update(db)
         Logger.database.info("Successfully updated track session: \(id, privacy: .public)")
       } else {

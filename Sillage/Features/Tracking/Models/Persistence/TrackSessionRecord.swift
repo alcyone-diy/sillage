@@ -14,10 +14,12 @@ import GRDB
 /// GRDB Persistence Model for Track Session
 public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
   public var id: String
-  public var startTime_unix: Double
-  public var endTime_unix: Double?
+  public var startTimestamp_unix: Double
+  public var endTimestamp_unix: Double?
   public var name: String?
   public var description: String?
+  public var startLocation: String?
+  public var endLocation: String?
   public var duration_s: Double?
   public var totalDistance_m: Double?
   public var minLatitude_deg: Double?
@@ -32,15 +34,17 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
 
   public init(id: String, startTime: Date) {
     self.id = id
-    self.startTime_unix = startTime.timeIntervalSince1970
+    self.startTimestamp_unix = startTime.timeIntervalSince1970
   }
 
   public enum Columns: String, ColumnExpression {
     case id
-    case startTime_unix
-    case endTime_unix
+    case startTimestamp_unix
+    case endTimestamp_unix
     case name
     case description
+    case startLocation
+    case endLocation
     case duration_s
     case totalDistance_m
     case minLatitude_deg
@@ -66,10 +70,12 @@ extension TrackSessionRecord {
   public func toDomain() -> TrackSession {
     return TrackSession(
       id: id,
-      startTime: Date(timeIntervalSince1970: startTime_unix),
-      endTime: endTime_unix.map { Date(timeIntervalSince1970: $0) },
+      startTime: Date(timeIntervalSince1970: startTimestamp_unix),
+      endTime: endTimestamp_unix.map { Date(timeIntervalSince1970: $0) },
       name: name,
       description: description,
+      startLocation: startLocation,
+      endLocation: endLocation,
       duration: duration_s.map { .seconds($0) },
       totalDistance: totalDistance_m.map { Measurement(value: $0, unit: UnitLength.meters) },
       minLatitude: minLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
@@ -88,10 +94,12 @@ extension TrackSessionRecord {
       Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1e18)
     }
     self.id = domainModel.id
-    self.startTime_unix = domainModel.startTime.timeIntervalSince1970
-    self.endTime_unix = domainModel.endTime?.timeIntervalSince1970
+    self.startTimestamp_unix = domainModel.startTime.timeIntervalSince1970
+    self.endTimestamp_unix = domainModel.endTime?.timeIntervalSince1970
     self.name = domainModel.name
     self.description = domainModel.description
+    self.startLocation = domainModel.startLocation
+    self.endLocation = domainModel.endLocation
     self.duration_s = durationSecs
     self.totalDistance_m = domainModel.totalDistance?.converted(to: .meters).value
     self.minLatitude_deg = domainModel.minLatitude?.converted(to: .degrees).value

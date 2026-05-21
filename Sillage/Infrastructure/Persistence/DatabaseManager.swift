@@ -65,10 +65,13 @@ public final class DatabaseManager: Sendable {
       // 1. Create the session table first
       try db.create(table: "track_session") { t in
         t.column("id", .text).primaryKey()
-        t.column("startTime_unix", .double).notNull()
-        t.column("endTime_unix", .double)
+        t.column("startTimestamp_unix", .double).notNull()
+        t.column("endTimestamp_unix", .double)
         t.column("name", .text)
         t.column("description", .text)
+        t.column("startLocation", .text)
+        t.column("endLocation", .text)
+        // The duration is needed since a trace can have multiple segments.
         t.column("duration_s", .double)
         t.column("totalDistance_m", .double)
         t.column("minLatitude_deg", .double)
@@ -92,7 +95,7 @@ public final class DatabaseManager: Sendable {
         t.check(sql: "pointsCount >= 0 OR pointsCount IS NULL")
         t.check(sql: "segmentCount >= 0 OR segmentCount IS NULL")
       }
-      try db.create(index: "idx_track_session_startTime", on: "track_session", columns: ["startTime_unix"])
+      try db.create(index: "idx_track_session_startTimestamp", on: "track_session", columns: ["startTimestamp_unix"])
       try db.create(index: "idx_track_session_name", on: "track_session", columns: ["name"])
 
       // 2. Create the point table with foreign key
@@ -119,7 +122,7 @@ public final class DatabaseManager: Sendable {
         t.check(sql: "sog_mps >= 0 OR sog_mps IS NULL")
       }
       
-      // 3. Create the index on the Database instance (db), outside the table definition
+      // 3. Create the index on the Database instance (db), outside the table definition.
       try db.create(
         index: "idx_track_point_session_timestamp",
         on: "track_point",

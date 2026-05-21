@@ -61,7 +61,9 @@ final class TrackDetailViewModel {
       try await trackService.updateSession(
         id: session.id,
         name: finalName,
-        description: finalDesc
+        description: finalDesc,
+        startLocation: session.startLocation,
+        endLocation: session.endLocation
       )
       isEditing = false
     } catch {

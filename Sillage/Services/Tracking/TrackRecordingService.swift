@@ -169,7 +169,7 @@ public final class TrackRecordingService {
             if let distance = finalDistanceMeters {
               session.totalDistance_m = distance.converted(to: .meters).value
             }
-            session.endTime_unix = endTime.timeIntervalSince1970
+            session.endTimestamp_unix = endTime.timeIntervalSince1970
             try session.update(db)
           }
         }

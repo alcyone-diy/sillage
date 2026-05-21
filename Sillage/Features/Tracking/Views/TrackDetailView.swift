@@ -78,8 +78,20 @@ struct TrackDetailView: View {
           .marineListCell()
 
           DetailRow(
+            label: "Start Location",
+            value: viewModel.session?.startLocation ?? "—"
+          )
+          .marineListCell()
+
+          DetailRow(
             label: "End Time",
             value: viewModel.session?.endTime?.formatted(date: .abbreviated, time: .shortened) ?? "Active"
+          )
+          .marineListCell()
+
+          DetailRow(
+            label: "End Location",
+            value: viewModel.session?.endLocation ?? "—"
           )
           .marineListCell()
 
