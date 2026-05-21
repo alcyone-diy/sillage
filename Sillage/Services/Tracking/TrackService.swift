@@ -11,18 +11,6 @@
 import Foundation
 import GRDB
 import OSLog
-import SwiftUI
-
-private struct TrackServiceKey: EnvironmentKey {
-  static let defaultValue: TrackService? = nil
-}
-
-public extension EnvironmentValues {
-  var trackService: TrackService? {
-    get { self[TrackServiceKey.self] }
-    set { self[TrackServiceKey.self] = newValue }
-  }
-}
 
 /// A thread-safe service providing read and write operations for track sessions in the database.
 public struct TrackService: Sendable {
@@ -77,7 +65,7 @@ public struct TrackService: Sendable {
     public let segmentCount: Int
     public let maxSpeed: Measurement<UnitSpeed>?
     
-    public init(
+    nonisolated public init(
       pointsCount: Int,
       segmentCount: Int,
       maxSpeed: Measurement<UnitSpeed>?
