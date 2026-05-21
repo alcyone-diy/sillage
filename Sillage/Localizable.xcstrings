@@ -97,6 +97,9 @@
     "Enable COG Vector" : {
 
     },
+    "End Location" : {
+
+    },
     "End Time" : {
 
     },
@@ -275,6 +278,9 @@
 
     },
     "SOG" : {
+
+    },
+    "Start Location" : {
 
     },
     "Start Time" : {

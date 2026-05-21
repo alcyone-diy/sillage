@@ -21,6 +21,7 @@ public final class TrackRecordingService {
   
   public enum RecordingState: Equatable, Sendable {
     case idle
+    case waitingForFix
     case recording
     case paused
     case saving
@@ -84,7 +85,12 @@ public final class TrackRecordingService {
   }
   
   public func startRecording() {
-    guard state == .idle else { return }
+    switch state {
+    case .idle:
+      break
+    case .waitingForFix, .recording, .paused, .saving:
+      return
+    }
     
     let sessionId = UUID().uuidString
     let startTime = Date()
@@ -134,21 +140,31 @@ public final class TrackRecordingService {
       }
     }
     
-    state = .recording
+    state = .waitingForFix
   }
   
   public func stopRecording() {
-    guard state == .recording || state == .paused else { return }
+    switch state {
+    case .recording, .paused, .waitingForFix:
+      break
+    case .idle, .saving:
+      return
+    }
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
     backgroundLocationToken = nil
     
     let endTime = Date()
     
-    if state == .recording, let startTime = currentSegmentStartTime {
-      let finalSegmentSeconds = endTime.timeIntervalSince(startTime)
-      let previousDuration = sessionDuration ?? .seconds(0)
-      sessionDuration = previousDuration + .seconds(finalSegmentSeconds)
+    switch state {
+    case .recording, .waitingForFix:
+      if let startTime = currentSegmentStartTime {
+        let finalSegmentSeconds = endTime.timeIntervalSince(startTime)
+        let previousDuration = sessionDuration ?? .seconds(0)
+        sessionDuration = previousDuration + .seconds(finalSegmentSeconds)
+      }
+    case .paused, .idle, .saving:
+      break
     }
     
     state = .saving
@@ -192,7 +208,12 @@ public final class TrackRecordingService {
   }
   
   public func pauseRecording() {
-    guard state == .recording else { return }
+    switch state {
+    case .recording, .waitingForFix:
+      break
+    case .idle, .paused, .saving:
+      return
+    }
     
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
@@ -213,7 +234,12 @@ public final class TrackRecordingService {
   }
   
   public func resumeRecording() {
-    guard state == .paused else { return }
+    switch state {
+    case .paused:
+      break
+    case .idle, .recording, .waitingForFix, .saving:
+      return
+    }
     
     let resumeTime = Date()
     segmentIndex += 1
@@ -229,17 +255,22 @@ public final class TrackRecordingService {
       }
     })
     
-    state = .recording
+    state = .waitingForFix
     Logger.telemetry.info("Track recording resumed (segment \(self.segmentIndex, privacy: .public)).")
   }
   
   public func activeSessionDuration(at referenceDate: Date = Date()) -> Duration? {
-    guard let start = currentSegmentStartTime, state == .recording else {
+    guard let start = currentSegmentStartTime else {
       return sessionDuration
     }
-    let currentSegmentSeconds = referenceDate.timeIntervalSince(start)
-    let currentSessionDuration = sessionDuration ?? .seconds(0)
-    return currentSessionDuration + .seconds(currentSegmentSeconds)
+    switch state {
+    case .recording, .waitingForFix:
+      let currentSegmentSeconds = referenceDate.timeIntervalSince(start)
+      let currentSessionDuration = sessionDuration ?? .seconds(0)
+      return currentSessionDuration + .seconds(currentSegmentSeconds)
+    case .idle, .paused, .saving:
+      return sessionDuration
+    }
   }
   
   private func flushBuffer() {
@@ -266,7 +297,7 @@ public final class TrackRecordingService {
   
   public func toggleRecording() {
     switch state {
-    case .recording, .paused:
+    case .recording, .paused, .waitingForFix:
       stopRecording()
     case .idle, .saving:
       startRecording()
@@ -276,6 +307,13 @@ public final class TrackRecordingService {
   private func processLocationUpdate(_ location: CLLocation) {
     guard location.horizontalAccuracy >= 0 else { return }
     guard location.horizontalAccuracy <= filters.maxHorizontalAccuracyMeters else { return }
+    
+    switch state {
+    case .waitingForFix:
+      state = .recording
+    case .idle, .recording, .paused, .saving:
+      break
+    }
     
     // Filtering Logic (Anti-Jitter)
     if let lastLoc = lastRecordedLocation {

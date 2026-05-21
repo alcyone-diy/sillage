@@ -40,7 +40,7 @@ struct CommandPanelView: View {
               isOn: Binding(
                 get: { 
                   switch trackRecordingService.state {
-                  case .recording, .paused: return true
+                  case .recording, .paused, .waitingForFix: return true
                   case .idle, .saving: return false
                   }
                 },

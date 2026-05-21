@@ -67,7 +67,7 @@ struct SillageApp: App {
   private func performEmergencySave() {
     guard let trackService = environment.trackRecordingService else { return }
     switch trackService.state {
-    case .recording, .paused:
+    case .recording, .paused, .waitingForFix:
       BackgroundTaskRunner.execute(name: "EmergencyTrackFlush", priority: .high) { [weak trackService] in
         await trackService?.emergencyFlushAsync()
       }

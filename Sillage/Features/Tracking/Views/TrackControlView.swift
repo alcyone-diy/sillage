@@ -24,7 +24,7 @@ struct TrackControlView: View {
         Toggle("", isOn: Binding(
           get: { 
             switch trackRecordingService.state {
-            case .recording, .paused: return true
+            case .recording, .paused, .waitingForFix: return true
             case .idle, .saving: return false
             }
           },
@@ -70,7 +70,7 @@ struct TrackControlView: View {
   @ViewBuilder
   private var durationValueView: some View {
     switch trackRecordingService.state {
-    case .recording:
+    case .recording, .waitingForFix:
       TimelineView(.periodic(from: .now, by: 1.0)) { context in
         let liveDuration = trackRecordingService.activeSessionDuration(at: context.date) ?? .seconds(0)
         Text(liveDuration, format: .time(pattern: .hourMinuteSecond))
