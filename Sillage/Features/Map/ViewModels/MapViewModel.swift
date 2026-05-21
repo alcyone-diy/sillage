@@ -338,6 +338,12 @@ class MapViewModel {
 
         currentTickSeconds += intervalSeconds
       }
+
+      // Add a major tick point at the very end of the COG vector
+      let endPointFeature = MLNPointFeature()
+      endPointFeature.coordinate = endCoordinate
+      endPointFeature.attributes = ["featureType": "vectorTick", "isMajorTick": true]
+      shapes.append(endPointFeature)
     }
 
     return MLNShapeCollectionFeature(shapes: shapes)
