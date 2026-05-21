@@ -38,13 +38,12 @@ final class AppViewModel {
   }
 
   init(
-    preferencesService: PreferencesServiceProtocol? = nil,
+    preferencesService: PreferencesServiceProtocol,
     chartImportService: ChartImportService? = nil
   ) {
-    let resolvedPreferences = preferencesService ?? PreferencesService.shared
-    self.preferencesService = resolvedPreferences
+    self.preferencesService = preferencesService
     self.chartImportService = chartImportService ?? ChartImportService()
-    self.isGloveModeEnabled = resolvedPreferences.gloveModeEnabled
+    self.isGloveModeEnabled = preferencesService.gloveModeEnabled
   }
 
   func handleIncomingURL(_ url: URL) {

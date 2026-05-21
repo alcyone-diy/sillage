@@ -11,6 +11,7 @@
 import SwiftUI
 
 struct DisclaimerView: View {
+  @Environment(PreferencesService.self) private var preferencesService
   private let maritimeNavigationWarning: LocalizedStringResource = "WARNING: Alcyone Sillage is an electronic navigational aid designed for situational awareness only. It must not be used as the primary means of navigation. This application does not replace official government charts, official notices to mariners, or prudent seamanship. The captain of the vessel assumes all responsibility and liability for the safety of the ship and its crew. Never rely on a single source of information and always maintain a proper visual lookout."
 
   var body: some View {
@@ -44,7 +45,7 @@ struct DisclaimerView: View {
       // Bottom Action Area
       VStack {
         Button(action: {
-          PreferencesService.shared.hasAcceptedDisclaimer = true
+          preferencesService.hasAcceptedDisclaimer = true
         }) {
           Text("I Accept")
             .font(.title2.bold())
@@ -60,8 +61,4 @@ struct DisclaimerView: View {
       .shadow(color: Color.black.opacity(0.1), radius: 5, y: -5)
     }
   }
-}
-
-#Preview {
-  DisclaimerView()
 }

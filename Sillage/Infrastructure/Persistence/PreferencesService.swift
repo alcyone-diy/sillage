@@ -35,8 +35,6 @@ protocol PreferencesServiceProtocol {
 @Observable
 @MainActor
 class PreferencesService: PreferencesServiceProtocol {
-  @ObservationIgnored static let shared = PreferencesService()
-
   @ObservationIgnored private let mapSourceKey = "selectedMapSource"
   @ObservationIgnored private let savedGeoGarageLayerIDKey = "savedGeoGarageLayerID"
   @ObservationIgnored private let savedLatitudeKey = "savedLatitude"

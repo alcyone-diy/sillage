@@ -32,13 +32,15 @@ struct SillageApp: App {
              let mapVM = environment.mapViewModel,
              let panelVM = environment.panelManagerViewModel,
              let trackRecService = environment.trackRecordingService,
-             let trackService = environment.trackService {
+             let trackService = environment.trackService,
+             let preferences = environment.preferencesService {
             MainAppView(
               appViewModel: appVM,
               mapViewModel: mapVM,
               panelManagerViewModel: panelVM,
               trackRecordingService: trackRecService,
-              trackService: trackService
+              trackService: trackService,
+              preferencesService: preferences
             )
           } else {
             // Fallback in case of an unexpected nil after .ready transition
@@ -76,6 +78,7 @@ struct MainAppView: View {
   var panelManagerViewModel: PanelManagerViewModel
   var trackRecordingService: TrackRecordingService
   var trackService: TrackService
+  var preferencesService: PreferencesService
   
   @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
   
@@ -99,5 +102,6 @@ struct MainAppView: View {
           }
       }
     }
+    .environment(preferencesService)
   }
 }

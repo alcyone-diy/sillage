@@ -68,7 +68,7 @@ final class AppEnvironment {
       self.geoGarageAuthService = geoGarageAuthService
       
       // d. ViewModels instantiation (injecting the ready Services)
-      self.appViewModel = AppViewModel()
+      self.appViewModel = AppViewModel(preferencesService: preferencesService)
       self.mapViewModel = MapViewModel(
         locationService: locationService,
         preferencesService: preferencesService,

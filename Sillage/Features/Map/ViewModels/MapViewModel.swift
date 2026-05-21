@@ -134,6 +134,7 @@ class MapViewModel {
     setupLocationService()
     silentlyFetchGeoGarageLayers()
     startObservingLocalMaps()
+    observePreferences()
   }
 
   // MARK: - Data Observation & Management
@@ -494,5 +495,29 @@ class MapViewModel {
     }
 
     loadSavedCameraState()
+  }
+
+  // MARK: - Preferences Observation
+
+  private func observePreferences() {
+    withObservationTracking {
+      _ = preferencesService.isCOGVectorEnabled
+      _ = preferencesService.cogVectorTimeHorizon
+      _ = preferencesService.isCOGVectorTicksEnabled
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in
+        guard let self = self else { return }
+        self.updateHeadingVector()
+        self.observePreferences()
+      }
+    }
+  }
+
+  private func updateHeadingVector() {
+    if let location = lastKnownLocation {
+      self.headingVectorFeature = generateHeadingVector(location: location)
+    } else {
+      self.headingVectorFeature = nil
+    }
   }
 }

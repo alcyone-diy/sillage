@@ -13,9 +13,10 @@ import Foundation
 
 struct COGPreferencesView: View {
   @Environment(\.marineTheme) private var marineTheme
-  @Bindable private var preferences = PreferencesService.shared
+  @Environment(PreferencesService.self) private var preferencesService
 
   var body: some View {
+    @Bindable var preferences = preferencesService
     Form {
       Section {
         Toggle(isOn: $preferences.isCOGVectorEnabled) {
@@ -47,9 +48,4 @@ struct COGPreferencesView: View {
     .navigationBarTitleDisplayMode(.inline)
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
   }
-}
-
-#Preview {
-  COGPreferencesView()
-    .environment(\.marineTheme, .standard)
 }
