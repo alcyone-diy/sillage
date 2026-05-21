@@ -105,19 +105,19 @@ struct TrackDetailView: View {
 
           DetailRow(
             label: "Segments",
-            value: viewModel.segmentCount.map { String($0) } ?? "—"
+            value: viewModel.session?.segmentCount.map { String($0) } ?? "—"
           )
           .marineListCell()
 
           DetailRow(
             label: "Points",
-            value: viewModel.pointsCount.map { String($0) } ?? "—"
+            value: viewModel.session?.pointsCount.map { String($0) } ?? "—"
           )
           .marineListCell()
 
           DetailRow(
             label: "Max Speed",
-            value: viewModel.maxSpeed.map {
+            value: viewModel.session?.maxSpeed.map {
               $0.converted(to: .knots).formatted(
                 .measurement(
                   width: .abbreviated,

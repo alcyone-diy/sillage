@@ -59,56 +59,6 @@ public struct TrackService: Sendable {
     return observation.values(in: databaseManager.reader)
   }
 
-  /// Summary statistics for a track session's recorded points.
-  public struct TrackStats: Sendable {
-    public let pointsCount: Int
-    public let segmentCount: Int
-    public let maxSpeed: Measurement<UnitSpeed>?
-    
-    nonisolated public init(
-      pointsCount: Int,
-      segmentCount: Int,
-      maxSpeed: Measurement<UnitSpeed>?
-    ) {
-      self.pointsCount = pointsCount
-      self.segmentCount = segmentCount
-      self.maxSpeed = maxSpeed
-    }
-  }
-
-  /// Fetches summary statistics for a track session's recorded points.
-  /// - Parameter id: The unique identifier of the track session.
-  /// - Returns: A `TrackStats` containing aggregate metrics of the track.
-  public func fetchTrackStats(id: String) async throws -> TrackStats {
-    try await databaseManager.dbPool.read { db in
-      let pointsCount = try Int.fetchOne(
-        db,
-        sql: "SELECT COUNT(*) FROM track_point WHERE sessionId = ?",
-        arguments: [id]
-      ) ?? 0
-      
-      let segmentCount = try Int.fetchOne(
-        db,
-        sql: "SELECT COUNT(DISTINCT segmentIndex) FROM track_point WHERE sessionId = ?",
-        arguments: [id]
-      ) ?? 0
-      
-      let maxSpeedMps = try Double.fetchOne(
-        db,
-        sql: "SELECT MAX(sog_mps) FROM track_point WHERE sessionId = ?",
-        arguments: [id]
-      )
-      
-      let maxSpeed = maxSpeedMps.map { Measurement(value: $0, unit: UnitSpeed.metersPerSecond) }
-      
-      return TrackStats(
-        pointsCount: pointsCount,
-        segmentCount: segmentCount,
-        maxSpeed: maxSpeed
-      )
-    }
-  }
-
   /// Updates the name and description of a track session.
   /// - Parameters:
   ///   - id: The unique identifier of the track session.

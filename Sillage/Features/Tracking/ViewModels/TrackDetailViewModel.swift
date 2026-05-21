@@ -19,10 +19,6 @@ final class TrackDetailViewModel {
   var name: String = ""
   var description: String = ""
 
-  var pointsCount: Int?
-  var segmentCount: Int?
-  var maxSpeed: Measurement<UnitSpeed>?
-
   var isEditing: Bool = false
   var isSaving: Bool = false
   var errorMessage: String?
@@ -34,34 +30,13 @@ final class TrackDetailViewModel {
   }
 
   func load(trackService: TrackService) async {
-    // 1. Fetch stats asynchronously
-    do {
-      let stats = try await trackService.fetchTrackStats(id: sessionId)
-      self.pointsCount = stats.pointsCount
-      self.segmentCount = stats.segmentCount
-      self.maxSpeed = stats.maxSpeed
-    } catch {
-      Logger.database.error("Failed to fetch track stats for \(self.sessionId, privacy: .public): \(error, privacy: .public)")
-    }
-
-    // 2. Observe session updates reactively
+    // Observe session updates reactively
     do {
       for try await updatedSession in trackService.observeTrackSession(id: sessionId) {
         self.session = updatedSession
-        if let updatedSession {
-          if !isEditing {
-            self.name = updatedSession.name ?? ""
-            self.description = updatedSession.description ?? ""
-          }
-          if let pc = updatedSession.pointsCount {
-            self.pointsCount = pc
-          }
-          if let sc = updatedSession.segmentCount {
-            self.segmentCount = sc
-          }
-          if let ms = updatedSession.maxSpeed {
-            self.maxSpeed = ms
-          }
+        if let updatedSession, !isEditing {
+          self.name = updatedSession.name ?? ""
+          self.description = updatedSession.description ?? ""
         }
       }
     } catch is CancellationError {
