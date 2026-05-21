@@ -157,7 +157,11 @@ public final class TrackRecordingService {
     locationUpdatesTask = nil
     backgroundLocationToken = nil
     
-    let endTime = Date()
+    guard let sessionId = currentSessionId,
+          let endTime = lastRecordedLocation?.timestamp else {
+      state = .idle
+      return .abortedNoFix
+    }
     
     switch state {
     case .recording, .waitingForFix:
@@ -171,11 +175,6 @@ public final class TrackRecordingService {
     }
     
     state = .saving
-    
-    guard let sessionId = currentSessionId else {
-      state = .idle
-      return .abortedNoFix
-    }
     
     let finalDurationSeconds = sessionDuration
     let finalDistanceMeters = sessionDistance
@@ -224,8 +223,8 @@ public final class TrackRecordingService {
     locationUpdatesTask = nil
     backgroundLocationToken = nil
     
-    let pauseTime = Date()
-    if let startTime = currentSegmentStartTime {
+    if let pauseTime = lastRecordedLocation?.timestamp,
+       let startTime = currentSegmentStartTime {
       let segmentSeconds = pauseTime.timeIntervalSince(startTime)
       let previousDuration = sessionDuration ?? .seconds(0)
       sessionDuration = previousDuration + .seconds(segmentSeconds)
@@ -246,7 +245,6 @@ public final class TrackRecordingService {
       return
     }
     
-    let resumeTime = Date()
     segmentIndex += 1
     currentSegmentStartTime = nil
     
@@ -326,7 +324,7 @@ public final class TrackRecordingService {
       
       if currentSessionId == nil {
         let sessionId = UUID().uuidString
-        let startTime = Date()
+        let startTime = location.timestamp
         
         currentSessionId = sessionId
         sessionStartTime = startTime
@@ -335,7 +333,7 @@ public final class TrackRecordingService {
         let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
         dbActionContinuation?.yield(.insertSession(sessionRecord))
       } else {
-        currentSegmentStartTime = Date()
+        currentSegmentStartTime = location.timestamp
       }
       
     case .idle, .recording, .paused, .saving:
