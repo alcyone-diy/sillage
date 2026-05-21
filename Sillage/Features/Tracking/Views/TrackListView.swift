@@ -82,7 +82,7 @@ struct TrackRowView: View {
     if session.name != nil {
       components.append(session.startTime.formatted(date: .abbreviated, time: .shortened))
     }
-    if components.isEmpty { return nil }
+    if components.isEmpty { return "-" }
     return components.joined(separator: " • ")
   }
 }
