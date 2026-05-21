@@ -37,6 +37,13 @@ public final class TrackRecordingService {
   public private(set) var sessionDistance: Measurement<UnitLength>?
   public private(set) var sessionDuration: Duration?
   
+  public private(set) var minLatitude: Measurement<UnitAngle>?
+  public private(set) var maxLatitude: Measurement<UnitAngle>?
+  public private(set) var minLongitude: Measurement<UnitAngle>?
+  public private(set) var maxLongitude: Measurement<UnitAngle>?
+  public private(set) var maxSpeed: Measurement<UnitSpeed>?
+  public private(set) var pointsCount: Int?
+  
   /// Centralized configuration for the track recording service logic.
   internal struct Configuration {
     /// The number of points buffered in memory before a batch commit to the database.
@@ -106,6 +113,12 @@ public final class TrackRecordingService {
     lastRecordedLocation = nil
     writeBuffer.removeAll()
     trackPoints.removeAll()
+    minLatitude = nil
+    maxLatitude = nil
+    minLongitude = nil
+    maxLongitude = nil
+    maxSpeed = nil
+    pointsCount = nil
     
     let service = self.locationService
     self.backgroundLocationToken = service.requestBackgroundLocation()
@@ -178,6 +191,13 @@ public final class TrackRecordingService {
     
     let finalDurationSeconds = sessionDuration
     let finalDistanceMeters = sessionDistance
+    let localMinLat = minLatitude
+    let localMaxLat = maxLatitude
+    let localMinLon = minLongitude
+    let localMaxLon = maxLongitude
+    let localMaxSpeed = maxSpeed
+    let localPointsCount = pointsCount
+    let localSegmentCount = segmentIndex + 1
     
     flushBuffer()
     dbActionContinuation?.finish()
@@ -195,6 +215,13 @@ public final class TrackRecordingService {
               session.totalDistance_m = distance.converted(to: .meters).value
             }
             session.endTimestamp_unix = endTime.timeIntervalSince1970
+            session.minLatitude_deg = localMinLat?.converted(to: .degrees).value
+            session.maxLatitude_deg = localMaxLat?.converted(to: .degrees).value
+            session.minLongitude_deg = localMinLon?.converted(to: .degrees).value
+            session.maxLongitude_deg = localMaxLon?.converted(to: .degrees).value
+            session.maxSpeed_mps = localMaxSpeed?.converted(to: .metersPerSecond).value
+            session.pointsCount = localPointsCount
+            session.segmentCount = localSegmentCount
             try session.update(db)
           }
         }
@@ -370,6 +397,21 @@ public final class TrackRecordingService {
     }
     
     let horizontalAccuracy = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
+    
+    let lat = Measurement(value: location.coordinate.latitude, unit: UnitAngle.degrees)
+    let lon = Measurement(value: location.coordinate.longitude, unit: UnitAngle.degrees)
+    
+    minLatitude = min(minLatitude ?? lat, lat)
+    maxLatitude = max(maxLatitude ?? lat, lat)
+    minLongitude = min(minLongitude ?? lon, lon)
+    maxLongitude = max(maxLongitude ?? lon, lon)
+    
+    if location.speed >= 0 {
+      let currentSpeed = Measurement(value: location.speed, unit: UnitSpeed.metersPerSecond)
+      maxSpeed = max(maxSpeed ?? currentSpeed, currentSpeed)
+    }
+    
+    pointsCount = (pointsCount ?? 0) + 1
     
     let trackPoint = TrackPoint(
       timestamp: location.timestamp,
