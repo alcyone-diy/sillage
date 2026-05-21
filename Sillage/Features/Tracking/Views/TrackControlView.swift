@@ -22,7 +22,12 @@ struct TrackControlView: View {
         Text("Recording Status")
         Spacer()
         Toggle("", isOn: Binding(
-          get: { trackRecordingService.isRecording },
+          get: { 
+            switch trackRecordingService.state {
+            case .recording, .paused: return true
+            case .idle, .saving: return false
+            }
+          },
           set: { _ in trackRecordingService.toggleRecording() }
         ))
         .labelsHidden()
@@ -64,14 +69,15 @@ struct TrackControlView: View {
   
   @ViewBuilder
   private var durationValueView: some View {
-    if trackRecordingService.isRecording && !trackRecordingService.isPaused {
+    switch trackRecordingService.state {
+    case .recording:
       TimelineView(.periodic(from: .now, by: 1.0)) { context in
         let liveDuration = trackRecordingService.activeSessionDuration(at: context.date) ?? .seconds(0)
         Text(liveDuration, format: .time(pattern: .hourMinuteSecond))
           .monospacedDigit()
           .foregroundStyle(.secondary)
       }
-    } else {
+    case .idle, .paused, .saving:
       let staticDuration = trackRecordingService.activeSessionDuration(at: Date())
       if let duration = staticDuration {
         Text(duration, format: .time(pattern: .hourMinuteSecond))

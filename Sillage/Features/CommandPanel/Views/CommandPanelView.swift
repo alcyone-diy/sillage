@@ -17,12 +17,12 @@ struct CommandPanelView: View {
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(\.marineTheme) private var marineTheme
-
+  
   var body: some View {
     @Bindable var bindableViewModel = viewModel
     @Bindable var bindableAppViewModel = appViewModel
     @Bindable var bindableTrackRecordingService = trackRecordingService
-
+    
     NavigationStack(path: $bindableViewModel.commandPath) {
       List {
         // Zone 1: Quick Actions
@@ -33,45 +33,50 @@ struct CommandPanelView: View {
               systemImage: "hand.raised.fill",
               isOn: $bindableAppViewModel.isGloveModeEnabled
             )
-
+            
             MarineToggleButton(
               title: "Track",
               systemImage: "record.circle",
               isOn: Binding(
-                get: { trackRecordingService.isRecording },
+                get: { 
+                  switch trackRecordingService.state {
+                  case .recording, .paused: return true
+                  case .idle, .saving: return false
+                  }
+                },
                 set: { _ in trackRecordingService.toggleRecording() }
               )
             )
-            .disabled(trackRecordingService.isSaving)
+            .disabled(trackRecordingService.state == .saving)
           }
           .listRowBackground(Color.clear)
           .listRowInsets(EdgeInsets())
         }
-
+        
         // Zone 2: Safety
         Section(header: Text("Safety")) {
           Button(action: {
-              }) {
-                  Label {
-                      Text("Anchor Alarm").foregroundStyle(.primary)
-                  } icon: {
-                      Image(systemName: "location.viewfinder").foregroundStyle(.blue)
-                  }
-                  .marineFont(.body)
-                  .marineListCell()
-              }.tint(.primary)
+          }) {
+            Label {
+              Text("Anchor Alarm").foregroundStyle(.primary)
+            } icon: {
+              Image(systemName: "location.viewfinder").foregroundStyle(.blue)
+            }
+            .marineFont(.body)
+            .marineListCell()
+          }.tint(.primary)
           Button(action: {
-              }) {
-                  Label {
-                      Text("Baro Alarm").foregroundStyle(.primary)
-                  } icon: {
-                      Image(systemName: "barometer").foregroundStyle(.blue)
-                  }
-                  .marineFont(.body)
-                  .marineListCell()
-              }.tint(.primary)
+          }) {
+            Label {
+              Text("Baro Alarm").foregroundStyle(.primary)
+            } icon: {
+              Image(systemName: "barometer").foregroundStyle(.blue)
+            }
+            .marineFont(.body)
+            .marineListCell()
+          }.tint(.primary)
         }
-
+        
         Section(header: Text("Navigation")) {
           NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
             Label {
@@ -83,7 +88,7 @@ struct CommandPanelView: View {
           }
           .marineListCell()
         }
-
+        
         // Zone 3: System
         Section(header: Text("System")) {
           NavigationLink(value: PanelManagerViewModel.CommandDestination.settings) {

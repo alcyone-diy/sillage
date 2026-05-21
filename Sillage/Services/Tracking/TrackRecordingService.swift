@@ -28,18 +28,6 @@ public final class TrackRecordingService {
   
   public private(set) var state: RecordingState = .idle
   
-  public var isRecording: Bool {
-    state == .recording || state == .paused
-  }
-  
-  public var isSaving: Bool {
-    state == .saving
-  }
-  
-  public var isPaused: Bool {
-    state == .paused
-  }
-  
   public var recordingError: TrackRecordingError?
   
   // MARK: - Telemetry State
@@ -277,9 +265,10 @@ public final class TrackRecordingService {
   }
   
   public func toggleRecording() {
-    if isRecording {
+    switch state {
+    case .recording, .paused:
       stopRecording()
-    } else {
+    case .idle, .saving:
       startRecording()
     }
   }
