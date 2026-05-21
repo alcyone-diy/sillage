@@ -66,7 +66,12 @@ public final class TrackRecordingService {
   private let databaseManager: DatabaseManager
   private var locationUpdatesTask: TaskCancellable?
   private var backgroundLocationToken: (any BackgroundLocationToken)?
-  private var flushContinuation: AsyncStream<[TrackPointRecord]>.Continuation?
+  
+  private enum TrackDatabaseAction: Sendable {
+    case insertSession(TrackSessionRecord)
+    case insertPoints([TrackPointRecord])
+  }
+  private var dbActionContinuation: AsyncStream<TrackDatabaseAction>.Continuation?
   private var persistenceTask: Task<Void, Never>?
   
   init(
@@ -92,29 +97,15 @@ public final class TrackRecordingService {
       return
     }
     
-    let sessionId = UUID().uuidString
-    let startTime = Date()
-    
-    currentSessionId = sessionId
+    currentSessionId = nil
     segmentIndex = 0
-    sessionStartTime = startTime
-    currentSegmentStartTime = startTime
+    sessionStartTime = nil
+    currentSegmentStartTime = nil
     sessionDuration = .seconds(0)
     sessionDistance = Measurement(value: 0, unit: UnitLength.meters)
     lastRecordedLocation = nil
     writeBuffer.removeAll()
     trackPoints.removeAll()
-    
-    let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
-    Task.detached(priority: .utility) { [databaseManager] in
-      do {
-        try await databaseManager.dbPool.write { db in
-          try sessionRecord.insert(db)
-        }
-      } catch {
-        Logger.database.error("Failed to insert session: \(error)")
-      }
-    }
     
     let service = self.locationService
     self.backgroundLocationToken = service.requestBackgroundLocation()
@@ -126,16 +117,21 @@ public final class TrackRecordingService {
       }
     })
     
-    let (stream, continuation) = AsyncStream.makeStream(of: [TrackPointRecord].self)
-    self.flushContinuation = continuation
+    let (stream, continuation) = AsyncStream.makeStream(of: TrackDatabaseAction.self)
+    self.dbActionContinuation = continuation
     self.persistenceTask = Task.detached(priority: .utility) { [databaseManager] in
-      for await batch in stream {
+      for await action in stream {
         do {
           try await databaseManager.dbPool.write { db in
-            try batch.forEach { try $0.insert(db) }
+            switch action {
+            case .insertSession(let session):
+              try session.insert(db)
+            case .insertPoints(let points):
+              try points.forEach { try $0.insert(db) }
+            }
           }
         } catch {
-          Logger.database.error("Failed to insert batch: \(error.localizedDescription, privacy: .public)")
+          Logger.database.error("Failed to execute database action: \(error.localizedDescription, privacy: .public)")
         }
       }
     }
@@ -178,7 +174,7 @@ public final class TrackRecordingService {
     let finalDistanceMeters = sessionDistance
     
     flushBuffer()
-    flushContinuation?.finish()
+    dbActionContinuation?.finish()
     let localPersistenceTask = persistenceTask
     BackgroundTaskRunner.execute(name: "FinalizeTrack_\(sessionId)") { [weak self, databaseManager, localPersistenceTask] in
       _ = await localPersistenceTask?.value
@@ -243,7 +239,7 @@ public final class TrackRecordingService {
     
     let resumeTime = Date()
     segmentIndex += 1
-    currentSegmentStartTime = resumeTime
+    currentSegmentStartTime = nil
     
     let service = self.locationService
     self.backgroundLocationToken = service.requestBackgroundLocation()
@@ -277,7 +273,7 @@ public final class TrackRecordingService {
     guard !writeBuffer.isEmpty else { return }
     let batch = writeBuffer
     writeBuffer.removeAll()
-    flushContinuation?.yield(batch)
+    dbActionContinuation?.yield(.insertPoints(batch))
   }
   
   public func emergencyFlushAsync() async {
@@ -311,6 +307,21 @@ public final class TrackRecordingService {
     switch state {
     case .waitingForFix:
       state = .recording
+      
+      if currentSessionId == nil {
+        let sessionId = UUID().uuidString
+        let startTime = Date()
+        
+        currentSessionId = sessionId
+        sessionStartTime = startTime
+        currentSegmentStartTime = startTime
+        
+        let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
+        dbActionContinuation?.yield(.insertSession(sessionRecord))
+      } else {
+        currentSegmentStartTime = Date()
+      }
+      
     case .idle, .recording, .paused, .saving:
       break
     }
