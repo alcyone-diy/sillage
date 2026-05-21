@@ -97,6 +97,9 @@ public final class DatabaseManager: Sendable {
 
       // 2. Create the point table with foreign key
       try db.create(table: "track_point") { t in
+        // DO NOT use composite PK (sessionId + timestamp). Auto-incremented ID is required
+        // for SQLite ROWID performance, SwiftUI Identifiable conformance, and to prevent
+        // crashes on duplicate CoreLocation timestamps.
         t.autoIncrementedPrimaryKey("id")
         t.column("sessionId", .text)
           .notNull()
@@ -112,7 +115,7 @@ public final class DatabaseManager: Sendable {
         t.check(sql: "latitude_deg BETWEEN -90 AND 90")
         t.check(sql: "longitude_deg BETWEEN -180 AND 180")
         t.check(sql: "horizontalAccuracy_m >= 0")
-        t.check(sql: "cog_deg BETWEEN 0 AND 360 OR cog_deg IS NULL")
+        t.check(sql: "(cog_deg >= 0 AND cog_deg < 360) OR cog_deg IS NULL")
         t.check(sql: "sog_mps >= 0 OR sog_mps IS NULL")
       }
       
