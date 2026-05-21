@@ -76,18 +76,15 @@ public struct TrackService: Sendable {
     public let pointsCount: Int
     public let segmentCount: Int
     public let maxSpeed: Measurement<UnitSpeed>?
-    public let averageSpeed: Measurement<UnitSpeed>?
     
     public init(
       pointsCount: Int,
       segmentCount: Int,
-      maxSpeed: Measurement<UnitSpeed>?,
-      averageSpeed: Measurement<UnitSpeed>?
+      maxSpeed: Measurement<UnitSpeed>?
     ) {
       self.pointsCount = pointsCount
       self.segmentCount = segmentCount
       self.maxSpeed = maxSpeed
-      self.averageSpeed = averageSpeed
     }
   }
 
@@ -114,20 +111,12 @@ public struct TrackService: Sendable {
         arguments: [id]
       )
       
-      let avgSpeedMps = try Double.fetchOne(
-        db,
-        sql: "SELECT AVG(sog_mps) FROM track_point WHERE sessionId = ?",
-        arguments: [id]
-      )
-      
       let maxSpeed = maxSpeedMps.map { Measurement(value: $0, unit: UnitSpeed.metersPerSecond) }
-      let avgSpeed = avgSpeedMps.map { Measurement(value: $0, unit: UnitSpeed.metersPerSecond) }
       
       return TrackStats(
         pointsCount: pointsCount,
         segmentCount: segmentCount,
-        maxSpeed: maxSpeed,
-        averageSpeed: avgSpeed
+        maxSpeed: maxSpeed
       )
     }
   }

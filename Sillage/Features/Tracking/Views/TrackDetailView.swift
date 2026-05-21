@@ -131,7 +131,7 @@ struct TrackDetailView: View {
 
           DetailRow(
             label: "Average Speed",
-            value: viewModel.averageSpeed.map {
+            value: viewModel.session?.averageSpeed.map {
               $0.converted(to: .knots).formatted(
                 .measurement(
                   width: .abbreviated,

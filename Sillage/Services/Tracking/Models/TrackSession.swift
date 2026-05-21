@@ -23,7 +23,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
   public let maxLatitude: Measurement<UnitAngle>?
   public let minLongitude: Measurement<UnitAngle>?
   public let maxLongitude: Measurement<UnitAngle>?
-
+  
   public init(
     id: String,
     startTime: Date,
@@ -48,5 +48,18 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     self.maxLatitude = maxLatitude
     self.minLongitude = minLongitude
     self.maxLongitude = maxLongitude
+  }
+  
+  public var averageSpeed: Measurement<UnitSpeed>? {
+    guard let distance = totalDistance,
+          let duration = duration else {
+      return nil
+    }
+    
+    let seconds = Double(duration.components.seconds)
+    guard seconds > 0 else { return nil }
+    
+    let speedMps = distance.converted(to: .meters).value / seconds
+    return Measurement(value: speedMps, unit: UnitSpeed.metersPerSecond)
   }
 }

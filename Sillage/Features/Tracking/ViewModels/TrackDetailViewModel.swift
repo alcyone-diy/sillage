@@ -22,7 +22,6 @@ final class TrackDetailViewModel {
   var pointsCount: Int?
   var segmentCount: Int?
   var maxSpeed: Measurement<UnitSpeed>?
-  var averageSpeed: Measurement<UnitSpeed>?
 
   var isEditing: Bool = false
   var isSaving: Bool = false
@@ -41,7 +40,6 @@ final class TrackDetailViewModel {
       self.pointsCount = stats.pointsCount
       self.segmentCount = stats.segmentCount
       self.maxSpeed = stats.maxSpeed
-      self.averageSpeed = stats.averageSpeed
     } catch {
       Logger.database.error("Failed to fetch track stats for \(self.sessionId, privacy: .public): \(error, privacy: .public)")
     }
