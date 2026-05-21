@@ -36,7 +36,7 @@ public struct TrackFilters: Sendable {
   }
 
   nonisolated public static let `default` = TrackFilters(
-    minDistance: Measurement(value: 3.0, unit: UnitLength.meters),
+    minDistance: Measurement(value: 15.0, unit: UnitLength.meters),
     minTimeInterval: Measurement(value: 60.0, unit: UnitDuration.seconds),
     maxHorizontalAccuracy: Measurement(value: 50.0, unit: UnitLength.meters)
   )

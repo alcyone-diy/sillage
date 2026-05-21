@@ -33,7 +33,7 @@ public final class TrackRecordingService {
   /// Centralized configuration for the track recording service logic.
   internal struct Configuration {
     /// The number of points buffered in memory before a batch commit to the database.
-    nonisolated static let flushThreshold = 20
+    nonisolated static let flushThreshold = 150
     /// The maximum number of points held in memory for real-time map rendering.
     nonisolated static let maxTrackPoints = 2000
   }
