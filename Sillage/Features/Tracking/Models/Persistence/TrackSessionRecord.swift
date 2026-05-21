@@ -24,6 +24,9 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
   public var maxLatitude_deg: Double?
   public var minLongitude_deg: Double?
   public var maxLongitude_deg: Double?
+  public var maxSpeed_mps: Double?
+  public var pointsCount: Int?
+  public var segmentCount: Int?
 
   public static let databaseTableName = "track_session"
 
@@ -44,6 +47,9 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
     case maxLatitude_deg
     case minLongitude_deg
     case maxLongitude_deg
+    case maxSpeed_mps
+    case pointsCount
+    case segmentCount
   }
 
   // Association with TrackPointRecord
@@ -69,7 +75,10 @@ extension TrackSessionRecord {
       minLatitude: minLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
       maxLatitude: maxLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
       minLongitude: minLongitude_deg.map { Measurement(value: $0, unit: .degrees) },
-      maxLongitude: maxLongitude_deg.map { Measurement(value: $0, unit: .degrees) }
+      maxLongitude: maxLongitude_deg.map { Measurement(value: $0, unit: .degrees) },
+      maxSpeed: maxSpeed_mps.flatMap { $0 >= 0 ? Measurement(value: $0, unit: .metersPerSecond) : nil },
+      pointsCount: pointsCount.flatMap { $0 >= 0 ? $0 : nil },
+      segmentCount: segmentCount.flatMap { $0 >= 0 ? $0 : nil }
     )
   }
 
@@ -89,5 +98,8 @@ extension TrackSessionRecord {
     self.maxLatitude_deg = domainModel.maxLatitude?.converted(to: .degrees).value
     self.minLongitude_deg = domainModel.minLongitude?.converted(to: .degrees).value
     self.maxLongitude_deg = domainModel.maxLongitude?.converted(to: .degrees).value
+    self.maxSpeed_mps = domainModel.maxSpeed?.converted(to: .metersPerSecond).value
+    self.pointsCount = domainModel.pointsCount
+    self.segmentCount = domainModel.segmentCount
   }
 }

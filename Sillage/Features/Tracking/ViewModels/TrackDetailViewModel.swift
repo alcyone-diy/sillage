@@ -48,9 +48,20 @@ final class TrackDetailViewModel {
     do {
       for try await updatedSession in trackService.observeTrackSession(id: sessionId) {
         self.session = updatedSession
-        if let updatedSession, !isEditing {
-          self.name = updatedSession.name ?? ""
-          self.description = updatedSession.description ?? ""
+        if let updatedSession {
+          if !isEditing {
+            self.name = updatedSession.name ?? ""
+            self.description = updatedSession.description ?? ""
+          }
+          if let pc = updatedSession.pointsCount {
+            self.pointsCount = pc
+          }
+          if let sc = updatedSession.segmentCount {
+            self.segmentCount = sc
+          }
+          if let ms = updatedSession.maxSpeed {
+            self.maxSpeed = ms
+          }
         }
       }
     } catch is CancellationError {

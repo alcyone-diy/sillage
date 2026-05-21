@@ -75,6 +75,9 @@ public final class DatabaseManager: Sendable {
         t.column("maxLatitude_deg", .double)
         t.column("minLongitude_deg", .double)
         t.column("maxLongitude_deg", .double)
+        t.column("maxSpeed_mps", .double)
+        t.column("pointsCount", .integer)
+        t.column("segmentCount", .integer)
 
         t.check(sql: "minLatitude_deg BETWEEN -90 AND 90")
         t.check(sql: "maxLatitude_deg BETWEEN -90 AND 90")
@@ -85,6 +88,9 @@ public final class DatabaseManager: Sendable {
         // since a track can start at 179º, and move up to -179.
         t.check(sql: "duration_s >= 0")
         t.check(sql: "totalDistance_m >= 0")
+        t.check(sql: "maxSpeed_mps >= 0 OR maxSpeed_mps IS NULL")
+        t.check(sql: "pointsCount >= 0 OR pointsCount IS NULL")
+        t.check(sql: "segmentCount >= 0 OR segmentCount IS NULL")
       }
       try db.create(index: "idx_track_session_startTime", on: "track_session", columns: ["startTime_unix"])
       try db.create(index: "idx_track_session_name", on: "track_session", columns: ["name"])

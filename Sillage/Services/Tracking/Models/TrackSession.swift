@@ -23,6 +23,9 @@ public struct TrackSession: Sendable, Codable, Identifiable {
   public let maxLatitude: Measurement<UnitAngle>?
   public let minLongitude: Measurement<UnitAngle>?
   public let maxLongitude: Measurement<UnitAngle>?
+  public let maxSpeed: Measurement<UnitSpeed>?
+  public let pointsCount: Int?
+  public let segmentCount: Int?
   
   public init(
     id: String,
@@ -35,7 +38,10 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     minLatitude: Measurement<UnitAngle>? = nil,
     maxLatitude: Measurement<UnitAngle>? = nil,
     minLongitude: Measurement<UnitAngle>? = nil,
-    maxLongitude: Measurement<UnitAngle>? = nil
+    maxLongitude: Measurement<UnitAngle>? = nil,
+    maxSpeed: Measurement<UnitSpeed>? = nil,
+    pointsCount: Int? = nil,
+    segmentCount: Int? = nil
   ) {
     self.id = id
     self.startTime = startTime
@@ -48,6 +54,9 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     self.maxLatitude = maxLatitude
     self.minLongitude = minLongitude
     self.maxLongitude = maxLongitude
+    self.maxSpeed = maxSpeed
+    self.pointsCount = pointsCount
+    self.segmentCount = segmentCount
   }
   
   public var averageSpeed: Measurement<UnitSpeed>? {
