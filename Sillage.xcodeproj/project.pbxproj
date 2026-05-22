@@ -87,6 +87,7 @@
 				020ACF222F6C9E66002C5C1B /* Sources */,
 				020ACF232F6C9E66002C5C1B /* Frameworks */,
 				020ACF242F6C9E66002C5C1B /* Resources */,
+				020D20D92FC0D42900101B1B /* Run Script */,
 			);
 			buildRules = (
 			);
@@ -151,6 +152,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		020D20D92FC0D42900101B1B /* Run Script */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.git",
+			);
+			name = "Run Script";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GitHash.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "GIT_SHA=$(git rev-parse --short HEAD)\nDEST_PATH=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GitHash.txt\"\necho \"$GIT_SHA\" > \"$DEST_PATH\"\necho \"$GIT_SHA > $DEST_PATH\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		020ACF222F6C9E66002C5C1B /* Sources */ = {
@@ -297,6 +321,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sillage/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Sillage;
@@ -337,6 +362,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sillage/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Sillage;
