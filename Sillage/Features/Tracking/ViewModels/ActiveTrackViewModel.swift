@@ -40,8 +40,8 @@ public final class ActiveTrackViewModel {
     trackRecordingService.sessionDistance
   }
   
-  public func activeSessionDuration(at date: Date) -> Duration? {
-    trackRecordingService.activeSessionDuration(at: date)
+  public func activeSessionDuration() -> Duration? {
+    trackRecordingService.activeSessionDuration()
   }
   
   public func toggleRecording() {

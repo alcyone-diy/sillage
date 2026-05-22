@@ -34,6 +34,7 @@ public final class TrackRecordingService {
   // MARK: - Telemetry State
   public private(set) var sessionStartTime: Date?
   public private(set) var currentSegmentStartTime: Date?
+  public private(set) var currentSegmentMonotonicStartTime: ContinuousClock.Instant?
   public private(set) var sessionDistance: Measurement<UnitLength>?
   public private(set) var sessionDuration: Duration?
   
@@ -111,6 +112,7 @@ public final class TrackRecordingService {
     segmentIndex = 0
     sessionStartTime = nil
     currentSegmentStartTime = nil
+    currentSegmentMonotonicStartTime = nil
     sessionDuration = .seconds(0)
     sessionDistance = Measurement(value: 0, unit: UnitLength.meters)
     lastRecordedLocation = nil
@@ -266,6 +268,7 @@ public final class TrackRecordingService {
       sessionDuration = previousDuration + .seconds(segmentSeconds)
     }
     currentSegmentStartTime = nil
+    currentSegmentMonotonicStartTime = nil
     
     flushBuffer()
     
@@ -283,6 +286,7 @@ public final class TrackRecordingService {
     
     segmentIndex += 1
     currentSegmentStartTime = nil
+    currentSegmentMonotonicStartTime = nil
     
     let service = self.locationService
     self.backgroundLocationToken = service.requestBackgroundLocation()
@@ -300,16 +304,18 @@ public final class TrackRecordingService {
     Logger.telemetry.info("Track recording resumed (segment \(self.segmentIndex, privacy: .public)).")
   }
   
-  public func activeSessionDuration(at referenceDate: Date = Date()) -> Duration? {
-    guard let start = currentSegmentStartTime else {
+  public func activeSessionDuration() -> Duration? {
+    guard let startInstant = currentSegmentMonotonicStartTime else {
       return sessionDuration
     }
+    
     switch state {
-    case .recording, .waitingForFix:
-      let currentSegmentSeconds = referenceDate.timeIntervalSince(start)
+    case .recording:
+      let clock = ContinuousClock()
+      let currentSegmentDuration = clock.now - startInstant
       let currentSessionDuration = sessionDuration ?? .seconds(0)
-      return currentSessionDuration + .seconds(currentSegmentSeconds)
-    case .idle, .paused, .saving:
+      return currentSessionDuration + currentSegmentDuration
+    case .idle, .paused, .saving, .waitingForFix:
       return sessionDuration
     }
   }
@@ -379,7 +385,8 @@ public final class TrackRecordingService {
       } else {
         currentSegmentStartTime = location.timestamp
       }
-      
+      currentSegmentMonotonicStartTime = .now
+
     case .idle, .recording, .paused, .saving:
       break
     }

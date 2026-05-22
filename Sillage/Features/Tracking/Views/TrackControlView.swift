@@ -82,13 +82,13 @@ struct TrackControlView: View {
     switch activeTrackViewModel.state {
     case .recording, .waitingForFix:
       TimelineView(.periodic(from: .now, by: 1.0)) { context in
-        let liveDuration = activeTrackViewModel.activeSessionDuration(at: context.date) ?? .seconds(0)
+        let liveDuration = activeTrackViewModel.activeSessionDuration() ?? .seconds(0)
         Text(liveDuration, format: .time(pattern: .hourMinuteSecond))
           .monospacedDigit()
           .foregroundStyle(.secondary)
       }
     case .idle, .paused, .saving:
-      let staticDuration = activeTrackViewModel.activeSessionDuration(at: Date())
+      let staticDuration = activeTrackViewModel.activeSessionDuration()
       if let duration = staticDuration {
         Text(duration, format: .time(pattern: .hourMinuteSecond))
           .monospacedDigit()
