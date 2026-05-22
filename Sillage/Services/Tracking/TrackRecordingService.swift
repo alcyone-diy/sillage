@@ -50,6 +50,8 @@ public final class TrackRecordingService {
     nonisolated static let flushThreshold = 150
     /// The maximum number of points held in memory for real-time map rendering.
     nonisolated static let maxTrackPoints = 2000
+    /// The maximum time delay before flushing buffered points to the database.
+    nonisolated static let maxFlushInterval: Duration = .seconds(600) // 10mn.
   }
   
   private var currentSessionId: String?
@@ -73,6 +75,7 @@ public final class TrackRecordingService {
   private let databaseManager: DatabaseManager
   private var locationUpdatesTask: TaskCancellable?
   private var backgroundLocationToken: (any BackgroundLocationToken)?
+  private var flushTask: TaskCancellable?
   
   private enum TrackDatabaseAction: Sendable {
     case insertSession(TrackSessionRecord)
@@ -123,6 +126,8 @@ public final class TrackRecordingService {
     let service = self.locationService
     self.backgroundLocationToken = service.requestBackgroundLocation()
     
+    startFlushTimer()
+    
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
       for await location in service.locationUpdates {
         guard !Task.isCancelled else { break }
@@ -157,7 +162,7 @@ public final class TrackRecordingService {
     case abortedNoFix
     case noActiveRecording
   }
-
+  
   @discardableResult
   public func stopRecording() -> StopRecordingResult {
     switch state {
@@ -169,6 +174,8 @@ public final class TrackRecordingService {
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
     backgroundLocationToken = nil
+    flushTask?.cancel()
+    flushTask = nil
     
     guard let sessionId = currentSessionId,
           let endTime = lastRecordedLocation?.timestamp else {
@@ -249,6 +256,8 @@ public final class TrackRecordingService {
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
     backgroundLocationToken = nil
+    flushTask?.cancel()
+    flushTask = nil
     
     if let pauseTime = lastRecordedLocation?.timestamp,
        let startTime = currentSegmentStartTime {
@@ -277,6 +286,8 @@ public final class TrackRecordingService {
     
     let service = self.locationService
     self.backgroundLocationToken = service.requestBackgroundLocation()
+    
+    startFlushTimer()
     
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
       for await location in service.locationUpdates {
@@ -308,6 +319,12 @@ public final class TrackRecordingService {
     let batch = writeBuffer
     writeBuffer.removeAll()
     dbActionContinuation?.yield(.insertPoints(batch))
+    switch state {
+    case .recording, .waitingForFix:
+      startFlushTimer()
+    case .paused, .idle, .saving:
+      break
+    }
   }
   
   public func emergencyFlushAsync() async {
@@ -329,7 +346,7 @@ public final class TrackRecordingService {
     case started
     case stopped(StopRecordingResult)
   }
-
+  
   @discardableResult
   public func toggleRecording() -> ToggleRecordingResult {
     switch state {
@@ -438,8 +455,18 @@ public final class TrackRecordingService {
     }
   }
   
-  @MainActor
   private func stopSavingState() {
     state = .idle
+  }
+  
+  private func startFlushTimer() {
+    flushTask?.cancel()
+    let task = Task { [weak self] in
+      // No need for @MainActor since TrackRecordingService is @MainActor.
+      try? await Task.sleep(for: Configuration.maxFlushInterval)
+      guard !Task.isCancelled, let self else { return }
+      self.flushBuffer()
+    }
+    flushTask = TaskCancellable(task)
   }
 }
