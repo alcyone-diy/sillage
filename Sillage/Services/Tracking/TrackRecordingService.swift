@@ -33,8 +33,7 @@ public final class TrackRecordingService {
   
   // MARK: - Telemetry State
   public private(set) var sessionStartTime: Date?
-  public private(set) var currentSegmentStartTime: Date?
-  public private(set) var currentSegmentMonotonicStartTime: ContinuousClock.Instant?
+  public private(set) var lastSessionDurationUpdateMonotonicTime: ContinuousClock.Instant?
   public private(set) var sessionDistance: Measurement<UnitLength>?
   public private(set) var sessionDuration: Duration?
   
@@ -111,9 +110,8 @@ public final class TrackRecordingService {
     currentSessionId = nil
     segmentIndex = 0
     sessionStartTime = nil
-    currentSegmentStartTime = nil
-    currentSegmentMonotonicStartTime = nil
-    sessionDuration = .seconds(0)
+    lastSessionDurationUpdateMonotonicTime = nil
+    sessionDuration = nil
     sessionDistance = Measurement(value: 0, unit: UnitLength.meters)
     lastRecordedLocation = nil
     writeBuffer.removeAll()
@@ -186,16 +184,7 @@ public final class TrackRecordingService {
       return .abortedNoFix
     }
     
-    switch state {
-    case .recording, .waitingForFix:
-      if let startTime = currentSegmentStartTime {
-        let finalSegmentSeconds = endTime.timeIntervalSince(startTime)
-        let previousDuration = sessionDuration ?? .seconds(0)
-        sessionDuration = previousDuration + .seconds(finalSegmentSeconds)
-      }
-    case .paused, .idle, .saving:
-      break
-    }
+    // Removed manual segment duration addition since it's now updated continuously in processLocationUpdate
     
     state = .saving
     
@@ -242,14 +231,8 @@ public final class TrackRecordingService {
     flushTask?.cancel()
     flushTask = nil
     
-    if let pauseTime = lastRecordedLocation?.timestamp,
-       let startTime = currentSegmentStartTime {
-      let segmentSeconds = pauseTime.timeIntervalSince(startTime)
-      let previousDuration = sessionDuration ?? .seconds(0)
-      sessionDuration = previousDuration + .seconds(segmentSeconds)
-    }
-    currentSegmentStartTime = nil
-    currentSegmentMonotonicStartTime = nil
+    lastSessionDurationUpdateMonotonicTime = nil
+    lastRecordedLocation = nil
     
     flushBuffer()
     
@@ -266,8 +249,7 @@ public final class TrackRecordingService {
     }
     
     segmentIndex += 1
-    currentSegmentStartTime = nil
-    currentSegmentMonotonicStartTime = nil
+    lastSessionDurationUpdateMonotonicTime = nil
     
     let service = self.locationService
     self.backgroundLocationToken = service.requestBackgroundLocation()
@@ -286,16 +268,16 @@ public final class TrackRecordingService {
   }
   
   public func activeSessionDuration() -> Duration? {
-    guard let startInstant = currentSegmentMonotonicStartTime else {
+    guard let lastReceiveTime = lastSessionDurationUpdateMonotonicTime else {
       return sessionDuration
     }
     
     switch state {
     case .recording:
       let clock = ContinuousClock()
-      let currentSegmentDuration = clock.now - startInstant
+      let timeSinceLastLocation = clock.now - lastReceiveTime
       let currentSessionDuration = sessionDuration ?? .seconds(0)
-      return currentSessionDuration + currentSegmentDuration
+      return currentSessionDuration + timeSinceLastLocation
     case .idle, .paused, .saving, .waitingForFix:
       return sessionDuration
     }
@@ -363,14 +345,10 @@ public final class TrackRecordingService {
         
         currentSessionId = sessionId
         sessionStartTime = startTime
-        currentSegmentStartTime = startTime
         
         let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
         dbActionContinuation?.yield(.insertSession(sessionRecord))
-      } else {
-        currentSegmentStartTime = location.timestamp
       }
-      currentSegmentMonotonicStartTime = .now
       
     case .idle, .recording, .paused, .saving:
       break
@@ -393,6 +371,12 @@ public final class TrackRecordingService {
       }
     }
     
+    if let lastLoc = lastRecordedLocation {
+      let timeSinceLast = max(0, location.timestamp.timeIntervalSince(lastLoc.timestamp))
+      let currentDuration = sessionDuration ?? .seconds(0)
+      sessionDuration = currentDuration + .seconds(timeSinceLast)
+    }
+    lastSessionDurationUpdateMonotonicTime = .now
     lastRecordedLocation = location
     
     var sog: Measurement<UnitSpeed>? = nil
