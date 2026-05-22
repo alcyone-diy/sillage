@@ -80,7 +80,7 @@ public final class TrackRecordingService {
   
   private enum TrackDatabaseAction: Sendable {
     case insertSession(TrackSessionRecord)
-    case insertPoints([TrackPointRecord])
+    case flushBatch(points: [TrackPointRecord], sessionUpdate: TrackSessionRecord)
   }
   private var dbActionContinuation: AsyncStream<TrackDatabaseAction>.Continuation?
   private var persistenceTask: Task<Void, Never>?
@@ -146,8 +146,9 @@ public final class TrackRecordingService {
             switch action {
             case .insertSession(let session):
               try session.insert(db)
-            case .insertPoints(let points):
+            case .flushBatch(let points, let sessionUpdate):
               try points.forEach { try $0.insert(db) }
+              try sessionUpdate.update(db)
             }
           }
         } catch {
@@ -200,13 +201,7 @@ public final class TrackRecordingService {
     
     let finalDurationSeconds = sessionDuration
     let finalDistanceMeters = sessionDistance
-    let localMinLat = minLatitude
-    let localMaxLat = maxLatitude
-    let localMinLon = minLongitude
-    let localMaxLon = maxLongitude
-    let localMaxSpeed = maxSpeed
-    let localPointsCount = pointsCount
-    let localSegmentCount = segmentIndex + 1
+    let sessionUpdate = buildCurrentSessionRecord()
     
     flushBuffer()
     dbActionContinuation?.finish()
@@ -215,22 +210,8 @@ public final class TrackRecordingService {
       _ = await localPersistenceTask?.value
       do {
         try await databaseManager.dbPool.write { db in
-          if var session = try TrackSessionRecord.fetchOne(db, key: sessionId) {
-            if let duration = finalDurationSeconds {
-              let totalSeconds = Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1e18)
-              session.duration_s = totalSeconds
-            }
-            if let distance = finalDistanceMeters {
-              session.totalDistance_m = distance.converted(to: .meters).value
-            }
+          if var session = sessionUpdate {
             session.endTimestamp_unix = endTime.timeIntervalSince1970
-            session.minLatitude_deg = localMinLat?.converted(to: .degrees).value
-            session.maxLatitude_deg = localMaxLat?.converted(to: .degrees).value
-            session.minLongitude_deg = localMinLon?.converted(to: .degrees).value
-            session.maxLongitude_deg = localMaxLon?.converted(to: .degrees).value
-            session.maxSpeed_mps = localMaxSpeed?.converted(to: .metersPerSecond).value
-            session.pointsCount = localPointsCount
-            session.segmentCount = localSegmentCount
             try session.update(db)
           }
         }
@@ -324,7 +305,9 @@ public final class TrackRecordingService {
     guard !writeBuffer.isEmpty else { return }
     let batch = writeBuffer
     writeBuffer.removeAll()
-    dbActionContinuation?.yield(.insertPoints(batch))
+    if let sessionUpdate = buildCurrentSessionRecord() {
+      dbActionContinuation?.yield(.flushBatch(points: batch, sessionUpdate: sessionUpdate))
+    }
     switch state {
     case .recording, .waitingForFix:
       startFlushTimer()
@@ -337,10 +320,12 @@ public final class TrackRecordingService {
     guard !writeBuffer.isEmpty else { return }
     let pointsToInsert = writeBuffer
     writeBuffer.removeAll()
-    
+    let sessionUpdate = buildCurrentSessionRecord()
+
     do {
       try await databaseManager.dbPool.write { db in
         try pointsToInsert.forEach { try $0.insert(db) }
+        try sessionUpdate?.update(db)
       }
       Logger.database.info("Emergency flush successful: \(pointsToInsert.count) points saved.")
     } catch {
@@ -386,7 +371,7 @@ public final class TrackRecordingService {
         currentSegmentStartTime = location.timestamp
       }
       currentSegmentMonotonicStartTime = .now
-
+      
     case .idle, .recording, .paused, .saving:
       break
     }
@@ -475,5 +460,30 @@ public final class TrackRecordingService {
       self.flushBuffer()
     }
     flushTask = TaskCancellable(task)
+  }
+  
+  private func buildCurrentSessionRecord() -> TrackSessionRecord? {
+    guard let sessionId = currentSessionId, let startTime = sessionStartTime else { return nil }
+    
+    var record = TrackSessionRecord(id: sessionId, startTime: startTime)
+    
+    if let duration = activeSessionDuration() {
+      let totalSeconds = Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1e18)
+      record.duration_s = totalSeconds
+    }
+    
+    if let distance = sessionDistance {
+      record.totalDistance_m = distance.converted(to: .meters).value
+    }
+    
+    record.minLatitude_deg = minLatitude?.converted(to: .degrees).value
+    record.maxLatitude_deg = maxLatitude?.converted(to: .degrees).value
+    record.minLongitude_deg = minLongitude?.converted(to: .degrees).value
+    record.maxLongitude_deg = maxLongitude?.converted(to: .degrees).value
+    record.maxSpeed_mps = maxSpeed?.converted(to: .metersPerSecond).value
+    record.pointsCount = pointsCount
+    record.segmentCount = segmentIndex + 1
+    
+    return record
   }
 }
