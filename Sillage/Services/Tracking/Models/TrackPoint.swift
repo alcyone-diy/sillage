@@ -10,8 +10,8 @@
 
 import Foundation
 
-/// A representation of a single recorded track point.
-public struct TrackPoint: Sendable, Codable {
+/// The in-memory domain representation of a recorded track point.
+public struct TrackPoint: Sendable {
   public let timestamp: Date
   public let segmentIndex: Int
   public let latitude: Measurement<UnitAngle>

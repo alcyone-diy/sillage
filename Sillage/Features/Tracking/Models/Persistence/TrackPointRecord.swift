@@ -12,6 +12,8 @@ import Foundation
 import GRDB
 
 /// GRDB Persistence Model for Track Point
+/// The raw database persistence entity for a recorded track point.
+/// When fetched from the database, it must be mapped to the `TrackPoint` domain model for in-memory physical type safety.
 public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
   public var id: Int64?
   public var sessionId: String
