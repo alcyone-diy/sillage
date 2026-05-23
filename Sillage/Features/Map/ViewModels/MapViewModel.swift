@@ -82,7 +82,7 @@ class MapViewModel {
   // MARK: - Private Services & Tasks
   
   private var mapLayer: MapLayer?
-  private let locationService: LocationServiceProtocol
+  private let positioningService: PositioningService
   private let chartStorageService = ChartStorageService()
   private var preferencesService: PreferencesServiceProtocol
   private let authService: GeoGarageAuthServiceProtocol
@@ -121,17 +121,17 @@ class MapViewModel {
   
   @MainActor
   init(
-    locationService: LocationServiceProtocol,
+    positioningService: PositioningService,
     preferencesService: PreferencesServiceProtocol,
     authService: GeoGarageAuthServiceProtocol
   ) {
-    self.locationService = locationService
+    self.positioningService = positioningService
     self.preferencesService = preferencesService
     self.authService = authService
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
     
     loadSavedMapSource()
-    setupLocationService()
+    setupPositioningService()
     silentlyFetchGeoGarageLayers()
     startObservingLocalMaps()
     observePreferences()
@@ -193,9 +193,9 @@ class MapViewModel {
   
   // MARK: - Location Handling
   
-  /// Subscribes to the location service stream, applying a 1-second throttle to UI updates to prevent overloading.
-  private func setupLocationService() {
-    let service = self.locationService
+  /// Subscribes to the positioning service stream, applying a 1-second throttle to UI updates to prevent overloading.
+  private func setupPositioningService() {
+    let service = self.positioningService
     
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
       let clock = ContinuousClock()
@@ -216,7 +216,7 @@ class MapViewModel {
       }
     })
     
-    locationService.requestAuthorization()
+    positioningService.requestAuthorization()
   }
   
   /// Processes a new GPS fix, updating telemetry measurements, map features, and camera position if tracking is enabled.
@@ -429,7 +429,7 @@ class MapViewModel {
   /// Forces the map camera to jump to the user's last known location.
   func centerOnUserLocation() {
     guard let navigationFix = lastKnownNavigationFix else {
-      Logger.map.warning("Cannot center: lastKnownNavigationFix is nil. Waiting for a valid GPS fix from LocationService.")
+      Logger.map.warning("Cannot center: lastKnownNavigationFix is nil. Waiting for a valid GPS fix from PositioningService.")
       return
     }
     

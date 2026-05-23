@@ -22,7 +22,7 @@ final class AppEnvironment {
   
   // Services
   private(set) var preferencesService: PreferencesService?
-  private(set) var locationService: LocationService?
+  private(set) var positioningService: CoreLocationPositioningService?
   private(set) var trackRecordingService: TrackRecordingService?
   private(set) var trackService: TrackService?
   private(set) var geoGarageAuthService: GeoGarageAuthService?
@@ -57,11 +57,11 @@ final class AppEnvironment {
       let preferencesService = PreferencesService()
       self.preferencesService = preferencesService
       
-      let locationService = LocationService()
-      self.locationService = locationService
+      let positioningService = CoreLocationPositioningService()
+      self.positioningService = positioningService
       
       let trackRecordingService = TrackRecordingService(
-        locationService: locationService,
+        positioningService: positioningService,
         databaseManager: databaseManager
       )
       self.trackRecordingService = trackRecordingService
@@ -75,7 +75,7 @@ final class AppEnvironment {
       // d. ViewModels instantiation (injecting the ready Services)
       self.appViewModel = AppViewModel(preferencesService: preferencesService)
       self.mapViewModel = MapViewModel(
-        locationService: locationService,
+        positioningService: positioningService,
         preferencesService: preferencesService,
         authService: geoGarageAuthService
       )

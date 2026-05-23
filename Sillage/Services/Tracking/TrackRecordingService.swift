@@ -71,7 +71,7 @@ public final class TrackRecordingService {
     }
   }
   
-  private let locationService: LocationServiceProtocol
+  private let positioningService: PositioningService
   private let databaseManager: DatabaseManager
   private var locationUpdatesTask: TaskCancellable?
   private var backgroundLocationToken: (any BackgroundLocationToken)?
@@ -86,11 +86,11 @@ public final class TrackRecordingService {
   
   init(
     filters: TrackFilters = .default,
-    locationService: LocationServiceProtocol,
+    positioningService: PositioningService,
     databaseManager: DatabaseManager
   ) {
     self.filters = filters
-    self.locationService = locationService
+    self.positioningService = positioningService
     self.databaseManager = databaseManager
   }
   
@@ -123,7 +123,7 @@ public final class TrackRecordingService {
     maxSpeedOverGround = nil
     pointsCount = nil
     
-    let service = self.locationService
+    let service = self.positioningService
     self.backgroundLocationToken = service.requestBackgroundLocation()
     
     startFlushTimer()
@@ -251,7 +251,7 @@ public final class TrackRecordingService {
     segmentIndex += 1
     lastSessionDurationUpdateMonotonicTime = nil
     
-    let service = self.locationService
+    let service = self.positioningService
     self.backgroundLocationToken = service.requestBackgroundLocation()
     
     startFlushTimer()

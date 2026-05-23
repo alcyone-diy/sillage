@@ -1,5 +1,5 @@
 //
-//  LocationServiceProtocol.swift
+//  PositioningService.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-05-23.
@@ -11,7 +11,7 @@
 import Foundation
 import CoreLocation
 
-protocol LocationServiceProtocol {
+protocol PositioningService {
   var locationUpdates: AsyncStream<NavigationFix> { get }
   var authorizationStatusStream: AsyncStream<CLAuthorizationStatus> { get }
 

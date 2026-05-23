@@ -1,5 +1,5 @@
 //
-//  LocationService.swift
+//  CoreLocationPositioningService.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-04-05.
@@ -16,7 +16,7 @@ public protocol BackgroundLocationToken: AnyObject {
   func invalidate()
 }
 
-class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDelegate {
+class CoreLocationPositioningService: NSObject, PositioningService, CLLocationManagerDelegate {
   
   private let locationManager: CLLocationManager
   
@@ -183,7 +183,7 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
     // Filter out inaccurate GPS points (horizontal accuracy > 50m or invalid < 0).
     let accuracy = latestLocation.horizontalAccuracy
     guard accuracy >= 0 && accuracy <= 50 else {
-      Logger.telemetry.warning("LocationService ignored coordinate due to low accuracy: \(accuracy, privacy: .public)m")
+      Logger.telemetry.warning("CoreLocationPositioningService ignored coordinate due to low accuracy: \(accuracy, privacy: .public)m")
       return
     }
     
@@ -254,6 +254,6 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
   }
   
   func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-    Logger.telemetry.error("LocationService failed with error: \(error.localizedDescription, privacy: .public) (Ensure Simulator -> Features -> Location is set)")
+    Logger.telemetry.error("CoreLocationPositioningService failed with error: \(error.localizedDescription, privacy: .public) (Ensure Simulator -> Features -> Location is set)")
   }
 }
