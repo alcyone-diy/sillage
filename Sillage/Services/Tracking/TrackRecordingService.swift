@@ -41,7 +41,7 @@ public final class TrackRecordingService {
   public private(set) var maxLatitude: Measurement<UnitAngle>?
   public private(set) var minLongitude: Measurement<UnitAngle>?
   public private(set) var maxLongitude: Measurement<UnitAngle>?
-  public private(set) var maxSpeed: Measurement<UnitSpeed>?
+  public private(set) var maxSpeedOverGround: Measurement<UnitSpeed>?
   public private(set) var pointsCount: Int?
   
   /// Centralized configuration for the track recording service logic.
@@ -120,7 +120,7 @@ public final class TrackRecordingService {
     maxLatitude = nil
     minLongitude = nil
     maxLongitude = nil
-    maxSpeed = nil
+    maxSpeedOverGround = nil
     pointsCount = nil
     
     let service = self.locationService
@@ -378,11 +378,6 @@ public final class TrackRecordingService {
     lastSessionDurationUpdateMonotonicTime = .now
     lastRecordedNavigationFix = navigationFix
     
-    var sog: Measurement<UnitSpeed>? = nil
-    if navigationFix.speed >= 0 {
-      sog = Measurement(value: navigationFix.speed, unit: UnitSpeed.metersPerSecond)
-    }
-    
     var cog: Measurement<UnitAngle>? = nil
     if navigationFix.course >= 0 {
       cog = Measurement(value: navigationFix.course, unit: UnitAngle.degrees)
@@ -396,9 +391,8 @@ public final class TrackRecordingService {
     minLongitude = min(minLongitude ?? longitude, longitude)
     maxLongitude = max(maxLongitude ?? longitude, longitude)
     
-    if navigationFix.speed >= 0 {
-      let currentSpeed = Measurement(value: navigationFix.speed, unit: UnitSpeed.metersPerSecond)
-      maxSpeed = max(maxSpeed ?? currentSpeed, currentSpeed)
+    if let speedOverGround = navigationFix.speedOverGround {
+      maxSpeedOverGround = max(maxSpeedOverGround ?? speedOverGround, speedOverGround)
     }
     
     pointsCount = (pointsCount ?? 0) + 1
@@ -409,7 +403,7 @@ public final class TrackRecordingService {
       latitude: Measurement(value: navigationFix.coordinate.latitude, unit: .degrees),
       longitude: Measurement(value: navigationFix.coordinate.longitude, unit: .degrees),
       horizontalAccuracy: navigationFix.horizontalAccuracy,
-      sog: sog,
+      sog: navigationFix.speedOverGround,
       cog: cog,
     )
     
@@ -461,7 +455,7 @@ public final class TrackRecordingService {
     record.maxLatitude_deg = maxLatitude?.converted(to: .degrees).value
     record.minLongitude_deg = minLongitude?.converted(to: .degrees).value
     record.maxLongitude_deg = maxLongitude?.converted(to: .degrees).value
-    record.maxSpeed_mps = maxSpeed?.converted(to: .metersPerSecond).value
+    record.maxSpeed_mps = maxSpeedOverGround?.converted(to: .metersPerSecond).value
     record.pointsCount = pointsCount
     record.segmentCount = segmentIndex + 1
     

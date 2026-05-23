@@ -19,9 +19,9 @@ public struct NavigationFix: Sendable, Equatable {
   // Valid only if courseAccuracy > 0.
   public let course: CLLocationDirection
   public let courseAccuracy: CLLocationDirectionAccuracy
-  // Valid only if speedAccuracy > 0.
-  public let speed: CLLocationSpeed
-  public let speedAccuracy: CLLocationSpeedAccuracy
+  // speedOverGround and speedOverGroundAccuracy both valid or none.
+  public let speedOverGround: Measurement<UnitSpeed>?
+  public let speedOverGroundAccuracy: Measurement<UnitSpeed>?
   // Always valid.
   public let timestamp: Date
   

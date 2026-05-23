@@ -230,13 +230,19 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
       }
     }
     
+    var speedOverGround: Measurement<UnitSpeed>?
+    var speedOverGroundAccuracy: Measurement<UnitSpeed>?
+    if latestLocation.speedAccuracy >= 0 {
+      speedOverGround = Measurement(value:latestLocation.speed, unit: .metersPerSecond)
+      speedOverGroundAccuracy = Measurement(value:latestLocation.speedAccuracy, unit: .metersPerSecond)
+    }
     let filteredLocation = NavigationFix(
       coordinate: latestLocation.coordinate,
       horizontalAccuracy: Measurement(value: latestLocation.horizontalAccuracy, unit: .meters),
       course: finalCourse,
       courseAccuracy: latestLocation.courseAccuracy,
-      speed: latestLocation.speed,
-      speedAccuracy: latestLocation.speedAccuracy,
+      speedOverGround: speedOverGround,
+      speedOverGroundAccuracy: speedOverGroundAccuracy,
       timestamp: latestLocation.timestamp
     )
     

@@ -243,12 +243,7 @@ class MapViewModel {
     currentCoordinate = navigationFix.coordinate
     
     // Update SOG using Apple's Measurement
-    let speed = navigationFix.speed
-    if speed >= 0 {
-      speedOverGround = Measurement(value: speed, unit: UnitSpeed.metersPerSecond)
-    } else {
-      speedOverGround = nil
-    }
+    speedOverGround = navigationFix.speedOverGround
     
     // Update COG
     let course = navigationFix.course
@@ -290,7 +285,7 @@ class MapViewModel {
       return nil
     }
     
-    guard let sogMeasurement = speedOverGround, let cog = courseOverGround, navigationFix.speed > 0 else {
+    guard let sogMeasurement = speedOverGround, let cog = courseOverGround, navigationFix.speedOverGround != nil else {
       return nil
     }
     
