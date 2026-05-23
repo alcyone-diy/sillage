@@ -12,7 +12,7 @@ import Foundation
 import CoreLocation
 
 protocol LocationServiceProtocol {
-  var locationUpdates: AsyncStream<CLLocation> { get }
+  var locationUpdates: AsyncStream<NavigationFix> { get }
   var authorizationStatusStream: AsyncStream<CLAuthorizationStatus> { get }
 
   func requestAuthorization()

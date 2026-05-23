@@ -19,7 +19,6 @@ public struct TrackFilters: Sendable {
   // Pre-calculated variables to avoid CPU overhead in the high-frequency filtering loop
   public let minDistanceMeters: Double
   public let minTimeIntervalSeconds: Double
-  public let maxHorizontalAccuracyMeters: Double
 
   public init(
     minDistance: Measurement<UnitLength>,
@@ -32,7 +31,6 @@ public struct TrackFilters: Sendable {
     
     self.minDistanceMeters = minDistance.converted(to: .meters).value
     self.minTimeIntervalSeconds = minTimeInterval.converted(to: .seconds).value
-    self.maxHorizontalAccuracyMeters = maxHorizontalAccuracy.converted(to: .meters).value
   }
 
   nonisolated public static let `default` = TrackFilters(

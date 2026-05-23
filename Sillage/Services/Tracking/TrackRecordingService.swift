@@ -57,7 +57,7 @@ public final class TrackRecordingService {
   private var currentSessionId: String?
   private var segmentIndex: Int = 0
   private var writeBuffer: [TrackPointRecord] = []
-  private var lastRecordedLocation: CLLocation?
+  private var lastRecordedNavigationFix: NavigationFix?
   private var filters: TrackFilters
   
   public enum TrackRecordingError: LocalizedError {
@@ -96,7 +96,7 @@ public final class TrackRecordingService {
   
   public func updateFilters(_ newFilters: TrackFilters) {
     self.filters = newFilters
-    Logger.telemetry.info("Track filters updated: \(newFilters.minDistanceMeters)m, \(newFilters.minTimeIntervalSeconds)s, \(newFilters.maxHorizontalAccuracyMeters)m accuracy")
+    Logger.telemetry.info("Track filters updated: \(newFilters.minDistanceMeters)m, \(newFilters.minTimeIntervalSeconds)s, \(newFilters.maxHorizontalAccuracy) accuracy")
   }
   
   public func startRecording() {
@@ -113,7 +113,7 @@ public final class TrackRecordingService {
     lastSessionDurationUpdateMonotonicTime = nil
     sessionDuration = nil
     sessionDistance = Measurement(value: 0, unit: UnitLength.meters)
-    lastRecordedLocation = nil
+    lastRecordedNavigationFix = nil
     writeBuffer.removeAll()
     trackPoints.removeAll()
     minLatitude = nil
@@ -129,9 +129,9 @@ public final class TrackRecordingService {
     startFlushTimer()
     
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
-      for await location in service.locationUpdates {
+      for await navigationFix in service.locationUpdates {
         guard !Task.isCancelled else { break }
-        self?.processLocationUpdate(location)
+        self?.processLocationUpdate(navigationFix)
       }
     })
     
@@ -179,7 +179,7 @@ public final class TrackRecordingService {
     flushTask = nil
     
     guard let sessionId = currentSessionId,
-          let endTime = lastRecordedLocation?.timestamp else {
+          let endTime = lastRecordedNavigationFix?.timestamp else {
       state = .idle
       return .abortedNoFix
     }
@@ -212,7 +212,7 @@ public final class TrackRecordingService {
     }
     
     currentSessionId = nil
-    lastRecordedLocation = nil
+    lastRecordedNavigationFix = nil
     
     return .savedAsync(sessionId: sessionId)
   }
@@ -232,7 +232,7 @@ public final class TrackRecordingService {
     flushTask = nil
     
     lastSessionDurationUpdateMonotonicTime = nil
-    lastRecordedLocation = nil
+    lastRecordedNavigationFix = nil
     
     flushBuffer()
     
@@ -257,9 +257,9 @@ public final class TrackRecordingService {
     startFlushTimer()
     
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
-      for await location in service.locationUpdates {
+      for await navigationFix in service.locationUpdates {
         guard !Task.isCancelled else { break }
-        self?.processLocationUpdate(location)
+        self?.processLocationUpdate(navigationFix)
       }
     })
     
@@ -331,9 +331,8 @@ public final class TrackRecordingService {
     }
   }
   
-  private func processLocationUpdate(_ location: CLLocation) {
-    guard location.horizontalAccuracy >= 0 else { return }
-    guard location.horizontalAccuracy <= filters.maxHorizontalAccuracyMeters else { return }
+  private func processLocationUpdate(_ navigationFix: NavigationFix) {
+    guard navigationFix.horizontalAccuracy <= filters.maxHorizontalAccuracy else { return }
     
     switch state {
     case .waitingForFix:
@@ -341,7 +340,7 @@ public final class TrackRecordingService {
       
       if currentSessionId == nil {
         let sessionId = UUID().uuidString
-        let startTime = location.timestamp
+        let startTime = navigationFix.timestamp
         
         currentSessionId = sessionId
         sessionStartTime = startTime
@@ -355,9 +354,9 @@ public final class TrackRecordingService {
     }
     
     // Filtering Logic (Anti-Jitter)
-    if let lastLoc = lastRecordedLocation {
-      let distanceSinceLast = location.distance(from: lastLoc)
-      let timeSinceLast = location.timestamp.timeIntervalSince(lastLoc.timestamp)
+    if let lastLoc = lastRecordedNavigationFix {
+      let distanceSinceLast = navigationFix.distance(from: lastLoc)
+      let timeSinceLast = navigationFix.timestamp.timeIntervalSince(lastLoc.timestamp)
       
       let hasMovedSignificantly = distanceSinceLast > filters.minDistanceMeters
       let hasSufficientTimePassed = timeSinceLast > filters.minTimeIntervalSeconds
@@ -371,47 +370,45 @@ public final class TrackRecordingService {
       }
     }
     
-    if let lastLoc = lastRecordedLocation {
-      let timeSinceLast = max(0, location.timestamp.timeIntervalSince(lastLoc.timestamp))
+    if let lastLoc = lastRecordedNavigationFix {
+      let timeSinceLast = max(0, navigationFix.timestamp.timeIntervalSince(lastLoc.timestamp))
       let currentDuration = sessionDuration ?? .seconds(0)
       sessionDuration = currentDuration + .seconds(timeSinceLast)
     }
     lastSessionDurationUpdateMonotonicTime = .now
-    lastRecordedLocation = location
+    lastRecordedNavigationFix = navigationFix
     
     var sog: Measurement<UnitSpeed>? = nil
-    if location.speed >= 0 {
-      sog = Measurement(value: location.speed, unit: UnitSpeed.metersPerSecond)
+    if navigationFix.speed >= 0 {
+      sog = Measurement(value: navigationFix.speed, unit: UnitSpeed.metersPerSecond)
     }
     
     var cog: Measurement<UnitAngle>? = nil
-    if location.course >= 0 {
-      cog = Measurement(value: location.course, unit: UnitAngle.degrees)
+    if navigationFix.course >= 0 {
+      cog = Measurement(value: navigationFix.course, unit: UnitAngle.degrees)
     }
     
-    let horizontalAccuracy = Measurement(value: location.horizontalAccuracy, unit: UnitLength.meters)
+    let latitude = Measurement(value: navigationFix.coordinate.latitude, unit: UnitAngle.degrees)
+    let longitude = Measurement(value: navigationFix.coordinate.longitude, unit: UnitAngle.degrees)
     
-    let lat = Measurement(value: location.coordinate.latitude, unit: UnitAngle.degrees)
-    let lon = Measurement(value: location.coordinate.longitude, unit: UnitAngle.degrees)
+    minLatitude = min(minLatitude ?? latitude, latitude)
+    maxLatitude = max(maxLatitude ?? latitude, latitude)
+    minLongitude = min(minLongitude ?? longitude, longitude)
+    maxLongitude = max(maxLongitude ?? longitude, longitude)
     
-    minLatitude = min(minLatitude ?? lat, lat)
-    maxLatitude = max(maxLatitude ?? lat, lat)
-    minLongitude = min(minLongitude ?? lon, lon)
-    maxLongitude = max(maxLongitude ?? lon, lon)
-    
-    if location.speed >= 0 {
-      let currentSpeed = Measurement(value: location.speed, unit: UnitSpeed.metersPerSecond)
+    if navigationFix.speed >= 0 {
+      let currentSpeed = Measurement(value: navigationFix.speed, unit: UnitSpeed.metersPerSecond)
       maxSpeed = max(maxSpeed ?? currentSpeed, currentSpeed)
     }
     
     pointsCount = (pointsCount ?? 0) + 1
     
     let trackPoint = TrackPoint(
-      timestamp: location.timestamp,
+      timestamp: navigationFix.timestamp,
       segmentIndex: segmentIndex,
-      latitude: Measurement(value: location.coordinate.latitude, unit: .degrees),
-      longitude: Measurement(value: location.coordinate.longitude, unit: .degrees),
-      horizontalAccuracy: horizontalAccuracy,
+      latitude: Measurement(value: navigationFix.coordinate.latitude, unit: .degrees),
+      longitude: Measurement(value: navigationFix.coordinate.longitude, unit: .degrees),
+      horizontalAccuracy: navigationFix.horizontalAccuracy,
       sog: sog,
       cog: cog,
     )
