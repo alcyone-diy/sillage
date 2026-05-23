@@ -18,6 +18,8 @@ import MapLibre
 final class AppEnvironment {
   private(set) var state: AppState = .uninitialized
 
+  public let metadata: AppMetadata
+  
   // Services
   private(set) var preferencesService: PreferencesService?
   private(set) var locationService: LocationService?
@@ -31,7 +33,9 @@ final class AppEnvironment {
   private(set) var panelManagerViewModel: PanelManagerViewModel?
   private(set) var activeTrackViewModel: ActiveTrackViewModel?
   
-  init() {}
+  public init(metadata: AppMetadata? = nil) {
+    self.metadata = metadata ?? AppMetadataProvider.resolve()
+  }
   
   func bootstrap() async {
     if case .bootstrapping = state { return }
