@@ -45,9 +45,16 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **Offline-First:** Prioritize local `.mbtiles` files in the `Charts/` directory.
 
 ## 7. Architecture & Domain-Driven Design (DDD)
-- **Architecture:** MVVM is mandatory for all SwiftUI views.
+- **MVVM & Global State:** 
+  - Use ViewModels (`@Observable`) strictly for local view logic, user input validation, or complex screen-specific formatting.
+  - DO NOT use the "Middleman Anti-pattern". Views must access global read-only state or global managers directly via SwiftUI's `@Environment` (e.g., `AppEnvironment`). Do not create a ViewModel just to pass through environment data.
+- **Dependency Injection:** Singletons (`.shared`) are strictly forbidden. All Services (e.g., Location, Storage) must be initialized at the app's root within an `AppEnvironment` or `ServiceProvider` container, and injected into ViewModels or Views via `.environment()` or direct init injection.
 - **Strict Framework Isolation:** Third-party or Apple Framework types (e.g., `CLLocation`, `CLHeading`, `CBMPeripheral`) must **never** leak into the UI or Domain streams. They must be intercepted at the Service boundary and mapped to pure Swift Domain structs (e.g., `MarineFix`).
 - **DDD Strictness:** Business terms like `Route`, `Navigation`, `Track`, and `Waypoint` are strictly forbidden in UI navigation code. Use terms like `CommandDestination` and `commandPath` to prevent cognitive collision with the ship's actual routing engine.
+- **Persistence Strategy:** 
+  - `UserDefaults` / `@AppStorage`: Strictly reserved for lightweight user preferences (e.g., Glove Mode, Theme).
+  - `FileSystem` (JSON/GPX): Used for high-volume raw data (e.g., continuous Track Recording buffer).
+  - Never block the Main Thread with disk writes. Use `Task.detached` or background actors for persistence.
 
 ## 8. UX & Animations
 - **No Pop Glitches:** When popping views from a `NavigationStack`, use iOS 17's `withAnimation(..., completion:)` to clear the stack only after the dismiss animation finishes.
