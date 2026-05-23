@@ -17,7 +17,7 @@ import GRDB
 @MainActor
 @Observable
 public final class TrackRecordingService {
-  public private(set) var trackPoints: [TrackPoint] = []
+  public private(set) var trackPoints: ArraySlice<TrackPoint> = []
   
   public enum RecordingState: Equatable, Sendable {
     case idle
@@ -104,8 +104,8 @@ public final class TrackRecordingService {
     
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
       for await navigationFix in service.locationUpdates {
-        guard !Task.isCancelled else { break }
-        self?.processLocationUpdate(navigationFix)
+        guard !Task.isCancelled, let self = self else { break }
+        self.processLocationUpdate(navigationFix)
       }
     })
     
@@ -157,7 +157,10 @@ public final class TrackRecordingService {
       }
       await writerToFinish?.finish()
       
-      Logger.database.info("Track session \(sessionId, privacy: .public) finalized successfully with \(finalDurationSeconds?.components.seconds ?? 0, privacy: .public)s and \(finalDistanceMeters?.converted(to: .meters).value ?? 0, privacy: .public)m.")
+      // This is impossible to Int64? or Double?
+      let durationSecs = finalDurationSeconds?.components.seconds ?? 0
+      let distanceMeters = finalDistanceMeters?.converted(to: .meters).value ?? 0
+      Logger.database.info("Track session \(sessionId, privacy: .public) finalized successfully with \(durationSecs, privacy: .public)s and \(distanceMeters, privacy: .public)m.")
       await self?.stopSavingState()
     }
     
@@ -181,8 +184,6 @@ public final class TrackRecordingService {
     flushTask?.cancel()
     flushTask = nil
     
-    telemetry.pause()
-    
     persistenceWriter?.flushAsync(sessionUpdate: buildCurrentSessionRecord())
     unflushedPointCount = 0
     
@@ -199,7 +200,7 @@ public final class TrackRecordingService {
     }
     
     segmentIndex += 1
-    telemetry.pause()
+    telemetry.startNewSegment()
     
     let service = self.positioningService
     self.backgroundLocationToken = service.requestBackgroundLocation()
@@ -208,8 +209,8 @@ public final class TrackRecordingService {
     
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
       for await navigationFix in service.locationUpdates {
-        guard !Task.isCancelled else { break }
-        self?.processLocationUpdate(navigationFix)
+        guard !Task.isCancelled, let self = self else { break }
+        self.processLocationUpdate(navigationFix)
       }
     })
     

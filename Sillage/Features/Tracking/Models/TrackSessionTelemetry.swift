@@ -131,7 +131,7 @@ public struct TrackSessionTelemetry: Sendable {
     }
   }
   
-  public mutating func pause() {
+  public mutating func startNewSegment() {
     lastSessionDurationUpdateMonotonicTime = nil
     lastTimeUpdated = nil
     lastRecordedNavigationFix = nil

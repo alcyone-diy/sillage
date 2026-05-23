@@ -199,7 +199,7 @@ struct MapLibreView: UIViewRepresentable {
     uiView.compassView.isUserInteractionEnabled = (viewModel.trackingMode != .courseUp)
   }
 
-  private func generateActiveTrackFeature(from points: [TrackPoint]) -> MLNPolylineFeature? {
+  private func generateActiveTrackFeature(from points: ArraySlice<TrackPoint>) -> MLNPolylineFeature? {
     guard points.count >= 2 else { return nil }
     var coordinates = points.map {
       CLLocationCoordinate2D(
