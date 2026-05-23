@@ -30,6 +30,10 @@ protocol PreferencesServiceProtocol {
 
   func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double)
   func loadCameraState() -> (coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double)?
+  
+  var activeTrackSessionID: String? { get }
+  func saveActiveTrackSessionID(_ id: String)
+  func clearActiveTrackSessionID()
 }
 
 @Observable
@@ -48,6 +52,7 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let isCOGVectorEnabledKey = "isCOGVectorEnabled"
   @ObservationIgnored private let cogVectorTimeHorizonSecondsKey = "cogVectorTimeHorizonSeconds"
   @ObservationIgnored private let isCOGVectorTicksEnabledKey = "isCOGVectorTicksEnabled"
+  @ObservationIgnored private let activeTrackSessionIDKey = "activeTrackSessionID"
 
   @ObservationIgnored private let defaults = UserDefaults.standard
 
@@ -95,6 +100,11 @@ class PreferencesService: PreferencesServiceProtocol {
     didSet { defaults.set(isCOGVectorTicksEnabled, forKey: isCOGVectorTicksEnabledKey) }
   }
 
+  @ObservationIgnored
+  var activeTrackSessionID: String? {
+    didSet { defaults.set(activeTrackSessionID, forKey: activeTrackSessionIDKey) }
+  }
+
   private var rawCogVectorTimeHorizonSeconds: Double {
     didSet { defaults.set(rawCogVectorTimeHorizonSeconds, forKey: cogVectorTimeHorizonSecondsKey) }
   }
@@ -122,6 +132,7 @@ class PreferencesService: PreferencesServiceProtocol {
     self.isCOGVectorEnabled = defaults.object(forKey: isCOGVectorEnabledKey) as? Bool ?? true
     self.isCOGVectorTicksEnabled = defaults.object(forKey: isCOGVectorTicksEnabledKey) as? Bool ?? true
     self.rawCogVectorTimeHorizonSeconds = defaults.object(forKey: cogVectorTimeHorizonSecondsKey) as? Double ?? 3600.0
+    self.activeTrackSessionID = defaults.string(forKey: activeTrackSessionIDKey)
   }
 
   func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double) {
@@ -137,5 +148,13 @@ class PreferencesService: PreferencesServiceProtocol {
       return (CLLocationCoordinate2D(latitude: lat, longitude: lon), zoom, direction)
     }
     return nil
+  }
+
+  func saveActiveTrackSessionID(_ id: String) {
+    self.activeTrackSessionID = id
+  }
+
+  func clearActiveTrackSessionID() {
+    self.activeTrackSessionID = nil
   }
 }

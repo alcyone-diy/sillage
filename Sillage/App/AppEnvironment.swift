@@ -62,7 +62,8 @@ final class AppEnvironment {
       
       let trackRecordingService = TrackRecordingService(
         positioningService: positioningService,
-        databaseManager: databaseManager
+        databaseManager: databaseManager,
+        preferencesService: preferencesService
       )
       self.trackRecordingService = trackRecordingService
       

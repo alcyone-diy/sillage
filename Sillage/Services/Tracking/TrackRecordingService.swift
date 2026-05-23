@@ -67,15 +67,18 @@ public final class TrackRecordingService {
   private var flushTask: TaskCancellable?
   
   private var persistenceWriter: TrackPersistenceWriter?
+  private let preferencesService: PreferencesServiceProtocol
   
   init(
     filters: TrackFilters = .default,
     positioningService: PositioningService,
-    databaseManager: DatabaseManager
+    databaseManager: DatabaseManager,
+    preferencesService: PreferencesServiceProtocol
   ) {
     self.filters = filters
     self.positioningService = positioningService
     self.databaseManager = databaseManager
+    self.preferencesService = preferencesService
   }
   
   public func updateFilters(_ newFilters: TrackFilters) {
@@ -164,6 +167,7 @@ public final class TrackRecordingService {
     }
     
     currentSessionId = nil
+    preferencesService.clearActiveTrackSessionID()
     telemetry.clear()
     
     return .savedAsync(sessionId: sessionId)
@@ -254,6 +258,7 @@ public final class TrackRecordingService {
         let startTime = navigationFix.timestamp
         
         currentSessionId = sessionId
+        preferencesService.saveActiveTrackSessionID(sessionId)
         telemetry.start(at: navigationFix)
         
         let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
