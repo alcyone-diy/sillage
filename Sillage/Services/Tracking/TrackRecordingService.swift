@@ -96,7 +96,7 @@ public final class TrackRecordingService {
   
   public func updateFilters(_ newFilters: TrackFilters) {
     self.filters = newFilters
-    Logger.telemetry.info("Track filters updated: \(newFilters.minDistanceMeters)m, \(newFilters.minTimeIntervalSeconds)s, \(newFilters.maxHorizontalAccuracy) accuracy")
+    Logger.telemetry.info("Track filters updated: \(newFilters.minDistance), \(newFilters.minTimeIntervalSeconds)s, \(newFilters.maxHorizontalAccuracy) accuracy")
   }
   
   public func startRecording() {
@@ -358,15 +358,14 @@ public final class TrackRecordingService {
       let distanceSinceLast = navigationFix.distance(from: lastLoc)
       let timeSinceLast = navigationFix.timestamp.timeIntervalSince(lastLoc.timestamp)
       
-      let hasMovedSignificantly = distanceSinceLast > filters.minDistanceMeters
+      let hasMovedSignificantly = distanceSinceLast > filters.minDistance
       let hasSufficientTimePassed = timeSinceLast > filters.minTimeIntervalSeconds
       
       guard hasMovedSignificantly || hasSufficientTimePassed else { return }
       
       // Update cumulative distance only with validated points to prevent GPS noise inflation
       if let currentDistance = sessionDistance {
-        let distanceIncrement = Measurement(value: distanceSinceLast, unit: UnitLength.meters)
-        sessionDistance = currentDistance + distanceIncrement
+        sessionDistance = currentDistance + distanceSinceLast
       }
     }
     

@@ -28,12 +28,12 @@ public struct NavigationFix: Sendable, Equatable {
   /// Calculates the geodetic distance using the WGS 84 reference ellipsoid.
   /// Note: Instantiating CLLocation is necessary here to leverage Apple's highly accurate
   /// underlying GIS algorithms, as a simple Haversine formula is insufficient for marine navigation.
-  public func distance(from navigationFix: NavigationFix) -> Double {
+  public func distance(from navigationFix: NavigationFix) -> Measurement<UnitLength> {
     let startLocation = CLLocation(latitude: self.coordinate.latitude, longitude: self.coordinate.longitude)
     let endLocation = CLLocation(latitude: navigationFix.coordinate.latitude, longitude: navigationFix.coordinate.longitude)
     
     let distanceInMeters = startLocation.distance(from: endLocation)
-    return distanceInMeters
+    return Measurement(value: distanceInMeters, unit: .meters)
   }
   
   /// Calculates the initial bearing to another coordinate.
