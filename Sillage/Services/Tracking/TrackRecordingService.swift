@@ -157,10 +157,9 @@ public final class TrackRecordingService {
       }
       await writerToFinish?.finish()
       
-      // This is impossible to Int64? or Double?
-      let durationSecs = finalDurationSeconds?.components.seconds ?? 0
-      let distanceMeters = finalDistanceMeters?.converted(to: .meters).value ?? 0
-      Logger.database.info("Track session \(sessionId, privacy: .public) finalized successfully with \(durationSecs, privacy: .public)s and \(distanceMeters, privacy: .public)m.")
+      let durationStr = finalDurationSeconds.map { String(describing: $0) } ?? "nil"
+      let distanceStr = finalDistanceMeters.map { String(describing:$0) } ?? "nil"
+      Logger.database.info("Track session \(sessionId, privacy: .public) finalized successfully with \(durationStr, privacy: .public)s and \(distanceStr, privacy: .public)m.")
       await self?.stopSavingState()
     }
     
