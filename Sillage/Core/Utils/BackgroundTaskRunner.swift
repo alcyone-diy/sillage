@@ -2,7 +2,7 @@
 //  TaskCancellable.swift
 //  Alcyone Sillage
 //
-//  Created by Alcyone on 14/05/2026.
+//  Created by Alcyone on 2026-04-14.
 //  Copyright © 2026 Alcyone.
 //  This file is released under the MIT License.
 //  See LICENSE file in the project root for full license information.

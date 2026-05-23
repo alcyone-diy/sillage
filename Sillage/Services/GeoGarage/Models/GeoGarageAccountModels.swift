@@ -2,6 +2,7 @@
 //  GeoGarageAccountModels.swift
 //  Alcyone Sillage
 //
+//  Created by Alcyone on 2026-04-06.
 //  Copyright © 2026 Alcyone.
 //  This file is released under the MIT License.
 //  See LICENSE file in the project root for full license information.

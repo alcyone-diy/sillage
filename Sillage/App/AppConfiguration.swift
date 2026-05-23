@@ -2,11 +2,12 @@
 //  AppConfiguration.swift
 //  Alcyone Sillage
 //
-//  Created by Alcyone.
-//  Copyright © Alcyone. All rights reserved.
+//  Created by Alcyone on 2026-05-16.
+//  Copyright © 2026 Alcyone.
 //  This file is released under the MIT License.
 //  See LICENSE file in the project root for full license information.
 //
+
 
 import Foundation
 

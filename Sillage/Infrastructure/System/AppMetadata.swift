@@ -2,7 +2,7 @@
 //  AppMetadata.swift
 //  Alcyone Sillage
 //
-//  Created by Alcyone on 23/05/2026.
+//  Created by Alcyone on 2026-05-23.
 //  Copyright © 2026 Alcyone. All rights reserved.
 //  This file is released under the MIT License.
 //  See LICENSE file in the project root for full license information.
