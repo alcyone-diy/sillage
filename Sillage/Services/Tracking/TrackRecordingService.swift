@@ -378,11 +378,6 @@ public final class TrackRecordingService {
     lastSessionDurationUpdateMonotonicTime = .now
     lastRecordedNavigationFix = navigationFix
     
-    var cog: Measurement<UnitAngle>? = nil
-    if navigationFix.course >= 0 {
-      cog = Measurement(value: navigationFix.course, unit: UnitAngle.degrees)
-    }
-    
     let latitude = Measurement(value: navigationFix.coordinate.latitude, unit: UnitAngle.degrees)
     let longitude = Measurement(value: navigationFix.coordinate.longitude, unit: UnitAngle.degrees)
     
@@ -404,7 +399,7 @@ public final class TrackRecordingService {
       longitude: Measurement(value: navigationFix.coordinate.longitude, unit: .degrees),
       horizontalAccuracy: navigationFix.horizontalAccuracy,
       sog: navigationFix.speedOverGround,
-      cog: cog,
+      cog: navigationFix.courseOverGround
     )
     
     trackPoints.append(trackPoint)

@@ -246,12 +246,7 @@ class MapViewModel {
     speedOverGround = navigationFix.speedOverGround
     
     // Update COG
-    let course = navigationFix.course
-    if course >= 0 {
-      courseOverGround = Measurement(value: course, unit: UnitAngle.degrees)
-    } else {
-      courseOverGround = nil
-    }
+    courseOverGround = navigationFix.courseOverGround
     
     // Generate Map Annotations
     let feature = MLNPointFeature()
@@ -271,7 +266,7 @@ class MapViewModel {
     
     // Broadcast camera move if actively tracking the user
     if trackingMode != .free {
-      let heading = (trackingMode == .courseUp && course >= 0) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
+      let heading = (trackingMode == .courseUp && courseOverGround != nil) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
       let event = CameraMoveEvent(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
       for continuation in cameraMoveContinuations.values {
         continuation.yield(event)
@@ -422,8 +417,8 @@ class MapViewModel {
     }
     
     if trackingMode != .free, let navigationFix = lastKnownNavigationFix {
-      let course = navigationFix.course
-      let heading = (trackingMode == .courseUp && course >= 0) ? Measurement(value: course, unit: UnitAngle.degrees) : Measurement(value: 0.0, unit: UnitAngle.degrees)
+      let courseOverGround = navigationFix.courseOverGround
+      let heading = (trackingMode == .courseUp && courseOverGround != nil) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
       let event = CameraMoveEvent(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
       for continuation in cameraMoveContinuations.values {
         continuation.yield(event)
@@ -438,8 +433,8 @@ class MapViewModel {
       return
     }
     
-    let course = navigationFix.course
-    let heading = (trackingMode == .courseUp && course >= 0) ? Measurement(value: course, unit: UnitAngle.degrees) : Measurement(value: 0.0, unit: UnitAngle.degrees)
+    let courseOverGround = navigationFix.courseOverGround
+    let heading = (trackingMode == .courseUp && courseOverGround != nil) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
     let event = CameraMoveEvent(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)

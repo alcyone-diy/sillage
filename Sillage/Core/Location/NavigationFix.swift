@@ -16,9 +16,9 @@ public struct NavigationFix: Sendable, Equatable {
   public let coordinate: CLLocationCoordinate2D
   // Always valid.
   public let horizontalAccuracy: Measurement<UnitLength>
-  // Valid only if courseAccuracy > 0.
-  public let course: CLLocationDirection
-  public let courseAccuracy: CLLocationDirectionAccuracy
+  // courseOverGround and courseOverGroundAccuracy both valid or none.
+  public let courseOverGround: Measurement<UnitAngle>?
+  public let courseOverGroundAccuracy: Measurement<UnitAngle>?
   // speedOverGround and speedOverGroundAccuracy both valid or none.
   public let speedOverGround: Measurement<UnitSpeed>?
   public let speedOverGroundAccuracy: Measurement<UnitSpeed>?

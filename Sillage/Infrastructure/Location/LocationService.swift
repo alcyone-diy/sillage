@@ -65,8 +65,8 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
   }
   
   private var movementState: MovementState = .stopped
-  private var lastSmoothedCourse: CLLocationDirection = -1.0
-  private var courseBuffer: [CLLocationDirection] = []
+  private var lastSmoothedCourseOverGround: Measurement<UnitAngle>?
+  private var courseOverGroundBuffer: [CLLocationDirection] = []
   private let maxBufferSize = 4
   
   // Speed thresholds
@@ -195,38 +195,38 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
       movementState = .moving
     }
     
-    var finalCourse = lastSmoothedCourse
+    var finalCourseOverGround = lastSmoothedCourseOverGround
     
     if movementState == .moving {
       let rawCourse = latestLocation.course
-      if rawCourse >= 0 {
-        courseBuffer.append(rawCourse)
-        if courseBuffer.count > maxBufferSize {
-          courseBuffer.removeFirst()
+      if rawCourse >= 0 && latestLocation.courseAccuracy >= 0 {
+        courseOverGroundBuffer.append(rawCourse)
+        if courseOverGroundBuffer.count > maxBufferSize {
+          courseOverGroundBuffer.removeFirst()
         }
         
         var sumX = 0.0
         var sumY = 0.0
         
-        for c in courseBuffer {
+        for c in courseOverGroundBuffer {
           let radians = c * .pi / 180.0
           sumX += cos(radians)
           sumY += sin(radians)
         }
         
-        let avgX = sumX / Double(courseBuffer.count)
-        let avgY = sumY / Double(courseBuffer.count)
+        let avgX = sumX / Double(courseOverGroundBuffer.count)
+        let avgY = sumY / Double(courseOverGroundBuffer.count)
         
-        var smoothedAngle = atan2(avgY, avgX) * 180.0 / .pi
-        if smoothedAngle < 0 {
-          smoothedAngle += 360.0
+        var smoothedAngleOverGround = atan2(avgY, avgX)
+        if smoothedAngleOverGround < 0 {
+          smoothedAngleOverGround += .pi * 2
         }
         
-        finalCourse = smoothedAngle
-        lastSmoothedCourse = smoothedAngle
+        finalCourseOverGround = Measurement(value: smoothedAngleOverGround, unit: .radians)
+        lastSmoothedCourseOverGround = finalCourseOverGround
       } else {
         // invalid course received while moving
-        finalCourse = lastSmoothedCourse
+        finalCourseOverGround = lastSmoothedCourseOverGround
       }
     }
     
@@ -239,8 +239,8 @@ class LocationService: NSObject, LocationServiceProtocol, CLLocationManagerDeleg
     let filteredLocation = NavigationFix(
       coordinate: latestLocation.coordinate,
       horizontalAccuracy: Measurement(value: latestLocation.horizontalAccuracy, unit: .meters),
-      course: finalCourse,
-      courseAccuracy: latestLocation.courseAccuracy,
+      courseOverGround: finalCourseOverGround,
+      courseOverGroundAccuracy: (latestLocation.courseAccuracy >= 0) ? Measurement(value: latestLocation.courseAccuracy, unit: .degrees) : nil,
       speedOverGround: speedOverGround,
       speedOverGroundAccuracy: speedOverGroundAccuracy,
       timestamp: latestLocation.timestamp
