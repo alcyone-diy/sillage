@@ -46,7 +46,7 @@ public final class TrackRecordingService {
   
   private var currentSessionId: String?
   private var segmentIndex: Int = 0
-  private var writeBuffer: [TrackPointRecord] = []
+  private var unflushedPointCount: Int = 0
   private var filters: TrackFilters
   
   public enum TrackRecordingError: LocalizedError {
@@ -66,12 +66,7 @@ public final class TrackRecordingService {
   private var backgroundLocationToken: (any BackgroundLocationToken)?
   private var flushTask: TaskCancellable?
   
-  private enum TrackDatabaseAction: Sendable {
-    case insertSession(TrackSessionRecord)
-    case flushBatch(points: [TrackPointRecord], sessionUpdate: TrackSessionRecord)
-  }
-  private var dbActionContinuation: AsyncStream<TrackDatabaseAction>.Continuation?
-  private var persistenceTask: Task<Void, Never>?
+  private var persistenceWriter: TrackPersistenceWriter?
   
   init(
     filters: TrackFilters = .default,
@@ -98,8 +93,8 @@ public final class TrackRecordingService {
     
     currentSessionId = nil
     segmentIndex = 0
+    unflushedPointCount = 0
     telemetry.clear()
-    writeBuffer.removeAll()
     trackPoints.removeAll()
     
     let service = self.positioningService
@@ -114,26 +109,7 @@ public final class TrackRecordingService {
       }
     })
     
-    let (stream, continuation) = AsyncStream.makeStream(of: TrackDatabaseAction.self)
-    self.dbActionContinuation = continuation
-    self.persistenceTask = Task.detached(priority: .utility) { [databaseManager] in
-      for await action in stream {
-        do {
-          try await databaseManager.dbPool.write { db in
-            switch action {
-            case .insertSession(let session):
-              try session.insert(db)
-            case .flushBatch(let points, let sessionUpdate):
-              try points.forEach { try $0.insert(db) }
-              try sessionUpdate.update(db)
-            }
-          }
-        } catch {
-          Logger.database.error("Failed to execute database action: \(error.localizedDescription, privacy: .public)")
-        }
-      }
-    }
-    
+    persistenceWriter = TrackPersistenceWriter(databaseManager: databaseManager)
     state = .waitingForFix
   }
   
@@ -171,22 +147,17 @@ public final class TrackRecordingService {
     let finalDistanceMeters = telemetry.sessionDistance
     let sessionUpdate = buildCurrentSessionRecord()
     
-    flushBuffer()
-    dbActionContinuation?.finish()
-    let localPersistenceTask = persistenceTask
-    BackgroundTaskRunner.execute(name: "FinalizeTrack_\(sessionId)") { [weak self, databaseManager, localPersistenceTask] in
-      _ = await localPersistenceTask?.value
-      do {
-        try await databaseManager.dbPool.write { db in
-          if var session = sessionUpdate {
-            session.endTimestamp_unix = endTime.timeIntervalSince1970
-            try session.update(db)
-          }
-        }
-        Logger.database.info("Track session \(sessionId, privacy: .public) finalized successfully with \(finalDurationSeconds?.components.seconds ?? 0, privacy: .public)s and \(finalDistanceMeters?.converted(to: .meters).value ?? 0, privacy: .public)m.")
-      } catch {
-        Logger.database.error("Finalization failed: \(error.localizedDescription, privacy: .public)")
+    let writerToFinish = persistenceWriter
+    persistenceWriter = nil
+    
+    BackgroundTaskRunner.execute(name: "FinalizeTrack_\(sessionId)") { [weak self, writerToFinish] in
+      if var session = sessionUpdate {
+        session.endTimestamp_unix = endTime.timeIntervalSince1970
+        await writerToFinish?.flush(sessionUpdate: session)
       }
+      await writerToFinish?.finish()
+      
+      Logger.database.info("Track session \(sessionId, privacy: .public) finalized successfully with \(finalDurationSeconds?.components.seconds ?? 0, privacy: .public)s and \(finalDistanceMeters?.converted(to: .meters).value ?? 0, privacy: .public)m.")
       await self?.stopSavingState()
     }
     
@@ -212,7 +183,8 @@ public final class TrackRecordingService {
     
     telemetry.pause()
     
-    flushBuffer()
+    persistenceWriter?.flushAsync(sessionUpdate: buildCurrentSessionRecord())
+    unflushedPointCount = 0
     
     state = .paused
     Logger.telemetry.info("Track recording paused.")
@@ -249,36 +221,9 @@ public final class TrackRecordingService {
     return telemetry.activeDuration(isRecording: state == .recording)
   }
   
-  private func flushBuffer() {
-    guard !writeBuffer.isEmpty else { return }
-    let batch = writeBuffer
-    writeBuffer.removeAll()
-    if let sessionUpdate = buildCurrentSessionRecord() {
-      dbActionContinuation?.yield(.flushBatch(points: batch, sessionUpdate: sessionUpdate))
-    }
-    switch state {
-    case .recording, .waitingForFix:
-      startFlushTimer()
-    case .paused, .idle, .saving:
-      break
-    }
-  }
-  
   public func emergencyFlushAsync() async {
-    guard !writeBuffer.isEmpty else { return }
-    let pointsToInsert = writeBuffer
-    writeBuffer.removeAll()
-    let sessionUpdate = buildCurrentSessionRecord()
-    
-    do {
-      try await databaseManager.dbPool.write { db in
-        try pointsToInsert.forEach { try $0.insert(db) }
-        try sessionUpdate?.update(db)
-      }
-      Logger.database.info("Emergency flush successful: \(pointsToInsert.count) points saved.")
-    } catch {
-      Logger.database.error("Emergency flush failed: \(error.localizedDescription, privacy: .public)")
-    }
+    await persistenceWriter?.flush(sessionUpdate: buildCurrentSessionRecord())
+    unflushedPointCount = 0
   }
   
   public enum ToggleRecordingResult: Sendable {
@@ -312,7 +257,7 @@ public final class TrackRecordingService {
         telemetry.start(at: navigationFix)
         
         let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
-        dbActionContinuation?.yield(.insertSession(sessionRecord))
+        persistenceWriter?.insertSession(sessionRecord)
       }
       
     case .idle, .recording, .paused, .saving:
@@ -344,10 +289,12 @@ public final class TrackRecordingService {
     
     if let sessionId = currentSessionId {
       let record = TrackPointRecord(domainModel: trackPoint, sessionId: sessionId)
-      writeBuffer.append(record)
+      persistenceWriter?.appendPoint(record)
       
-      if writeBuffer.count >= Configuration.flushThreshold {
-        flushBuffer()
+      unflushedPointCount += 1
+      if unflushedPointCount >= Configuration.flushThreshold {
+        persistenceWriter?.flushAsync(sessionUpdate: buildCurrentSessionRecord())
+        unflushedPointCount = 0
       }
     }
   }
@@ -360,9 +307,13 @@ public final class TrackRecordingService {
     flushTask?.cancel()
     let task = Task { [weak self] in
       // No need for @MainActor since TrackRecordingService is @MainActor.
-      try? await Task.sleep(for: Configuration.maxFlushInterval)
-      guard !Task.isCancelled, let self else { return }
-      self.flushBuffer()
+      while !Task.isCancelled {
+        try? await Task.sleep(for: Configuration.maxFlushInterval)
+        guard !Task.isCancelled, let self = self else { break }
+        
+        self.persistenceWriter?.flushAsync(sessionUpdate: self.buildCurrentSessionRecord())
+        self.unflushedPointCount = 0
+      }
     }
     flushTask = TaskCancellable(task)
   }
