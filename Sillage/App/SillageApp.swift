@@ -52,6 +52,7 @@ struct SillageApp: App {
           }
         }
       }
+      .environment(environment)
       .task {
         if case .uninitialized = environment.state {
           await environment.bootstrap()

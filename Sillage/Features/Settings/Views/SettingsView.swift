@@ -13,6 +13,7 @@ import SwiftUI
 struct SettingsView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(AppViewModel.self) private var appViewModel
+  @Environment(AppEnvironment.self) private var environment
   @Environment(\.marineTheme) private var marineTheme
   @State private var viewModel = SettingsViewModel()
 
@@ -50,13 +51,15 @@ struct SettingsView: View {
       }
 
       Section(header: Text("About")) {
-        HStack {
-          Label("Version", systemImage: "info.circle")
-            .marineFont(.body)
-          Spacer()
-          Text("1.0.0")
-            .marineFont(.body)
-            .foregroundStyle(.secondary)
+        NavigationLink(destination: VersionInfoView()) {
+          HStack {
+            Label("Version", systemImage: "info.circle")
+              .marineFont(.body)
+            Spacer()
+            Text(environment.metadata.version ?? "Unknown")
+              .marineFont(.body)
+              .foregroundStyle(.secondary)
+          }
         }
         .marineListCell()
       }

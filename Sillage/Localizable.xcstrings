@@ -19,9 +19,6 @@
     "1 hr" : {
 
     },
-    "1.0.0" : {
-
-    },
     "3 hr" : {
 
     },
@@ -49,6 +46,9 @@
     "Anchor Alarm" : {
 
     },
+    "App Information" : {
+
+    },
     "Authentication failed. Please check your network connection or credentials." : {
 
     },
@@ -56,6 +56,9 @@
 
     },
     "Baro Alarm" : {
+
+    },
+    "Build" : {
 
     },
     "Cancel" : {
@@ -131,6 +134,9 @@
 
     },
     "GeoGarage Terms of Use" : {
+
+    },
+    "Git Hash" : {
 
     },
     "Glove Mode" : {
