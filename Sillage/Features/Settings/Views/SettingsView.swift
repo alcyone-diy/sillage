@@ -16,24 +16,23 @@ struct SettingsView: View {
   @Environment(AppEnvironment.self) private var environment
   @Environment(\.marineTheme) private var marineTheme
   @State private var viewModel = SettingsViewModel()
-
+  
   var body: some View {
     Form {
       Section(header: Text("General")) {
-        @Bindable var bindableAppViewModel = appViewModel
-          Toggle(isOn: $bindableAppViewModel.isGloveModeEnabled) {
-            Label("Glove Mode", systemImage: "hand.raised.fill")
-              .marineFont(.body)
-          }
-          .marineListCell()
-
-          NavigationLink(destination: MapPreferencesView()) {
-            Label("Map Preferences", systemImage: "map")
-              .marineFont(.body)
-          }
-          .marineListCell()
+        Toggle(isOn: Bindable(appViewModel).isGloveModeEnabled) {
+          Label("Glove Mode", systemImage: "hand.raised.fill")
+            .marineFont(.body)
         }
-
+        .marineListCell()
+        
+        NavigationLink(destination: MapPreferencesView()) {
+          Label("Map Preferences", systemImage: "map")
+            .marineFont(.body)
+        }
+        .marineListCell()
+      }
+      
       Section(header: Text("Navigation")) {
         NavigationLink(destination: COGPreferencesView()) {
           Label("Predictor Vector", systemImage: "location.north.line.fill")
@@ -41,7 +40,7 @@ struct SettingsView: View {
         }
         .marineListCell()
       }
-
+      
       Section(header: Text("Safety & Legal")) {
         NavigationLink(destination: LegalListView(documents: viewModel.legalDocuments)) {
           Label("Legal & Licenses", systemImage: "doc.text")
@@ -49,7 +48,7 @@ struct SettingsView: View {
         }
         .marineListCell()
       }
-
+      
       Section(header: Text("About")) {
         NavigationLink(destination: VersionInfoView()) {
           HStack {
