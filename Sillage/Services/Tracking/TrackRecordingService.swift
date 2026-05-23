@@ -32,17 +32,7 @@ public final class TrackRecordingService {
   public var recordingError: TrackRecordingError?
   
   // MARK: - Telemetry State
-  public private(set) var sessionStartTime: Date?
-  public private(set) var lastSessionDurationUpdateMonotonicTime: ContinuousClock.Instant?
-  public private(set) var sessionDistance: Measurement<UnitLength>?
-  public private(set) var sessionDuration: Duration?
-  
-  public private(set) var minLatitude: Measurement<UnitAngle>?
-  public private(set) var maxLatitude: Measurement<UnitAngle>?
-  public private(set) var minLongitude: Measurement<UnitAngle>?
-  public private(set) var maxLongitude: Measurement<UnitAngle>?
-  public private(set) var maxSpeedOverGround: Measurement<UnitSpeed>?
-  public private(set) var pointsCount: Int?
+  public private(set) var telemetry = TrackSessionTelemetry()
   
   /// Centralized configuration for the track recording service logic.
   internal struct Configuration {
@@ -57,7 +47,6 @@ public final class TrackRecordingService {
   private var currentSessionId: String?
   private var segmentIndex: Int = 0
   private var writeBuffer: [TrackPointRecord] = []
-  private var lastRecordedNavigationFix: NavigationFix?
   private var filters: TrackFilters
   
   public enum TrackRecordingError: LocalizedError {
@@ -109,19 +98,9 @@ public final class TrackRecordingService {
     
     currentSessionId = nil
     segmentIndex = 0
-    sessionStartTime = nil
-    lastSessionDurationUpdateMonotonicTime = nil
-    sessionDuration = nil
-    sessionDistance = Measurement(value: 0, unit: UnitLength.meters)
-    lastRecordedNavigationFix = nil
+    telemetry.clear()
     writeBuffer.removeAll()
     trackPoints.removeAll()
-    minLatitude = nil
-    maxLatitude = nil
-    minLongitude = nil
-    maxLongitude = nil
-    maxSpeedOverGround = nil
-    pointsCount = nil
     
     let service = self.positioningService
     self.backgroundLocationToken = service.requestBackgroundLocation()
@@ -179,7 +158,7 @@ public final class TrackRecordingService {
     flushTask = nil
     
     guard let sessionId = currentSessionId,
-          let endTime = lastRecordedNavigationFix?.timestamp else {
+          let endTime = telemetry.lastRecordedNavigationFix?.timestamp else {
       state = .idle
       return .abortedNoFix
     }
@@ -188,8 +167,8 @@ public final class TrackRecordingService {
     
     state = .saving
     
-    let finalDurationSeconds = sessionDuration
-    let finalDistanceMeters = sessionDistance
+    let finalDurationSeconds = telemetry.sessionDuration
+    let finalDistanceMeters = telemetry.sessionDistance
     let sessionUpdate = buildCurrentSessionRecord()
     
     flushBuffer()
@@ -212,7 +191,7 @@ public final class TrackRecordingService {
     }
     
     currentSessionId = nil
-    lastRecordedNavigationFix = nil
+    telemetry.clear()
     
     return .savedAsync(sessionId: sessionId)
   }
@@ -231,8 +210,7 @@ public final class TrackRecordingService {
     flushTask?.cancel()
     flushTask = nil
     
-    lastSessionDurationUpdateMonotonicTime = nil
-    lastRecordedNavigationFix = nil
+    telemetry.pause()
     
     flushBuffer()
     
@@ -249,7 +227,7 @@ public final class TrackRecordingService {
     }
     
     segmentIndex += 1
-    lastSessionDurationUpdateMonotonicTime = nil
+    telemetry.pause()
     
     let service = self.positioningService
     self.backgroundLocationToken = service.requestBackgroundLocation()
@@ -268,19 +246,7 @@ public final class TrackRecordingService {
   }
   
   public func activeSessionDuration() -> Duration? {
-    guard let lastReceiveTime = lastSessionDurationUpdateMonotonicTime else {
-      return sessionDuration
-    }
-    
-    switch state {
-    case .recording:
-      let clock = ContinuousClock()
-      let timeSinceLastLocation = clock.now - lastReceiveTime
-      let currentSessionDuration = sessionDuration ?? .seconds(0)
-      return currentSessionDuration + timeSinceLastLocation
-    case .idle, .paused, .saving, .waitingForFix:
-      return sessionDuration
-    }
+    return telemetry.activeDuration(isRecording: state == .recording)
   }
   
   private func flushBuffer() {
@@ -303,7 +269,7 @@ public final class TrackRecordingService {
     let pointsToInsert = writeBuffer
     writeBuffer.removeAll()
     let sessionUpdate = buildCurrentSessionRecord()
-
+    
     do {
       try await databaseManager.dbPool.write { db in
         try pointsToInsert.forEach { try $0.insert(db) }
@@ -343,7 +309,7 @@ public final class TrackRecordingService {
         let startTime = navigationFix.timestamp
         
         currentSessionId = sessionId
-        sessionStartTime = startTime
+        telemetry.start(at: navigationFix)
         
         let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
         dbActionContinuation?.yield(.insertSession(sessionRecord))
@@ -353,43 +319,13 @@ public final class TrackRecordingService {
       break
     }
     
+    // Always update session time to reflect real-world progression regardless of movement
+    telemetry.updateTime(with: navigationFix)
+    
     // Filtering Logic (Anti-Jitter)
-    if let lastLoc = lastRecordedNavigationFix {
-      let distanceSinceLast = navigationFix.distance(from: lastLoc)
-      let timeSinceLast = navigationFix.timestamp.timeIntervalSince(lastLoc.timestamp)
-      
-      let hasMovedSignificantly = distanceSinceLast > filters.minDistance
-      let hasSufficientTimePassed = timeSinceLast > filters.minTimeIntervalSeconds
-      
-      guard hasMovedSignificantly || hasSufficientTimePassed else { return }
-      
-      // Update cumulative distance only with validated points to prevent GPS noise inflation
-      if let currentDistance = sessionDistance {
-        sessionDistance = currentDistance + distanceSinceLast
-      }
+    guard telemetry.append(fix: navigationFix, filters: filters) else {
+      return
     }
-    
-    if let lastLoc = lastRecordedNavigationFix {
-      let timeSinceLast = max(0, navigationFix.timestamp.timeIntervalSince(lastLoc.timestamp))
-      let currentDuration = sessionDuration ?? .seconds(0)
-      sessionDuration = currentDuration + .seconds(timeSinceLast)
-    }
-    lastSessionDurationUpdateMonotonicTime = .now
-    lastRecordedNavigationFix = navigationFix
-    
-    let latitude = Measurement(value: navigationFix.coordinate.latitude, unit: UnitAngle.degrees)
-    let longitude = Measurement(value: navigationFix.coordinate.longitude, unit: UnitAngle.degrees)
-    
-    minLatitude = min(minLatitude ?? latitude, latitude)
-    maxLatitude = max(maxLatitude ?? latitude, latitude)
-    minLongitude = min(minLongitude ?? longitude, longitude)
-    maxLongitude = max(maxLongitude ?? longitude, longitude)
-    
-    if let speedOverGround = navigationFix.speedOverGround {
-      maxSpeedOverGround = max(maxSpeedOverGround ?? speedOverGround, speedOverGround)
-    }
-    
-    pointsCount = (pointsCount ?? 0) + 1
     
     let trackPoint = TrackPoint(
       timestamp: navigationFix.timestamp,
@@ -432,7 +368,7 @@ public final class TrackRecordingService {
   }
   
   private func buildCurrentSessionRecord() -> TrackSessionRecord? {
-    guard let sessionId = currentSessionId, let startTime = sessionStartTime else { return nil }
+    guard let sessionId = currentSessionId, let startTime = telemetry.sessionStartTime else { return nil }
     
     var record = TrackSessionRecord(id: sessionId, startTime: startTime)
     
@@ -441,16 +377,16 @@ public final class TrackRecordingService {
       record.duration_s = totalSeconds
     }
     
-    if let distance = sessionDistance {
+    if let distance = telemetry.sessionDistance {
       record.totalDistance_m = distance.converted(to: .meters).value
     }
     
-    record.minLatitude_deg = minLatitude?.converted(to: .degrees).value
-    record.maxLatitude_deg = maxLatitude?.converted(to: .degrees).value
-    record.minLongitude_deg = minLongitude?.converted(to: .degrees).value
-    record.maxLongitude_deg = maxLongitude?.converted(to: .degrees).value
-    record.maxSpeed_mps = maxSpeedOverGround?.converted(to: .metersPerSecond).value
-    record.pointsCount = pointsCount
+    record.minLatitude_deg = telemetry.minLatitude?.converted(to: .degrees).value
+    record.maxLatitude_deg = telemetry.maxLatitude?.converted(to: .degrees).value
+    record.minLongitude_deg = telemetry.minLongitude?.converted(to: .degrees).value
+    record.maxLongitude_deg = telemetry.maxLongitude?.converted(to: .degrees).value
+    record.maxSpeed_mps = telemetry.maxSpeedOverGround?.converted(to: .metersPerSecond).value
+    record.pointsCount = telemetry.pointsCount
     record.segmentCount = segmentIndex + 1
     
     return record
