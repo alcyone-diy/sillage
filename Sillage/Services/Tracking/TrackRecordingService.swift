@@ -279,8 +279,8 @@ public final class TrackRecordingService {
       latitude: Measurement(value: navigationFix.coordinate.latitude, unit: .degrees),
       longitude: Measurement(value: navigationFix.coordinate.longitude, unit: .degrees),
       horizontalAccuracy: navigationFix.horizontalAccuracy,
-      sog: navigationFix.speedOverGround,
-      cog: navigationFix.courseOverGround
+      speedOverGround: navigationFix.speedOverGround,
+      courseOverGround: navigationFix.courseOverGround
     )
     
     trackPoints.append(trackPoint)

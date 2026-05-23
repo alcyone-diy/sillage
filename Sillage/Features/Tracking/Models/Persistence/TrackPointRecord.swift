@@ -22,8 +22,8 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
   public var latitude_deg: Double
   public var longitude_deg: Double
   public var horizontalAccuracy_m: Double
-  public var sog_mps: Double?
-  public var cog_deg: Double?
+  public var speedOverGround_mps: Double?
+  public var courseOverGround_deg: Double?
 
   public static let databaseTableName = "track_point"
 
@@ -41,8 +41,8 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
     latitude: Measurement<UnitAngle>,
     longitude: Measurement<UnitAngle>,
     horizontalAccuracy: Measurement<UnitLength>,
-    sog: Measurement<UnitSpeed>? = nil,
-    cog: Measurement<UnitAngle>? = nil,
+    speedOverGround: Measurement<UnitSpeed>? = nil,
+    courseOverGround: Measurement<UnitAngle>? = nil,
   ) {
     self.id = id
     self.sessionId = sessionId
@@ -51,8 +51,8 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
     self.latitude_deg = latitude.converted(to: .degrees).value
     self.longitude_deg = longitude.converted(to: .degrees).value
     self.horizontalAccuracy_m = horizontalAccuracy.converted(to: .meters).value
-    self.sog_mps = sog.map { $0.converted(to: .metersPerSecond).value }
-    self.cog_deg = cog.map { $0.converted(to: .degrees).value }
+    self.speedOverGround_mps = speedOverGround.map { $0.converted(to: .metersPerSecond).value }
+    self.courseOverGround_deg = courseOverGround.map { $0.converted(to: .degrees).value }
   }
 }
 
@@ -69,15 +69,15 @@ extension TrackPointRecord {
       latitude: domainModel.latitude,
       longitude: domainModel.longitude,
       horizontalAccuracy: domainModel.horizontalAccuracy,
-      sog: domainModel.sog,
-      cog: domainModel.cog,
+      speedOverGround: domainModel.speedOverGround,
+      courseOverGround: domainModel.courseOverGround,
     )
   }
 
   /// Converts the persistence `TrackPointRecord` into a domain `TrackPoint`.
   public var domainModel: TrackPoint {
-    let sog: Measurement<UnitSpeed>? = sog_mps.map { Measurement(value: $0, unit: .metersPerSecond) }
-    let cog: Measurement<UnitAngle>? = cog_deg.map { Measurement(value: $0, unit: .degrees) }
+    let speedOverGround: Measurement<UnitSpeed>? = speedOverGround_mps.map { Measurement(value: $0, unit: .metersPerSecond) }
+    let courseOverGround: Measurement<UnitAngle>? = courseOverGround_deg.map { Measurement(value: $0, unit: .degrees) }
     
     return TrackPoint(
       timestamp: Date(timeIntervalSince1970: timestamp_unix),
@@ -85,8 +85,8 @@ extension TrackPointRecord {
       latitude: Measurement(value: latitude_deg, unit: .degrees),
       longitude: Measurement(value: longitude_deg, unit: .degrees),
       horizontalAccuracy: Measurement(value: horizontalAccuracy_m, unit: .meters),
-      sog: sog,
-      cog: cog,
+      speedOverGround: speedOverGround,
+      courseOverGround: courseOverGround,
     )
   }
 }

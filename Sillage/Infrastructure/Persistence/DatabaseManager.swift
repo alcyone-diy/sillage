@@ -112,14 +112,14 @@ public final class DatabaseManager: Sendable {
         t.column("latitude_deg", .double).notNull()
         t.column("longitude_deg", .double).notNull()
         t.column("horizontalAccuracy_m", .double).notNull()
-        t.column("sog_mps", .double)
-        t.column("cog_deg", .double)
+        t.column("speedOverGround_mps", .double)
+        t.column("courseOverGround_deg", .double)
 
         t.check(sql: "latitude_deg BETWEEN -90 AND 90")
         t.check(sql: "longitude_deg BETWEEN -180 AND 180")
         t.check(sql: "horizontalAccuracy_m >= 0")
-        t.check(sql: "(cog_deg >= 0 AND cog_deg < 360) OR cog_deg IS NULL")
-        t.check(sql: "sog_mps >= 0 OR sog_mps IS NULL")
+        t.check(sql: "(courseOverGround_deg >= 0 AND courseOverGround_deg < 360) OR courseOverGround_deg IS NULL")
+        t.check(sql: "speedOverGround_mps >= 0 OR speedOverGround_mps IS NULL")
       }
       
       // 3. Create the index on the Database instance (db), outside the table definition.

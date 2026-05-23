@@ -51,14 +51,14 @@ public struct GPXExportService: Sendable {
       let horizontalAccuracyString = String(format: "%.1f", locale: Locale(identifier: "en_US"), point.horizontalAccuracy.converted(to: .meters).value)
       pointXml += "\n          <sillage:accuracy unit=\"meter\">\(horizontalAccuracyString)</sillage:accuracy>"
 
-      if point.sog != nil || point.cog != nil {
-        if let sog = point.sog {
-          let sogString = String(format: "%.2f", locale: Locale(identifier: "en_US"), sog.converted(to: .knots).value)
+      if point.speedOverGround != nil || point.courseOverGround != nil {
+        if let speedOverGround = point.speedOverGround {
+          let sogString = String(format: "%.2f", locale: Locale(identifier: "en_US"), speedOverGround.converted(to: .knots).value)
           pointXml += "\n          <sillage:sog unit=\"knot\">\(sogString)</sillage:sog>"
         }
 
-        if let cog = point.cog {
-          let cogString = String(format: "%.1f", locale: Locale(identifier: "en_US"), cog.converted(to: .degrees).value)
+        if let courseOverGround = point.courseOverGround {
+          let cogString = String(format: "%.1f", locale: Locale(identifier: "en_US"), courseOverGround.converted(to: .degrees).value)
           pointXml += "\n          <sillage:cog unit=\"degree\">\(cogString)</sillage:cog>"
         }
       }

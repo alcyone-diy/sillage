@@ -17,8 +17,8 @@ public struct TrackPoint: Sendable {
   public let latitude: Measurement<UnitAngle>
   public let longitude: Measurement<UnitAngle>
   public let horizontalAccuracy: Measurement<UnitLength>
-  public let sog: Measurement<UnitSpeed>?
-  public let cog: Measurement<UnitAngle>?
+  public let speedOverGround: Measurement<UnitSpeed>?
+  public let courseOverGround: Measurement<UnitAngle>?
 
   public init(
     timestamp: Date,
@@ -26,15 +26,15 @@ public struct TrackPoint: Sendable {
     latitude: Measurement<UnitAngle>,
     longitude: Measurement<UnitAngle>,
     horizontalAccuracy: Measurement<UnitLength>,
-    sog: Measurement<UnitSpeed>? = nil,
-    cog: Measurement<UnitAngle>? = nil
+    speedOverGround: Measurement<UnitSpeed>? = nil,
+    courseOverGround: Measurement<UnitAngle>? = nil
   ) {
     self.timestamp = timestamp
     self.segmentIndex = segmentIndex
     self.latitude = latitude
     self.longitude = longitude
     self.horizontalAccuracy = horizontalAccuracy
-    self.sog = sog
-    self.cog = cog
+    self.speedOverGround = speedOverGround
+    self.courseOverGround = courseOverGround
   }
 }
