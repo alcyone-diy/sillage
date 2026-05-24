@@ -13,6 +13,7 @@ import CoreLocation
 @testable import Sillage
 
 @Suite("Track Session Telemetry Tests")
+@MainActor
 struct TrackSessionTelemetryTests {
   
   @Test("Initial state")

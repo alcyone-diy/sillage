@@ -14,6 +14,7 @@ import OSLog
 
 public enum DatabaseError: Error {
   case directoryUnreachable
+  case invalidURL
 }
 
 /// Manages the SQLite database connection and migrations using GRDB.
@@ -23,23 +24,40 @@ public final class DatabaseManager: Sendable {
   public let dbPool: DatabasePool
   
   /// Initializes the database manager. Throws an error to be handled by the App state.
-  nonisolated public init() throws {
-    let fileManager = FileManager.default
-    guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-      Logger.database.fault("Application Support directory is unreachable")
-      throw DatabaseError.directoryUnreachable
+  nonisolated public init(url: URL? = nil) throws {
+    let dbURL: URL
+    
+    if let providedURL = url {
+      guard providedURL.isFileURL else {
+        throw DatabaseError.invalidURL
+      }
+      let fileManager = FileManager.default
+      let directoryURL = providedURL.deletingLastPathComponent()
+      if !fileManager.fileExists(atPath: directoryURL.path) {
+        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true, attributes: [
+          // Allows background writing when the device is locked
+          .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
+        ])
+      }
+      dbURL = providedURL
+    } else {
+      let fileManager = FileManager.default
+      guard let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+        Logger.database.fault("Application Support directory is unreachable")
+        throw DatabaseError.directoryUnreachable
+      }
+      
+      let dbDirectoryURL = appSupportURL.appendingPathComponent("Database", isDirectory: true)
+      
+      if !fileManager.fileExists(atPath: dbDirectoryURL.path) {
+        try fileManager.createDirectory(at: dbDirectoryURL, withIntermediateDirectories: true, attributes: [
+          // Allows background writing when the device is locked
+          .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
+        ])
+      }
+      
+      dbURL = dbDirectoryURL.appendingPathComponent("sillage.sqlite")
     }
-    
-    let dbDirectoryURL = appSupportURL.appendingPathComponent("Database", isDirectory: true)
-    
-    if !fileManager.fileExists(atPath: dbDirectoryURL.path) {
-      try fileManager.createDirectory(at: dbDirectoryURL, withIntermediateDirectories: true, attributes: [
-        // Allows background writing when the device is locked
-        .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
-      ])
-    }
-    
-    let dbURL = dbDirectoryURL.appendingPathComponent("sillage.sqlite")
     
     var configuration = Configuration()
     configuration.maximumReaderCount = 5
