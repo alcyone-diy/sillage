@@ -184,6 +184,7 @@
 			packageReferences = (
 				020ACF652F6E43C1002C5C1B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 				0265CA0A2FAFDFC10077046A /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				020D22002FC3BBF900101B1B /* XCRemoteSwiftPackageReference "swift-clocks" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 020ACF272F6C9E66002C5C1B /* Products */;
@@ -548,6 +549,14 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 6.24.0;
+			};
+		};
+		020D22002FC3BBF900101B1B /* XCRemoteSwiftPackageReference "swift-clocks" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-clocks";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.6;
 			};
 		};
 		0265CA0A2FAFDFC10077046A /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
