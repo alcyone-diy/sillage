@@ -30,4 +30,25 @@ final class TrackListViewModel {
       Logger.database.error("Failed to observe track sessions: \(error, privacy: .public)")
     }
   }
+  
+  func subtitle(for session: TrackSession) -> String? {
+    var components: [String] = []
+    if let distance = session.totalDistance {
+      let distStr = distance.converted(to: .nauticalMiles).formatted(
+        .measurement(
+          width: .abbreviated,
+          usage: .asProvided,
+          numberFormatStyle: .number.precision(.fractionLength(2))
+        )
+      )
+      components.append(distStr)
+    }
+    if let duration = session.duration {
+      components.append(duration.marineFormatted)
+    }
+    if session.name != nil {
+      components.append(session.startTime.formatted(date: .abbreviated, time: .shortened))
+    }
+    return components.isEmpty ? nil : components.joined(separator: " • ")
+  }
 }

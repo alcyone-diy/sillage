@@ -28,7 +28,7 @@ struct TrackListView: View {
       } else {
         ForEach(viewModel.sessions) { session in
           NavigationLink(value: PanelManagerViewModel.CommandDestination.sessionDetail(sessionId: session.id)) {
-            TrackRowView(session: session)
+            TrackRowView(session: session, subtitle: viewModel.subtitle(for: session))
           }
           .marineListCell()
         }
@@ -45,10 +45,11 @@ struct TrackListView: View {
 @MainActor
 struct TrackRowView: View {
   let session: TrackSession
+  let subtitle: String?
   
   var body: some View {
     ZStack(alignment: .leading) {
-      // Invisible template to enforce uniform height whether it has 1 or 2 lines
+      // Invisible template to enforce uniform height whether it has 1 or 2 lines.
       VStack(alignment: .leading, spacing: 4) {
         Text(" ")
           .marineFont(.body)
@@ -66,33 +67,12 @@ struct TrackRowView: View {
             .marineFont(.body)
         }
         
-        if let subtitle = subtitle(for: session) {
+        if let subtitle = subtitle {
           Text(verbatim: subtitle)
             .foregroundStyle(.secondary)
             .marineFont(.caption)
         }
       }
     }
-  }
-  
-  private func subtitle(for session: TrackSession) -> String? {
-    var components: [String] = []
-    if let distance = session.totalDistance {
-      let distStr = distance.converted(to: .nauticalMiles).formatted(
-        .measurement(
-          width: .abbreviated,
-          usage: .asProvided,
-          numberFormatStyle: .number.precision(.fractionLength(2))
-        )
-      )
-      components.append(distStr)
-    }
-    if let duration = session.duration {
-      components.append(duration.marineFormatted)
-    }
-    if session.name != nil {
-      components.append(session.startTime.formatted(date: .abbreviated, time: .shortened))
-    }
-    return components.isEmpty ? nil : components.joined(separator: " • ")
   }
 }
