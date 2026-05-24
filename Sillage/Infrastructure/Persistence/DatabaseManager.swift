@@ -139,9 +139,57 @@ public final class DatabaseManager: Sendable {
 extension DatabaseManager {
   /// Exposes the database pool as a reader.
   nonisolated public var reader: DatabaseReader { dbPool }
-
+  
   /// Performs database writes in a transaction.
   nonisolated public func write<T>(_ updates: @escaping @Sendable (Database) throws -> T) async throws -> T where T: Sendable {
     try await dbPool.write(updates)
+  }
+  
+  func sanitizeUnfinishedSessions(excluding activeSessionId: String?) async throws {
+    try await dbPool.write { db in
+      // 1. Update unfinished sessions with the true last point timestamp.
+      var updateSql = "UPDATE track_session SET endTimestamp_unix = (SELECT MAX(timestamp_unix) FROM track_point WHERE sessionId = track_session.id) WHERE endTimestamp_unix IS NULL"
+      var arguments: StatementArguments = []
+      
+      if let activeId = activeSessionId {
+        updateSql += " AND id != ?"
+        arguments = [activeId]
+      }
+      try db.execute(sql: updateSql, arguments: arguments)
+      
+      // 2. Delete empty ghost sessions directly using the pointsCount property.
+      var deleteSql = "DELETE FROM track_session WHERE pointsCount = 0"
+      if activeSessionId != nil {
+        deleteSql += " AND id != ?"
+      }
+      try db.execute(sql: deleteSql, arguments: arguments)
+    }
+  }
+  
+  /// Fetches the highest segment index for a given session. Returns nil if no points exist.
+  func fetchMaxSegmentIndex(for sessionId: String) async throws -> Int? {
+    try await dbPool.read { db in
+      try Int.fetchOne(db, sql: "SELECT MAX(segmentIndex) FROM track_point WHERE sessionId = ?", arguments: [sessionId])
+    }
+  }
+  
+  /// Fetches the precise Date of the last recorded point for a given session.
+  func fetchLastPointTime(for sessionId: String) async throws -> Date? {
+    try await dbPool.read { db in
+      if let maxTimestamp = try Double.fetchOne(db, sql: "SELECT MAX(timestamp_unix) FROM track_point WHERE sessionId = ?", arguments: [sessionId]) {
+        return Date(timeIntervalSince1970: maxTimestamp)
+      }
+      return nil
+    }
+  }
+  
+  /// Fetches the most recent points to repopulate the RAM buffer after a crash.
+  func fetchRecentPoints(for sessionId: String, limit: Int) async throws -> [TrackPoint] {
+    try await dbPool.read { db in
+      // Fetch descending to get the newest, then reverse in memory to restore chronological order.
+      let sql = "SELECT * FROM track_point WHERE sessionId = ? ORDER BY timestamp_unix DESC LIMIT ?"
+      let records = try TrackPointRecord.fetchAll(db, sql: sql, arguments: [sessionId, limit])
+      return records.reversed().map { $0.domainModel }
+    }
   }
 }

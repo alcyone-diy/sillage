@@ -82,6 +82,8 @@ final class AppEnvironment {
       )
       self.panelManagerViewModel = PanelManagerViewModel()
       self.activeTrackViewModel = ActiveTrackViewModel(trackRecordingService: trackRecordingService)
+
+      await trackRecordingService.attemptRecoveryIfNeeded()
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
       state = .ready

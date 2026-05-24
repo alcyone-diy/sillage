@@ -42,6 +42,7 @@ public final class TrackRecordingService {
     nonisolated static let maxTrackPoints = 2000
     /// The maximum time delay before flushing buffered points to the database.
     nonisolated static let maxFlushInterval: Duration = .seconds(600) // 10mn.
+    nonisolated static let maxRecoveryAge: TimeInterval = 12 * 3600
   }
   
   private var currentSessionId: String?
@@ -83,7 +84,7 @@ public final class TrackRecordingService {
   
   public func updateFilters(_ newFilters: TrackFilters) {
     self.filters = newFilters
-    Logger.telemetry.info("Track filters updated: \(newFilters.minDistance), \(newFilters.minTimeIntervalSeconds)s, \(newFilters.maxHorizontalAccuracy) accuracy")
+    Logger.database.info("Track filters updated: \(newFilters.minDistance), \(newFilters.minTimeIntervalSeconds)s, \(newFilters.maxHorizontalAccuracy) accuracy")
   }
   
   public func startRecording() {
@@ -191,7 +192,7 @@ public final class TrackRecordingService {
     unflushedPointCount = 0
     
     state = .paused
-    Logger.telemetry.info("Track recording paused.")
+    Logger.database.info("Track recording paused.")
   }
   
   public func resumeRecording() {
@@ -218,7 +219,7 @@ public final class TrackRecordingService {
     })
     
     state = .waitingForFix
-    Logger.telemetry.info("Track recording resumed (segment \(self.segmentIndex, privacy: .public)).")
+    Logger.database.info("Track recording resumed (segment \(self.segmentIndex, privacy: .public)).")
   }
   
   public func activeSessionDuration() -> Duration? {
@@ -244,6 +245,87 @@ public final class TrackRecordingService {
       startRecording()
       return .started
     }
+  }
+  
+  public func attemptRecoveryIfNeeded() async {
+    let activeId = preferencesService.activeTrackSessionID
+    
+    // 1. Sanitize ONLY what is NOT the active session
+    do {
+      try await databaseManager.sanitizeUnfinishedSessions(excluding: activeId)
+      Logger.database.info("Sanitized ghost tracks successfully.")
+    } catch {
+      Logger.database.error("Failed to sanitize ghost tracks: \(error.localizedDescription)")
+    }
+    
+    // 2. Resume activef session
+    await resumeTrackIfPossible(sessionId: activeId)
+  }
+  
+  private func resumeTrackIfPossible(sessionId: String?) async {
+    guard let sessionId = sessionId else { return }
+    do {
+      let trackSession = try await databaseManager.reader.read { db in
+        try TrackSessionRecord.fetchOne(db, key: sessionId)?.toDomain()
+      }
+      
+      guard let validTrackSession = trackSession else {
+        preferencesService.clearActiveTrackSessionID()
+        return
+      }
+      
+      // 1. Find the true last update time (last point recorded in DB)
+      let lastPointDate = try await databaseManager.fetchLastPointTime(for: sessionId)
+      let lastUpdate = lastPointDate ?? validTrackSession.startTime
+      // 2. Evaluate age
+      let age = abs(Date().timeIntervalSince(lastUpdate))
+      if age > Configuration.maxRecoveryAge {
+        Logger.database.warning("Track \(sessionId, privacy: .public) is too old (\(age)s). Forcing closure.")
+        // 3. Critial: Close it in DB immediately by running a sanitize with NO exclusion
+        try await databaseManager.sanitizeUnfinishedSessions(excluding: nil)
+        preferencesService.clearActiveTrackSessionID()
+        return
+      }
+      
+      // 4. Recover the session
+      try await self.recoverRecording(trackSession: validTrackSession)
+      
+    } catch {
+      Logger.database.error("Failed to read db for restore: \(error.localizedDescription)")
+      preferencesService.clearActiveTrackSessionID()
+    }
+  }
+  
+  private func recoverRecording(trackSession: TrackSession) async throws {
+    guard state == .idle else { return }
+    currentSessionId = trackSession.id
+    
+    // 1. Fetch all async data BEFORE starting the engine
+    let lastSegmentIndex = try await databaseManager.fetchMaxSegmentIndex(for: trackSession.id)
+    let previousPoints = try await databaseManager.fetchRecentPoints(for: trackSession.id, limit: Configuration.maxTrackPoints)
+    
+    // 2. Setup internal state
+    // Start a new segment.
+    segmentIndex = (lastSegmentIndex ?? 0) + 1
+    telemetry.restore(from: trackSession)
+    trackPoints = ArraySlice(previousPoints)
+    
+    // 3. Setup dependencies
+    persistenceWriter = TrackPersistenceWriter(databaseManager: databaseManager)
+    
+    // 4. Start the engine (No 'await' beyond this point to avoid race conditions)
+    let service = positioningService
+    backgroundLocationToken = service.requestBackgroundLocation()
+    startFlushTimer()
+    locationUpdatesTask = TaskCancellable(Task { [weak self] in
+      for await navigationFix in service.locationUpdates {
+        guard !Task.isCancelled, let self = self else { break }
+        self.processLocationUpdate(navigationFix)
+      }
+    })
+    
+    state = .waitingForFix
+    Logger.database.info("Restored session \(trackSession.id, privacy: .public) at segment \(self.segmentIndex).")
   }
   
   private func processLocationUpdate(_ navigationFix: NavigationFix) {
