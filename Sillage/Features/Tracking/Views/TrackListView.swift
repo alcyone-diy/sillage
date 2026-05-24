@@ -47,19 +47,30 @@ struct TrackRowView: View {
   let session: TrackSession
   
   var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      if let name = session.name {
-        Text(name)
+    ZStack(alignment: .leading) {
+      // Invisible template to enforce uniform height whether it has 1 or 2 lines
+      VStack(alignment: .leading, spacing: 4) {
+        Text(" ")
           .marineFont(.body)
-      } else {
-        Text(session.startTime.formatted(date: .complete, time: .shortened))
-          .marineFont(.body)
-      }
-      
-      if let subtitle = subtitle(for: session) {
-        Text(verbatim: subtitle)
-          .foregroundStyle(.secondary)
+        Text(" ")
           .marineFont(.caption)
+      }
+      .hidden()
+      
+      VStack(alignment: .leading, spacing: 4) {
+        if let name = session.name {
+          Text(name)
+            .marineFont(.body)
+        } else {
+          Text(session.startTime.formatted(date: .complete, time: .shortened))
+            .marineFont(.body)
+        }
+        
+        if let subtitle = subtitle(for: session) {
+          Text(verbatim: subtitle)
+            .foregroundStyle(.secondary)
+            .marineFont(.caption)
+        }
       }
     }
   }
@@ -82,7 +93,6 @@ struct TrackRowView: View {
     if session.name != nil {
       components.append(session.startTime.formatted(date: .abbreviated, time: .shortened))
     }
-    if components.isEmpty { return "-" }
-    return components.joined(separator: " • ")
+    return components.isEmpty ? nil : components.joined(separator: " • ")
   }
 }
