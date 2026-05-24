@@ -42,7 +42,13 @@ struct SettingsView: View {
       }
       
       Section(header: Text("Safety & Legal")) {
-        NavigationLink(destination: LegalListView(documents: viewModel.legalDocuments)) {
+        NavigationLink(
+          destination: LegalListView(
+            navigationWarningDocument: viewModel.navigationWarningDocument,
+            sillageLicenseDocument: viewModel.sillageLicenseDocument,
+            thirdPartyLicenseDocuments: viewModel.thirdPartyLicenseDocuments
+          )
+        ) {
           Label("Legal & Licenses", systemImage: "doc.text")
             .marineFont(.body)
         }

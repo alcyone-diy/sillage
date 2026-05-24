@@ -11,33 +11,40 @@
 import SwiftUI
 
 struct LegalListView: View {
-  let documents: [LegalDocument]
+  let navigationWarningDocument: LegalDocument
+  let sillageLicenseDocument: LegalDocument
+  let thirdPartyLicenseDocuments: [LegalDocument]
   
   // 1. Injection du thème pour le Glove Mode
   @Environment(\.marineTheme) private var marineTheme
-
+  
   var body: some View {
-    List(documents) { document in
-      NavigationLink(destination: LegalDetailView(document: document)) {
-        // 2. Nettoyage du frame et application de la typo marine
-        Text(document.title)
-          .marineFont(.body)
-          .foregroundColor(.primary)
+    List {
+      Section {
+        documentRow(for: navigationWarningDocument)
+        documentRow(for: sillageLicenseDocument)
+      } header: {
+        Text("Alcyone Sillage")
       }
+      Section {
+        ForEach(thirdPartyLicenseDocuments) { document in
+          documentRow(for: document)
+        }
+      } header: {
+        Text("Third-Party Licenses")
+      }
+      .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+      .navigationTitle("Legal & Licenses")
+      .navigationBarTitleDisplayMode(.inline)
     }
-    // 3. Pilotage global de la hauteur de ligne
-    .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-    .navigationTitle("Legal & Licenses")
-    .navigationBarTitleDisplayMode(.inline)
   }
-}
-
-#Preview {
-  NavigationStack {
-    LegalListView(documents: [
-      LegalDocument(title: "Sample Warning", content: "This is a sample warning."),
-      LegalDocument(title: "Sample License", content: "This is a sample license.")
-    ])
-    .environment(\.marineTheme, .standard)
+  
+  @ViewBuilder
+  private func documentRow(for document: LegalDocument) -> some View {
+    NavigationLink(destination: LegalDetailView(document: document)) {
+      Text(document.title)
+        .marineFont(.body)
+        .foregroundColor(.primary)
+    }
   }
 }

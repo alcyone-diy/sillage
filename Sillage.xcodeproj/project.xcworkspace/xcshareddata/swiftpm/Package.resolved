@@ -1,5 +1,5 @@
 {
-  "originHash" : "c8605734f57735de24312b955d115930cc32b6ddc73264efe4d7aa3798848290",
+  "originHash" : "33b97b929d480d99f1c8e79a9c37ccb941f439edc65dfa16be7951a069c06d4a",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -17,6 +17,33 @@
       "state" : {
         "revision" : "5d121591b60e837413391814ed88deca2aa7c1d8",
         "version" : "6.24.0"
+      }
+    },
+    {
+      "identity" : "swift-clocks",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-clocks",
+      "state" : {
+        "revision" : "cc46202b53476d64e824e0b6612da09d84ffde8e",
+        "version" : "1.0.6"
+      }
+    },
+    {
+      "identity" : "swift-concurrency-extras",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-concurrency-extras",
+      "state" : {
+        "revision" : "5a3825302b1a0d744183200915a47b508c828e6f",
+        "version" : "1.3.2"
+      }
+    },
+    {
+      "identity" : "xctest-dynamic-overlay",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state" : {
+        "revision" : "dfd70507def84cb5fb821278448a262c6ff2bbad",
+        "version" : "1.9.0"
       }
     }
   ],
