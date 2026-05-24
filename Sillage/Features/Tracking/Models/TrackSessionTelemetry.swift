@@ -54,7 +54,7 @@ public struct TrackSessionTelemetry: Sendable {
     // We treat a restore like a pause: we don't want
     // to accumulate time during the app-killed gap.
     lastTimeUpdated = nil
-    sessionDistance = session.totalDistance
+    sessionDistance = session.totalDistance ?? Measurement(value: 0, unit: UnitLength.meters)
     sessionDuration = session.duration
     minLatitude = session.minLatitude
     maxLatitude = session.maxLatitude
@@ -91,7 +91,8 @@ public struct TrackSessionTelemetry: Sendable {
     }
     
     // Distance
-    if let distanceSinceLast = distanceToAppend, let currentDistance = sessionDistance {
+    if let distanceSinceLast = distanceToAppend {
+      let currentDistance = sessionDistance ?? Measurement(value: 0, unit: UnitLength.meters)
       sessionDistance = currentDistance + distanceSinceLast
     }
     
