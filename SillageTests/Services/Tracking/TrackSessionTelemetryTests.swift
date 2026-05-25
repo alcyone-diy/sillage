@@ -52,11 +52,7 @@ struct TrackSessionTelemetryTests {
     var telemetry = TrackSessionTelemetry()
     telemetry.start()
     
-    let fix = createNavigationFix(
-      latitude: 46.16,
-      longitude: -1.15,
-      timestamp: Date(timeIntervalSince1970: 1000)
-    )
+    let fix = makeMockFix(timestamp: Date(timeIntervalSince1970: 1000))
     let baseMonotonicTime = ContinuousClock().now
     let appendedFix = telemetry.process(fix: fix, filters: .default, now: baseMonotonicTime)
     #expect(appendedFix)
@@ -73,23 +69,17 @@ struct TrackSessionTelemetryTests {
   @Test("Second fix")
   func testSecondFix() {
     let filters = TrackFilters.default
-    var telemetry = TrackSessionTelemetry()
-    telemetry.start()
-
-    // First fix.
     let fix1Timestamp: Double = 1000
-    let fix1 = createNavigationFix(
-      latitude: 46.16,
-      longitude: -1.15,
-      timestamp: Date(timeIntervalSince1970: fix1Timestamp)
-    )
     let baseMonotonicTime = ContinuousClock().now
-    _ = telemetry.process(fix: fix1, filters: filters, now: baseMonotonicTime)
+    var telemetry: TrackSessionTelemetry
+    
+    // Start with fix1.
+    let fix1: NavigationFix
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
 
     // Second fix.
     let durationForSecondFix = TimeInterval(10)
-    let fix2 = createNavigationFix(
-      latitude: 46.16,
+    let fix2 = makeMockFix(
       longitude: -2.15,
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + durationForSecondFix)
     )
@@ -112,23 +102,17 @@ struct TrackSessionTelemetryTests {
   @Test("Stop after second fix")
   func testStopAfterSecondFix() {
     let filters = TrackFilters.default
-    var telemetry = TrackSessionTelemetry()
-    telemetry.start()
-
-    // First fix.
     let fix1Timestamp: Double = 1000
-    let fix1 = createNavigationFix(
-      latitude: 46.16,
-      longitude: -1.15,
-      timestamp: Date(timeIntervalSince1970: fix1Timestamp)
-    )
     let baseMonotonicTime = ContinuousClock().now
-    _ = telemetry.process(fix: fix1, filters: filters, now: baseMonotonicTime)
+    var telemetry: TrackSessionTelemetry
+    
+    // Start with fix1.
+    let fix1: NavigationFix
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
 
     // Second fix.
     let durationForSecondFix = TimeInterval(10)
-    let fix2 = createNavigationFix(
-      latitude: 46.16,
+    let fix2 = makeMockFix(
       longitude: -2.15,
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + durationForSecondFix)
     )
@@ -155,26 +139,17 @@ struct TrackSessionTelemetryTests {
   @Test("Second fix ignored")
   func testSecondFixIgnored() {
     let filters = TrackFilters.default
-    var telemetry = TrackSessionTelemetry()
-    telemetry.start()
-
-    // First fix.
     let fix1Timestamp: Double = 1000
-    let fix1 = createNavigationFix(
-      latitude: 46.16,
-      longitude: -1.15,
-      timestamp: Date(timeIntervalSince1970: fix1Timestamp)
-    )
     let baseMonotonicTime = ContinuousClock().now
-    _ = telemetry.process(fix: fix1, filters: filters, now: baseMonotonicTime)
+    var telemetry: TrackSessionTelemetry
+
+    // Start with fix1.
+    let fix1: NavigationFix
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
 
     // Second fix.
     let durationForSecondFix = TimeInterval(10)
-    let fix2 = createNavigationFix(
-      latitude: 46.16,
-      longitude: -1.15,
-      timestamp: Date(timeIntervalSince1970: fix1Timestamp + durationForSecondFix)
-    )
+    let fix2 = makeMockFix(timestamp: Date(timeIntervalSince1970: fix1Timestamp + durationForSecondFix))
     let simulatedFutureNow = baseMonotonicTime.advanced(by: .seconds(10))
     let appendedFix2 = telemetry.process(fix: fix2, filters: filters, now: simulatedFutureNow)
     #expect(!appendedFix2)
@@ -191,23 +166,17 @@ struct TrackSessionTelemetryTests {
   @Test("Stop after second fix ignored")
   func testStopAfterSecondFixIgnored() {
     let filters = TrackFilters.default
-    var telemetry = TrackSessionTelemetry()
-    telemetry.start()
-
-    // First fix.
     let fix1Timestamp: Double = 1000
-    let fix1 = createNavigationFix(
-      latitude: 46.16,
-      longitude: -1.15,
-      timestamp: Date(timeIntervalSince1970: fix1Timestamp)
-    )
     let baseMonotonicTime = ContinuousClock().now
-    _ = telemetry.process(fix: fix1, filters: filters, now: baseMonotonicTime)
+    var telemetry: TrackSessionTelemetry
+    
+    // Start with fix1.
+    let fix1: NavigationFix
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
 
     // Second fix.
     let durationForSecondFix = TimeInterval(10)
-    let fix2 = createNavigationFix(
-      latitude: 46.16,
+    let fix2 = makeMockFix(
       longitude: -1.1501,
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + durationForSecondFix)
     )
@@ -235,15 +204,14 @@ struct TrackSessionTelemetryTests {
   func testActiveDuration() {
     var telemetry = TrackSessionTelemetry()
     let startDate = Date()
+    
+    // Start.
     telemetry.start()
     
     // Step 1.
     // Add first fix after 10s from start.
     let startMonotonicTime = ContinuousClock().now
-    let fix1 = createNavigationFix(
-      latitude: 46.16,
-      longitude: -1.15,
-      timestamp: startDate + TimeInterval(10)
+    let fix1 = makeMockFix(timestamp: startDate + TimeInterval(10)
     )
     _ = telemetry.process(fix: fix1, filters: .default, now: startMonotonicTime)
     #expect(telemetry.duration?.components.seconds == 0)
@@ -261,8 +229,7 @@ struct TrackSessionTelemetryTests {
     // Step 3.
     // Add second fix (valid), after 20s from the start.
     let delay3 = delay2 + 10
-    let fix3 = createNavigationFix(
-      latitude: 46.16,
+    let fix3 = makeMockFix(
       longitude: -2.15,
       timestamp: fix1.timestamp + TimeInterval(delay3)
     )
@@ -281,8 +248,7 @@ struct TrackSessionTelemetryTests {
     
     // Add third fix (valid), after 20s from the start.
     let delay5 = delay4 + 10
-    let fix5 = createNavigationFix(
-      latitude: 46.16,
+    let fix5 = makeMockFix(
       longitude: -2.15,
       timestamp: fix1.timestamp + TimeInterval(delay5)
     )
@@ -295,9 +261,11 @@ struct TrackSessionTelemetryTests {
   @Test("Stop and start telemetry")
   func testStopAndStart() {
     var telemetry = TrackSessionTelemetry()
+
+    // Start.
     telemetry.start()
     
-    let fix = createNavigationFix(latitude: 46.16, longitude: -1.15, timestamp: Date())
+    let fix = makeMockFix(timestamp: Date())
     _ = telemetry.process(fix: fix, filters: .default)
     #expect(telemetry.pointsCount == 1)
 
@@ -357,7 +325,7 @@ struct TrackSessionTelemetryTests {
     let delay1 = 10
     let date1 = startDate + TimeInterval(firstSegmentDuration.components.seconds) + TimeInterval(delay1)
     let secondSegmentMonotonicTime = ContinuousClock().now
-    let fix1 = createNavigationFix(
+    let fix1 = makeMockFix(
       latitude: 45.16,
       longitude: 0,
       timestamp: date1
@@ -383,15 +351,20 @@ struct TrackSessionTelemetryTests {
   @Test("Pause and resume")
   func testPauseAndResume() {
     var telemetry = TrackSessionTelemetry()
+    
+    // Start.
     telemetry.start()
     
     let baseMonotonicTime = ContinuousClock().now
-    let fix1 = createNavigationFix(latitude: 46.16, longitude: -1.15, timestamp: Date())
+    let fix1 = makeMockFix(timestamp: Date())
     _ = telemetry.process(fix: fix1, filters: .default, now: baseMonotonicTime)
     
     let delay2 = 10
     let simulatedFuture2 = baseMonotonicTime.advanced(by: .seconds(delay2))
-    let fix2 = createNavigationFix(latitude: 46.16, longitude: -3.15, timestamp: fix1.timestamp + TimeInterval(delay2))
+    let fix2 = makeMockFix(
+      longitude: -3.15,
+      timestamp: fix1.timestamp + TimeInterval(delay2
+    ))
     _ = telemetry.process(fix: fix2, filters: .default, now: simulatedFuture2)
     
     let distance2 = telemetry.distance
@@ -412,13 +385,13 @@ struct TrackSessionTelemetryTests {
   @Test("Filter acceptance at Null Island (0,0)")
   func testAppendWithNullIslandEdgeCase() {
     var telemetry = TrackSessionTelemetry()
-    let fix = createNavigationFix(
+    let fix = makeMockFix(
       latitude: 0,
       longitude: 0,
-      speed: 2.0,
-      timestamp: Date()
+      speed: 2.0
     )
     
+    // Start.
     telemetry.start()
     let appended = telemetry.process(fix: fix, filters: .default)
     
@@ -437,20 +410,21 @@ struct TrackSessionTelemetryTests {
   func testDistanceCalculationToNullIsland() throws {
     var telemetry = TrackSessionTelemetry()
     let time1 = Date(timeIntervalSince1970: 1000)
-    // Start approx 111 meters north of Null Island
-    let fix1 = createNavigationFix(latitude: 0.001, longitude: 0, timestamp: time1)
+    // Start approx 111 meters north of Null Island.
+    let fix1 = makeMockFix(latitude: 0.001, longitude: 0, timestamp: time1)
     let filters = TrackFilters(
       minDistance: Measurement(value: 10, unit: .meters),
       minTimeInterval: Measurement(value: 60, unit: .seconds),
       maxHorizontalAccuracy: Measurement(value: 50, unit: .meters)
     )
     
+    // Start.
     telemetry.start()
     _ = telemetry.process(fix: fix1, filters: filters)
     
     let time2 = time1.addingTimeInterval(5)
-    // Move precisely to Null Island
-    let fix2 = createNavigationFix(latitude: 0, longitude: 0, timestamp: time2)
+    // Move precisely to Null Island.
+    let fix2 = makeMockFix(latitude: 0, longitude: 0, timestamp: time2)
     
     let appended = telemetry.process(fix: fix2, filters: filters)
     
@@ -465,37 +439,33 @@ struct TrackSessionTelemetryTests {
   
   @Test("activeDuration returns baseline duration when not recording")
   func testActiveDuration_WhenNotRecording_ReturnsStaticDuration() async throws {
-    // Given
     var telemetry = TrackSessionTelemetry()
+    
+    // Start.
     telemetry.start()
     
-    // When
     // Even if some monotonic time is captured, if we are not recording,
     // it should just return the current recorded sessionDuration (which is nil or 0 at start)
     let duration = telemetry.activeDuration()
     
-    // Then
     #expect(duration == nil)
   }
   
   @Test("activeDuration returns nil if session was never started (no monotonic time reference)")
   func testActiveDuration_WhenNeverStarted_ReturnsNil() async throws {
-    // Given
     let telemetry = TrackSessionTelemetry() // Raw empty telemetry
     let simulatedNow = ContinuousClock().now
     
-    // When
     let duration = telemetry.activeDuration(now: simulatedNow)
     
-    // Then
     #expect(duration == nil)
   }
   
   @Test("activeDuration accumulates elapsed time dynamically when recording")
   func testActiveDuration_WhenRecording_AccumulatesTimeSinceLastMonotonicAnchor() async throws {
-    // Given
     var telemetry = TrackSessionTelemetry()
     
+    // Start.
     telemetry.start()
     let initialFix = makeMockFix()
     let baseMonotonicTime = ContinuousClock().now
@@ -505,11 +475,8 @@ struct TrackSessionTelemetryTests {
     // In our test context, `.now` is extremely close to our `baseMonotonicTime`.
     // We simulate that 42 seconds have passed in the future.
     let simulatedFutureNow = baseMonotonicTime.advanced(by: .seconds(42))
-    
-    // When
     let duration = telemetry.activeDuration(now: simulatedFutureNow)
     
-    // Then
     // The expected duration should be the 42 seconds that elapsed since start()
     #expect(duration != nil)
     if let duration {
@@ -523,29 +490,25 @@ struct TrackSessionTelemetryTests {
   
   @Test("activeDuration correctly adds elapsed time on top of already existing session duration")
   func testActiveDuration_WithPreExistingDuration_AddsElapsedTime() async throws {
-    // Given
     var telemetry = TrackSessionTelemetry()
     let startTime = Date()
     
-    // 1. Start the telemetry
+    // 1. Start the telemetry.
     let baseMonotonicTime = ContinuousClock().now
     telemetry.start()
     // Always call updateTime() with the first fix.
-    _ = telemetry.process(fix: makeMockFix(at: startTime), filters: .default, now: baseMonotonicTime)
+    _ = telemetry.process(fix: makeMockFix(timestamp: startTime), filters: .default, now: baseMonotonicTime)
 
-    // 2. Simulate a GPS fix update 10 seconds later.
+    // Simulate a GPS fix update 10 seconds later.
     // This will push 10 seconds into `sessionDuration`
     let simulatedFutureNow1 = baseMonotonicTime.advanced(by: .seconds(10))
     let tenSecondsLater = startTime.addingTimeInterval(10)
-    _ = telemetry.process(fix: makeMockFix(at: tenSecondsLater), filters: .default, now: simulatedFutureNow1)
+    _ = telemetry.process(fix: makeMockFix(timestamp: tenSecondsLater), filters: .default, now: simulatedFutureNow1)
     
-    // 4. Simulate moving 5 seconds further into the future from that anchor point
+    // Simulate moving 5 seconds further into the future from that anchor point
     let simulatedFutureNow2 = simulatedFutureNow1.advanced(by: .seconds(5))
-    
-    // When
     let totalDuration = telemetry.activeDuration(now: simulatedFutureNow2)
     
-    // Then
     // Expected: 10 seconds (from the updateTime fix) + 5 seconds (virtual elapsed time) = 15 seconds
     #expect(totalDuration != nil)
     if let totalDuration {
@@ -554,13 +517,61 @@ struct TrackSessionTelemetryTests {
     }
   }
   
+  @Test("Out of order timestamps do not negatively affect duration")
+  func testOutOfOrderTimestamps() {
+    let baseTime = ContinuousClock().now
+    let time1 = Date(timeIntervalSince1970: 1000)
+    var telemetry: TrackSessionTelemetry
+    (telemetry, _) = makeStartedTelemetry(baseTime: baseTime, fixTimestamp: time1)
+    
+    // Add a fix that has an OLDER timestamp than time1
+    let time2 = Date(timeIntervalSince1970: 990)
+    let fix2 = makeMockFix(latitude: 46.16, longitude: -1.16, timestamp: time2)
+    
+    let simulatedNow = baseTime.advanced(by: .seconds(5))
+    let appended = telemetry.process(fix: fix2, filters: .default, now: simulatedNow)
+    #expect(!appended)
+    #expect(telemetry.duration == .seconds(0))
+    #expect(telemetry.pointsCount == 1)
+  }
+
+  @Test("Bounding box expands correctly across multiple quadrants")
+  func testBoundingBoxExpansion() throws {
+    var telemetry = TrackSessionTelemetry()
+    telemetry.start()
+    
+    // Fix 1: Origin
+    let fix1 = makeMockFix(latitude: 45.0, longitude: -1.0)
+    _ = telemetry.process(fix: fix1, filters: nil)
+    
+    // Fix 2: Further North and East
+    let fix2 = makeMockFix(latitude: 46.0, longitude: 0.0)
+    _ = telemetry.process(fix: fix2, filters: nil)
+    
+    let box1 = try #require(telemetry.geographicBoundingBox)
+    #expect(box1.southLatitude.value == 45.0)
+    #expect(box1.northLatitude.value == 46.0)
+    #expect(box1.westLongitude.value == -1.0)
+    #expect(box1.eastLongitude.value == 0.0)
+    
+    // Fix 3: Further South and West than initial
+    let fix3 = makeMockFix(latitude: 44.0, longitude: -2.0)
+    _ = telemetry.process(fix: fix3, filters: nil)
+    
+    let box2 = try #require(telemetry.geographicBoundingBox)
+    #expect(box2.southLatitude.value == 44.0)
+    #expect(box2.northLatitude.value == 46.0)
+    #expect(box2.westLongitude.value == -2.0)
+    #expect(box2.eastLongitude.value == 0.0)
+  }
+
   // MARK: - Helpers
   
-  private func createNavigationFix(
-    latitude: CLLocationDegrees,
-    longitude: CLLocationDegrees,
+  private func makeMockFix(
+    latitude: CLLocationDegrees = 46.16,
+    longitude: CLLocationDegrees = -1.15,
     speed: Double = 0,
-    timestamp: Date
+    timestamp: Date = Date()
   ) -> NavigationFix {
     return NavigationFix(
       coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
@@ -572,17 +583,15 @@ struct TrackSessionTelemetryTests {
       timestamp: timestamp
     )
   }
-  
-  // Mock NavigationFix helper to clean up test setup
-    private func makeMockFix(at date: Date = Date()) -> NavigationFix {
-      return NavigationFix(
-        coordinate: CLLocationCoordinate2D(latitude: 46.15, longitude: -1.15), // Near La Rochelle
-        horizontalAccuracy: Measurement(value: 5.0, unit: .meters),
-        courseOverGround: nil,
-        courseOverGroundAccuracy: nil,
-        speedOverGround: nil,
-        speedOverGroundAccuracy: nil,
-        timestamp: date
-      )
-    }
+
+  private func makeStartedTelemetry(
+    baseTime: ContinuousClock.Instant,
+    fixTimestamp: Date
+  ) -> (telemetry: TrackSessionTelemetry, fix: NavigationFix) {
+    var telemetry = TrackSessionTelemetry()
+    telemetry.start()
+    let fix = makeMockFix(timestamp: fixTimestamp)
+    _ = telemetry.process(fix: fix, filters: .default, now: baseTime)
+    return (telemetry, fix)
+  }
 }
