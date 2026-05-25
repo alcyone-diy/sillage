@@ -151,8 +151,8 @@ public final class TrackRecordingService {
     
     state = .saving
     
-    let finalDurationSeconds = telemetry.sessionDuration
-    let finalDistanceMeters = telemetry.sessionDistance
+    let finalDurationSeconds = telemetry.duration
+    let finalDistanceMeters = telemetry.distance
     let sessionUpdate = buildCurrentSessionRecord()
     
     let writerToFinish = persistenceWriter
@@ -185,6 +185,7 @@ public final class TrackRecordingService {
       return
     }
     
+    telemetry.pause()
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
     backgroundLocationToken = nil
@@ -207,8 +208,8 @@ public final class TrackRecordingService {
     }
     
     segmentIndex += 1
-    telemetry.startNewSegment()
     
+    telemetry.resume()
     let service = self.positioningService
     self.backgroundLocationToken = service.requestBackgroundLocation()
     
@@ -226,7 +227,7 @@ public final class TrackRecordingService {
   }
   
   public func activeSessionDuration() -> Duration? {
-    return telemetry.activeDuration(isRecording: state == .recording)
+    return telemetry.activeDuration()
   }
   
   public func emergencyFlushAsync() async {
@@ -410,7 +411,9 @@ public final class TrackRecordingService {
   }
   
   private func buildCurrentSessionRecord() -> TrackSessionRecord? {
-    guard let sessionId = currentSessionId, let startTime = telemetry.sessionStartTime else { return nil }
+    guard let sessionId = currentSessionId,
+          let startTime = telemetry.startTime
+    else { return nil }
     
     var record = TrackSessionRecord(id: sessionId, startTime: startTime)
     
@@ -419,7 +422,7 @@ public final class TrackRecordingService {
       record.duration_s = totalSeconds
     }
     
-    if let distance = telemetry.sessionDistance {
+    if let distance = telemetry.distance {
       record.totalDistance_m = distance.converted(to: .meters).value
     }
     
