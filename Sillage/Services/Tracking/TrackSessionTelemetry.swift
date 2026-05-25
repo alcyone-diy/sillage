@@ -169,6 +169,7 @@ public struct TrackSessionTelemetry: Sendable {
     if let lastUpdate = lastTimeUpdated {
       let timeSinceLast = max(0, fix.timestamp.timeIntervalSince(lastUpdate))
       let currentDuration = duration ?? .seconds(0)
+      // There is no fractions lost since Duration.seconds takes Double type.
       duration = currentDuration + .seconds(timeSinceLast)
     }
     if startTime == nil {
