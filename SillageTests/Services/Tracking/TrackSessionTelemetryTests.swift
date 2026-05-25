@@ -565,6 +565,94 @@ struct TrackSessionTelemetryTests {
     #expect(box2.eastLongitude.value == 0.0)
   }
 
+  @Test("Time filter only (distance disabled)")
+  func testTimeFilterOnly() {
+    let filters = TrackFilters(
+      minDistance: Measurement(value: 0, unit: .meters),
+      minTimeInterval: Measurement(value: 60, unit: .seconds),
+      maxHorizontalAccuracy: Measurement(value: 50, unit: .meters)
+    )
+    
+    let baseMonotonicTime = ContinuousClock().now
+    let fix1Timestamp: Double = 1000
+    var telemetry: TrackSessionTelemetry
+    
+    let fix1: NavigationFix
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    
+    // Fix 2: distance moved, but time < 60s -> should be REJECTED.
+    let fix2 = makeMockFix(
+      latitude: 47.0,
+      timestamp: Date(timeIntervalSince1970: fix1Timestamp + 10)
+    )
+    let appended2 = telemetry.process(fix: fix2, filters: filters, now: baseMonotonicTime.advanced(by: .seconds(10)))
+    #expect(!appended2)
+    
+    // Fix 3: time > 60s -> should be ACCEPTED.
+    let fix3 = makeMockFix(
+      latitude: 47.0,
+      timestamp: Date(timeIntervalSince1970: fix1Timestamp + 61)
+    )
+    let appended3 = telemetry.process(fix: fix3, filters: filters, now: baseMonotonicTime.advanced(by: .seconds(61)))
+    #expect(appended3)
+  }
+
+  @Test("Distance filter only (time disabled)")
+  func testDistanceFilterOnly() {
+    let filters = TrackFilters(
+      minDistance: Measurement(value: 10, unit: .meters),
+      minTimeInterval: Measurement(value: 0, unit: .seconds),
+      maxHorizontalAccuracy: Measurement(value: 50, unit: .meters)
+    )
+    
+    let baseMonotonicTime = ContinuousClock().now
+    let fix1Timestamp: Double = 1000
+    var telemetry: TrackSessionTelemetry
+    
+    let fix1: NavigationFix
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    
+    // Fix 2: time passed, but distance < 10m -> should be REJECTED.
+    let fix2 = makeMockFix(
+      latitude: 46.16, longitude: -1.15,
+      timestamp: Date(timeIntervalSince1970: fix1Timestamp + 100)
+    )
+    let appended2 = telemetry.process(fix: fix2, filters: filters, now: baseMonotonicTime.advanced(by: .seconds(100)))
+    #expect(!appended2)
+    
+    // Fix 3: distance > 10m -> should be ACCEPTED.
+    let fix3 = makeMockFix(
+      latitude: 47.0,
+      timestamp: Date(timeIntervalSince1970: fix1Timestamp + 101)
+    )
+    let appended3 = telemetry.process(fix: fix3, filters: filters, now: baseMonotonicTime.advanced(by: .seconds(101)))
+    #expect(appended3)
+  }
+
+  @Test("No filters (distance and time disabled)")
+  func testNoFilters() {
+    let filters = TrackFilters(
+      minDistance: Measurement(value: 0, unit: .meters),
+      minTimeInterval: Measurement(value: 0, unit: .seconds),
+      maxHorizontalAccuracy: Measurement(value: 50, unit: .meters)
+    )
+    
+    let baseMonotonicTime = ContinuousClock().now
+    let fix1Timestamp: Double = 1000
+    var telemetry: TrackSessionTelemetry
+    
+    let fix1: NavigationFix
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    
+    // Fix 2: minimal distance, minimal time -> should be ACCEPTED.
+    let fix2 = makeMockFix(
+      latitude: 46.16, longitude: -1.15,
+      timestamp: Date(timeIntervalSince1970: fix1Timestamp + 1)
+    )
+    let appended2 = telemetry.process(fix: fix2, filters: filters, now: baseMonotonicTime.advanced(by: .seconds(1)))
+    #expect(appended2)
+  }
+
   // MARK: - Helpers
   
   private func makeMockFix(

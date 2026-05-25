@@ -75,6 +75,7 @@ public struct TrackSessionTelemetry: Sendable {
     }
     if let lastNavigationFix = lastReceivedNavigationFix,
        let lastMonotonicTime = lastRecordedNavigationFixMonotonicTime {
+      // Set no filter to make sure the last navigation is accepted.
       _ = self.process(
         fix: lastNavigationFix,
         filters: nil,
@@ -113,7 +114,7 @@ public struct TrackSessionTelemetry: Sendable {
     // to accumulate time during the app-killed gap.
     lastTimeUpdated = nil
     duration = session.duration
-    distance = session.totalDistance ?? Measurement(value: 0, unit: UnitLength.meters)
+    distance = session.totalDistance
     if let minLatitude = session.minLatitude, 
        let maxLatitude = session.maxLatitude,
        let minLongitude = session.minLongitude,
@@ -154,7 +155,9 @@ public struct TrackSessionTelemetry: Sendable {
     guard let lastReceiveTime = lastRecordedNavigationFixMonotonicTime else {
       return duration
     }
-    // Use the injected 'now' parameter instead of hardcoded ContinuousClock()
+    // Add the difference between now and timeSinceLastLocation,
+    // to show that time is still progressing.
+    // But duration is never updated with `ContinuousClock`.
     let timeSinceLastLocation = now - lastReceiveTime
     let currentDuration = duration ?? .seconds(0)
     return currentDuration + timeSinceLastLocation
@@ -188,10 +191,21 @@ public struct TrackSessionTelemetry: Sendable {
       distanceSinceLast = fix.distance(from: lastLoc)
       let timeSinceLast = fix.timestamp.timeIntervalSince(lastLoc.timestamp)
       
-      let hasMovedSignificantly = filters == nil || distanceSinceLast > (filters?.minDistance ?? Measurement(value: 0, unit: .meters))
-      let hasSufficientTimePassed = filters == nil || timeSinceLast > (filters?.minTimeIntervalSeconds ?? 0)
-      
-      guard timeSinceLast > 0 && (hasMovedSignificantly || hasSufficientTimePassed) else { return false }
+      let isFixValid: Bool
+      if let filters = filters {
+        let hasDistanceFilter = filters.minDistance.value > 0
+        let hasTimeFilter = filters.minTimeIntervalSeconds > 0
+        if !hasDistanceFilter && !hasTimeFilter {
+          isFixValid = true
+        } else {
+          let hasMovedSignificantly = hasDistanceFilter && distanceSinceLast > filters.minDistance
+          let hasSufficientTimePassed = hasTimeFilter && timeSinceLast > filters.minTimeIntervalSeconds
+          isFixValid = hasMovedSignificantly || hasSufficientTimePassed
+        }
+      } else {
+        isFixValid = true
+      }
+      guard timeSinceLast > 0 && isFixValid else { return false }
     } else {
       distanceSinceLast = Measurement(value: 0, unit: .meters)
     }
