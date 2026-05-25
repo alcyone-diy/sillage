@@ -191,7 +191,7 @@ public struct TrackSessionTelemetry: Sendable {
       let hasMovedSignificantly = filters == nil || distanceSinceLast > (filters?.minDistance ?? Measurement(value: 0, unit: .meters))
       let hasSufficientTimePassed = filters == nil || timeSinceLast > (filters?.minTimeIntervalSeconds ?? 0)
       
-      guard hasMovedSignificantly || hasSufficientTimePassed else { return false }
+      guard timeSinceLast > 0 && (hasMovedSignificantly || hasSufficientTimePassed) else { return false }
     } else {
       distanceSinceLast = Measurement(value: 0, unit: .meters)
     }
