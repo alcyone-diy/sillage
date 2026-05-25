@@ -426,10 +426,12 @@ public final class TrackRecordingService {
       record.totalDistance_m = distance.converted(to: .meters).value
     }
     
-    record.minLatitude_deg = telemetry.minLatitude?.converted(to: .degrees).value
-    record.maxLatitude_deg = telemetry.maxLatitude?.converted(to: .degrees).value
-    record.minLongitude_deg = telemetry.minLongitude?.converted(to: .degrees).value
-    record.maxLongitude_deg = telemetry.maxLongitude?.converted(to: .degrees).value
+    if let box = telemetry.geographicBoundingBox {
+      record.minLatitude_deg = box.southLatitude.converted(to: .degrees).value
+      record.maxLatitude_deg = box.northLatitude.converted(to: .degrees).value
+      record.minLongitude_deg = box.westLongitude.converted(to: .degrees).value
+      record.maxLongitude_deg = box.eastLongitude.converted(to: .degrees).value
+    }
     record.maxSpeed_mps = telemetry.maxSpeedOverGround?.converted(to: .metersPerSecond).value
     record.pointsCount = telemetry.pointsCount
     record.segmentCount = segmentIndex + 1

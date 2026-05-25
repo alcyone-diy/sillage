@@ -36,10 +36,7 @@ public struct TrackSessionTelemetry: Sendable {
 
   public private(set) var duration: Duration?
   public private(set) var distance: Measurement<UnitLength>?
-  public private(set) var minLatitude: Measurement<UnitAngle>?
-  public private(set) var maxLatitude: Measurement<UnitAngle>?
-  public private(set) var minLongitude: Measurement<UnitAngle>?
-  public private(set) var maxLongitude: Measurement<UnitAngle>?
+  public private(set) var geographicBoundingBox: GeographicBoundingBox?
   public private(set) var maxSpeedOverGround: Measurement<UnitSpeed>?
   
   public private(set) var lastReceivedNavigationFix: NavigationFix?
@@ -61,10 +58,7 @@ public struct TrackSessionTelemetry: Sendable {
     pointsCount = 0
     duration = nil
     distance = nil
-    minLatitude = nil
-    maxLatitude = nil
-    minLongitude = nil
-    maxLongitude = nil
+    geographicBoundingBox = nil
     maxSpeedOverGround = nil
     lastReceivedNavigationFix = nil
     lastRecordedNavigationFix = nil
@@ -120,10 +114,19 @@ public struct TrackSessionTelemetry: Sendable {
     lastTimeUpdated = nil
     duration = session.duration
     distance = session.totalDistance ?? Measurement(value: 0, unit: UnitLength.meters)
-    minLatitude = session.minLatitude
-    maxLatitude = session.maxLatitude
-    minLongitude = session.minLongitude
-    maxLongitude = session.maxLongitude
+    if let minLatitude = session.minLatitude, 
+       let maxLatitude = session.maxLatitude,
+       let minLongitude = session.minLongitude,
+       let maxLongitude = session.maxLongitude {
+      geographicBoundingBox = GeographicBoundingBox(
+        southLatitude: minLatitude,
+        northLatitude: maxLatitude,
+        westLongitude: minLongitude,
+        eastLongitude: maxLongitude
+      )
+    } else {
+      geographicBoundingBox = nil
+    }
     maxSpeedOverGround = session.maxSpeed
     pointsCount = session.pointsCount
     lastRecordedNavigationFixMonotonicTime = nil
@@ -196,13 +199,14 @@ public struct TrackSessionTelemetry: Sendable {
     distance = currentDistance + distanceSinceLast
     
     // Bounding Box
-    let latitude = Measurement(value: fix.coordinate.latitude, unit: UnitAngle.degrees)
-    let longitude = Measurement(value: fix.coordinate.longitude, unit: UnitAngle.degrees)
-    
-    minLatitude = min(minLatitude ?? latitude, latitude)
-    maxLatitude = max(maxLatitude ?? latitude, latitude)
-    minLongitude = min(minLongitude ?? longitude, longitude)
-    maxLongitude = max(maxLongitude ?? longitude, longitude)
+    let fixLat = Measurement(value: fix.coordinate.latitude, unit: UnitAngle.degrees)
+    let fixLon = Measurement(value: fix.coordinate.longitude, unit: UnitAngle.degrees)
+    if var box = geographicBoundingBox {
+      box.expand(toIncludeLatitude: fixLat, longitude: fixLon)
+      geographicBoundingBox = box
+    } else {
+      geographicBoundingBox = GeographicBoundingBox(latitude: fixLat, longitude: fixLon)
+    }
     
     // Speed
     if let speedOverGround = fix.speedOverGround {
