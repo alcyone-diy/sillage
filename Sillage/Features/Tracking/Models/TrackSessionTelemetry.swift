@@ -27,24 +27,43 @@ public struct TrackSessionTelemetry: Sendable {
   public private(set) var pointsCount: Int?
   
   public private(set) var lastRecordedNavigationFix: NavigationFix?
-  
+  public private(set) var lastReceivedNavigationFix: NavigationFix?
+
   public init() {}
   
-  public mutating func start(at navigationFix: NavigationFix) {
-    self.sessionStartTime = navigationFix.timestamp
-    self.lastTimeUpdated = nil
-    self.sessionDistance = Measurement(value: 0, unit: UnitLength.meters)
-    self.sessionDuration = nil
-    self.lastSessionDurationUpdateMonotonicTime = .now
-    // No need to update those parameters, updateTime(with:) and
-    // append(fix:distanceSinceLast:) need to be called with this
-    // navigationFix.
-    self.minLatitude = nil
-    self.maxLatitude = nil
-    self.minLongitude = nil
-    self.maxLongitude = nil
-    self.maxSpeedOverGround = nil
-    self.pointsCount = 0
+  // As long as the first fix is not received, there is no values.
+  // The trace recording is in pending mode.
+  public mutating func start() {
+    sessionStartTime = nil
+    lastTimeUpdated = nil
+    lastSessionDurationUpdateMonotonicTime = nil
+    sessionDistance = nil
+    sessionDuration = nil
+    minLatitude = nil
+    maxLatitude = nil
+    minLongitude = nil
+    maxLongitude = nil
+    maxSpeedOverGround = nil
+    pointsCount = 0
+    lastRecordedNavigationFix = nil
+    lastReceivedNavigationFix = nil
+  }
+  
+  public mutating func stop() -> NavigationFix? {
+    guard lastRecordedNavigationFix != nil &&
+          lastReceivedNavigationFix != nil &&
+          lastRecordedNavigationFix != lastReceivedNavigationFix else {
+      return nil
+    }
+    if let lastNavigationFix = lastReceivedNavigationFix,
+       let lastMonotonicTime = lastSessionDurationUpdateMonotonicTime {
+      _ = self.process(
+        fix: lastNavigationFix,
+        filters: nil,
+        now:lastMonotonicTime
+      )
+    }
+    return lastReceivedNavigationFix
   }
   
   public mutating func restore(
@@ -65,37 +84,81 @@ public struct TrackSessionTelemetry: Sendable {
     lastSessionDurationUpdateMonotonicTime = nil
   }
   
-  public mutating func updateTime(with fix: NavigationFix) {
+  public mutating func process(
+    fix: NavigationFix,
+    filters: TrackFilters?,
+    now: ContinuousClock.Instant = ContinuousClock().now
+  ) -> Bool {
+    let validFix = self.append(fix: fix, filters: filters)
+    if validFix {
+      self.updateTime(with: fix, now: now)
+    }
+    return validFix
+  }
+  
+  public func activeDuration(
+    isRecording: Bool,
+    now: ContinuousClock.Instant = ContinuousClock().now
+  ) -> Duration? {
+    guard let lastReceiveTime = lastSessionDurationUpdateMonotonicTime else {
+      return sessionDuration
+    }
+    
+    if isRecording {
+      // Use the injected 'now' parameter instead of hardcoded ContinuousClock()
+      let timeSinceLastLocation = now - lastReceiveTime
+      let currentSessionDuration = sessionDuration ?? .seconds(0)
+      return currentSessionDuration + timeSinceLastLocation
+    } else {
+      return sessionDuration
+    }
+  }
+  
+  public mutating func startNewSegment() {
+    lastSessionDurationUpdateMonotonicTime = nil
+    lastTimeUpdated = nil
+    lastReceivedNavigationFix = nil
+    lastRecordedNavigationFix = nil
+  }
+  
+  // MARK: - Private
+  
+  private mutating func updateTime(
+    with fix: NavigationFix,
+    now: ContinuousClock.Instant = ContinuousClock().now
+  ) {
     if let lastUpdate = lastTimeUpdated {
       let timeSinceLast = max(0, fix.timestamp.timeIntervalSince(lastUpdate))
       let currentDuration = sessionDuration ?? .seconds(0)
       sessionDuration = currentDuration + .seconds(timeSinceLast)
     }
+    if sessionStartTime == nil {
+      sessionStartTime = fix.timestamp
+    }
     lastTimeUpdated = fix.timestamp
-    lastSessionDurationUpdateMonotonicTime = .now
+    lastSessionDurationUpdateMonotonicTime = now
+    if sessionDuration == nil {
+      sessionDuration = .seconds(0)
+    }
   }
   
-  public mutating func append(fix: NavigationFix, filters: TrackFilters) -> Bool {
-    var distanceToAppend: Measurement<UnitLength>? = nil
-    
+  private mutating func append(fix: NavigationFix, filters: TrackFilters?) -> Bool {
+    lastReceivedNavigationFix = fix
+    let distanceSinceLast: Measurement<UnitLength>
     if let lastLoc = lastRecordedNavigationFix {
-      let distanceSinceLast = fix.distance(from: lastLoc)
+      distanceSinceLast = fix.distance(from: lastLoc)
       let timeSinceLast = fix.timestamp.timeIntervalSince(lastLoc.timestamp)
       
-      let hasMovedSignificantly = distanceSinceLast > filters.minDistance
-      let hasSufficientTimePassed = timeSinceLast > filters.minTimeIntervalSeconds
+      let hasMovedSignificantly = filters == nil || distanceSinceLast > (filters?.minDistance ?? Measurement(value: 0, unit: .meters))
+      let hasSufficientTimePassed = filters == nil || timeSinceLast > (filters?.minTimeIntervalSeconds ?? 0)
       
       guard hasMovedSignificantly || hasSufficientTimePassed else { return false }
-      
-      distanceToAppend = distanceSinceLast
+    } else {
+      distanceSinceLast = Measurement(value: 0, unit: .meters)
     }
-    
-    // Distance
-    if let distanceSinceLast = distanceToAppend {
-      let currentDistance = sessionDistance ?? Measurement(value: 0, unit: UnitLength.meters)
-      sessionDistance = currentDistance + distanceSinceLast
-    }
-    
+    let currentDistance = sessionDistance ?? Measurement(value: 0, unit: UnitLength.meters)
+    sessionDistance = currentDistance + distanceSinceLast
+
     // Bounding Box
     let latitude = Measurement(value: fix.coordinate.latitude, unit: UnitAngle.degrees)
     let longitude = Measurement(value: fix.coordinate.longitude, unit: UnitAngle.degrees)
@@ -115,41 +178,5 @@ public struct TrackSessionTelemetry: Sendable {
     
     lastRecordedNavigationFix = fix
     return true
-  }
-  
-  public func activeDuration(isRecording: Bool) -> Duration? {
-    guard let lastReceiveTime = lastSessionDurationUpdateMonotonicTime else {
-      return sessionDuration
-    }
-    
-    if isRecording {
-      let clock = ContinuousClock()
-      let timeSinceLastLocation = clock.now - lastReceiveTime
-      let currentSessionDuration = sessionDuration ?? .seconds(0)
-      return currentSessionDuration + timeSinceLastLocation
-    } else {
-      return sessionDuration
-    }
-  }
-  
-  public mutating func startNewSegment() {
-    lastSessionDurationUpdateMonotonicTime = nil
-    lastTimeUpdated = nil
-    lastRecordedNavigationFix = nil
-  }
-  
-  public mutating func clear() {
-    sessionStartTime = nil
-    lastTimeUpdated = nil
-    lastSessionDurationUpdateMonotonicTime = nil
-    sessionDistance = nil
-    sessionDuration = nil
-    minLatitude = nil
-    maxLatitude = nil
-    minLongitude = nil
-    maxLongitude = nil
-    maxSpeedOverGround = nil
-    pointsCount = nil
-    lastRecordedNavigationFix = nil
   }
 }

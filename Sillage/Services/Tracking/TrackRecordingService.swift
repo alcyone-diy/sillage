@@ -98,7 +98,7 @@ public final class TrackRecordingService {
     currentSessionId = nil
     segmentIndex = 0
     unflushedPointCount = 0
-    telemetry.clear()
+    telemetry.start()
     trackPoints.removeAll()
     
     let service = self.positioningService
@@ -137,6 +137,10 @@ public final class TrackRecordingService {
     flushTask?.cancel()
     flushTask = nil
     
+    if let lastNavigationFix = telemetry.stop() {
+      self.saveNavigationFix(lastNavigationFix)
+    }
+    
     guard let sessionId = currentSessionId,
           let endTime = telemetry.lastRecordedNavigationFix?.timestamp else {
       state = .idle
@@ -169,7 +173,6 @@ public final class TrackRecordingService {
     
     currentSessionId = nil
     preferencesService.clearActiveTrackSessionID()
-    telemetry.clear()
     
     return .savedAsync(sessionId: sessionId)
   }
@@ -262,6 +265,8 @@ public final class TrackRecordingService {
     await resumeTrackIfPossible(sessionId: activeId)
   }
   
+  // MARK: - Private
+  
   private func resumeTrackIfPossible(sessionId: String?) async {
     guard let sessionId = sessionId else { return }
     do {
@@ -341,7 +346,6 @@ public final class TrackRecordingService {
         
         currentSessionId = sessionId
         preferencesService.saveActiveTrackSessionID(sessionId)
-        telemetry.start(at: navigationFix)
         
         let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
         persistenceWriter?.insertSession(sessionRecord)
@@ -351,14 +355,14 @@ public final class TrackRecordingService {
       break
     }
     
-    // Always update session time to reflect real-world progression regardless of movement
-    telemetry.updateTime(with: navigationFix)
-    
-    // Filtering Logic (Anti-Jitter)
-    guard telemetry.append(fix: navigationFix, filters: filters) else {
+    // Update session with filtering Logic (Anti-Jitter)
+    guard telemetry.process(fix: navigationFix, filters: filters) else {
       return
     }
-    
+    saveNavigationFix(navigationFix)
+  }
+  
+  private func saveNavigationFix(_ navigationFix: NavigationFix) {
     let trackPoint = TrackPoint(
       timestamp: navigationFix.timestamp,
       segmentIndex: segmentIndex,
