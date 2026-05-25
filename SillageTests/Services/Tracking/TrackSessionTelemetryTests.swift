@@ -19,10 +19,10 @@ struct TrackSessionTelemetryTests {
   @Test("Initial state")
   func testInit() {
     let telemetry = TrackSessionTelemetry()
-    #expect(telemetry.sessionStartTime == nil)
+    #expect(telemetry.startTime == nil)
     #expect(telemetry.lastTimeUpdated == nil)
-    #expect(telemetry.sessionDistance == nil)
-    #expect(telemetry.sessionDuration == nil)
+    #expect(telemetry.distance == nil)
+    #expect(telemetry.duration == nil)
     #expect(telemetry.minLatitude == nil)
     #expect(telemetry.maxLatitude == nil)
     #expect(telemetry.minLongitude == nil)
@@ -37,15 +37,17 @@ struct TrackSessionTelemetryTests {
   func testStart() {
     var telemetry = TrackSessionTelemetry()
     telemetry.start()
-    
-    #expect(telemetry.sessionStartTime == nil)
+    #expect(telemetry.startTime == nil)
     #expect(telemetry.lastTimeUpdated == nil)
-    #expect(telemetry.sessionDistance == nil)
-    #expect(telemetry.sessionDuration == nil)
-    #expect(telemetry.lastSessionDurationUpdateMonotonicTime == nil)
+    #expect(telemetry.distance == nil)
+    #expect(telemetry.duration == nil)
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == nil)
     #expect(telemetry.pointsCount == 0)
     #expect(telemetry.lastRecordedNavigationFix == nil)
     #expect(telemetry.lastReceivedNavigationFix == nil)
+    
+    let activeDuration = telemetry.activeDuration()
+    #expect(activeDuration == nil)
   }
   
   @Test("First fix")
@@ -61,11 +63,11 @@ struct TrackSessionTelemetryTests {
     let baseMonotonicTime = ContinuousClock().now
     let appendedFix = telemetry.process(fix: fix, filters: .default, now: baseMonotonicTime)
     #expect(appendedFix)
-    #expect(telemetry.sessionStartTime == fix.timestamp)
+    #expect(telemetry.startTime == fix.timestamp)
     #expect(telemetry.lastTimeUpdated == fix.timestamp)
-    #expect(telemetry.sessionDistance?.value == 0)
-    #expect(telemetry.sessionDuration == .seconds(0))
-    #expect(telemetry.lastSessionDurationUpdateMonotonicTime == baseMonotonicTime)
+    #expect(telemetry.distance?.value == 0)
+    #expect(telemetry.duration == .seconds(0))
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == baseMonotonicTime)
     #expect(telemetry.pointsCount == 1)
     #expect(telemetry.lastRecordedNavigationFix == fix)
     #expect(telemetry.lastReceivedNavigationFix == fix)
@@ -97,14 +99,14 @@ struct TrackSessionTelemetryTests {
     let simulatedFutureNow = baseMonotonicTime.advanced(by: .seconds(10))
     let appendedFix2 = telemetry.process(fix: fix2, filters: filters, now: simulatedFutureNow)
     #expect(appendedFix2)
-    #expect(telemetry.sessionStartTime == fix1.timestamp)
+    #expect(telemetry.startTime == fix1.timestamp)
     #expect(telemetry.lastTimeUpdated == fix2.timestamp)
-    #expect(telemetry.sessionDistance != nil)
-    if let distance = telemetry.sessionDistance {
+    #expect(telemetry.distance != nil)
+    if let distance = telemetry.distance {
       #expect(distance.converted(to: .meters).value > 0)
     }
-    #expect(telemetry.sessionDuration?.components.seconds == Int64(durationForSecondFix))
-    #expect(telemetry.lastSessionDurationUpdateMonotonicTime == simulatedFutureNow)
+    #expect(telemetry.duration?.components.seconds == Int64(durationForSecondFix))
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == simulatedFutureNow)
     #expect(telemetry.pointsCount == 2)
     #expect(telemetry.lastRecordedNavigationFix == fix2)
     #expect(telemetry.lastReceivedNavigationFix == fix2)
@@ -140,14 +142,14 @@ struct TrackSessionTelemetryTests {
     // Stop
     let lastFix = telemetry.stop()
     #expect(lastFix == nil)
-    #expect(telemetry.sessionStartTime == fix1.timestamp)
+    #expect(telemetry.startTime == fix1.timestamp)
     #expect(telemetry.lastTimeUpdated == fix2.timestamp)
-    #expect(telemetry.sessionDistance != nil)
-    if let distance = telemetry.sessionDistance {
+    #expect(telemetry.distance != nil)
+    if let distance = telemetry.distance {
       #expect(distance.converted(to: .meters).value > 0)
     }
-    #expect(telemetry.sessionDuration?.components.seconds == Int64(durationForSecondFix))
-    #expect(telemetry.lastSessionDurationUpdateMonotonicTime == simulatedFutureNow)
+    #expect(telemetry.duration?.components.seconds == Int64(durationForSecondFix))
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == nil)
     #expect(telemetry.pointsCount == 2)
     #expect(telemetry.lastRecordedNavigationFix == fix2)
     #expect(telemetry.lastReceivedNavigationFix == fix2)
@@ -179,11 +181,11 @@ struct TrackSessionTelemetryTests {
     let simulatedFutureNow = baseMonotonicTime.advanced(by: .seconds(10))
     let appendedFix2 = telemetry.process(fix: fix2, filters: filters, now: simulatedFutureNow)
     #expect(!appendedFix2)
-    #expect(telemetry.sessionStartTime == fix1.timestamp)
+    #expect(telemetry.startTime == fix1.timestamp)
     #expect(telemetry.lastTimeUpdated == fix1.timestamp)
-    #expect(telemetry.sessionDistance?.value == 0)
-    #expect(telemetry.sessionDuration?.components.seconds == 0)
-    #expect(telemetry.lastSessionDurationUpdateMonotonicTime == baseMonotonicTime)
+    #expect(telemetry.distance?.value == 0)
+    #expect(telemetry.duration?.components.seconds == 0)
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == baseMonotonicTime)
     #expect(telemetry.pointsCount == 1)
     #expect(telemetry.lastReceivedNavigationFix == fix2)
     #expect(telemetry.lastRecordedNavigationFix == fix1)
@@ -219,25 +221,115 @@ struct TrackSessionTelemetryTests {
     // Stop
     let lastFix = telemetry.stop()
     #expect(lastFix == fix2)
-    #expect(telemetry.sessionStartTime == fix1.timestamp)
+    #expect(telemetry.startTime == fix1.timestamp)
     #expect(telemetry.lastTimeUpdated == fix2.timestamp)
-    #expect(telemetry.sessionDistance != nil)
-    if let distance = telemetry.sessionDistance {
+    #expect(telemetry.distance != nil)
+    if let distance = telemetry.distance {
       #expect(distance.converted(to: .meters).value > 0)
     }
-    #expect(telemetry.sessionDuration?.components.seconds == Int64(durationForSecondFix))
+    #expect(telemetry.duration?.components.seconds == Int64(durationForSecondFix))
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == nil)
     #expect(telemetry.pointsCount == 2)
     #expect(telemetry.lastRecordedNavigationFix == fix2)
     #expect(telemetry.lastReceivedNavigationFix == fix2)
+  }
+  
+  @Test("Test active duration")
+  func testActiveDuration() {
+    var telemetry = TrackSessionTelemetry()
+    let startDate = Date()
+    telemetry.start()
+    
+    // Step 1.
+    // Add first fix after 10s from start.
+    let startMonotonicTime = ContinuousClock().now
+    let fix1 = createNavigationFix(
+      latitude: 46.16,
+      longitude: -1.15,
+      timestamp: startDate + TimeInterval(10)
+    )
+    _ = telemetry.process(fix: fix1, filters: .default, now: startMonotonicTime)
+    #expect(telemetry.duration?.components.seconds == 0)
+    let activeDuration1 = telemetry.activeDuration(now: startMonotonicTime)
+    #expect(activeDuration1?.components.seconds == 0)
+    
+    // Step 2.
+    // Wait 10s after start, and ask for the duration.
+    let delay2 = 10
+    let simulatedFuture2 = startMonotonicTime.advanced(by: .seconds(delay2))
+    #expect(telemetry.duration?.components.seconds == 0)
+    let activeDurationFuture2 = telemetry.activeDuration(now: simulatedFuture2)
+    #expect(activeDurationFuture2?.components.seconds == Int64(delay2))
+    
+    // Step 3.
+    // Add second fix (valid), after 20s from the start.
+    let delay3 = delay2 + 10
+    let fix3 = createNavigationFix(
+      latitude: 46.16,
+      longitude: -2.15,
+      timestamp: fix1.timestamp + TimeInterval(delay3)
+    )
+    let simulatedFuture3 = startMonotonicTime.advanced(by: .seconds(delay3))
+    _ = telemetry.process(fix: fix3, filters: .default, now: simulatedFuture3)
+    #expect(telemetry.duration?.components.seconds == Int64(delay3))
+    let activeDuration3 = telemetry.activeDuration(now: simulatedFuture3)
+    #expect(activeDuration3?.components.seconds == Int64(delay3))
+
+    // Step 4.
+    // Get duration 30s after the start.
+    let delay4 = delay2 + 10
+    let simulatedFuture4 = startMonotonicTime.advanced(by: .seconds(delay4))
+    let activeDurationFuture4 = telemetry.activeDuration(now: simulatedFuture4)
+    #expect(activeDurationFuture4?.components.seconds == Int64(delay4))
+    
+    // Add third fix (valid), after 20s from the start.
+    let delay5 = delay4 + 10
+    let fix5 = createNavigationFix(
+      latitude: 46.16,
+      longitude: -2.15,
+      timestamp: fix1.timestamp + TimeInterval(delay5)
+    )
+    let simulatedFuture5 = startMonotonicTime.advanced(by: .seconds(delay5))
+    _ = telemetry.process(fix: fix5, filters: .default, now: simulatedFuture5)
+    let activeDuration5 = telemetry.activeDuration(now: simulatedFuture5)
+    #expect(activeDuration5?.components.seconds == Int64(delay5))
+  }
+
+  @Test("Stop and start telemetry")
+  func testStopAndStart() {
+    var telemetry = TrackSessionTelemetry()
+    telemetry.start()
+    
+    let fix = createNavigationFix(latitude: 46.16, longitude: -1.15, timestamp: Date())
+    _ = telemetry.process(fix: fix, filters: .default)
+    #expect(telemetry.pointsCount == 1)
+
+    _ = telemetry.stop()
+    telemetry.start()
+    
+    #expect(telemetry.startTime == nil)
+    #expect(telemetry.lastTimeUpdated == nil)
+    #expect(telemetry.distance == nil)
+    #expect(telemetry.duration == nil)
+    #expect(telemetry.minLatitude == nil)
+    #expect(telemetry.maxLatitude == nil)
+    #expect(telemetry.minLongitude == nil)
+    #expect(telemetry.maxLongitude == nil)
+    #expect(telemetry.maxSpeedOverGround == nil)
+    #expect(telemetry.pointsCount == 0)
+    #expect(telemetry.lastRecordedNavigationFix == nil)
+    #expect(telemetry.lastReceivedNavigationFix == nil)
   }
 
   @Test("Restore telemetry")
   func testRestore() {
     var telemetry = TrackSessionTelemetry()
+    let startDate = Date()
+    let firstSegmentDuration = Duration.seconds(3600)
     let session = TrackSession(
       id: "test-id",
-      startTime: Date(timeIntervalSince1970: 1000),
-      duration: .seconds(3600),
+      startTime: startDate,
+      duration: firstSegmentDuration,
       totalDistance: Measurement(value: 5000, unit: .meters),
       minLatitude: Measurement(value: 45.0, unit: .degrees),
       maxLatitude: Measurement(value: 46.0, unit: .degrees),
@@ -248,104 +340,74 @@ struct TrackSessionTelemetryTests {
     )
     
     telemetry.restore(from: session)
-    
-    #expect(telemetry.sessionStartTime == session.startTime)
+    #expect(telemetry.startTime == session.startTime)
     #expect(telemetry.lastTimeUpdated == nil)
-    #expect(telemetry.sessionDistance == session.totalDistance)
-    #expect(telemetry.sessionDuration == session.duration)
+    #expect(telemetry.distance == session.totalDistance)
+    #expect(telemetry.duration == session.duration)
     #expect(telemetry.minLatitude == session.minLatitude)
     #expect(telemetry.maxLatitude == session.maxLatitude)
     #expect(telemetry.minLongitude == session.minLongitude)
     #expect(telemetry.maxLongitude == session.maxLongitude)
     #expect(telemetry.maxSpeedOverGround == session.maxSpeed)
     #expect(telemetry.pointsCount == session.pointsCount)
-    #expect(telemetry.lastSessionDurationUpdateMonotonicTime == nil)
-  }
-  
-  @Test("Filter rejection")
-  func testAppendWithFilterRejection() {
-    var telemetry = TrackSessionTelemetry()
-    let time1 = Date(timeIntervalSince1970: 1000)
-    let fix1 = createNavigationFix(latitude: 45.0, longitude: -1.0, timestamp: time1)
-    let filters = TrackFilters(
-      minDistance: Measurement(value: 10, unit: .meters),
-      minTimeInterval: Measurement(value: 60, unit: .seconds),
-      maxHorizontalAccuracy: Measurement(value: 50, unit: .meters)
+    #expect(telemetry.lastReceivedNavigationFix == nil)
+    #expect(telemetry.lastRecordedNavigationFix == nil)
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == nil)
+    let activeDurationAfterRestore = telemetry.activeDuration()
+    #expect(activeDurationAfterRestore == firstSegmentDuration)
+
+    // Resume the track by adding first fix.
+    let delay1 = 10
+    let date1 = startDate + TimeInterval(firstSegmentDuration.components.seconds) + TimeInterval(delay1)
+    let secondSegmentMonotonicTime = ContinuousClock().now
+    let fix1 = createNavigationFix(
+      latitude: 45.16,
+      longitude: 0,
+      timestamp: date1
     )
-    
-    telemetry.start()
-    _ = telemetry.process(fix: fix1, filters: filters)
-    
-    // Very close in distance and time
-    let time2 = time1.addingTimeInterval(10) // 10s < 60s
-    let fix2 = createNavigationFix(latitude: 45.0, longitude: -1.0, timestamp: time2)
-    
-    let appended = telemetry.process(fix: fix2, filters: filters)
-    #expect(!appended)
-    #expect(telemetry.pointsCount == 1)
+    _ = telemetry.process(fix: fix1, filters: .default, now: secondSegmentMonotonicTime)
+    #expect(telemetry.startTime == session.startTime)
+    #expect(telemetry.lastTimeUpdated == date1)
+    #expect(telemetry.distance == session.totalDistance)
+    #expect(telemetry.duration == session.duration)
+    #expect(telemetry.minLatitude == session.minLatitude)
+    #expect(telemetry.maxLatitude == session.maxLatitude)
+    #expect(telemetry.minLongitude == session.minLongitude)
+    #expect(telemetry.maxLongitude == session.maxLongitude)
+    #expect(telemetry.maxSpeedOverGround == session.maxSpeed)
+    #expect(telemetry.pointsCount == session.pointsCount! + 1)
+    #expect(telemetry.lastReceivedNavigationFix == fix1)
+    #expect(telemetry.lastRecordedNavigationFix == fix1)
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == secondSegmentMonotonicTime)
   }
   
-  @Test("Restart telemetry")
-  func testRestart() {
+  @Test("Pause and resume")
+  func testPauseAndResume() {
     var telemetry = TrackSessionTelemetry()
     telemetry.start()
     
-    let fix = createNavigationFix(latitude: 46.16, longitude: -1.15, timestamp: Date())
-    _ = telemetry.process(fix: fix, filters: .default)
+    let baseMonotonicTime = ContinuousClock().now
+    let fix1 = createNavigationFix(latitude: 46.16, longitude: -1.15, timestamp: Date())
+    _ = telemetry.process(fix: fix1, filters: .default, now: baseMonotonicTime)
     
-    telemetry.stop()
-    telemetry.start()
+    let delay2 = 10
+    let simulatedFuture2 = baseMonotonicTime.advanced(by: .seconds(delay2))
+    let fix2 = createNavigationFix(latitude: 46.16, longitude: -3.15, timestamp: fix1.timestamp + TimeInterval(delay2))
+    _ = telemetry.process(fix: fix2, filters: .default, now: simulatedFuture2)
     
-    #expect(telemetry.sessionStartTime == nil)
-    #expect(telemetry.lastTimeUpdated == nil)
-    #expect(telemetry.sessionDistance == nil)
-    #expect(telemetry.sessionDuration == nil)
-    #expect(telemetry.minLatitude == nil)
-    #expect(telemetry.maxLatitude == nil)
-    #expect(telemetry.minLongitude == nil)
-    #expect(telemetry.maxLongitude == nil)
-    #expect(telemetry.maxSpeedOverGround == nil)
-    #expect(telemetry.pointsCount == 0)
-    #expect(telemetry.lastRecordedNavigationFix == nil)
-    #expect(telemetry.lastReceivedNavigationFix == nil)
-  }
-  
-  @Test("Start new segment")
-  func testStartNewSegment() {
-    var telemetry = TrackSessionTelemetry()
-    let fix = createNavigationFix(latitude: 46.16, longitude: -1.15, timestamp: Date())
-    telemetry.start()
-    _ = telemetry.process(fix: fix, filters: .default)
-    
-    telemetry.startNewSegment()
-    
+    let distance2 = telemetry.distance
+    if let distance = distance2 {
+      #expect(distance.converted(to: .meters).value > 0)
+    }
+    #expect(telemetry.duration?.components.seconds == Int64(delay2))
+
+    telemetry.pause()
     #expect(telemetry.lastTimeUpdated == nil)
     #expect(telemetry.lastRecordedNavigationFix == nil)
     #expect(telemetry.lastReceivedNavigationFix == nil)
-    #expect(telemetry.lastSessionDurationUpdateMonotonicTime == nil)
-    
-    // Other properties should be kept
-    #expect(telemetry.sessionStartTime != nil)
-    #expect(telemetry.pointsCount == 1)
-  }
-  
-  @Test("Active duration when recording")
-  func testActiveDurationWhenRecording() {
-    var telemetry = TrackSessionTelemetry()
-    telemetry.start()
-    
-    let duration = telemetry.activeDuration(isRecording: true)
-    #expect(duration == nil)
-  }
-  
-  @Test("Active duration when not recording")
-  func testActiveDurationWhenNotRecording() {
-    var telemetry = TrackSessionTelemetry()
-    let session = TrackSession(id: "test", startTime: Date(), duration: .seconds(100))
-    telemetry.restore(from: session) // Sets lastSessionDurationUpdateMonotonicTime to nil
-    
-    let duration = telemetry.activeDuration(isRecording: false)
-    #expect(duration == .seconds(100))
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == nil)
+    #expect(telemetry.startTime != nil)
+    #expect(telemetry.pointsCount == 2)
   }
   
   @Test("Filter acceptance at Null Island (0,0)")
@@ -393,7 +455,7 @@ struct TrackSessionTelemetryTests {
     #expect(appended)
     #expect(telemetry.pointsCount == 2)
     
-    let distance = try #require(telemetry.sessionDistance)
+    let distance = try #require(telemetry.distance)
     // 0.001 degrees of latitude is roughly 110.57 meters on the WGS 84 ellipsoid.
     #expect(distance.value > 110)
     #expect(distance.value < 112)
@@ -408,7 +470,7 @@ struct TrackSessionTelemetryTests {
     // When
     // Even if some monotonic time is captured, if we are not recording,
     // it should just return the current recorded sessionDuration (which is nil or 0 at start)
-    let duration = telemetry.activeDuration(isRecording: false)
+    let duration = telemetry.activeDuration()
     
     // Then
     #expect(duration == nil)
@@ -421,7 +483,7 @@ struct TrackSessionTelemetryTests {
     let simulatedNow = ContinuousClock().now
     
     // When
-    let duration = telemetry.activeDuration(isRecording: true, now: simulatedNow)
+    let duration = telemetry.activeDuration(now: simulatedNow)
     
     // Then
     #expect(duration == nil)
@@ -437,13 +499,13 @@ struct TrackSessionTelemetryTests {
     let baseMonotonicTime = ContinuousClock().now
     _ = telemetry.process(fix: initialFix, filters: .default, now: baseMonotonicTime)
 
-    // The start() method inside telemetry internaly sets `lastSessionDurationUpdateMonotonicTime = .now`.
+    // The start() method inside telemetry internaly sets `lastRecordedNavigationFixMonotonicTime = .now`.
     // In our test context, `.now` is extremely close to our `baseMonotonicTime`.
     // We simulate that 42 seconds have passed in the future.
     let simulatedFutureNow = baseMonotonicTime.advanced(by: .seconds(42))
     
     // When
-    let duration = telemetry.activeDuration(isRecording: true, now: simulatedFutureNow)
+    let duration = telemetry.activeDuration(now: simulatedFutureNow)
     
     // Then
     // The expected duration should be the 42 seconds that elapsed since start()
@@ -479,7 +541,7 @@ struct TrackSessionTelemetryTests {
     let simulatedFutureNow2 = simulatedFutureNow1.advanced(by: .seconds(5))
     
     // When
-    let totalDuration = telemetry.activeDuration(isRecording: true, now: simulatedFutureNow2)
+    let totalDuration = telemetry.activeDuration(now: simulatedFutureNow2)
     
     // Then
     // Expected: 10 seconds (from the updateTime fix) + 5 seconds (virtual elapsed time) = 15 seconds

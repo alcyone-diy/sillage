@@ -155,7 +155,7 @@ struct TrackRecordingServiceTests {
     
     #expect(service.state == .idle)
     #expect(service.trackPoints.isEmpty)
-    #expect(service.telemetry.sessionStartTime == nil)
+    #expect(service.telemetry.startTime == nil)
   }
   
   @Test("Start recording changes state to waitingForFix and requests background token")
@@ -201,7 +201,7 @@ struct TrackRecordingServiceTests {
     #expect(service.state == .recording)
     #expect(service.trackPoints.count == 1)
     #expect(mockPreferences.activeTrackSessionID != nil)
-    #expect(service.telemetry.sessionStartTime == fix.timestamp)
+    #expect(service.telemetry.startTime == fix.timestamp)
   }
   
   @Test("Poor accuracy fix is ignored")
