@@ -115,6 +115,7 @@ public final class DatabaseManager: Sendable {
       }
       try db.create(index: "idx_track_session_startTimestamp", on: "track_session", columns: ["startTimestamp_unix"])
       try db.create(index: "idx_track_session_name", on: "track_session", columns: ["name"])
+      try db.create(index: "idx_track_session_endTimestamp_unix", on: "track_session", columns: ["endTimestamp_unix"])
 
       // 2. Create the point table with foreign key
       try db.create(table: "track_point") { t in
@@ -142,7 +143,12 @@ public final class DatabaseManager: Sendable {
       
       // 3. Create the index on the Database instance (db), outside the table definition.
       try db.create(
-        index: "idx_track_point_session_timestamp",
+        index: "idx_track_point_ssessionId_timestamp_unix",
+        on: "track_point",
+        columns: ["sessionId", "timestamp_unix"]
+      )
+      try db.create(
+        index: "idx_track_point_track_sessionId_segmentIndex_timestamp_unix",
         on: "track_point",
         columns: ["sessionId", "segmentIndex", "timestamp_unix"]
       )
