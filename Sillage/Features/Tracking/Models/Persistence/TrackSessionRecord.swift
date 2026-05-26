@@ -90,9 +90,6 @@ extension TrackSessionRecord {
 
   /// Converts the domain `TrackSession` into a persistence `TrackSessionRecord`.
   public init(domainModel: TrackSession) {
-    let durationSecs: Double? = domainModel.duration.map { duration in
-      Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1e18)
-    }
     self.id = domainModel.id
     self.startTimestamp_unix = domainModel.startTime.timeIntervalSince1970
     self.endTimestamp_unix = domainModel.endTime?.timeIntervalSince1970
@@ -100,7 +97,7 @@ extension TrackSessionRecord {
     self.description = domainModel.description
     self.startLocation = domainModel.startLocation
     self.endLocation = domainModel.endLocation
-    self.duration_s = durationSecs
+    self.duration_s = domainModel.duration?.timeInterval
     self.totalDistance_m = domainModel.totalDistance?.converted(to: .meters).value
     self.southLatitude_deg = domainModel.southLatitude?.converted(to: .degrees).value
     self.northLatitude_deg = domainModel.northLatitude?.converted(to: .degrees).value
