@@ -16,6 +16,8 @@ struct CommandPanelView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(\.trackService) private var trackService
+  @Environment(TrackRecordingService.self) private var trackRecordingService
   
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   
@@ -107,7 +109,13 @@ struct CommandPanelView: View {
         case .tracks:
           TracksManagerView()
         case .sessionDetail(let sessionId):
-          TrackDetailView(sessionId: sessionId)
+          if let trackService {
+            TrackDetailView(
+              sessionId: sessionId,
+              trackService: trackService,
+              trackRecordingService: trackRecordingService
+            )
+          }
         }
       }
       .handleTrackRecordingErrors()
