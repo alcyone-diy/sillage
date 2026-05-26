@@ -70,6 +70,9 @@
     "Cancel" : {
 
     },
+    "Cannot delete a track while it is actively recording." : {
+
+    },
     "COG" : {
 
     },
@@ -106,9 +109,6 @@
     "Enable COG Vector" : {
 
     },
-    "End Location" : {
-
-    },
     "End Time" : {
 
     },
@@ -118,6 +118,9 @@
     "Failed to access the file securely." : {
 
     },
+    "Failed to delete track. Please try again." : {
+
+    },
     "Failed to encode the request." : {
 
     },
@@ -125,6 +128,9 @@
 
     },
     "Failed to move the chart file: %@" : {
+
+    },
+    "Failed to save changes. Please try again." : {
 
     },
     "General" : {
@@ -296,9 +302,6 @@
 
     },
     "SOG" : {
-
-    },
-    "Start Location" : {
 
     },
     "Start Time" : {

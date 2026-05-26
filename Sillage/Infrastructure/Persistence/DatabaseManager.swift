@@ -166,21 +166,30 @@ extension DatabaseManager {
   func sanitizeUnfinishedSessions(excluding activeSessionId: String?) async throws {
     try await dbPool.write { db in
       // 1. Update unfinished sessions with the true last point timestamp.
-      var updateSql = "UPDATE track_session SET endTimestamp_unix = (SELECT MAX(timestamp_unix) FROM track_point WHERE sessionId = track_session.id) WHERE endTimestamp_unix IS NULL"
-      var arguments: StatementArguments = []
+      var updateSql = """
+        UPDATE track_session 
+        SET endTimestamp_unix = (SELECT MAX(timestamp_unix) FROM track_point WHERE sessionId = track_session.id) 
+        WHERE endTimestamp_unix IS NULL
+        """
       
+      var updateArgs: StatementArguments = []
       if let activeId = activeSessionId {
         updateSql += " AND id != ?"
-        arguments = [activeId]
+        updateArgs = [activeId]
       }
-      try db.execute(sql: updateSql, arguments: arguments)
+      try db.execute(sql: updateSql, arguments: updateArgs)
       
-      // 2. Delete empty ghost sessions directly using the pointsCount property.
-      var deleteSql = "DELETE FROM track_session WHERE pointsCount = 0"
-      if activeSessionId != nil {
+      // 2. Delete empty ghost sessions without points.
+      var deleteSql = """
+        DELETE FROM track_session 
+        WHERE NOT EXISTS (SELECT 1 FROM track_point WHERE sessionId = track_session.id)
+        """
+      var deleteArgs: StatementArguments = []
+      if let activeId = activeSessionId {
         deleteSql += " AND id != ?"
+        deleteArgs = [activeId]
       }
-      try db.execute(sql: deleteSql, arguments: arguments)
+      try db.execute(sql: deleteSql, arguments: deleteArgs)
     }
   }
   
