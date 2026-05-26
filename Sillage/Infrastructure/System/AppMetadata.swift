@@ -12,22 +12,34 @@ import Foundation
 import OSLog
 
 public struct AppMetadata: Sendable {
-    public let version: String?
-    public let build: String?
-    public let gitHash: String?
-    
-    public init(version: String? = nil, build: String? = nil, gitHash: String? = nil) {
-        self.version = version
-        self.build = build
-        self.gitHash = gitHash
-    }
+  public let version: String?
+  public let build: String?
+  public let gitHash: String?
+  public let compilationDate: Date?
+  
+  public init(version: String? = nil, build: String? = nil, gitHash: String? = nil, compilationDate: Date? = nil) {
+    self.version = version
+    self.build = build
+    self.gitHash = gitHash
+    self.compilationDate = compilationDate
+  }
 }
 
 public struct AppMetadataProvider {
   public static func resolve() -> AppMetadata {
+    // TODO: Need make this async
     let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
     let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
     var gitHash: String? = nil
+    var compilationDate: Date? = nil
+    
+#if DEBUG
+    if let exePath = Bundle.main.executablePath,
+       let attrs = try? FileManager.default.attributesOfItem(atPath: exePath),
+       let date = attrs[.modificationDate] as? Date {
+      compilationDate = date
+    }
+#endif
     
     if let url = Bundle.main.url(forResource: "GitHash", withExtension: "txt") {
       do {
@@ -41,6 +53,6 @@ public struct AppMetadataProvider {
       Logger.system.warning("GitHash.txt not found.")
     }
     
-    return AppMetadata(version: version, build: build, gitHash: gitHash)
+    return AppMetadata(version: version, build: build, gitHash: gitHash, compilationDate: compilationDate)
   }
 }
