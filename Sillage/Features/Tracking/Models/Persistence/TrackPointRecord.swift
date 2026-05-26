@@ -73,7 +73,19 @@ extension TrackPointRecord {
       courseOverGround: domainModel.courseOverGround,
     )
   }
-
+  
+  public enum Columns: String, ColumnExpression {
+    case id
+    case sessionId
+    case timestamp_unix
+    case segmentIndex
+    case latitude_deg
+    case longitude_deg
+    case horizontalAccuracy_m
+    case speedOverGround_mps
+    case courseOverGround_deg
+  }
+  
   /// Converts the persistence `TrackPointRecord` into a domain `TrackPoint`.
   public var domainModel: TrackPoint {
     let speedOverGround: Measurement<UnitSpeed>? = speedOverGround_mps.map { Measurement(value: $0, unit: .metersPerSecond) }
