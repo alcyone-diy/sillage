@@ -23,13 +23,26 @@ final class TrackDetailViewModel {
   var isSaving: Bool = false
   var errorMessage: String?
 
-  private let sessionId: String
+  let sessionId: String
+  private let trackService: TrackService
+  private let trackRecordingService: TrackRecordingService
 
-  init(sessionId: String) {
+  init(
+    sessionId: String,
+    trackService: TrackService,
+    trackRecordingService: TrackRecordingService
+  ) {
     self.sessionId = sessionId
+    self.trackService = trackService
+    self.trackRecordingService = trackRecordingService
   }
 
-  func load(trackService: TrackService) async {
+  /// Indique si la suppression est autorisée (masque/désactive le bouton dans l'UI)
+  var canDelete: Bool {
+    return !trackRecordingService.isSessionActive(sessionId)
+  }
+
+  func load() async {
     // Observe session updates reactively
     do {
       for try await updatedSession in trackService.observeTrackSession(id: sessionId) {
@@ -46,7 +59,7 @@ final class TrackDetailViewModel {
     }
   }
 
-  func saveChanges(trackService: TrackService) async {
+  func saveChanges() async {
     guard let session else { return }
     isSaving = true
     errorMessage = nil
@@ -68,7 +81,7 @@ final class TrackDetailViewModel {
       isEditing = false
     } catch {
       Logger.database.error("Failed to update track session \(self.sessionId, privacy: .public): \(error, privacy: .public)")
-      errorMessage = "Failed to save changes. Please try again."
+      errorMessage = String(localized: "Failed to save changes. Please try again.")
     }
 
     isSaving = false
@@ -79,6 +92,37 @@ final class TrackDetailViewModel {
     if let session {
       name = session.name ?? ""
       description = session.description ?? ""
+    }
+  }
+
+  /// Deletes the track session from the database.
+  func deleteSession() async throws {
+    // Garde-fou silencieux en cas d'appel abusif
+    guard canDelete else {
+      let error = TrackDeletionError.activeSession
+      errorMessage = error.localizedDescription
+      Logger.database.warning("Attempted to delete active session: \(self.sessionId, privacy: .public)")
+      throw error
+    }
+
+    errorMessage = nil
+    do {
+      try await trackService.deleteSession(id: sessionId)
+    } catch {
+      Logger.database.error("Failed to delete track session \(self.sessionId, privacy: .public): \(error, privacy: .public)")
+      errorMessage = String(localized: "Failed to delete track. Please try again.")
+      throw error
+    }
+  }
+}
+
+public enum TrackDeletionError: LocalizedError {
+  case activeSession
+
+  public var errorDescription: String? {
+    switch self {
+    case .activeSession:
+      return String(localized: "Cannot delete a track while it is actively recording.")
     }
   }
 }

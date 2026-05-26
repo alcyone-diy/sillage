@@ -12,14 +12,21 @@ import SwiftUI
 
 @MainActor
 struct TrackDetailView: View {
-  @Environment(\.trackService) private var trackService
   @Environment(\.marineTheme) private var marineTheme
   @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
 
   @State private var viewModel: TrackDetailViewModel
 
-  init(sessionId: TrackSession.ID) {
-    _viewModel = State(wrappedValue: TrackDetailViewModel(sessionId: sessionId))
+  init(
+    sessionId: TrackSession.ID,
+    trackService: TrackService,
+    trackRecordingService: TrackRecordingService
+  ) {
+    _viewModel = State(wrappedValue: TrackDetailViewModel(
+      sessionId: sessionId,
+      trackService: trackService,
+      trackRecordingService: trackRecordingService
+    ))
   }
 
   var body: some View {
@@ -192,9 +199,7 @@ struct TrackDetailView: View {
             }
             Button("Save") {
               Task {
-                if let trackService {
-                  await viewModel.saveChanges(trackService: trackService)
-                }
+                await viewModel.saveChanges()
               }
             }
             .fontWeight(.semibold)
@@ -208,9 +213,7 @@ struct TrackDetailView: View {
       }
     }
     .task {
-      if let trackService {
-        await viewModel.load(trackService: trackService)
-      }
+      await viewModel.load()
     }
   }
 }

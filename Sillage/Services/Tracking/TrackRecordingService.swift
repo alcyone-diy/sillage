@@ -229,6 +229,13 @@ public final class TrackRecordingService {
   public func activeSessionDuration() -> Duration? {
     return telemetry.activeDuration()
   }
+
+  /// Checks if a session is currently actively recording or paused.
+  /// - Parameter sessionId: The ID of the session to check.
+  /// - Returns: True if the session is currently active.
+  public func isSessionActive(_ sessionId: String) -> Bool {
+    return (state != .idle && state != .saving) && currentSessionId == sessionId
+  }
   
   public func emergencyFlushAsync() async {
     await persistenceWriter?.flush(sessionUpdate: buildCurrentSessionRecord())
