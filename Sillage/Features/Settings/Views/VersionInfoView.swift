@@ -12,7 +12,7 @@ import SwiftUI
 
 struct VersionInfoView: View {
   @Environment(AppEnvironment.self) private var environment
-
+  
   var body: some View {
     Form {
       Section(header: Text("App Information")) {
@@ -45,6 +45,18 @@ struct VersionInfoView: View {
             .foregroundStyle(.secondary)
         }
         .marineListCell()
+        
+        if let date = environment.metadata.compilationDate {
+          HStack {
+            Text("Compiled")
+              .marineFont(.body)
+            Spacer()
+            Text(date.formatted(date: .abbreviated, time: .shortened))
+              .marineFont(.body)
+              .foregroundStyle(.secondary)
+          }
+          .marineListCell()
+        }
       }
     }
     .navigationTitle("Version")
