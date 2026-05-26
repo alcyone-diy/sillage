@@ -115,15 +115,15 @@ public struct TrackSessionTelemetry: Sendable {
     lastTimeUpdated = nil
     duration = session.duration
     distance = session.totalDistance
-    if let minLatitude = session.minLatitude, 
-       let maxLatitude = session.maxLatitude,
-       let minLongitude = session.minLongitude,
-       let maxLongitude = session.maxLongitude {
+    if let southLatitude = session.southLatitude,
+       let northLatitude = session.northLatitude,
+       let westLongitude = session.westLongitude,
+       let eastLongitude = session.eastLongitude {
       geographicBoundingBox = GeographicBoundingBox(
-        southLatitude: minLatitude,
-        northLatitude: maxLatitude,
-        westLongitude: minLongitude,
-        eastLongitude: maxLongitude
+        southLatitude: southLatitude,
+        northLatitude: northLatitude,
+        westLongitude: westLongitude,
+        eastLongitude: eastLongitude
       )
     } else {
       geographicBoundingBox = nil

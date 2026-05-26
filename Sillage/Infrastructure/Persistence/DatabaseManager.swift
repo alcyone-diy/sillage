@@ -92,20 +92,20 @@ public final class DatabaseManager: Sendable {
         // The duration is needed since a trace can have multiple segments.
         t.column("duration_s", .double)
         t.column("totalDistance_m", .double)
-        t.column("minLatitude_deg", .double)
-        t.column("maxLatitude_deg", .double)
-        t.column("minLongitude_deg", .double)
-        t.column("maxLongitude_deg", .double)
+        t.column("southLatitude_deg", .double)
+        t.column("northLatitude_deg", .double)
+        t.column("westLongitude_deg", .double)
+        t.column("eastLongitude_deg", .double)
         t.column("maxSpeed_mps", .double)
         t.column("pointsCount", .integer)
         t.column("segmentCount", .integer)
 
-        t.check(sql: "minLatitude_deg BETWEEN -90 AND 90")
-        t.check(sql: "maxLatitude_deg BETWEEN -90 AND 90")
-        t.check(sql: "minLatitude_deg <= maxLatitude_deg")
-        t.check(sql: "minLongitude_deg BETWEEN -180 AND 180")
-        t.check(sql: "maxLongitude_deg BETWEEN -180 AND 180")
-        // Should have no constraints between minLongitude_deg and maxLongitude_deg,
+        t.check(sql: "southLatitude_deg BETWEEN -90 AND 90")
+        t.check(sql: "northLatitude_deg BETWEEN -90 AND 90")
+        t.check(sql: "southLatitude_deg <= northLatitude_deg")
+        t.check(sql: "westLongitude_deg BETWEEN -180 AND 180")
+        t.check(sql: "eastLongitude_deg BETWEEN -180 AND 180")
+        // Should have no constraints between westLongitude_deg and eastLongitude_deg,
         // since a track can start at 179º, and move up to -179.
         t.check(sql: "duration_s >= 0")
         t.check(sql: "totalDistance_m >= 0")

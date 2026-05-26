@@ -21,10 +21,10 @@ public struct TrackSession: Sendable, Codable, Identifiable {
   public let endLocation: String?
   public let duration: Duration?
   public let totalDistance: Measurement<UnitLength>?
-  public let minLatitude: Measurement<UnitAngle>?
-  public let maxLatitude: Measurement<UnitAngle>?
-  public let minLongitude: Measurement<UnitAngle>?
-  public let maxLongitude: Measurement<UnitAngle>?
+  public let southLatitude: Measurement<UnitAngle>?
+  public let northLatitude: Measurement<UnitAngle>?
+  public let westLongitude: Measurement<UnitAngle>?
+  public let eastLongitude: Measurement<UnitAngle>?
   public let maxSpeed: Measurement<UnitSpeed>?
   public let pointsCount: Int?
   public let segmentCount: Int?
@@ -39,10 +39,10 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     endLocation: String? = nil,
     duration: Duration? = nil,
     totalDistance: Measurement<UnitLength>? = nil,
-    minLatitude: Measurement<UnitAngle>? = nil,
-    maxLatitude: Measurement<UnitAngle>? = nil,
-    minLongitude: Measurement<UnitAngle>? = nil,
-    maxLongitude: Measurement<UnitAngle>? = nil,
+    southLatitude: Measurement<UnitAngle>? = nil,
+    northLatitude: Measurement<UnitAngle>? = nil,
+    westLongitude: Measurement<UnitAngle>? = nil,
+    eastLongitude: Measurement<UnitAngle>? = nil,
     maxSpeed: Measurement<UnitSpeed>? = nil,
     pointsCount: Int? = nil,
     segmentCount: Int? = nil
@@ -56,10 +56,10 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     self.endLocation = endLocation
     self.duration = duration
     self.totalDistance = totalDistance
-    self.minLatitude = minLatitude
-    self.maxLatitude = maxLatitude
-    self.minLongitude = minLongitude
-    self.maxLongitude = maxLongitude
+    self.southLatitude = southLatitude
+    self.northLatitude = northLatitude
+    self.westLongitude = westLongitude
+    self.eastLongitude = eastLongitude
     self.maxSpeed = maxSpeed
     self.pointsCount = pointsCount
     self.segmentCount = segmentCount

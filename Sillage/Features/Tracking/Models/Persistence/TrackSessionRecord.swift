@@ -22,10 +22,10 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
   public var endLocation: String?
   public var duration_s: Double?
   public var totalDistance_m: Double?
-  public var minLatitude_deg: Double?
-  public var maxLatitude_deg: Double?
-  public var minLongitude_deg: Double?
-  public var maxLongitude_deg: Double?
+  public var southLatitude_deg: Double?
+  public var northLatitude_deg: Double?
+  public var westLongitude_deg: Double?
+  public var eastLongitude_deg: Double?
   public var maxSpeed_mps: Double?
   public var pointsCount: Int?
   public var segmentCount: Int?
@@ -47,10 +47,10 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
     case endLocation
     case duration_s
     case totalDistance_m
-    case minLatitude_deg
-    case maxLatitude_deg
-    case minLongitude_deg
-    case maxLongitude_deg
+    case southLatitude_deg
+    case northLatitude_deg
+    case westLongitude_deg
+    case eastLongitude_deg
     case maxSpeed_mps
     case pointsCount
     case segmentCount
@@ -78,10 +78,10 @@ extension TrackSessionRecord {
       endLocation: endLocation,
       duration: duration_s.map { .seconds($0) },
       totalDistance: totalDistance_m.map { Measurement(value: $0, unit: UnitLength.meters) },
-      minLatitude: minLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
-      maxLatitude: maxLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
-      minLongitude: minLongitude_deg.map { Measurement(value: $0, unit: .degrees) },
-      maxLongitude: maxLongitude_deg.map { Measurement(value: $0, unit: .degrees) },
+      southLatitude: southLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
+      northLatitude: northLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
+      westLongitude: westLongitude_deg.map { Measurement(value: $0, unit: .degrees) },
+      eastLongitude: eastLongitude_deg.map { Measurement(value: $0, unit: .degrees) },
       maxSpeed: maxSpeed_mps.flatMap { $0 >= 0 ? Measurement(value: $0, unit: .metersPerSecond) : nil },
       pointsCount: pointsCount.flatMap { $0 >= 0 ? $0 : nil },
       segmentCount: segmentCount.flatMap { $0 >= 0 ? $0 : nil }
@@ -102,10 +102,10 @@ extension TrackSessionRecord {
     self.endLocation = domainModel.endLocation
     self.duration_s = durationSecs
     self.totalDistance_m = domainModel.totalDistance?.converted(to: .meters).value
-    self.minLatitude_deg = domainModel.minLatitude?.converted(to: .degrees).value
-    self.maxLatitude_deg = domainModel.maxLatitude?.converted(to: .degrees).value
-    self.minLongitude_deg = domainModel.minLongitude?.converted(to: .degrees).value
-    self.maxLongitude_deg = domainModel.maxLongitude?.converted(to: .degrees).value
+    self.southLatitude_deg = domainModel.southLatitude?.converted(to: .degrees).value
+    self.northLatitude_deg = domainModel.northLatitude?.converted(to: .degrees).value
+    self.westLongitude_deg = domainModel.westLongitude?.converted(to: .degrees).value
+    self.eastLongitude_deg = domainModel.eastLongitude?.converted(to: .degrees).value
     self.maxSpeed_mps = domainModel.maxSpeed?.converted(to: .metersPerSecond).value
     self.pointsCount = domainModel.pointsCount
     self.segmentCount = domainModel.segmentCount
