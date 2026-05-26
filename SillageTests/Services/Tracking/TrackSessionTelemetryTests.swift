@@ -293,10 +293,10 @@ struct TrackSessionTelemetryTests {
       startTime: startDate,
       duration: firstSegmentDuration,
       totalDistance: Measurement(value: 5000, unit: .meters),
-      minLatitude: Measurement(value: 45.0, unit: .degrees),
-      maxLatitude: Measurement(value: 46.0, unit: .degrees),
-      minLongitude: Measurement(value: -1.0, unit: .degrees),
-      maxLongitude: Measurement(value: 1.0, unit: .degrees),
+      southLatitude: Measurement(value: 45.0, unit: .degrees),
+      northLatitude: Measurement(value: 46.0, unit: .degrees),
+      westLongitude: Measurement(value: -1.0, unit: .degrees),
+      eastLongitude: Measurement(value: 1.0, unit: .degrees),
       maxSpeed: Measurement(value: 10, unit: .metersPerSecond),
       pointsCount: 150
     )
@@ -308,10 +308,10 @@ struct TrackSessionTelemetryTests {
     #expect(telemetry.duration == session.duration)
     #expect(telemetry.geographicBoundingBox != nil)
     if let boundingBox = telemetry.geographicBoundingBox {
-      #expect(boundingBox.southLatitude == session.minLatitude)
-      #expect(boundingBox.northLatitude == session.maxLatitude)
-      #expect(boundingBox.westLongitude == session.minLongitude)
-      #expect(boundingBox.eastLongitude == session.maxLongitude)
+      #expect(boundingBox.southLatitude == session.southLatitude)
+      #expect(boundingBox.northLatitude == session.northLatitude)
+      #expect(boundingBox.westLongitude == session.westLongitude)
+      #expect(boundingBox.eastLongitude == session.eastLongitude)
     }
     #expect(telemetry.maxSpeedOverGround == session.maxSpeed)
     #expect(telemetry.pointsCount == session.pointsCount)
@@ -336,10 +336,10 @@ struct TrackSessionTelemetryTests {
     #expect(telemetry.distance == session.totalDistance)
     #expect(telemetry.duration == session.duration)
     if let boundingBox = telemetry.geographicBoundingBox {
-      #expect(boundingBox.southLatitude == session.minLatitude)
-      #expect(boundingBox.northLatitude == session.maxLatitude)
-      #expect(boundingBox.westLongitude == session.minLongitude)
-      #expect(boundingBox.eastLongitude == session.maxLongitude)
+      #expect(boundingBox.southLatitude == session.southLatitude)
+      #expect(boundingBox.northLatitude == session.northLatitude)
+      #expect(boundingBox.westLongitude == session.westLongitude)
+      #expect(boundingBox.eastLongitude == session.eastLongitude)
     }
     #expect(telemetry.maxSpeedOverGround == session.maxSpeed)
     #expect(telemetry.pointsCount == session.pointsCount! + 1)
