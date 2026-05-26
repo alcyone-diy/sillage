@@ -202,14 +202,19 @@ extension DatabaseManager {
   /// Fetches the highest segment index for a given session. Returns nil if no points exist.
   func fetchMaxSegmentIndex(for sessionId: String) async throws -> Int? {
     try await dbPool.read { db in
-      try Int.fetchOne(db, sql: "SELECT MAX(segmentIndex) FROM track_point WHERE sessionId = ?", arguments: [sessionId])
+      try Int.fetchOne(db, TrackPointRecord
+        .select(max(TrackPointRecord.Columns.segmentIndex))
+        .filter(TrackPointRecord.Columns.sessionId == sessionId)
+      )
     }
   }
   
   /// Fetches the precise Date of the last recorded point for a given session.
   func fetchLastPointTime(for sessionId: String) async throws -> Date? {
     try await dbPool.read { db in
-      if let maxTimestamp = try Double.fetchOne(db, sql: "SELECT MAX(timestamp_unix) FROM track_point WHERE sessionId = ?", arguments: [sessionId]) {
+      if let maxTimestamp = try Double.fetchOne(db, TrackPointRecord
+        .select(max(TrackPointRecord.Columns.timestamp_unix))
+        .filter(TrackPointRecord.Columns.sessionId == sessionId)) {
         return Date(timeIntervalSince1970: maxTimestamp)
       }
       return nil
@@ -219,9 +224,11 @@ extension DatabaseManager {
   /// Fetches the most recent points to repopulate the RAM buffer after a crash.
   func fetchRecentPoints(for sessionId: String, limit: Int) async throws -> [TrackPoint] {
     try await dbPool.read { db in
-      // Fetch descending to get the newest, then reverse in memory to restore chronological order.
-      let sql = "SELECT * FROM track_point WHERE sessionId = ? ORDER BY timestamp_unix DESC LIMIT ?"
-      let records = try TrackPointRecord.fetchAll(db, sql: sql, arguments: [sessionId, limit])
+      let records = try TrackPointRecord
+        .filter(TrackPointRecord.Columns.sessionId == sessionId)
+        .order(TrackPointRecord.Columns.timestamp_unix.desc)
+        .limit(limit)
+        .fetchAll(db)
       return records.reversed().map { $0.domainModel }
     }
   }
