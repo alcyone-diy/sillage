@@ -424,10 +424,7 @@ public final class TrackRecordingService {
     
     var record = TrackSessionRecord(id: sessionId, startTime: startTime)
     
-    if let duration = activeSessionDuration() {
-      let totalSeconds = Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1e18)
-      record.duration_s = totalSeconds
-    }
+    record.duration_s = activeSessionDuration()?.timeInterval
     
     if let distance = telemetry.distance {
       record.totalDistance_m = distance.converted(to: .meters).value
