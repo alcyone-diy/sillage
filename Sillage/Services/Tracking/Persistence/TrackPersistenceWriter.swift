@@ -39,7 +39,7 @@ public final class TrackPersistenceWriter: Sendable {
         do {
           switch action {
           case .insertSession(let session):
-            try await databaseManager.dbPool.write { db in
+            try await databaseManager.writer.write { db in
               try session.insert(db)
             }
             
@@ -50,7 +50,7 @@ public final class TrackPersistenceWriter: Sendable {
             if !buffer.isEmpty || sessionUpdate != nil {
               let batch = buffer
               buffer.removeAll()
-              try await databaseManager.dbPool.write { db in
+              try await databaseManager.writer.write { db in
                 try batch.forEach { try $0.insert(db) }
                 if let sessionUpdate {
                   try sessionUpdate.update(db)
@@ -63,7 +63,7 @@ public final class TrackPersistenceWriter: Sendable {
             if !buffer.isEmpty {
               let batch = buffer
               buffer.removeAll()
-              try await databaseManager.dbPool.write { db in
+              try await databaseManager.writer.write { db in
                 try batch.forEach { try $0.insert(db) }
               }
             }

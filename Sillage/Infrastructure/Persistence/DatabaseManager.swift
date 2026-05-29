@@ -19,26 +19,36 @@ public enum DatabaseError: Error {
 
 /// Manages the SQLite database connection and migrations using GRDB.
 public final class DatabaseManager: Sendable {
-    
-  /// The database pool for concurrent reads and writes (WAL mode).
-  public let dbPool: DatabasePool
   
-  /// Initializes the database manager. Throws an error to be handled by the App state.
+  /// The database writer (DatabasePool for production, DatabaseQueue for in-memory tests)
+  public let writer: any DatabaseWriter
+  
+  /// Exposes the database as a reader
+  public var reader: any DatabaseReader { writer }
+  
+  // MARK: - Initializers
+  
+  /// Factory method for in-memory database (Unit Tests / Previews)
+  public static func inMemory() throws -> DatabaseManager {
+    // DatabaseQueue automatically creates an in-memory SQLite database
+    let queue = try DatabaseQueue()
+    return try DatabaseManager(writer: queue)
+  }
+  
+  /// Internal initializer to inject the underlying writer
+  private init(writer: any DatabaseWriter) throws {
+    self.writer = writer
+    try Self.migrator.migrate(writer)
+  }
+  
+  /// Production initializer (Disk-based with WAL mode)
   nonisolated public init(url: URL? = nil) throws {
     let dbURL: URL
     
     if let providedURL = url {
-      guard providedURL.isFileURL else {
-        throw DatabaseError.invalidURL
-      }
-      let fileManager = FileManager.default
+      guard providedURL.isFileURL else { throw DatabaseError.invalidURL }
       let directoryURL = providedURL.deletingLastPathComponent()
-      if !fileManager.fileExists(atPath: directoryURL.path) {
-        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true, attributes: [
-          // Allows background writing when the device is locked
-          .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
-        ])
-      }
+      try Self.createDirectoryIfNeeded(at: directoryURL)
       dbURL = providedURL
     } else {
       let fileManager = FileManager.default
@@ -46,16 +56,8 @@ public final class DatabaseManager: Sendable {
         Logger.database.fault("Application Support directory is unreachable")
         throw DatabaseError.directoryUnreachable
       }
-      
       let dbDirectoryURL = appSupportURL.appendingPathComponent("Database", isDirectory: true)
-      
-      if !fileManager.fileExists(atPath: dbDirectoryURL.path) {
-        try fileManager.createDirectory(at: dbDirectoryURL, withIntermediateDirectories: true, attributes: [
-          // Allows background writing when the device is locked
-          .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
-        ])
-      }
-      
+      try Self.createDirectoryIfNeeded(at: dbDirectoryURL)
       dbURL = dbDirectoryURL.appendingPathComponent("sillage.sqlite")
     }
     
@@ -67,12 +69,21 @@ public final class DatabaseManager: Sendable {
     
     do {
       let pool = try DatabasePool(path: dbURL.path, configuration: configuration)
+      self.writer = pool
       try Self.migrator.migrate(pool)
-      self.dbPool = pool
       Logger.database.info("Successfully initialized database at \(dbURL.path, privacy: .public)")
     } catch {
       Logger.database.fault("Failed to initialize database: \(error.localizedDescription, privacy: .public)")
       throw error
+    }
+  }
+  
+  nonisolated private static func createDirectoryIfNeeded(at url: URL) throws {
+    let fileManager = FileManager.default
+    if !fileManager.fileExists(atPath: url.path) {
+      try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: [
+        .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
+      ])
     }
   }
   
@@ -99,7 +110,7 @@ public final class DatabaseManager: Sendable {
         t.column("maxSpeed_mps", .double)
         t.column("pointsCount", .integer)
         t.column("segmentCount", .integer)
-
+        
         t.check(sql: "southLatitude_deg BETWEEN -90 AND 90")
         t.check(sql: "northLatitude_deg BETWEEN -90 AND 90")
         t.check(sql: "southLatitude_deg <= northLatitude_deg")
@@ -116,7 +127,7 @@ public final class DatabaseManager: Sendable {
       try db.create(index: "idx_track_session_startTimestamp", on: "track_session", columns: ["startTimestamp_unix"])
       try db.create(index: "idx_track_session_name", on: "track_session", columns: ["name"])
       try db.create(index: "idx_track_session_endTimestamp_unix", on: "track_session", columns: ["endTimestamp_unix"])
-
+      
       // 2. Create the point table with foreign key
       try db.create(table: "track_point") { t in
         // DO NOT use composite PK (sessionId + timestamp). Auto-incremented ID is required
@@ -133,7 +144,7 @@ public final class DatabaseManager: Sendable {
         t.column("horizontalAccuracy_m", .double).notNull()
         t.column("speedOverGround_mps", .double)
         t.column("courseOverGround_deg", .double)
-
+        
         t.check(sql: "latitude_deg BETWEEN -90 AND 90")
         t.check(sql: "longitude_deg BETWEEN -180 AND 180")
         t.check(sql: "horizontalAccuracy_m >= 0")
@@ -143,7 +154,7 @@ public final class DatabaseManager: Sendable {
       
       // 3. Create the index on the Database instance (db), outside the table definition.
       try db.create(
-        index: "idx_track_point_ssessionId_timestamp_unix",
+        index: "idx_track_point_sessionId_timestamp_unix",
         on: "track_point",
         columns: ["sessionId", "timestamp_unix"]
       )
@@ -161,47 +172,40 @@ public final class DatabaseManager: Sendable {
 // MARK: - Database Extensions
 
 extension DatabaseManager {
-  /// Exposes the database pool as a reader.
-  nonisolated public var reader: DatabaseReader { dbPool }
   
   /// Performs database writes in a transaction.
   nonisolated public func write<T>(_ updates: @escaping @Sendable (Database) throws -> T) async throws -> T where T: Sendable {
-    try await dbPool.write(updates)
+    try await self.writer.write(updates)
   }
   
   func sanitizeUnfinishedSessions(excluding activeSessionId: String?) async throws {
-    try await dbPool.write { db in
+    try await self.writer.write { db in
       // 1. Update unfinished sessions with the true last point timestamp.
-      var updateSql = """
-        UPDATE track_session 
-        SET endTimestamp_unix = (SELECT MAX(timestamp_unix) FROM track_point WHERE sessionId = track_session.id) 
-        WHERE endTimestamp_unix IS NULL
-        """
-      
-      var updateArgs: StatementArguments = []
+      var updateQuery = TrackSessionRecord.filter(TrackSessionRecord.Columns.endTimestamp_unix == nil)
       if let activeId = activeSessionId {
-        updateSql += " AND id != ?"
-        updateArgs = [activeId]
+        updateQuery = updateQuery.filter(TrackSessionRecord.Columns.id != activeId)
       }
-      try db.execute(sql: updateSql, arguments: updateArgs)
-      
+      try updateQuery.updateAll(
+        db,
+        [TrackSessionRecord.Columns.endTimestamp_unix.set(
+          to: SQL("(SELECT MAX(timestamp_unix) FROM track_point WHERE sessionId = track_session.id)")
+        )]
+      )
       // 2. Delete empty ghost sessions without points.
-      var deleteSql = """
-        DELETE FROM track_session 
-        WHERE NOT EXISTS (SELECT 1 FROM track_point WHERE sessionId = track_session.id)
-        """
-      var deleteArgs: StatementArguments = []
+      var deleteQuery = TrackSessionRecord.having(TrackSessionRecord.trackPoints.isEmpty)
       if let activeId = activeSessionId {
-        deleteSql += " AND id != ?"
-        deleteArgs = [activeId]
+        deleteQuery = deleteQuery.filter(TrackSessionRecord.Columns.id != activeId)
       }
-      try db.execute(sql: deleteSql, arguments: deleteArgs)
+      let deletedCount = try deleteQuery.deleteAll(db)
+      if deletedCount > 0 {
+        Logger.database.info("Cleanup done : \(deletedCount) ghost session(s) deleted.")
+      }
     }
   }
   
   /// Fetches the highest segment index for a given session. Returns nil if no points exist.
   func fetchMaxSegmentIndex(for sessionId: String) async throws -> Int? {
-    try await dbPool.read { db in
+    try await self.reader.read { db in
       try Int.fetchOne(db, TrackPointRecord
         .select(max(TrackPointRecord.Columns.segmentIndex))
         .filter(TrackPointRecord.Columns.sessionId == sessionId)
@@ -211,7 +215,7 @@ extension DatabaseManager {
   
   /// Fetches the precise Date of the last recorded point for a given session.
   func fetchLastPointTime(for sessionId: String) async throws -> Date? {
-    try await dbPool.read { db in
+    try await self.reader.read { db in
       if let maxTimestamp = try Double.fetchOne(db, TrackPointRecord
         .select(max(TrackPointRecord.Columns.timestamp_unix))
         .filter(TrackPointRecord.Columns.sessionId == sessionId)) {
@@ -223,7 +227,7 @@ extension DatabaseManager {
   
   /// Fetches the most recent points to repopulate the RAM buffer after a crash.
   func fetchRecentPoints(for sessionId: String, limit: Int) async throws -> [TrackPoint] {
-    try await dbPool.read { db in
+    try await self.reader.read { db in
       let records = try TrackPointRecord
         .filter(TrackPointRecord.Columns.sessionId == sessionId)
         .order(TrackPointRecord.Columns.timestamp_unix.desc)
