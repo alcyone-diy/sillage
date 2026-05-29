@@ -178,6 +178,107 @@ final class DatabaseManagerTests {
     #expect(timestamp2.timeIntervalSince1970 == 1040)
   }
   
+  @Test("Cascade deletion removes all associated points")
+  func testCascadeDeletionRemovesAllAssociatedPoints() async throws {
+    let sessionId = "session-cascade"
+    let session = TrackSessionRecord(id: sessionId, startTime: Date(timeIntervalSince1970: 0))
+    
+    try await dbManager.write { db in
+      try session.insert(db)
+    }
+    
+    // Insert 5 points sequentially
+    try await dbManager.write { db in
+      for i in 0..<5 {
+        let point = self.makeTrackPoint(
+          sessionId: sessionId,
+          timestamp: Date(timeIntervalSince1970: TimeInterval(1000 + i * 10))
+        )
+        try point.insert(db)
+      }
+    }
+    
+    // Verify 5 points exist
+    let pointCountBefore = try await dbManager.reader.read { db in
+      try TrackPointRecord.fetchCount(db)
+    }
+    #expect(pointCountBefore == 5)
+    
+    // Delete the session
+    try await dbManager.write { db in
+      _ = try session.delete(db)
+    }
+    
+    // Check that the points table is empty
+    let pointCountAfter = try await dbManager.reader.read { db in
+      try TrackPointRecord.fetchCount(db)
+    }
+    #expect(pointCountAfter == 0)
+  }
+  
+  @Test("Concurrent track point insertions")
+  func testConcurrentTrackPointInsertions() async throws {
+    let sessionId = "session-concurrent"
+    let session = TrackSessionRecord(id: sessionId, startTime: Date(timeIntervalSince1970: 0))
+    
+    try await dbManager.write { db in
+      try session.insert(db)
+    }
+    
+    let manager = self.dbManager
+    
+    // Insert 100 points concurrently
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      for i in 0..<100 {
+        let point = self.makeTrackPoint(
+          sessionId: sessionId,
+          timestamp: Date(timeIntervalSince1970: TimeInterval(1000 + i))
+        )
+        
+        group.addTask {
+          try await manager.write { db in
+            try point.insert(db)
+          }
+        }
+      }
+      
+      // Wait for all tasks to finish to propagate any potential errors
+      for try await _ in group {}
+    }
+    
+    // Verify that pointsCount is exactly 100 at the end
+    let pointsCount = try await manager.reader.read { db in
+      try TrackPointRecord.fetchCount(db)
+    }
+    #expect(pointsCount == 100)
+  }
+  
+  @Test("Database constraints reject invalid coordinates")
+  func testDatabaseConstraintsRejectInvalidCoordinates() async throws {
+    let sessionId = "session-invalid-coord"
+    let session = TrackSessionRecord(id: sessionId, startTime: Date(timeIntervalSince1970: 0))
+    
+    try await dbManager.write { db in
+      try session.insert(db)
+    }
+    
+    let invalidPoint = TrackPointRecord(
+      id: nil,
+      sessionId: sessionId,
+      timestamp: Date(),
+      segmentIndex: 0,
+      latitude: Measurement(value: 91.0, unit: .degrees),
+      longitude: Measurement(value: 0.0, unit: .degrees),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+    )
+    
+    await #expect(throws: GRDB.DatabaseError.self) {
+      try await dbManager.write { db in
+        try invalidPoint.insert(db)
+      }
+    }
+  }
+  
   // MARK: - Helpers
   
   private func makeTrackPoint(sessionId: String, timestamp: Date, segmentIndex: Int = 0) -> TrackPointRecord {
