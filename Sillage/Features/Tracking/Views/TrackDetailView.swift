@@ -16,6 +16,8 @@ struct TrackDetailView: View {
   @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
 
   @State private var viewModel: TrackDetailViewModel
+  @Environment(\.dismiss) private var dismiss
+  @State private var showDeleteConfirmation = false
 
   init(
     sessionId: TrackSession.ID,
@@ -172,17 +174,35 @@ struct TrackDetailView: View {
         .buttonStyle(MarineButtonStyle())
 
         Button(role: .destructive, action: {
-          // Action for Delete will be implemented later
+          showDeleteConfirmation = true
         }) {
           Text("Delete")
             .font(.headline)
             .fontWeight(.semibold)
-            .foregroundColor(.red)
+            .foregroundColor(viewModel.canDelete ? .red : .gray)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget * scaleFactor)
-            .background(Color(uiColor: .systemRed).opacity(0.15))
+            .background(viewModel.canDelete ? Color(uiColor: .systemRed).opacity(0.15) : Color.gray.opacity(0.15))
             .cornerRadius(MarineTheme.Metrics.cornerRadius)
         }
         .buttonStyle(MarineButtonStyle())
+        .disabled(!viewModel.canDelete)
+        .confirmationDialog(
+          "Delete Track?",
+          isPresented: $showDeleteConfirmation,
+          titleVisibility: .visible
+        ) {
+          Button("Delete", role: .destructive) {
+            Task {
+              let success = await viewModel.deleteSession()
+              if success {
+                dismiss()
+              }
+            }
+          }
+          Button("Cancel", role: .cancel) {}
+        } message: {
+          Text("This action cannot be undone.")
+        }
       }
       .padding(MarineTheme.Spacing.medium)
       .background(MarineTheme.Colors.surfaceBackground)
@@ -214,6 +234,18 @@ struct TrackDetailView: View {
     }
     .task {
       await viewModel.load()
+    }
+    .alert(
+      "Error",
+      isPresented: Binding(
+        get: { viewModel.errorMessage != nil },
+        set: { if !$0 { viewModel.errorMessage = nil } }
+      ),
+      presenting: viewModel.errorMessage
+    ) { _ in
+      Button("OK", role: .cancel) {}
+    } message: { message in
+      Text(verbatim: message)
     }
   }
 }

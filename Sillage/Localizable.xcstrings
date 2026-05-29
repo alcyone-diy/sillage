@@ -91,6 +91,9 @@
     "Delete" : {
 
     },
+    "Delete Track?" : {
+
+    },
     "Description" : {
 
     },
@@ -113,6 +116,9 @@
 
     },
     "End Time" : {
+
+    },
+    "Error" : {
 
     },
     "Error loading document" : {
@@ -326,6 +332,9 @@
 
     },
     "Third-Party Licenses" : {
+
+    },
+    "This action cannot be undone." : {
 
     },
     "Time Horizon" : {
