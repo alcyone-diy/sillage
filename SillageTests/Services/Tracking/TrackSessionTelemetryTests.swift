@@ -577,8 +577,7 @@ struct TrackSessionTelemetryTests {
     let fix1Timestamp: Double = 1000
     var telemetry: TrackSessionTelemetry
     
-    let fix1: NavigationFix
-    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    (telemetry, _) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
     
     // Fix 2: distance moved, but time < 60s -> should be REJECTED.
     let fix2 = makeMockFix(
@@ -609,8 +608,7 @@ struct TrackSessionTelemetryTests {
     let fix1Timestamp: Double = 1000
     var telemetry: TrackSessionTelemetry
     
-    let fix1: NavigationFix
-    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    (telemetry, _) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
     
     // Fix 2: time passed, but distance < 10m -> should be REJECTED.
     let fix2 = makeMockFix(
@@ -641,8 +639,7 @@ struct TrackSessionTelemetryTests {
     let fix1Timestamp: Double = 1000
     var telemetry: TrackSessionTelemetry
     
-    let fix1: NavigationFix
-    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    (telemetry, _) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
     
     // Fix 2: minimal distance, minimal time -> should be ACCEPTED.
     let fix2 = makeMockFix(
