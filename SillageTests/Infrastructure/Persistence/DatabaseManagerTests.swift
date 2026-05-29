@@ -16,19 +16,9 @@ import GRDB
 @Suite("Database Manager Tests")
 final class DatabaseManagerTests {
   let dbManager: DatabaseManager
-  let dbURL: URL
   
   init() throws {
-    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-    dbURL = tempDir.appendingPathComponent("test_db_\(UUID().uuidString).sqlite")
-    dbManager = try DatabaseManager(url: dbURL)
-  }
-  
-  deinit {
-    let fileManager = FileManager.default
-    try? fileManager.removeItem(at: dbURL)
-    try? fileManager.removeItem(atPath: dbURL.path + "-wal")
-    try? fileManager.removeItem(atPath: dbURL.path + "-shm")
+    dbManager = try DatabaseManager.inMemory()
   }
   
   // MARK: - Tests
@@ -156,7 +146,6 @@ final class DatabaseManagerTests {
   }
   
   @Test("fetchRecentPoints returns most recent points within limit")
-  @MainActor
   func testFetchRecentPoints() async throws {
     let sessionId = "session-1"
     let session = TrackSessionRecord(id: sessionId, startTime: Date(timeIntervalSince1970: 0))
@@ -181,9 +170,13 @@ final class DatabaseManagerTests {
     
     #expect(recentPoints.count == 3)
     // Should be oldest of the recent ones first (chronological order)
-    #expect(recentPoints[0].timestamp.timeIntervalSince1970 == 1020)
-    #expect(recentPoints[1].timestamp.timeIntervalSince1970 == 1030)
-    #expect(recentPoints[2].timestamp.timeIntervalSince1970 == 1040)
+    let timestamp0 = recentPoints[0].timestamp.timeIntervalSince1970
+    let timestamp1 = recentPoints[1].timestamp.timeIntervalSince1970
+    let timestamp2 = recentPoints[2].timestamp.timeIntervalSince1970
+
+    #expect(timestamp0 == 1020)
+    #expect(timestamp1 == 1030)
+    #expect(timestamp2 == 1040)
   }
   
   // MARK: - Helpers

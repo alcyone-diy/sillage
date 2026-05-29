@@ -90,9 +90,7 @@ struct TrackRecordingServiceTests {
   // MARK: - Helpers
   
   func makeDatabaseManager() throws -> DatabaseManager {
-    let tempDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-    let uniqueDBURL = tempDir.appendingPathComponent("test_db_\(UUID().uuidString).sqlite")
-    return try DatabaseManager(url: uniqueDBURL)
+    return try DatabaseManager.inMemory()
   }
   
   func createNavigationFix(
