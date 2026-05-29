@@ -12,154 +12,15 @@ import SwiftUI
 
 @MainActor
 struct TrackDetailView: View {
+  @Bindable var viewModel: TrackDetailViewModel
   @Environment(\.marineTheme) private var marineTheme
-  @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
-
-  @State private var viewModel: TrackDetailViewModel
+  
   @Environment(\.dismiss) private var dismiss
   @State private var showDeleteConfirmation = false
-
-  init(
-    sessionId: TrackSession.ID,
-    trackService: TrackService,
-    trackRecordingService: TrackRecordingService
-  ) {
-    _viewModel = State(wrappedValue: TrackDetailViewModel(
-      sessionId: sessionId,
-      trackService: trackService,
-      trackRecordingService: trackRecordingService
-    ))
-  }
-
+  
   var body: some View {
     VStack(spacing: 0) {
       List {
-        // Identity Section (Editable)
-        Section(header: Text("Identity")) {
-          if viewModel.isEditing {
-            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-              Text("Name")
-                .foregroundStyle(.secondary)
-                .marineFont(.caption)
-              TextField("Track Name", text: $viewModel.name)
-                .textFieldStyle(.roundedBorder)
-                .frame(minHeight: 44)
-            }
-            .marineListCell()
-
-            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-              Text("Description")
-                .foregroundStyle(.secondary)
-                .marineFont(.caption)
-              TextField("Track Description", text: $viewModel.description, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .frame(minHeight: 44)
-            }
-            .marineListCell()
-          } else {
-            VStack(alignment: .leading, spacing: 4) {
-              Text("Name")
-                .foregroundStyle(.secondary)
-                .marineFont(.caption)
-              Text(viewModel.name.isEmpty ? (viewModel.session?.startTime.formatted(date: .complete, time: .shortened) ?? String(localized: "Unnamed Track")) : viewModel.name)
-                .marineFont(.body)
-            }
-            .marineListCell()
-
-            VStack(alignment: .leading, spacing: 4) {
-              Text("Description")
-                .foregroundStyle(.secondary)
-                .marineFont(.caption)
-              Text(viewModel.description.isEmpty ? "No description" : viewModel.description)
-                .marineFont(.body)
-                .foregroundStyle(viewModel.description.isEmpty ? .secondary : .primary)
-            }
-            .marineListCell()
-          }
-        }
-
-        // Metrics Section (Static)
-        Section(header: Text("Details")) {
-          DetailRow(
-            label: "Start Time",
-            value: viewModel.session?.startTime.formatted(date: .abbreviated, time: .shortened) ?? "—"
-          )
-          .marineListCell()
-
-          DetailRow(
-            label: "End Time",
-            value: viewModel.session?.endTime?.formatted(date: .abbreviated, time: .shortened) ?? "Active"
-          )
-          .marineListCell()
-
-          DetailRow(
-            label: "Duration",
-            value: viewModel.session?.duration?.marineFormatted ?? "—"
-          )
-          .marineListCell()
-
-          DetailRow(
-            label: "Length",
-            value: viewModel.session?.totalDistance.map {
-              $0.converted(to: .nauticalMiles).formatted(
-                .measurement(
-                  width: .abbreviated,
-                  usage: .asProvided,
-                  numberFormatStyle: .number.precision(.fractionLength(2))
-                )
-              )
-            } ?? "—"
-          )
-          .marineListCell()
-
-          DetailRow(
-            label: "Segments",
-            value: viewModel.session?.segmentCount.map { String($0) } ?? "—"
-          )
-          .marineListCell()
-
-          DetailRow(
-            label: "Points",
-            value: viewModel.session?.pointsCount.map { String($0) } ?? "—"
-          )
-          .marineListCell()
-
-          DetailRow(
-            label: "Max Speed",
-            value: viewModel.session?.maxSpeed.map {
-              $0.converted(to: .knots).formatted(
-                .measurement(
-                  width: .abbreviated,
-                  usage: .asProvided,
-                  numberFormatStyle: .number.precision(.fractionLength(1))
-                )
-              )
-            } ?? "—"
-          )
-          .marineListCell()
-
-          DetailRow(
-            label: "Average Speed",
-            value: viewModel.session?.averageSpeed.map {
-              $0.converted(to: .knots).formatted(
-                .measurement(
-                  width: .abbreviated,
-                  usage: .asProvided,
-                  numberFormatStyle: .number.precision(.fractionLength(1))
-                )
-              )
-            } ?? "—"
-          )
-          .marineListCell()
-        }
-      }
-      .listStyle(.insetGrouped)
-      .scrollContentBackground(.hidden)
-      .background(MarineTheme.Colors.panelBackground)
-      .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-
-      // Bottom Buttons Panel
-      VStack(spacing: MarineTheme.Spacing.small) {
         Button(action: {
           // Action for View will be implemented later
         }) {
@@ -167,65 +28,176 @@ struct TrackDetailView: View {
             .font(.headline)
             .fontWeight(.semibold)
             .foregroundColor(.white)
-            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget * scaleFactor)
+            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
             .background(MarineTheme.Colors.primary)
             .cornerRadius(MarineTheme.Metrics.cornerRadius)
         }
         .buttonStyle(MarineButtonStyle())
-
-        Button(role: .destructive, action: {
-          showDeleteConfirmation = true
-        }) {
-          Text("Delete")
-            .font(.headline)
-            .fontWeight(.semibold)
-            .foregroundColor(viewModel.canDelete ? .red : .gray)
-            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget * scaleFactor)
-            .background(viewModel.canDelete ? Color(uiColor: .systemRed).opacity(0.15) : Color.gray.opacity(0.15))
-            .cornerRadius(MarineTheme.Metrics.cornerRadius)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets())
+        // Identity Section (Editable)
+        Section() {
+          if viewModel.isEditing {
+            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+              Text("Name")
+                .foregroundStyle(.secondary)
+                .marineFont(.caption)
+              TextField("Track Name", text: $viewModel.name)
+                .marineFont(.body)
+            }
+            .marineListCell()
+            
+            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+              Text("Description")
+                .foregroundStyle(.secondary)
+                .marineFont(.caption)
+              MarineExpandingTextEditor(
+                placeholder: "Track Description",
+                text: $viewModel.description
+              )
+            }
+            .marineListCell()
+          } else {
+            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+              Text("Name")
+                .foregroundStyle(.secondary)
+                .marineFont(.caption)
+              Text(viewModel.name.isEmpty ? (viewModel.session?.startTime.formatted(date: .complete, time: .shortened) ?? String(localized: "Unnamed Track")) : viewModel.name)
+                .marineFont(.body)
+            }
+            .marineListCell()
+            
+            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+              Text("Description")
+                .foregroundStyle(.secondary)
+                .marineFont(.caption)
+              Text(viewModel.description.isEmpty ? "No description" : viewModel.description)
+                .marineFont(.body)
+                .foregroundStyle(viewModel.description.isEmpty ? .secondary : .primary)
+                .padding(.top, 8)
+                .frame(maxWidth: .infinity, minHeight: 88, alignment: .topLeading)
+            }
+            .marineListCell()
+          }
         }
-        .buttonStyle(MarineButtonStyle())
-        .disabled(!viewModel.canDelete)
-        .confirmationDialog(
-          "Delete Track?",
-          isPresented: $showDeleteConfirmation,
-          titleVisibility: .visible
-        ) {
-          Button("Delete", role: .destructive) {
-            Task {
-              let success = await viewModel.deleteSession()
-              if success {
-                dismiss()
+        
+        // Metrics Section (Static)
+        Section(header: Text("Details")) {
+          DetailRow(
+            label: "Start Time",
+            value: viewModel.session?.startTime.formatted(date: .abbreviated, time: .shortened) ?? "—"
+          )
+          .marineListCell()
+          
+          DetailRow(
+            label: "End Time",
+            value: viewModel.session?.endTime?.formatted(date: .abbreviated, time: .shortened) ?? "Active"
+          )
+          .marineListCell()
+          
+          DetailRow(
+            label: "Duration",
+            value: viewModel.session?.duration?.marineFormatted ?? "—"
+          )
+          .marineListCell()
+          
+          DetailRow(
+            label: "Length",
+            value: viewModel.session?.totalDistance?.marineFormatted ?? "—"
+          )
+          .marineListCell()
+          
+          DetailRow(
+            label: "Segments",
+            value: viewModel.session?.segmentCount.map { String($0) } ?? "—"
+          )
+          .marineListCell()
+          
+          DetailRow(
+            label: "Points",
+            value: viewModel.session?.pointsCount.map { String($0) } ?? "—"
+          )
+          .marineListCell()
+          
+          DetailRow(
+            label: "Max Speed",
+            value: viewModel.session?.maxSpeed?.marineFormatted ?? "—"
+          )
+          .marineListCell()
+          
+          DetailRow(
+            label: "Average Speed",
+            value: viewModel.session?.averageSpeed?.marineFormatted ?? "—"
+          )
+          .marineListCell()
+        }
+        
+        if viewModel.isEditing {
+          Button(role: .destructive, action: {
+            showDeleteConfirmation = true
+          }) {
+            Text("Delete")
+              .font(.headline)
+              .fontWeight(.semibold)
+              .foregroundColor(viewModel.canDelete ? .red : .gray)
+              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+              .background(viewModel.canDelete ? MarineTheme.Colors.destructiveBackground : MarineTheme.Colors.disabledBackground)
+              .cornerRadius(MarineTheme.Metrics.cornerRadius)
+          }
+          .buttonStyle(MarineButtonStyle())
+          .disabled(!viewModel.canDelete)
+          .listRowBackground(Color.clear)
+          .listRowInsets(EdgeInsets())
+          .confirmationDialog(
+            "Delete Track?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+          ) {
+            Button("Delete", role: .destructive) {
+              Task {
+                let success = await viewModel.deleteSession()
+                if success {
+                  dismiss()
+                }
               }
             }
+            Button("Cancel", role: .cancel) {}
+          } message: {
+            Text("This action cannot be undone.")
           }
-          Button("Cancel", role: .cancel) {}
-        } message: {
-          Text("This action cannot be undone.")
         }
       }
-      .padding(MarineTheme.Spacing.medium)
-      .background(MarineTheme.Colors.surfaceBackground)
-      .border(Color.gray.opacity(0.2), width: 0.5)
+      .listStyle(.insetGrouped)
+      .scrollContentBackground(.hidden)
+      .background(MarineTheme.Colors.panelBackground)
+      .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     }
     .navigationTitle("Track Detail")
     .navigationBarTitleDisplayMode(.inline)
+    .navigationBarBackButtonHidden(viewModel.isEditing)
     .toolbar {
-      ToolbarItem(placement: .navigationBarTrailing) {
-        if viewModel.isEditing {
-          HStack {
-            Button("Cancel") {
-              viewModel.cancelEditing()
-            }
-            Button("Save") {
-              Task {
-                await viewModel.saveChanges()
-              }
-            }
-            .fontWeight(.semibold)
-            .disabled(viewModel.isSaving)
+      if viewModel.isEditing {
+        ToolbarItem(placement: .navigationBarLeading) {
+          Button {
+            viewModel.cancelEditing()
+          } label: {
+            Image(systemName: "xmark")
           }
-        } else {
+        }
+        
+        ToolbarItem(placement: .navigationBarTrailing) {
+          Button {
+            Task {
+              await viewModel.saveChanges()
+            }
+          } label: {
+            Image(systemName: "checkmark")
+          }
+          .fontWeight(.semibold)
+          .disabled(viewModel.isSaving)
+        }
+      } else {
+        ToolbarItem(placement: .navigationBarTrailing) {
           Button("Edit") {
             viewModel.isEditing = true
           }
@@ -253,7 +225,7 @@ struct TrackDetailView: View {
 fileprivate struct DetailRow: View {
   let label: LocalizedStringKey
   let value: String
-
+  
   var body: some View {
     HStack {
       Text(label)

@@ -31,6 +31,8 @@ struct MarineTheme {
     static let textSecondary = Color.secondary
     static let panelBackground = Color(uiColor: .systemGroupedBackground)
     static let secondarySurface = Color(uiColor: .secondarySystemGroupedBackground)
+    static let destructiveBackground = Color(uiColor: .systemRed).opacity(0.15)
+    static let disabledBackground = Color.gray.opacity(0.15)
 
     // Marine Navigation Vectors
     static let vectorCOG = Color(red: 1.0, green: 0.0, blue: 1.0) // Magenta

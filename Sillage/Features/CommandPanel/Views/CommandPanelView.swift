@@ -110,11 +110,12 @@ struct CommandPanelView: View {
           TracksManagerView()
         case .sessionDetail(let sessionId):
           if let trackService {
-            TrackDetailView(
+            let model = TrackDetailViewModel(
               sessionId: sessionId,
               trackService: trackService,
               trackRecordingService: trackRecordingService
             )
+            TrackDetailView(viewModel: model)
           }
         }
       }

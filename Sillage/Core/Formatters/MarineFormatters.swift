@@ -29,3 +29,19 @@ extension Duration {
     )
   }
 }
+
+extension Measurement where UnitType == UnitLength {
+  var marineFormatted: String {
+    self.converted(to: .nauticalMiles).formatted(
+      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(2)))
+    )
+  }
+}
+
+extension Measurement where UnitType == UnitSpeed {
+    var marineFormatted: String {
+        self.converted(to: .knots).formatted(
+            .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(1)))
+        )
+    }
+}
