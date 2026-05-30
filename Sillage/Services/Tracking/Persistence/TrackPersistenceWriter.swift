@@ -19,7 +19,7 @@ public final class TrackPersistenceWriter: Sendable {
   private enum Action: Sendable {
     case insertSession(TrackSessionRecord)
     case appendPoint(TrackPointRecord)
-    case flush(sessionUpdate: TrackSessionRecord?, onCompletion: (@Sendable () -> Void)?)
+    case flush(telemetryUpdate: TrackTelemetryUpdate?, onCompletion: (@Sendable () -> Void)?)
     case finish(onCompletion: @Sendable () -> Void)
   }
   
@@ -46,14 +46,27 @@ public final class TrackPersistenceWriter: Sendable {
           case .appendPoint(let point):
             buffer.append(point)
             
-          case .flush(let sessionUpdate, let onCompletion):
-            if !buffer.isEmpty || sessionUpdate != nil {
+          case .flush(let telemetryUpdate, let onCompletion):
+            if !buffer.isEmpty || telemetryUpdate != nil {
               let batch = buffer
               buffer.removeAll()
               try await databaseManager.writer.write { db in
                 try batch.forEach { try $0.insert(db) }
-                if let sessionUpdate {
-                  try sessionUpdate.update(db)
+                if let update = telemetryUpdate {
+                  try TrackSessionRecord
+                    .filter(TrackSessionRecord.Columns.id == update.id)
+                    .updateAll(db, [
+                      TrackSessionRecord.Columns.endTimestamp_unix.set(to: update.endTimestamp_unix),
+                      TrackSessionRecord.Columns.duration_s.set(to: update.duration_s),
+                      TrackSessionRecord.Columns.totalDistance_m.set(to: update.totalDistance_m),
+                      TrackSessionRecord.Columns.southLatitude_deg.set(to: update.southLatitude_deg),
+                      TrackSessionRecord.Columns.northLatitude_deg.set(to: update.northLatitude_deg),
+                      TrackSessionRecord.Columns.westLongitude_deg.set(to: update.westLongitude_deg),
+                      TrackSessionRecord.Columns.eastLongitude_deg.set(to: update.eastLongitude_deg),
+                      TrackSessionRecord.Columns.maxSpeed_mps.set(to: update.maxSpeed_mps),
+                      TrackSessionRecord.Columns.pointsCount.set(to: update.pointsCount),
+                      TrackSessionRecord.Columns.segmentCount.set(to: update.segmentCount)
+                    ])
                 }
               }
             }
@@ -94,9 +107,9 @@ public final class TrackPersistenceWriter: Sendable {
   }
   
   /// Asynchronously waits for the buffer to be flushed to the database.
-  public func flush(sessionUpdate: TrackSessionRecord?) async {
+  public func flush(telemetryUpdate: TrackTelemetryUpdate?) async {
     await withCheckedContinuation { checkedContinuation in
-      let result = continuation.yield(.flush(sessionUpdate: sessionUpdate, onCompletion: {
+      let result = continuation.yield(.flush(telemetryUpdate: telemetryUpdate, onCompletion: {
         checkedContinuation.resume()
       }))
       
@@ -112,8 +125,8 @@ public final class TrackPersistenceWriter: Sendable {
   }
   
   /// Fire-and-forget flush.
-  public func flushAsync(sessionUpdate: TrackSessionRecord?) {
-    continuation.yield(.flush(sessionUpdate: sessionUpdate, onCompletion: nil))
+  public func flushAsync(telemetryUpdate: TrackTelemetryUpdate?) {
+    continuation.yield(.flush(telemetryUpdate: telemetryUpdate, onCompletion: nil))
   }
   
   public func finish() async {
