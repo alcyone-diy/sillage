@@ -17,6 +17,7 @@ struct TrackDetailView: View {
   
   @Environment(\.dismiss) private var dismiss
   @State private var showDeleteConfirmation = false
+  @State private var errorMessage: String?
   
   var body: some View {
     VStack(spacing: 0) {
@@ -144,9 +145,11 @@ struct TrackDetailView: View {
           ) {
             Button("Delete", systemImage: "trash", role: .destructive) {
               Task {
-                let success = await viewModel.deleteSession()
-                if success {
+                do {
+                  try await viewModel.deleteSession()
                   dismiss()
+                } catch {
+                  errorMessage = String(localized: "Failed to delete track. Please try again.")
                 }
               }
             }
@@ -199,7 +202,11 @@ struct TrackDetailView: View {
         ToolbarItem(placement: .navigationBarTrailing) {
           Button {
             Task {
-              await viewModel.saveChanges()
+              do {
+                try await viewModel.saveChanges()
+              } catch {
+                errorMessage = String(localized: "Failed to save changes. Please try again.")
+              }
             }
           } label: {
             Image(systemName: "checkmark")
@@ -221,10 +228,10 @@ struct TrackDetailView: View {
     .alert(
       "Error",
       isPresented: Binding(
-        get: { viewModel.errorMessage != nil },
-        set: { if !$0 { viewModel.errorMessage = nil } }
+        get: { errorMessage != nil },
+        set: { if !$0 { errorMessage = nil } }
       ),
-      presenting: viewModel.errorMessage
+      presenting: errorMessage
     ) { _ in
       Button("OK", role: .cancel) {}
     } message: { message in

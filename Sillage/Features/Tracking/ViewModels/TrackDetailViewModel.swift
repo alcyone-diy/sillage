@@ -21,7 +21,6 @@ final class TrackDetailViewModel {
 
   var isEditing: Bool = false
   var isSaving: Bool = false
-  var errorMessage: String?
 
   let sessionId: String
   private let trackService: TrackService
@@ -59,10 +58,10 @@ final class TrackDetailViewModel {
     }
   }
 
-  func saveChanges() async {
+  func saveChanges() async throws {
     guard let session else { return }
     isSaving = true
-    errorMessage = nil
+    defer { isSaving = false }
 
     do {
       let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -79,10 +78,8 @@ final class TrackDetailViewModel {
       isEditing = false
     } catch {
       Logger.database.error("Failed to update track session \(self.sessionId, privacy: .public): \(error, privacy: .public)")
-      errorMessage = String(localized: "Failed to save changes. Please try again.")
+      throw error
     }
-
-    isSaving = false
   }
 
   func cancelEditing() {
@@ -94,23 +91,19 @@ final class TrackDetailViewModel {
   }
 
   /// Deletes the track session from the database.
-  /// - Returns: `true` if deletion succeeded, `false` otherwise.
-  func deleteSession() async -> Bool {
+  /// - Throws: `TrackDeletionError` or other database errors.
+  func deleteSession() async throws {
     guard canDelete else {
       let error = TrackDeletionError.activeSession
-      errorMessage = error.localizedDescription
       Logger.database.warning("Attempted to delete active session: \(self.sessionId, privacy: .public)")
-      return false
+      throw error
     }
 
-    errorMessage = nil
     do {
       try await trackService.deleteSession(id: sessionId)
-      return true
     } catch {
       Logger.database.error("Failed to delete track session \(self.sessionId, privacy: .public): \(error, privacy: .public)")
-      errorMessage = String(localized: "Failed to delete track. Please try again.")
-      return false
+      throw error
     }
   }
 }
