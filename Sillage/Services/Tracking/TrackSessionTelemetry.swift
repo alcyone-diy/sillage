@@ -28,6 +28,12 @@ public struct TrackSessionTelemetry: Sendable {
     case paused
   }
   
+  public enum ProcessError: Error, Equatable {
+    case invalidState
+    case invalidTimestamp
+    case filteredOut
+  }
+  
   // MARK: - Properties
   public private(set) var state: State = .stopped
   public private(set) var startTime: Date?
@@ -76,7 +82,7 @@ public struct TrackSessionTelemetry: Sendable {
     if let lastNavigationFix = lastReceivedNavigationFix,
        let lastMonotonicTime = lastRecordedNavigationFixMonotonicTime {
       // Set no filter to make sure the last navigation is accepted.
-      _ = self.process(
+      try? self.process(
         fix: lastNavigationFix,
         filters: nil,
         now:lastMonotonicTime
@@ -137,16 +143,13 @@ public struct TrackSessionTelemetry: Sendable {
     fix: NavigationFix,
     filters: TrackFilters?,
     now: ContinuousClock.Instant = ContinuousClock().now
-  ) -> Bool {
+  ) throws {
     guard state == .pending || state == .recording else {
-      return false
+      throw ProcessError.invalidState
     }
-    let validFix = self.append(fix: fix, filters: filters, now: now)
-    if validFix {
-      self.updateTime(with: fix)
-    }
+    try self.append(fix: fix, filters: filters, now: now)
+    self.updateTime(with: fix)
     state = .recording
-    return validFix
   }
   
   public func activeTotalDuration(
@@ -185,7 +188,7 @@ public struct TrackSessionTelemetry: Sendable {
     fix: NavigationFix,
     filters: TrackFilters?,
     now: ContinuousClock.Instant = ContinuousClock().now
-  ) -> Bool {
+  ) throws {
     lastReceivedNavigationFix = fix
     let distanceSinceLast: Measurement<UnitLength>
     if let lastLoc = lastRecordedNavigationFix {
@@ -206,7 +209,8 @@ public struct TrackSessionTelemetry: Sendable {
       } else {
         isFixValid = true
       }
-      guard timeSinceLast > 0 && isFixValid else { return false }
+      guard timeSinceLast > 0 else { throw ProcessError.invalidTimestamp }
+      guard isFixValid else { throw ProcessError.filteredOut }
     } else {
       distanceSinceLast = Measurement(value: 0, unit: .meters)
     }
@@ -233,6 +237,5 @@ public struct TrackSessionTelemetry: Sendable {
     
     lastRecordedNavigationFix = fix
     lastRecordedNavigationFixMonotonicTime = now
-    return true
   }
 }
