@@ -59,26 +59,20 @@ public struct TrackService: Sendable {
     return observation.values(in: databaseManager.reader)
   }
 
-  /// Updates the name, description, start location, and end location of a track session.
+  /// Updates the name and description of a track session.
   /// - Parameters:
   ///   - id: The unique identifier of the track session.
   ///   - name: The new name (or nil).
   ///   - description: The new description (or nil).
-  ///   - startLocation: The new start location (or nil).
-  ///   - endLocation: The new end location (or nil).
   public func updateSession(
     id: String,
     name: String?,
-    description: String?,
-    startLocation: String? = nil,
-    endLocation: String? = nil
+    description: String?
   ) async throws {
     _ = try await databaseManager.write { db in
       if var record = try TrackSessionRecord.fetchOne(db, key: id) {
         record.name = name
         record.description = description
-        record.startLocation = startLocation
-        record.endLocation = endLocation
         try record.update(db)
         Logger.database.info("Successfully updated track session: \(id, privacy: .public)")
       } else {
