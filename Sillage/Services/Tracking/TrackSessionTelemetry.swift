@@ -166,6 +166,15 @@ public struct TrackSessionTelemetry: Sendable {
     return currentDuration + timeSinceLastLocation
   }
   
+  public func totalAverageSpeedOverGround() -> Measurement<UnitSpeed>? {
+    guard let distance = totalDistance?.converted(to: .meters).value,
+          let duration = totalDuration?.timeInterval,
+          duration > 0 else {
+      return nil
+    }
+    return Measurement(value: distance / duration, unit: .metersPerSecond)
+  }
+  
   // MARK: - Private
   
   private mutating func updateTime(with fix: NavigationFix) {

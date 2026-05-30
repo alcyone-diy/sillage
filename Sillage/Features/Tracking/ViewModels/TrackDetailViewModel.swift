@@ -41,6 +41,37 @@ final class TrackDetailViewModel {
     return !trackRecordingService.isSessionActive(sessionId)
   }
 
+  // MARK: - Live Metrics
+  
+  private var liveTelemetry: TrackSessionTelemetry? {
+    guard trackRecordingService.isSessionActive(sessionId) else { return nil }
+    return trackRecordingService.telemetry
+  }
+  
+  var totalDuration: Duration? {
+    return liveTelemetry?.activeTotalDuration() ?? session?.totalDuration
+  }
+  
+  var totalDistance: Measurement<UnitLength>? {
+    return liveTelemetry?.totalDistance ?? session?.totalDistance
+  }
+  
+  var pointsCount: Int? {
+    return liveTelemetry?.pointsCount ?? session?.pointsCount
+  }
+  
+  var maxSpeed: Measurement<UnitSpeed>? {
+    return liveTelemetry?.maxSpeedOverGround ?? session?.maxSpeed
+  }
+  
+  var averageSpeed: Measurement<UnitSpeed>? {
+    return liveTelemetry?.totalAverageSpeedOverGround() ?? session?.averageSpeed
+  }
+  
+  var segmentCount: Int? {
+    return session?.segmentCount
+  }
+
   func load() async {
     // Observe session updates reactively
     do {
