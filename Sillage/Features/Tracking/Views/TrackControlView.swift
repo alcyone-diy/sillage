@@ -16,10 +16,10 @@ struct TrackControlView: View {
   @Environment(AppViewModel.self) private var appViewModel
   
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
-
+  
   var body: some View {
     @Bindable var bindableActiveTrackViewModel = activeTrackViewModel
-
+    
     Section(header: Text("Active Track")) {
       HStack {
         Text("Recording Status")
@@ -29,6 +29,7 @@ struct TrackControlView: View {
           set: { _ in activeTrackViewModel.toggleRecording() }
         ))
         .labelsHidden()
+        .disabled(activeTrackViewModel.isSaving)
       }
       .marineListCell()
       .marineFont(.body)

@@ -52,11 +52,20 @@ public final class TrackRecordingService {
   
   public enum TrackRecordingError: LocalizedError {
     case databaseUnavailable
+    case abortedNoFix
+    case noActiveRecording
+    case operationInProgress
     
     public var errorDescription: String? {
       switch self {
       case .databaseUnavailable:
         return "Database is unavailable. Recording cannot start."
+      case .abortedNoFix:
+        return String(localized: "Recording aborted. No GPS fix was obtained.")
+      case .noActiveRecording:
+        return String(localized: "No active recording to stop.")
+      case .operationInProgress:
+        return String(localized: "Operation in progress. Please wait.")
       }
     }
   }
@@ -117,19 +126,13 @@ public final class TrackRecordingService {
     state = .waitingForFix
   }
   
-  public enum StopRecordingResult: Equatable, Sendable {
-    case savedAsync(sessionId: String)
-    case abortedNoFix
-    case noActiveRecording
-  }
-  
   @discardableResult
-  public func stopRecording() -> StopRecordingResult {
+  public func stopRecording() async throws -> String {
     switch state {
     case .recording, .paused, .waitingForFix:
       break
     case .idle, .saving:
-      return .noActiveRecording
+      throw TrackRecordingError.noActiveRecording
     }
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
@@ -144,7 +147,7 @@ public final class TrackRecordingService {
     guard let sessionId = currentSessionId,
           let endTime = telemetry.lastRecordedNavigationFix?.timestamp else {
       state = .idle
-      return .abortedNoFix
+      throw TrackRecordingError.abortedNoFix
     }
     
     // Removed manual segment duration addition since it's now updated continuously in processLocationUpdate
@@ -158,7 +161,7 @@ public final class TrackRecordingService {
     let writerToFinish = persistenceWriter
     persistenceWriter = nil
     
-    BackgroundTaskRunner.execute(name: "FinalizeTrack_\(sessionId)") { [weak self, writerToFinish] in
+    await BackgroundTaskRunner.executeAndWait(name: "FinalizeTrack_\(sessionId)") { [weak self, writerToFinish] in
       if let update = telemetryUpdate {
         await writerToFinish?.flush(telemetryUpdate: update)
       }
@@ -173,7 +176,7 @@ public final class TrackRecordingService {
     currentSessionId = nil
     preferencesService.clearActiveTrackSessionID()
     
-    return .savedAsync(sessionId: sessionId)
+    return sessionId
   }
   
   public func pauseRecording() {
@@ -228,7 +231,7 @@ public final class TrackRecordingService {
   public func activeSessionDuration() -> Duration? {
     return telemetry.activeTotalDuration()
   }
-
+  
   /// Checks if a session is currently actively recording or paused.
   /// - Parameter sessionId: The ID of the session to check.
   /// - Returns: True if the session is currently active.
@@ -241,19 +244,16 @@ public final class TrackRecordingService {
     unflushedPointCount = 0
   }
   
-  public enum ToggleRecordingResult: Sendable {
-    case started
-    case stopped(StopRecordingResult)
-  }
-  
   @discardableResult
-  public func toggleRecording() -> ToggleRecordingResult {
+  public func toggleRecording() async throws -> String? {
     switch state {
     case .recording, .paused, .waitingForFix:
-      return .stopped(stopRecording())
-    case .idle, .saving:
+      return try await stopRecording()
+    case .idle:
       startRecording()
-      return .started
+      return nil
+    case .saving:
+      throw TrackRecordingError.operationInProgress
     }
   }
   

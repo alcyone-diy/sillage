@@ -10,11 +10,17 @@
 
 import Foundation
 import Observation
+import OSLog
+
+struct AnyLocalizedError: LocalizedError {
+  let errorDescription: String?
+}
 
 @Observable
 @MainActor
 public final class ActiveTrackViewModel {
-  public var recordingError: TrackRecordingStopError?
+  public var recordingError: LocalizedError?
+  public var recentlySavedSessionId: String?
   private let trackRecordingService: TrackRecordingService
   
   public init(trackRecordingService: TrackRecordingService) {
@@ -45,9 +51,17 @@ public final class ActiveTrackViewModel {
   }
   
   public func toggleRecording() {
-    let result = trackRecordingService.toggleRecording()
-    if case .stopped(let stopResult) = result {
-      self.recordingError = TrackRecordingStopError(from: stopResult)
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        if let sessionId = try await trackRecordingService.toggleRecording() {
+          self.recentlySavedSessionId = sessionId
+        }
+      } catch {
+        let localized = error as? LocalizedError ?? AnyLocalizedError(errorDescription: error.localizedDescription)
+        self.recordingError = localized
+        Logger.tracking.error("Failed to toggle recording: \(error.localizedDescription, privacy: .public)")
+      }
     }
   }
 }
