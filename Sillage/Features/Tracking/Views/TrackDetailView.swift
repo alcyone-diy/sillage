@@ -84,37 +84,37 @@ struct TrackDetailView: View {
           
           DetailRow(
             label: "Duration",
-            value: viewModel.session?.totalDuration?.marineFormatted ?? "—"
+            value: viewModel.totalDuration?.marineFormatted ?? "—"
           )
           .marineListCell()
           
           DetailRow(
             label: "Length",
-            value: viewModel.session?.totalDistance?.marineFormatted ?? "—"
+            value: viewModel.totalDistance?.marineFormatted ?? "—"
           )
           .marineListCell()
           
           DetailRow(
             label: "Segments",
-            value: viewModel.session?.segmentCount.map { String($0) } ?? "—"
+            value: viewModel.segmentCount.map { String($0) } ?? "—"
           )
           .marineListCell()
           
           DetailRow(
             label: "Points",
-            value: viewModel.session?.pointsCount.map { String($0) } ?? "—"
+            value: viewModel.pointsCount.map { String($0) } ?? "—"
           )
           .marineListCell()
           
           DetailRow(
             label: "Max Speed",
-            value: viewModel.session?.maxSpeed?.marineFormatted ?? "—"
+            value: viewModel.maxSpeed?.marineFormatted ?? "—"
           )
           .marineListCell()
           
           DetailRow(
             label: "Average Speed",
-            value: viewModel.session?.averageSpeed?.marineFormatted ?? "—"
+            value: viewModel.averageSpeed?.marineFormatted ?? "—"
           )
           .marineListCell()
         }
