@@ -13,7 +13,11 @@ import SwiftUI
 @MainActor
 struct TrackListView: View {
   @Environment(\.trackService) private var trackService
+  @Environment(TrackRecordingService.self) private var trackRecordingService
+  
   @State private var viewModel = TrackListViewModel()
+  
+  @State private var sessionToDelete: TrackSession?
   
   var body: some View {
     Section(
@@ -30,9 +34,53 @@ struct TrackListView: View {
           NavigationLink(value: PanelManagerViewModel.CommandDestination.sessionDetail(sessionId: session.id)) {
             TrackRowView(session: session, subtitle: viewModel.subtitle(for: session))
           }
+          .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if !trackRecordingService.isSessionActive(session.id) {
+              Button {
+                sessionToDelete = session
+              } label: {
+                Label("Delete", systemImage: "trash")
+              }
+              .tint(.red)
+            }
+          }
           .marineListCell()
         }
       }
+    }
+    .alert(
+      "Delete Track?",
+      isPresented: Binding(
+        get: { sessionToDelete != nil },
+        set: { if !$0 { sessionToDelete = nil } }
+      ),
+      presenting: sessionToDelete
+    ) { session in
+      Button("Delete", role: .destructive) {
+        if let trackService {
+          viewModel.deleteSession(
+            session,
+            trackService: trackService,
+            trackRecordingService: trackRecordingService
+          )
+        }
+      }
+      Button("Cancel", role: .cancel) {
+        sessionToDelete = nil
+      }
+    } message: { _ in
+      Text("Are you sure you want to delete this track? This action cannot be undone.")
+    }
+    .alert(
+      isPresented: Binding(
+        get: { viewModel.activeError != nil },
+        set: { if !$0 { viewModel.activeError = nil } }
+      ),
+      error: viewModel.activeError
+    ) { _ in
+      Button("OK", role: .cancel) { }
+    } message: { error in
+      Text(error.localizedDescription)
     }
     .task {
       if let trackService {

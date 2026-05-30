@@ -13,7 +13,9 @@ import SwiftUI
 @MainActor
 struct TracksManagerView: View {
   @Environment(\.marineTheme) private var marineTheme
-
+  @Environment(\.trackService) private var trackService
+  @Environment(TrackRecordingService.self) private var trackRecordingService
+  
   var body: some View {
     List {
       TrackControlView()
