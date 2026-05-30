@@ -122,13 +122,16 @@ struct TrackDetailView: View {
           Button(role: .destructive, action: {
             showDeleteConfirmation = true
           }) {
-            Text("Delete")
-              .font(.headline)
-              .fontWeight(.semibold)
-              .foregroundColor(viewModel.canDelete ? .red : .gray)
-              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-              .background(viewModel.canDelete ? MarineTheme.Colors.destructiveBackground : MarineTheme.Colors.disabledBackground)
-              .cornerRadius(MarineTheme.Metrics.cornerRadius)
+            HStack {
+              Image(systemName: "trash")
+              Text("Delete")
+            }
+            .font(.headline)
+            .fontWeight(.semibold)
+            .foregroundColor(viewModel.canDelete ? .red : .gray)
+            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+            .background(viewModel.canDelete ? MarineTheme.Colors.destructiveBackground : MarineTheme.Colors.disabledBackground)
+            .cornerRadius(MarineTheme.Metrics.cornerRadius)
           }
           .buttonStyle(MarineButtonStyle())
           .disabled(!viewModel.canDelete)
