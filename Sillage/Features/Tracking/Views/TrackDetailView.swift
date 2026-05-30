@@ -21,20 +21,6 @@ struct TrackDetailView: View {
   var body: some View {
     VStack(spacing: 0) {
       List {
-        Button(action: {
-          // Action for View will be implemented later
-        }) {
-          Text("View")
-            .font(.headline)
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(MarineTheme.Colors.primary)
-            .cornerRadius(MarineTheme.Metrics.cornerRadius)
-        }
-        .buttonStyle(MarineButtonStyle())
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets())
         // Identity Section (Editable)
         Section() {
           if viewModel.isEditing {
@@ -153,7 +139,7 @@ struct TrackDetailView: View {
             isPresented: $showDeleteConfirmation,
             titleVisibility: .visible
           ) {
-            Button("Delete", role: .destructive) {
+            Button("Delete", systemImage: "trash", role: .destructive) {
               Task {
                 let success = await viewModel.deleteSession()
                 if success {
@@ -171,6 +157,28 @@ struct TrackDetailView: View {
       .scrollContentBackground(.hidden)
       .background(MarineTheme.Colors.panelBackground)
       .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+      
+      if !viewModel.isEditing {
+        VStack(spacing: MarineTheme.Spacing.small) {
+          Button(action: {
+            // Action for View will be implemented later
+          }) {
+            HStack {
+              Image(systemName: "map")
+              Text("View")
+            }
+            .font(.headline)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+            .background(MarineTheme.Colors.primary)
+            .cornerRadius(MarineTheme.Metrics.cornerRadius)
+          }
+          .buttonStyle(MarineButtonStyle())
+        }
+        .padding(MarineTheme.Spacing.medium)
+        .background(MarineTheme.Colors.surfaceBackground)
+      }
     }
     .navigationTitle("Track Detail")
     .navigationBarTitleDisplayMode(.inline)
