@@ -186,15 +186,17 @@ struct TrackServiceTests {
     )
     
     // Deletion should succeed because recordingService is idle (no active recording)
-    let success = await viewModel.deleteSession()
-    #expect(success == true)
+    do {
+      try await viewModel.deleteSession()
+    } catch {
+      Issue.record("Expected deleteSession to succeed, but threw error: \(error)")
+    }
     
     // Verify it is gone
     let sessionExists = try await dbManager.reader.read { db in
       try TrackSessionRecord.exists(db, key: sessionId)
     }
     #expect(!sessionExists)
-    #expect(viewModel.errorMessage == nil)
   }
   
   @Test("ViewModel delete session throws error when session is active")
@@ -242,9 +244,14 @@ struct TrackServiceTests {
     )
     
     // Try to delete the active session
-    let success = await viewModel.deleteSession()
-    #expect(success == false)
-    #expect(viewModel.errorMessage == TrackDeletionError.activeSession.localizedDescription)
+    do {
+      try await viewModel.deleteSession()
+      Issue.record("Expected deleteSession to throw an error for active session")
+    } catch let error as TrackDeletionError {
+      #expect(error == .activeSession)
+    } catch {
+      Issue.record("Expected TrackDeletionError.activeSession, but got \(error)")
+    }
     
     // Verify it is NOT deleted from DB (should still exist)
     let sessionExists = try await dbManager.reader.read { db in
