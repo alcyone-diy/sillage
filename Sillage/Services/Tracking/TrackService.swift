@@ -15,11 +15,11 @@ import OSLog
 /// A thread-safe service providing read and write operations for track sessions in the database.
 public struct TrackService: Sendable {
   private let databaseManager: DatabaseManager
-
+  
   public init(databaseManager: DatabaseManager) {
     self.databaseManager = databaseManager
   }
-
+  
   /// Observes saved track sessions, ordered by start time descending, in real-time.
   /// - Returns: An AsyncSequence emitting arrays of `TrackSessionRecord` whenever the database updates.
   public func observeTrackSessions() -> some AsyncSequence<[TrackSession], Error> {
@@ -35,7 +35,7 @@ public struct TrackService: Sendable {
     
     return observation.values(in: databaseManager.reader)
   }
-
+  
   /// Deletes a track session and its associated points (via cascade constraint) by id.
   /// - Parameter id: The unique identifier of the track session to delete.
   public func deleteSession(id: String) async throws {
@@ -48,7 +48,7 @@ public struct TrackService: Sendable {
       }
     }
   }
-
+  
   /// Observes a single track session by its ID, reacting to database updates.
   /// - Parameter id: The ID of the session to observe.
   /// - Returns: An AsyncSequence emitting `TrackSession?` whenever the session changes in the database.
@@ -58,7 +58,7 @@ public struct TrackService: Sendable {
     }
     return observation.values(in: databaseManager.reader)
   }
-
+  
   /// Updates the name and description of a track session.
   /// - Parameters:
   ///   - id: The unique identifier of the track session.
@@ -70,13 +70,17 @@ public struct TrackService: Sendable {
     description: String?
   ) async throws {
     _ = try await databaseManager.write { db in
-      if var record = try TrackSessionRecord.fetchOne(db, key: id) {
-        record.name = name
-        record.description = description
-        try record.update(db)
-        Logger.database.info("Successfully updated track session: \(id, privacy: .public)")
+      let updatedCount = try TrackSessionRecord
+        .filter(Column("id") == id)
+        .updateAll(
+          db,
+          Column("name").set(to: name),
+          Column("description").set(to: description)
+        )
+      if updatedCount > 0 {
+        Logger.database.info("Successfully updated metadata for track session: \(id, privacy: .public)")
       } else {
-        Logger.database.warning("Track session not found for update: \(id, privacy: .public)")
+        Logger.database.warning("Track session not found for metadata update: \(id, privacy: .public)")
       }
     }
   }
