@@ -20,7 +20,7 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
   public var description: String?
   public var startLocation: String?
   public var endLocation: String?
-  public var duration_s: Double?
+  public var totalDuration_s: Double?
   public var totalDistance_m: Double?
   public var southLatitude_deg: Double?
   public var northLatitude_deg: Double?
@@ -45,7 +45,7 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
     case description
     case startLocation
     case endLocation
-    case duration_s
+    case totalDuration_s
     case totalDistance_m
     case southLatitude_deg
     case northLatitude_deg
@@ -76,7 +76,7 @@ extension TrackSessionRecord {
       description: description,
       startLocation: startLocation,
       endLocation: endLocation,
-      duration: duration_s.map { .seconds($0) },
+      totalDuration: totalDuration_s.map { .seconds($0) },
       totalDistance: totalDistance_m.map { Measurement(value: $0, unit: UnitLength.meters) },
       southLatitude: southLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
       northLatitude: northLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
@@ -97,7 +97,7 @@ extension TrackSessionRecord {
     self.description = domainModel.description
     self.startLocation = domainModel.startLocation
     self.endLocation = domainModel.endLocation
-    self.duration_s = domainModel.duration?.timeInterval
+    self.totalDuration_s = domainModel.totalDuration?.timeInterval
     self.totalDistance_m = domainModel.totalDistance?.converted(to: .meters).value
     self.southLatitude_deg = domainModel.southLatitude?.converted(to: .degrees).value
     self.northLatitude_deg = domainModel.northLatitude?.converted(to: .degrees).value

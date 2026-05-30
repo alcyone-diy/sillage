@@ -83,7 +83,7 @@ struct TrackDetailView: View {
           
           DetailRow(
             label: "Duration",
-            value: viewModel.session?.duration?.marineFormatted ?? "—"
+            value: viewModel.session?.totalDuration?.marineFormatted ?? "—"
           )
           .marineListCell()
           

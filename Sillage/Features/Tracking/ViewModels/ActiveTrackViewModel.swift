@@ -36,8 +36,8 @@ public final class ActiveTrackViewModel {
     trackRecordingService.state
   }
   
-  public var sessionDistance: Measurement<UnitLength>? {
-    trackRecordingService.telemetry.distance
+  public var sessionTotalDistance: Measurement<UnitLength>? {
+    trackRecordingService.telemetry.totalDistance
   }
   
   public func activeSessionDuration() -> Duration? {

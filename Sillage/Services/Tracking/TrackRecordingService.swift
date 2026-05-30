@@ -151,8 +151,8 @@ public final class TrackRecordingService {
     
     state = .saving
     
-    let finalDurationSeconds = telemetry.duration
-    let finalDistanceMeters = telemetry.distance
+    let finalDurationSeconds = telemetry.totalDuration
+    let finalDistanceMeters = telemetry.totalDistance
     let telemetryUpdate = buildTelemetryUpdate(endTime: endTime)
     
     let writerToFinish = persistenceWriter
@@ -226,7 +226,7 @@ public final class TrackRecordingService {
   }
   
   public func activeSessionDuration() -> Duration? {
-    return telemetry.activeDuration()
+    return telemetry.activeTotalDuration()
   }
 
   /// Checks if a session is currently actively recording or paused.
@@ -424,8 +424,8 @@ public final class TrackRecordingService {
     return TrackTelemetryUpdate(
       id: sessionId,
       endTimestamp_unix: finalEndTime?.timeIntervalSince1970,
-      duration_s: activeSessionDuration()?.timeInterval,
-      totalDistance_m: telemetry.distance?.converted(to: .meters).value,
+      totalDuration_s: activeSessionDuration()?.timeInterval,
+      totalDistance_m: telemetry.totalDistance?.converted(to: .meters).value,
       southLatitude_deg: telemetry.geographicBoundingBox?.southLatitude.converted(to: .degrees).value,
       northLatitude_deg: telemetry.geographicBoundingBox?.northLatitude.converted(to: .degrees).value,
       westLongitude_deg: telemetry.geographicBoundingBox?.westLongitude.converted(to: .degrees).value,
