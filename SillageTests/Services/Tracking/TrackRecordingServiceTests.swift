@@ -291,8 +291,14 @@ struct TrackRecordingServiceTests {
     service.startRecording()
     #expect(service.state == .waitingForFix)
     
-    let result = service.stopRecording()
-    #expect(result == .abortedNoFix)
+    do {
+      _ = try await service.stopRecording()
+      Issue.record("Expected abortedNoFix error to be thrown")
+    } catch TrackRecordingService.TrackRecordingError.abortedNoFix {
+      // Expected behavior
+    } catch {
+      Issue.record("Unexpected error thrown: \(error)")
+    }
     #expect(service.state == .idle)
   }
   
@@ -314,17 +320,12 @@ struct TrackRecordingServiceTests {
     
     #expect(service.state == .recording)
     
-    let result = service.stopRecording()
-    switch result {
-    case .savedAsync(let sessionId):
+    do {
+      let sessionId = try await service.stopRecording()
       #expect(!sessionId.isEmpty)
-    default:
-      Issue.record("Expected savedAsync result")
+    } catch {
+      Issue.record("Expected successful stop but got error: \(error)")
     }
-    
-    #expect(service.state == .saving)
-    
-    try await waitUntil { service.state == .idle }
     
     #expect(service.state == .idle)
     #expect(mockPreferences.activeTrackSessionID == nil)

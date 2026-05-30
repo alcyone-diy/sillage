@@ -45,4 +45,14 @@ public enum BackgroundTaskRunner {
       await tracker.end()
     }
   }
+
+  public static func executeAndWait<T: Sendable>(name: String, operation: @escaping @Sendable () async throws -> T) async rethrows -> T {
+    let tracker = BackgroundTaskTracker()
+    tracker.begin(name: name)
+    
+    let result = try await operation()
+    
+    tracker.end()
+    return result
+  }
 }
