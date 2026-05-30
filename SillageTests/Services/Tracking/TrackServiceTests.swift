@@ -186,7 +186,8 @@ struct TrackServiceTests {
     )
     
     // Deletion should succeed because recordingService is idle (no active recording)
-    try await viewModel.deleteSession()
+    let success = await viewModel.deleteSession()
+    #expect(success == true)
 
     // Verify it is gone
     let sessionExists = try await dbManager.reader.read { db in
@@ -241,15 +242,8 @@ struct TrackServiceTests {
     )
 
     // Try to delete the active session
-    var didThrow = false
-    do {
-      try await viewModel.deleteSession()
-    } catch {
-      didThrow = true
-      #expect(error as? TrackDeletionError == TrackDeletionError.activeSession)
-    }
-
-    #expect(didThrow)
+    let success = await viewModel.deleteSession()
+    #expect(success == false)
     #expect(viewModel.errorMessage == TrackDeletionError.activeSession.localizedDescription)
 
     // Verify it is NOT deleted from DB (should still exist)
