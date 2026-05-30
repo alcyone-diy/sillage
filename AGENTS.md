@@ -13,6 +13,10 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **PROHIBITED (State):** `Combine`, `ObservableObject`, and `@Published` are strictly forbidden.
 - **Locking & Synchronization:** Use Swift 6 `actor` to encapsulate isolated state. GCD (`DispatchQueue`), `NSLock`, and raw `os_unfair_lock` are strictly forbidden.
   - *Exception:* If a synchronous lock is absolutely required in a non-isolated context (e.g., inside a `deinit` for a resource token), you must use `OSAllocatedUnfairLock` (iOS 16+).
+- **Memory Safety & Lifecycle (Retain Cycles):**
+  - **Structured Concurrency First:** Favor SwiftUI's `.task { ... }` modifier or `async let` / `TaskGroup` which automatically handle cancellation and lifecycle without needing `[weak self]`.
+  - **Unstructured Tasks:** EVERY unstructured `Task` (`Task { ... }` or `Task.detached`) instantiated inside a reference type (Class, ViewModel, Service) MUST explicitly use `[weak self]` if it captures `self`. No exceptions for "short-lived" tasks. This guarantees deterministic `deinit` execution and prevents blocking critical resource cleanup (e.g., GPS tokens).
+  - **Escaping Closures:** Every escaping closure (`@escaping`) crossing boundaries (e.g., MapLibre delegates, CoreLocation event handlers) must use `[weak self]`.
 - **Indentation:** Strictly **2 spaces**.
 - **Localization:** Rely on SwiftUI's native LocalizedStringKey for literals (e.g., `Text("Hello")`). Only use `String(localized:)` when passing localized strings to non-view variables, ViewModels, or custom components that don't accept LocalizedStringKey. Logs and developer comments must stay in English.
 
@@ -21,6 +25,10 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **Nil Over Defaults:** If data is invalid (e.g., negative radius, failed parsing, invalid SOG, invalid coordinates), return `nil`. 
 - **PROHIBITED (Dummy Values):** Never return "dummy" values like `0`, `-1`, or `""` for invalid states. Force the caller to handle the optionality.
   - *Framework Warning:* Beware of Apple's APIs returning dummy values for invalid states (e.g., `CLLocation` returning `-1.0` for invalid course or speed). These must be caught at the service boundary and mapped strictly to `nil`.
+- **Idiomatic Error Handling (Exceptions over Return Values):**
+  - **Throws Mandatory:** For operational or recoverable failures during active processing (e.g., GPX parsing failure, database write failure, NMEA connection loss), you **must** use Swift's native error propagation (`throw`) instead of returning manual `Result` types or custom error enums as return values.
+  - **Swift 6 Typed Throws:** Where compile-time safety is critical across internal service boundaries, enforce Swift 6 Typed Throws (e.g., `func parse() throws(ParsingError) -> Track`).
+  - *Distinction:* Use `nil` for invalid state detection (passive checks); use `throws` for functional processing failures (active execution).
 - **Strict Logging & Centralization:** The `print()` function is formally banned anywhere in the app. You must exclusively use `os.Logger` (`OSLog`). All loggers MUST be defined as static properties within the single source of truth: `Sillage/Core/Logger+Sillage.swift`. Always check this file to use an existing category before creating a new one. Local instantiation of `Logger` is strictly forbidden. Furthermore, you must explicitly manage log privacy (e.g., `\(variable, privacy: .public)`) for interpolated non-PII variables to prevent the macOS/iOS Console from silently masking critical diagnostic data with `<private>`.
 
 ## 4. Physical Units (Measurement API)
@@ -45,13 +53,13 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **Offline-First:** Prioritize local `.mbtiles` files in the `Charts/` directory.
 
 ## 7. Architecture & Domain-Driven Design (DDD)
-- **MVVM & Global State:** 
+- **MVVM & Global State:**
   - Use ViewModels (`@Observable`) strictly for local view logic, user input validation, or complex screen-specific formatting.
   - DO NOT use the "Middleman Anti-pattern". Views must access global read-only state or global managers directly via SwiftUI's `@Environment` (e.g., `AppEnvironment`). Do not create a ViewModel just to pass through environment data.
 - **Dependency Injection:** Singletons (`.shared`) are strictly forbidden. All Services (e.g., Location, Storage) must be initialized at the app's root within an `AppEnvironment` or `ServiceProvider` container, and injected into ViewModels or Views via `.environment()` or direct init injection.
 - **Strict Framework Isolation:** Third-party or Apple Framework types (e.g., `CLLocation`, `CLHeading`, `CBMPeripheral`) must **never** leak into the UI or Domain streams. They must be intercepted at the Service boundary and mapped to pure Swift Domain structs (e.g., `MarineFix`).
 - **DDD Strictness:** Business terms like `Route`, `Navigation`, `Track`, and `Waypoint` are strictly forbidden in UI navigation code. Use terms like `CommandDestination` and `commandPath` to prevent cognitive collision with the ship's actual routing engine.
-- **Persistence Strategy:** 
+- **Persistence Strategy:**
   - `UserDefaults` / `@AppStorage`: Strictly reserved for lightweight user preferences (e.g., Glove Mode, Theme).
   - `FileSystem` (JSON/GPX): Used for high-volume raw data (e.g., continuous Track Recording buffer).
   - Never block the Main Thread with disk writes. Use `Task.detached` or background actors for persistence.
