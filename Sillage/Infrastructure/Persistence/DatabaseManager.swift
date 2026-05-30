@@ -100,8 +100,7 @@ public final class DatabaseManager: Sendable {
         t.column("description", .text)
         t.column("startLocation", .text)
         t.column("endLocation", .text)
-        // The duration is needed since a trace can have multiple segments.
-        t.column("duration_s", .double)
+        t.column("totalDuration_s", .double)
         t.column("totalDistance_m", .double)
         t.column("southLatitude_deg", .double)
         t.column("northLatitude_deg", .double)
@@ -118,7 +117,7 @@ public final class DatabaseManager: Sendable {
         t.check(sql: "eastLongitude_deg BETWEEN -180 AND 180")
         // Should have no constraints between westLongitude_deg and eastLongitude_deg,
         // since a track can start at 179º, and move up to -179.
-        t.check(sql: "duration_s >= 0")
+        t.check(sql: "totalDuration_s >= 0")
         t.check(sql: "totalDistance_m >= 0")
         t.check(sql: "maxSpeed_mps >= 0 OR maxSpeed_mps IS NULL")
         t.check(sql: "pointsCount >= 0 OR pointsCount IS NULL")

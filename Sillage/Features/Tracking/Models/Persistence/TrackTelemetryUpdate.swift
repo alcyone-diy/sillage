@@ -15,7 +15,7 @@ import Foundation
 public struct TrackTelemetryUpdate: Sendable {
   public let id: String
   public let endTimestamp_unix: Double?
-  public let duration_s: Double?
+  public let totalDuration_s: Double?
   public let totalDistance_m: Double?
   public let southLatitude_deg: Double?
   public let northLatitude_deg: Double?

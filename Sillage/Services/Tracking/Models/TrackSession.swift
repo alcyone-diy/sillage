@@ -19,7 +19,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
   public let description: String?
   public let startLocation: String?
   public let endLocation: String?
-  public let duration: Duration?
+  public let totalDuration: Duration?
   public let totalDistance: Measurement<UnitLength>?
   public let southLatitude: Measurement<UnitAngle>?
   public let northLatitude: Measurement<UnitAngle>?
@@ -37,7 +37,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     description: String? = nil,
     startLocation: String? = nil,
     endLocation: String? = nil,
-    duration: Duration? = nil,
+    totalDuration: Duration? = nil,
     totalDistance: Measurement<UnitLength>? = nil,
     southLatitude: Measurement<UnitAngle>? = nil,
     northLatitude: Measurement<UnitAngle>? = nil,
@@ -54,7 +54,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     self.description = description
     self.startLocation = startLocation
     self.endLocation = endLocation
-    self.duration = duration
+    self.totalDuration = totalDuration
     self.totalDistance = totalDistance
     self.southLatitude = southLatitude
     self.northLatitude = northLatitude
@@ -67,7 +67,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
   
   public var averageSpeed: Measurement<UnitSpeed>? {
     guard let distance = totalDistance,
-          let duration = duration else {
+          let duration = totalDuration else {
       return nil
     }
     

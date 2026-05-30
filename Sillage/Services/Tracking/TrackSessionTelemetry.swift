@@ -34,8 +34,8 @@ public struct TrackSessionTelemetry: Sendable {
   public private(set) var lastTimeUpdated: Date?
   public private(set) var pointsCount: Int?
 
-  public private(set) var duration: Duration?
-  public private(set) var distance: Measurement<UnitLength>?
+  public private(set) var totalDuration: Duration?
+  public private(set) var totalDistance: Measurement<UnitLength>?
   public private(set) var geographicBoundingBox: GeographicBoundingBox?
   public private(set) var maxSpeedOverGround: Measurement<UnitSpeed>?
   
@@ -56,8 +56,8 @@ public struct TrackSessionTelemetry: Sendable {
     startTime = nil
     lastTimeUpdated = nil
     pointsCount = 0
-    duration = nil
-    distance = nil
+    totalDuration = nil
+    totalDistance = nil
     geographicBoundingBox = nil
     maxSpeedOverGround = nil
     lastReceivedNavigationFix = nil
@@ -113,8 +113,8 @@ public struct TrackSessionTelemetry: Sendable {
     // We treat a restore like a pause: we don't want
     // to accumulate time during the app-killed gap.
     lastTimeUpdated = nil
-    duration = session.duration
-    distance = session.totalDistance
+    totalDuration = session.totalDuration
+    totalDistance = session.totalDistance
     if let southLatitude = session.southLatitude,
        let northLatitude = session.northLatitude,
        let westLongitude = session.westLongitude,
@@ -149,17 +149,17 @@ public struct TrackSessionTelemetry: Sendable {
     return validFix
   }
   
-  public func activeDuration(
+  public func activeTotalDuration(
     now: ContinuousClock.Instant = ContinuousClock().now
   ) -> Duration? {
     guard let lastReceiveTime = lastRecordedNavigationFixMonotonicTime else {
-      return duration
+      return totalDuration
     }
     // Add the difference between now and timeSinceLastLocation,
     // to show that time is still progressing.
     // But duration is never updated with `ContinuousClock`.
     let timeSinceLastLocation = now - lastReceiveTime
-    let currentDuration = duration ?? .seconds(0)
+    let currentDuration = totalDuration ?? .seconds(0)
     return currentDuration + timeSinceLastLocation
   }
   
@@ -168,16 +168,16 @@ public struct TrackSessionTelemetry: Sendable {
   private mutating func updateTime(with fix: NavigationFix) {
     if let lastUpdate = lastTimeUpdated {
       let timeSinceLast = max(0, fix.timestamp.timeIntervalSince(lastUpdate))
-      let currentDuration = duration ?? .seconds(0)
+      let currentDuration = totalDuration ?? .seconds(0)
       // There is no fractions lost since Duration.seconds takes Double type.
-      duration = currentDuration + .seconds(timeSinceLast)
+      totalDuration = currentDuration + .seconds(timeSinceLast)
     }
     if startTime == nil {
       startTime = fix.timestamp
     }
     lastTimeUpdated = fix.timestamp
-    if duration == nil {
-      duration = .seconds(0)
+    if totalDuration == nil {
+      totalDuration = .seconds(0)
     }
   }
   
@@ -210,8 +210,8 @@ public struct TrackSessionTelemetry: Sendable {
     } else {
       distanceSinceLast = Measurement(value: 0, unit: .meters)
     }
-    let currentDistance = distance ?? Measurement(value: 0, unit: UnitLength.meters)
-    distance = currentDistance + distanceSinceLast
+    let currentDistance = totalDistance ?? Measurement(value: 0, unit: UnitLength.meters)
+    totalDistance = currentDistance + distanceSinceLast
     
     // Bounding Box
     let fixLat = Measurement(value: fix.coordinate.latitude, unit: UnitAngle.degrees)

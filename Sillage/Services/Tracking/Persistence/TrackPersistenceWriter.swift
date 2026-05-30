@@ -57,7 +57,7 @@ public final class TrackPersistenceWriter: Sendable {
                     .filter(TrackSessionRecord.Columns.id == update.id)
                     .updateAll(db, [
                       TrackSessionRecord.Columns.endTimestamp_unix.set(to: update.endTimestamp_unix),
-                      TrackSessionRecord.Columns.duration_s.set(to: update.duration_s),
+                      TrackSessionRecord.Columns.totalDuration_s.set(to: update.totalDuration_s),
                       TrackSessionRecord.Columns.totalDistance_m.set(to: update.totalDistance_m),
                       TrackSessionRecord.Columns.southLatitude_deg.set(to: update.southLatitude_deg),
                       TrackSessionRecord.Columns.northLatitude_deg.set(to: update.northLatitude_deg),

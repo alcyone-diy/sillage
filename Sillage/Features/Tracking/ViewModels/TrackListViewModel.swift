@@ -56,7 +56,7 @@ final class TrackListViewModel {
       )
       components.append(distStr)
     }
-    if let duration = session.duration {
+    if let duration = session.totalDuration {
       components.append(duration.marineFormatted)
     }
     if session.name != nil {
