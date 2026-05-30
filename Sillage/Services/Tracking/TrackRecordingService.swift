@@ -363,10 +363,15 @@ public final class TrackRecordingService {
     }
     
     // Update session with filtering Logic (Anti-Jitter)
-    guard telemetry.process(fix: navigationFix, filters: filters) else {
+    do {
+      try telemetry.process(fix: navigationFix, filters: filters)
+      saveNavigationFix(navigationFix)
+    } catch TrackSessionTelemetry.ProcessError.filteredOut {
+      return
+    } catch {
+      Logger.database.error("Failed to process navigation fix: \(String(describing: error), privacy: .public)")
       return
     }
-    saveNavigationFix(navigationFix)
   }
   
   private func saveNavigationFix(_ navigationFix: NavigationFix) {
