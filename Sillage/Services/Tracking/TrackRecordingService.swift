@@ -153,15 +153,14 @@ public final class TrackRecordingService {
     
     let finalDurationSeconds = telemetry.duration
     let finalDistanceMeters = telemetry.distance
-    let sessionUpdate = buildCurrentSessionRecord()
+    let telemetryUpdate = buildTelemetryUpdate(endTime: endTime)
     
     let writerToFinish = persistenceWriter
     persistenceWriter = nil
     
     BackgroundTaskRunner.execute(name: "FinalizeTrack_\(sessionId)") { [weak self, writerToFinish] in
-      if var session = sessionUpdate {
-        session.endTimestamp_unix = endTime.timeIntervalSince1970
-        await writerToFinish?.flush(sessionUpdate: session)
+      if let update = telemetryUpdate {
+        await writerToFinish?.flush(telemetryUpdate: update)
       }
       await writerToFinish?.finish()
       
@@ -192,7 +191,7 @@ public final class TrackRecordingService {
     flushTask?.cancel()
     flushTask = nil
     
-    persistenceWriter?.flushAsync(sessionUpdate: buildCurrentSessionRecord())
+    persistenceWriter?.flushAsync(telemetryUpdate: buildTelemetryUpdate())
     unflushedPointCount = 0
     
     state = .paused
@@ -238,7 +237,7 @@ public final class TrackRecordingService {
   }
   
   public func emergencyFlushAsync() async {
-    await persistenceWriter?.flush(sessionUpdate: buildCurrentSessionRecord())
+    await persistenceWriter?.flush(telemetryUpdate: buildTelemetryUpdate())
     unflushedPointCount = 0
   }
   
@@ -392,7 +391,7 @@ public final class TrackRecordingService {
       
       unflushedPointCount += 1
       if unflushedPointCount >= Configuration.flushThreshold {
-        persistenceWriter?.flushAsync(sessionUpdate: buildCurrentSessionRecord())
+        persistenceWriter?.flushAsync(telemetryUpdate: buildTelemetryUpdate())
         unflushedPointCount = 0
       }
     }
@@ -410,36 +409,30 @@ public final class TrackRecordingService {
         try? await Task.sleep(for: Configuration.maxFlushInterval)
         guard !Task.isCancelled, let self = self else { break }
         
-        self.persistenceWriter?.flushAsync(sessionUpdate: self.buildCurrentSessionRecord())
+        self.persistenceWriter?.flushAsync(telemetryUpdate: self.buildTelemetryUpdate())
         self.unflushedPointCount = 0
       }
     }
     flushTask = TaskCancellable(task)
   }
   
-  private func buildCurrentSessionRecord() -> TrackSessionRecord? {
-    guard let sessionId = currentSessionId,
-          let startTime = telemetry.startTime
-    else { return nil }
+  private func buildTelemetryUpdate(endTime: Date? = nil) -> TrackTelemetryUpdate? {
+    guard let sessionId = currentSessionId else { return nil }
     
-    var record = TrackSessionRecord(id: sessionId, startTime: startTime)
+    let finalEndTime = endTime ?? telemetry.lastRecordedNavigationFix?.timestamp
     
-    record.duration_s = activeSessionDuration()?.timeInterval
-    
-    if let distance = telemetry.distance {
-      record.totalDistance_m = distance.converted(to: .meters).value
-    }
-    
-    if let box = telemetry.geographicBoundingBox {
-      record.southLatitude_deg = box.southLatitude.converted(to: .degrees).value
-      record.northLatitude_deg = box.northLatitude.converted(to: .degrees).value
-      record.westLongitude_deg = box.westLongitude.converted(to: .degrees).value
-      record.eastLongitude_deg = box.eastLongitude.converted(to: .degrees).value
-    }
-    record.maxSpeed_mps = telemetry.maxSpeedOverGround?.converted(to: .metersPerSecond).value
-    record.pointsCount = telemetry.pointsCount
-    record.segmentCount = segmentIndex + 1
-    
-    return record
+    return TrackTelemetryUpdate(
+      id: sessionId,
+      endTimestamp_unix: finalEndTime?.timeIntervalSince1970,
+      duration_s: activeSessionDuration()?.timeInterval,
+      totalDistance_m: telemetry.distance?.converted(to: .meters).value,
+      southLatitude_deg: telemetry.geographicBoundingBox?.southLatitude.converted(to: .degrees).value,
+      northLatitude_deg: telemetry.geographicBoundingBox?.northLatitude.converted(to: .degrees).value,
+      westLongitude_deg: telemetry.geographicBoundingBox?.westLongitude.converted(to: .degrees).value,
+      eastLongitude_deg: telemetry.geographicBoundingBox?.eastLongitude.converted(to: .degrees).value,
+      maxSpeed_mps: telemetry.maxSpeedOverGround?.converted(to: .metersPerSecond).value,
+      pointsCount: telemetry.pointsCount,
+      segmentCount: segmentIndex + 1
+    )
   }
 }
