@@ -101,15 +101,15 @@ public final class DatabaseManager: Sendable {
         t.column("startLocation", .text)
         t.column("endLocation", .text)
         t.column("totalDuration_s", .double)
-        t.column("totalDistance_m", .double)
+        t.column("totalDistanceOverGround_m", .double)
         t.column("southLatitude_deg", .double)
         t.column("northLatitude_deg", .double)
         t.column("westLongitude_deg", .double)
         t.column("eastLongitude_deg", .double)
-        t.column("maxSpeed_mps", .double)
-        t.column("pointsCount", .integer)
-        t.column("segmentCount", .integer)
-        
+        t.column("maxSpeedOverGround_mps", .double)
+        t.column("segmentCount", .integer).notNull()
+        t.column("totalPointCount", .integer).notNull()
+
         t.check(sql: "southLatitude_deg BETWEEN -90 AND 90")
         t.check(sql: "northLatitude_deg BETWEEN -90 AND 90")
         t.check(sql: "southLatitude_deg <= northLatitude_deg")
@@ -118,10 +118,10 @@ public final class DatabaseManager: Sendable {
         // Should have no constraints between westLongitude_deg and eastLongitude_deg,
         // since a track can start at 179º, and move up to -179.
         t.check(sql: "totalDuration_s >= 0")
-        t.check(sql: "totalDistance_m >= 0")
-        t.check(sql: "maxSpeed_mps >= 0 OR maxSpeed_mps IS NULL")
-        t.check(sql: "pointsCount >= 0 OR pointsCount IS NULL")
-        t.check(sql: "segmentCount >= 0 OR segmentCount IS NULL")
+        t.check(sql: "totalDistanceOverGround_m >= 0")
+        t.check(sql: "maxSpeedOverGround_mps >= 0")
+        t.check(sql: "segmentCount >= 0")
+        t.check(sql: "totalPointCount >= 0")
       }
       try db.create(index: "idx_track_session_startTimestamp", on: "track_session", columns: ["startTimestamp_unix"])
       try db.create(index: "idx_track_session_name", on: "track_session", columns: ["name"])

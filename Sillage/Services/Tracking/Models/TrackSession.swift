@@ -20,15 +20,15 @@ public struct TrackSession: Sendable, Codable, Identifiable {
   public let startLocation: String?
   public let endLocation: String?
   public let totalDuration: Duration?
-  public let totalDistance: Measurement<UnitLength>?
+  public let totalDistanceOverGround: Measurement<UnitLength>?
   public let southLatitude: Measurement<UnitAngle>?
   public let northLatitude: Measurement<UnitAngle>?
   public let westLongitude: Measurement<UnitAngle>?
   public let eastLongitude: Measurement<UnitAngle>?
-  public let maxSpeed: Measurement<UnitSpeed>?
-  public let pointsCount: Int?
-  public let segmentCount: Int?
-  
+  public let maxSpeedOverGround: Measurement<UnitSpeed>?
+  public let segmentCount: Int
+  public let totalPointCount: Int
+
   public init(
     id: String,
     startTime: Date,
@@ -38,14 +38,14 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     startLocation: String? = nil,
     endLocation: String? = nil,
     totalDuration: Duration? = nil,
-    totalDistance: Measurement<UnitLength>? = nil,
+    totalDistanceOverGround: Measurement<UnitLength>? = nil,
     southLatitude: Measurement<UnitAngle>? = nil,
     northLatitude: Measurement<UnitAngle>? = nil,
     westLongitude: Measurement<UnitAngle>? = nil,
     eastLongitude: Measurement<UnitAngle>? = nil,
-    maxSpeed: Measurement<UnitSpeed>? = nil,
-    pointsCount: Int? = nil,
-    segmentCount: Int? = nil
+    maxSpeedOverGround: Measurement<UnitSpeed>? = nil,
+    segmentCount: Int = 0,
+    totalPointCount: Int = 0
   ) {
     self.id = id
     self.startTime = startTime
@@ -55,26 +55,26 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     self.startLocation = startLocation
     self.endLocation = endLocation
     self.totalDuration = totalDuration
-    self.totalDistance = totalDistance
+    self.totalDistanceOverGround = totalDistanceOverGround
     self.southLatitude = southLatitude
     self.northLatitude = northLatitude
     self.westLongitude = westLongitude
     self.eastLongitude = eastLongitude
-    self.maxSpeed = maxSpeed
-    self.pointsCount = pointsCount
+    self.maxSpeedOverGround = maxSpeedOverGround
     self.segmentCount = segmentCount
+    self.totalPointCount = totalPointCount
   }
   
-  public var averageSpeed: Measurement<UnitSpeed>? {
-    guard let distance = totalDistance,
-          let duration = totalDuration else {
+  public var totalAverageSpeedOverGround: Measurement<UnitSpeed>? {
+    guard let totalDistanceOverGround = totalDistanceOverGround,
+          let totalDuration = totalDuration else {
       return nil
     }
     
-    let seconds = Double(duration.components.seconds)
+    let seconds = Double(totalDuration.components.seconds)
     guard seconds > 0 else { return nil }
     
-    let speedMps = distance.converted(to: .meters).value / seconds
-    return Measurement(value: speedMps, unit: UnitSpeed.metersPerSecond)
+    let speedOverGroundMps = totalDistanceOverGround.converted(to: .meters).value / seconds
+    return Measurement(value: speedOverGroundMps, unit: UnitSpeed.metersPerSecond)
   }
 }

@@ -38,10 +38,11 @@ public struct TrackSessionTelemetry: Sendable {
   public private(set) var state: State = .stopped
   public private(set) var startTime: Date?
   public private(set) var lastTimeUpdated: Date?
-  public private(set) var pointsCount: Int?
+  public private(set) var segmentIndex: Int?
+  public private(set) var totalPointCount: Int = 0
 
   public private(set) var totalDuration: Duration?
-  public private(set) var totalDistance: Measurement<UnitLength>?
+  public private(set) var totalDistanceOverGround: Measurement<UnitLength>?
   public private(set) var geographicBoundingBox: GeographicBoundingBox?
   public private(set) var maxSpeedOverGround: Measurement<UnitSpeed>?
   
@@ -61,9 +62,10 @@ public struct TrackSessionTelemetry: Sendable {
     state = .pending
     startTime = nil
     lastTimeUpdated = nil
-    pointsCount = 0
+    segmentIndex = nil
+    totalPointCount = 0
     totalDuration = nil
-    totalDistance = nil
+    totalDistanceOverGround = nil
     geographicBoundingBox = nil
     maxSpeedOverGround = nil
     lastReceivedNavigationFix = nil
@@ -110,6 +112,7 @@ public struct TrackSessionTelemetry: Sendable {
   
   public mutating func restore(
     from session: TrackSession,
+    lastSegmentIndex: Int?
   ) {
     guard state == .stopped else {
       return
@@ -120,7 +123,7 @@ public struct TrackSessionTelemetry: Sendable {
     // to accumulate time during the app-killed gap.
     lastTimeUpdated = nil
     totalDuration = session.totalDuration
-    totalDistance = session.totalDistance
+    totalDistanceOverGround = session.totalDistanceOverGround
     if let southLatitude = session.southLatitude,
        let northLatitude = session.northLatitude,
        let westLongitude = session.westLongitude,
@@ -134,8 +137,9 @@ public struct TrackSessionTelemetry: Sendable {
     } else {
       geographicBoundingBox = nil
     }
-    maxSpeedOverGround = session.maxSpeed
-    pointsCount = session.pointsCount
+    maxSpeedOverGround = session.maxSpeedOverGround
+    segmentIndex = (lastSegmentIndex == nil) ? 0 : lastSegmentIndex
+    totalPointCount = session.totalPointCount
     lastRecordedNavigationFixMonotonicTime = nil
   }
   
@@ -167,12 +171,12 @@ public struct TrackSessionTelemetry: Sendable {
   }
   
   public func totalAverageSpeedOverGround() -> Measurement<UnitSpeed>? {
-    guard let distance = totalDistance?.converted(to: .meters).value,
-          let duration = totalDuration?.timeInterval,
-          duration > 0 else {
+    guard let totalDistanceOverGround = totalDistanceOverGround?.converted(to: .meters).value,
+          let durationDuration = totalDuration?.timeInterval,
+          durationDuration > 0 else {
       return nil
     }
-    return Measurement(value: distance / duration, unit: .metersPerSecond)
+    return Measurement(value: totalDistanceOverGround / durationDuration, unit: .metersPerSecond)
   }
   
   // MARK: - Private
@@ -223,8 +227,8 @@ public struct TrackSessionTelemetry: Sendable {
     } else {
       distanceSinceLast = Measurement(value: 0, unit: .meters)
     }
-    let currentDistance = totalDistance ?? Measurement(value: 0, unit: UnitLength.meters)
-    totalDistance = currentDistance + distanceSinceLast
+    let currentDistance = totalDistanceOverGround ?? Measurement(value: 0, unit: UnitLength.meters)
+    totalDistanceOverGround = currentDistance + distanceSinceLast
     
     // Bounding Box
     let fixLat = Measurement(value: fix.coordinate.latitude, unit: UnitAngle.degrees)
@@ -242,7 +246,11 @@ public struct TrackSessionTelemetry: Sendable {
     }
     
     // Points count
-    pointsCount = (pointsCount ?? 0) + 1
+    totalPointCount = totalPointCount + 1
+    if state == .pending {
+      // Increase the index only when there is a new fix (not in the resume method).
+      segmentIndex = segmentIndex.map { $0 + 1 } ?? 0
+    }
     
     lastRecordedNavigationFix = fix
     lastRecordedNavigationFixMonotonicTime = now

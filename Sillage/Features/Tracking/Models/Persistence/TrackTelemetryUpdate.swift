@@ -16,12 +16,12 @@ public struct TrackTelemetryUpdate: Sendable {
   public let id: String
   public let endTimestamp_unix: Double?
   public let totalDuration_s: Double?
-  public let totalDistance_m: Double?
+  public let totalDistanceOverGround_m: Double?
   public let southLatitude_deg: Double?
   public let northLatitude_deg: Double?
   public let westLongitude_deg: Double?
   public let eastLongitude_deg: Double?
-  public let maxSpeed_mps: Double?
-  public let pointsCount: Int?
-  public let segmentCount: Int?
+  public let maxSpeedOverGround_mps: Double?
+  public let segmentCount: Int
+  public let totalPointCount: Int
 }

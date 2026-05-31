@@ -246,11 +246,11 @@ final class DatabaseManagerTests {
       for try await _ in group {}
     }
     
-    // Verify that pointsCount is exactly 100 at the end
-    let pointsCount = try await manager.reader.read { db in
+    // Verify that totalPointCount is exactly 100 at the end
+    let totalPointCount = try await manager.reader.read { db in
       try TrackPointRecord.fetchCount(db)
     }
-    #expect(pointsCount == 100)
+    #expect(totalPointCount == 100)
   }
   
   @Test("Database constraints reject invalid coordinates")

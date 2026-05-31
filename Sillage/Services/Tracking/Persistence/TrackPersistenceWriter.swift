@@ -58,14 +58,14 @@ public final class TrackPersistenceWriter: Sendable {
                     .updateAll(db, [
                       TrackSessionRecord.Columns.endTimestamp_unix.set(to: update.endTimestamp_unix),
                       TrackSessionRecord.Columns.totalDuration_s.set(to: update.totalDuration_s),
-                      TrackSessionRecord.Columns.totalDistance_m.set(to: update.totalDistance_m),
+                      TrackSessionRecord.Columns.totalDistanceOverGround_m.set(to: update.totalDistanceOverGround_m),
                       TrackSessionRecord.Columns.southLatitude_deg.set(to: update.southLatitude_deg),
                       TrackSessionRecord.Columns.northLatitude_deg.set(to: update.northLatitude_deg),
                       TrackSessionRecord.Columns.westLongitude_deg.set(to: update.westLongitude_deg),
                       TrackSessionRecord.Columns.eastLongitude_deg.set(to: update.eastLongitude_deg),
-                      TrackSessionRecord.Columns.maxSpeed_mps.set(to: update.maxSpeed_mps),
-                      TrackSessionRecord.Columns.pointsCount.set(to: update.pointsCount),
-                      TrackSessionRecord.Columns.segmentCount.set(to: update.segmentCount)
+                      TrackSessionRecord.Columns.maxSpeedOverGround_mps.set(to: update.maxSpeedOverGround_mps),
+                      TrackSessionRecord.Columns.segmentCount.set(to: update.segmentCount),
+                      TrackSessionRecord.Columns.totalPointCount.set(to: update.totalPointCount)
                     ])
                 }
               }

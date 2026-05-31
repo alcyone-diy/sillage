@@ -132,11 +132,11 @@ struct TrackServiceTests {
     let sessionExistsBefore = try await dbManager.reader.read { db in
       try TrackSessionRecord.exists(db, key: sessionId)
     }
-    let pointsCountBefore = try await dbManager.reader.read { db in
+    let totalPointCountBefore = try await dbManager.reader.read { db in
       try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track_point WHERE sessionId = ?", arguments: [sessionId]) ?? 0
     }
     #expect(sessionExistsBefore)
-    #expect(pointsCountBefore == 1)
+    #expect(totalPointCountBefore == 1)
     
     // Perform deletion
     try await trackService.deleteSession(id: sessionId)
@@ -145,11 +145,11 @@ struct TrackServiceTests {
     let sessionExistsAfter = try await dbManager.reader.read { db in
       try TrackSessionRecord.exists(db, key: sessionId)
     }
-    let pointsCountAfter = try await dbManager.reader.read { db in
+    let totalPointCountAfter = try await dbManager.reader.read { db in
       try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track_point WHERE sessionId = ?", arguments: [sessionId]) ?? 0
     }
     #expect(!sessionExistsAfter)
-    #expect(pointsCountAfter == 0)
+    #expect(totalPointCountAfter == 0)
   }
   
   @Test("Delete non-existent session does not throw")
@@ -277,13 +277,13 @@ struct TrackServiceTests {
       try session.insert(db)
       // Simulating a starting value for distance (e.g., 10 nautical miles)
       // Using a raw query to simulate the initial state on the SQLite side.
-      try db.execute(sql: "UPDATE track_session SET totalDistance_m = 18520 WHERE id = ?", arguments: [sessionId])
+      try db.execute(sql: "UPDATE track_session SET totalDistanceOverGround_m = 18520 WHERE id = ?", arguments: [sessionId])
     }
     
     // 2. BACKGROUND GPS SIMULATION:
     // TrackRecordingService updates the distance in the database (e.g., changes to 15 nautical miles)
     try await dbManager.write { db in
-      try db.execute(sql: "UPDATE track_session SET totalDistance_m = 27780 WHERE id = ?", arguments: [sessionId])
+      try db.execute(sql: "UPDATE track_session SET totalDistanceOverGround_m = 27780 WHERE id = ?", arguments: [sessionId])
     }
     
     // 3. UI ACTION:
@@ -302,7 +302,7 @@ struct TrackServiceTests {
     // CRITICAL: Ensure the GPS telemetry from step 2 was NOT overwritten
     // by the UI action in step 3. The distance must be 27780, not 18520.
     // (Adjust the distance verification according to your TrackSessionRecord implementation)
-    let currentDistance = try #require(updatedSession).totalDistance_m // Example property name
+    let currentDistance = try #require(updatedSession).totalDistanceOverGround_m // Example property name
     #expect(currentDistance == 27780.0)
   }
 }
