@@ -139,6 +139,9 @@
     "Failed to fetch account settings. Server returned code %lld." : {
 
     },
+    "Failed to load track points." : {
+
+    },
     "Failed to move the chart file: %@" : {
 
     },

@@ -28,6 +28,8 @@ struct MapLibreView: UIViewRepresentable {
     let gpsAccuracySourceId = "gps-accuracy-source"
     let gpsAccuracyLayerId = "gps-accuracy-layer"
     let gpsAccuracyStrokeLayerId = "gps-accuracy-stroke-layer"
+    let savedTrackSourceId = "saved-track-source"
+    let savedTrackLayerId = "saved-track-layer"
     let activeTrackSourceId = "active-track-source"
     let activeTrackLayerId = "active-track-layer"
     
@@ -53,6 +55,13 @@ struct MapLibreView: UIViewRepresentable {
       activeTrackLayer.lineWidth = NSExpression(forConstantValue: 4.0)
       activeTrackLayer.lineColor = NSExpression(forConstantValue: UIColor.systemRed)
       style.insertLayer(activeTrackLayer, above: gpsAccuracyStrokeLayer)
+      
+      let savedTrackSource = MLNShapeSource(identifier: savedTrackSourceId, shape: nil, options: nil)
+      style.addSource(savedTrackSource)
+      let savedTrackLayer = MLNLineStyleLayer(identifier: savedTrackLayerId, source: savedTrackSource)
+      savedTrackLayer.lineWidth = NSExpression(forConstantValue: 4.0)
+      savedTrackLayer.lineColor = NSExpression(forConstantValue: UIColor.systemBlue)
+      style.insertLayer(savedTrackLayer, below: activeTrackLayer)
       
       // Create Heading Source and Layer so it's above gps accuracy but beneath the vessel
       let headingSource = MLNShapeSource(identifier: headingSourceId, shape: nil, options: nil)
@@ -153,6 +162,11 @@ struct MapLibreView: UIViewRepresentable {
       // Active track feature update
       if let source = style.source(withIdentifier: "active-track-source") as? MLNShapeSource {
         source.shape = generateActiveTrackFeature(from: trackRecordingService.trackPoints)
+      }
+      
+      // Saved track feature update
+      if let source = style.source(withIdentifier: "saved-track-source") as? MLNShapeSource {
+        source.shape = viewModel.savedTrackFeature
       }
       
       // Data Stale state update (Opacity)
@@ -274,15 +288,20 @@ struct MapLibreView: UIViewRepresentable {
       streamTask?.cancel()
       streamTask = Task { @MainActor in
         for await event in parent.viewModel.cameraMoveStream {
-          let targetZoom = event.zoom ?? mapView.zoomLevel
-          
-          // We pass the targetZoom explicitly. If the raster chart doesn't support this
-          // zoom level (e.g., maxZoom is 14), MapLibre might show a white screen
-          // depending on how over-zooming is handled by the raster source style.
-          if let heading = event.heading {
-            await mapView.setCenter(event.coordinate, zoomLevel: targetZoom, direction: heading.converted(to: .degrees).value, animated: true)
-          } else {
-            mapView.setCenter(event.coordinate, zoomLevel: targetZoom, animated: true)
+          switch event {
+          case .fitBounds(let bounds, let padding):
+            mapView.setVisibleCoordinateBounds(bounds, edgePadding: padding, animated: true, completionHandler: nil)
+          case .center(let coordinate, let zoom, let heading):
+            let targetZoom = zoom ?? mapView.zoomLevel
+            
+            // We pass the targetZoom explicitly. If the raster chart doesn't support this
+            // zoom level (e.g., maxZoom is 14), MapLibre might show a white screen
+            // depending on how over-zooming is handled by the raster source style.
+            if let heading = heading {
+              await mapView.setCenter(coordinate, zoomLevel: targetZoom, direction: heading.converted(to: .degrees).value, animated: true)
+            } else {
+              mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
+            }
           }
         }
       }
@@ -318,6 +337,9 @@ struct MapLibreView: UIViewRepresentable {
       }
       if let source = style.source(withIdentifier: "active-track-source") as? MLNShapeSource {
         source.shape = parent.generateActiveTrackFeature(from: parent.trackRecordingService.trackPoints)
+      }
+      if let source = style.source(withIdentifier: "saved-track-source") as? MLNShapeSource {
+        source.shape = parent.viewModel.savedTrackFeature
       }
       if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
         layer.iconOpacity = NSExpression(forConstantValue: parent.viewModel.isDataStale ? 0.4 : 1.0)
@@ -365,9 +387,9 @@ struct MapLibreView: UIViewRepresentable {
           let rasterSource = MLNRasterTileSource(identifier: sourceId, configurationURL: configURL, tileSize: 256)
           style.addSource(rasterSource)
           
-          // Add the raster layer
+          // Add the raster layer at the bottom so it doesn't cover vessel overlays
           let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
-          style.addLayer(rasterLayer)
+          style.insertLayer(rasterLayer, at: 0)
           
           Logger.map.info("Programmatically injected MBTiles raster source and layer.")
         }
@@ -384,7 +406,7 @@ struct MapLibreView: UIViewRepresentable {
         style.addSource(rasterSource)
         
         let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
-        style.addLayer(rasterLayer)
+        style.insertLayer(rasterLayer, at: 0)
         
         Logger.map.info("Programmatically injected GeoGarage raster source and layer.")
         
@@ -400,7 +422,7 @@ struct MapLibreView: UIViewRepresentable {
         style.addSource(rasterSource)
         
         let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
-        style.addLayer(rasterLayer)
+        style.insertLayer(rasterLayer, at: 0)
         
         Logger.map.info("Programmatically injected OpenSeaMap raster source and layer.")
       }
@@ -414,53 +436,7 @@ struct MapLibreView: UIViewRepresentable {
       // Re-center on the new source's preferred coordinate and zoom if needed
       mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection.converted(to: .degrees).value, animated: false)
       
-      // After updating the map source, we need to ensure the vessel layers are still at the top.
-      // But we shouldn't do it by constantly removing/adding in the feature updates.
-      // Doing it once here when the base map changes is acceptable.
-      if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
-        style.removeLayer(vesselLayer)
-        style.addLayer(vesselLayer)
-      }
-      if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
-        style.removeLayer(headingLayer)
-        if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
-          style.insertLayer(headingLayer, below: vesselLayer)
-        } else {
-          style.addLayer(headingLayer)
-        }
-      }
-      if let headingTickLayer = style.layer(withIdentifier: "heading-vector-tick-layer") {
-        style.removeLayer(headingTickLayer)
-        if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
-          style.insertLayer(headingTickLayer, below: vesselLayer)
-        } else if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
-          style.insertLayer(headingTickLayer, above: headingLayer)
-        } else {
-          style.addLayer(headingTickLayer)
-        }
-      }
-      if let activeTrackLayer = style.layer(withIdentifier: "active-track-layer") {
-        style.removeLayer(activeTrackLayer)
-        if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
-          style.insertLayer(activeTrackLayer, below: headingLayer)
-        } else if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
-          style.insertLayer(activeTrackLayer, below: vesselLayer)
-        } else {
-          style.addLayer(activeTrackLayer)
-        }
-      }
-      if let gpsAccuracyStrokeLayer = style.layer(withIdentifier: "gps-accuracy-stroke-layer") {
-        style.removeLayer(gpsAccuracyStrokeLayer)
-        if let activeTrackLayer = style.layer(withIdentifier: "active-track-layer") {
-          style.insertLayer(gpsAccuracyStrokeLayer, below: activeTrackLayer)
-        } else if let headingLayer = style.layer(withIdentifier: "heading-vector-layer") {
-          style.insertLayer(gpsAccuracyStrokeLayer, below: headingLayer)
-        } else if let vesselLayer = style.layer(withIdentifier: "vessel-layer") {
-          style.insertLayer(gpsAccuracyStrokeLayer, below: vesselLayer)
-        } else {
-          style.addLayer(gpsAccuracyStrokeLayer)
-        }
-      }
+
       if let gpsAccuracyFillLayer = style.layer(withIdentifier: "gps-accuracy-layer") {
         style.removeLayer(gpsAccuracyFillLayer)
         if let strokeLayer = style.layer(withIdentifier: "gps-accuracy-stroke-layer") {
