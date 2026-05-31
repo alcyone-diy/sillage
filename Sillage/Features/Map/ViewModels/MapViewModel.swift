@@ -16,10 +16,9 @@ import MapLibre
 import OSLog
 
 /// Represents a camera movement instruction to be consumed by the UI layer.
-struct CameraMoveEvent {
-  let coordinate: CLLocationCoordinate2D
-  let zoom: Double?
-  let heading: Measurement<UnitAngle>?
+enum CameraMoveEvent {
+  case center(coordinate: CLLocationCoordinate2D, zoom: Double?, heading: Measurement<UnitAngle>?)
+  case fitBounds(bounds: MLNCoordinateBounds, padding: UIEdgeInsets)
 }
 
 /// Defines how the map camera should behave relative to the user's location and orientation.
@@ -77,6 +76,7 @@ class MapViewModel {
   var vesselFeature: MLNPointFeature?
   var headingVectorFeature: MLNShapeCollectionFeature?
   var gpsAccuracyFeature: MLNPolygonFeature?
+  var savedTrackFeature: MLNShape?
   var isDataStale: Bool = true
   
   // MARK: - Private Services & Tasks
@@ -267,7 +267,7 @@ class MapViewModel {
     // Broadcast camera move if actively tracking the user
     if trackingMode != .free {
       let heading = (trackingMode == .courseUp && courseOverGround != nil) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
-      let event = CameraMoveEvent(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
+      let event = CameraMoveEvent.center(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
       for continuation in cameraMoveContinuations.values {
         continuation.yield(event)
       }
@@ -419,7 +419,7 @@ class MapViewModel {
     if trackingMode != .free, let navigationFix = lastKnownNavigationFix {
       let courseOverGround = navigationFix.courseOverGround
       let heading = (trackingMode == .courseUp && courseOverGround != nil) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
-      let event = CameraMoveEvent(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
+      let event = CameraMoveEvent.center(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
       for continuation in cameraMoveContinuations.values {
         continuation.yield(event)
       }
@@ -435,12 +435,128 @@ class MapViewModel {
     
     let courseOverGround = navigationFix.courseOverGround
     let heading = (trackingMode == .courseUp && courseOverGround != nil) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
-    let event = CameraMoveEvent(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
+    let event = CameraMoveEvent.center(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
     }
   }
   
+  // MARK: - Saved Tracks
+  
+  func loadAndDisplaySavedTrack(sessionId: String, trackService: TrackService, edgePadding: CGFloat) async throws {
+    // Switch to free tracking mode when viewing a saved track
+    trackingMode = .free
+    
+    let points = try await trackService.fetchTrackPoints(for: sessionId)
+    guard !points.isEmpty else { return }
+    
+    let (feature, bounds) = await Task.detached(priority: .userInitiated) {
+      return Self.processTrackData(points)
+    }.value
+    
+    guard let feature = feature else { return }
+    
+    self.savedTrackFeature = feature
+    
+    if let bounds = bounds {
+      let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: edgePadding, left: edgePadding, bottom: edgePadding, right: edgePadding))
+      for continuation in self.cameraMoveContinuations.values {
+        continuation.yield(event)
+      }
+    } else if let firstPoint = points.first {
+      let center = CLLocationCoordinate2D(
+        latitude: firstPoint.latitude.converted(to: .degrees).value,
+        longitude: firstPoint.longitude.converted(to: .degrees).value
+      )
+      let event = CameraMoveEvent.center(coordinate: center, zoom: 10.0, heading: nil)
+      for continuation in self.cameraMoveContinuations.values {
+        continuation.yield(event)
+      }
+    }
+  }
+  
+  func clearSavedTrack() {
+    self.savedTrackFeature = nil
+  }
+  
+  private static func processTrackData(_ points: [TrackPoint]) -> (MLNShape?, MLNCoordinateBounds?) {
+    guard points.count >= 2 else { return (nil, nil) }
+    
+    // TODO: Implement Douglas-Peucker algorithm for accurate geographical simplification
+    // Rudimentary simplification/downsampling to avoid OOM on massive tracks
+    let strideCount = max(1, points.count / 10000)
+    
+    var minLat = 90.0, maxLat = -90.0
+    var minLon = 180.0, maxLon = -180.0
+    
+    var segments: [[CLLocationCoordinate2D]] = []
+    var currentSegment: [CLLocationCoordinate2D] = []
+    var currentSegmentIndex: Int?
+    var lastLon: Double?
+    var crossesAntimeridian = false
+    
+    for (index, point) in points.enumerated() {
+      // Keep first point, last point, and every Nth point
+      if index % strideCount != 0 && index != 0 && index != points.count - 1 {
+        continue
+      }
+      
+      let lat = point.latitude.converted(to: .degrees).value
+      let lon = point.longitude.converted(to: .degrees).value
+      
+      if lat < minLat { minLat = lat }
+      if lat > maxLat { maxLat = lat }
+      if lon < minLon { minLon = lon }
+      if lon > maxLon { maxLon = lon }
+      
+      if let lLon = lastLon, abs(lon - lLon) > 180 {
+        crossesAntimeridian = true
+      }
+      lastLon = lon
+      
+      if let currentIdx = currentSegmentIndex, currentIdx != point.segmentIndex {
+        if currentSegment.count >= 2 {
+          segments.append(currentSegment)
+        }
+        currentSegment = []
+      }
+      currentSegmentIndex = point.segmentIndex
+      currentSegment.append(CLLocationCoordinate2D(latitude: lat, longitude: lon))
+    }
+    
+    if currentSegment.count >= 2 {
+      segments.append(currentSegment)
+    }
+    
+    guard !segments.isEmpty else { return (nil, nil) }
+    
+    let shape: MLNShape?
+    if segments.count == 1 {
+      var coordinates = segments[0]
+      shape = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
+    } else {
+      let polylines = segments.map { coords -> MLNPolyline in
+        var mutableCoords = coords
+        return MLNPolyline(coordinates: &mutableCoords, count: UInt(mutableCoords.count))
+      }
+      shape = MLNMultiPolylineFeature(polylines: polylines)
+    }
+    
+    let bounds: MLNCoordinateBounds?
+    if crossesAntimeridian {
+      // TODO: Handle antimeridian bounding box computation properly. 
+      // For now, block bounds creation to prevent a global zoom out.
+      bounds = nil
+    } else {
+      bounds = MLNCoordinateBounds(
+        sw: CLLocationCoordinate2D(latitude: minLat, longitude: minLon),
+        ne: CLLocationCoordinate2D(latitude: maxLat, longitude: maxLon)
+      )
+    }
+    
+    return (shape, bounds)
+  }
+
   // MARK: - Persistence
   
   func saveCameraState() {

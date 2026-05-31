@@ -8,12 +8,16 @@
 //  See LICENSE file in the project root for full license information.
 //
 
+import OSLog
 import SwiftUI
 
 @MainActor
 struct TrackDetailView: View {
   @Bindable var viewModel: TrackDetailViewModel
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(PanelManagerViewModel.self) private var panelManager
+  @Environment(MapViewModel.self) private var mapViewModel
+  @Environment(\.trackService) private var trackService
   
   @Environment(\.dismiss) private var dismiss
   @State private var showDeleteConfirmation = false
@@ -167,7 +171,25 @@ struct TrackDetailView: View {
       if !viewModel.isEditing {
         VStack(spacing: MarineTheme.Spacing.small) {
           Button(action: {
-            // Action for View will be implemented later
+            Task {
+              guard let trackService = trackService else {
+                Logger.tracking.error("Failed to load track points: TrackService is unavailable in Environment.")
+                errorMessage = String(localized: "Failed to load track points.")
+                return
+              }
+              
+              do {
+                try await mapViewModel.loadAndDisplaySavedTrack(
+                  sessionId: viewModel.sessionId,
+                  trackService: trackService,
+                  edgePadding: MarineTheme.Spacing.large
+                )
+                panelManager.closePanel()
+              } catch {
+                Logger.tracking.error("Failed to fetch track points for session \(viewModel.sessionId): \(error.localizedDescription)")
+                errorMessage = String(localized: "Failed to load track points.")
+              }
+            }
           }) {
             HStack {
               Image(systemName: "map")
