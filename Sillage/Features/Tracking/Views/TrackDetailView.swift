@@ -90,7 +90,7 @@ struct TrackDetailView: View {
           
           DetailRow(
             label: "Length",
-            value: viewModel.totalDistance?.marineFormatted ?? "—"
+            value: viewModel.totalDistanceOverGround?.marineFormatted ?? "—"
           )
           .marineListCell()
           
@@ -102,19 +102,19 @@ struct TrackDetailView: View {
           
           DetailRow(
             label: "Points",
-            value: viewModel.pointsCount.map { String($0) } ?? "—"
+            value: viewModel.totalPointCount.map { String($0) } ?? "—"
           )
           .marineListCell()
           
           DetailRow(
             label: "Max Speed",
-            value: viewModel.maxSpeed?.marineFormatted ?? "—"
+            value: viewModel.maxSpeedOverGround?.marineFormatted ?? "—"
           )
           .marineListCell()
           
           DetailRow(
             label: "Average Speed",
-            value: viewModel.averageSpeed?.marineFormatted ?? "—"
+            value: viewModel.totalAverageSpeedOverGround?.marineFormatted ?? "—"
           )
           .marineListCell()
         }

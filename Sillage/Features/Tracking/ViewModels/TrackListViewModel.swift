@@ -46,7 +46,7 @@ final class TrackListViewModel {
   
   func subtitle(for session: TrackSession) -> String? {
     var components: [String] = []
-    if let distance = session.totalDistance {
+    if let distance = session.totalDistanceOverGround {
       let distStr = distance.converted(to: .nauticalMiles).formatted(
         .measurement(
           width: .abbreviated,

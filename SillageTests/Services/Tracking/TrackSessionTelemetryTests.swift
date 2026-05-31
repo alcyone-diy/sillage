@@ -21,11 +21,12 @@ struct TrackSessionTelemetryTests {
     let telemetry = TrackSessionTelemetry()
     #expect(telemetry.startTime == nil)
     #expect(telemetry.lastTimeUpdated == nil)
-    #expect(telemetry.totalDistance == nil)
+    #expect(telemetry.totalDistanceOverGround == nil)
     #expect(telemetry.totalDuration == nil)
     #expect(telemetry.geographicBoundingBox == nil)
     #expect(telemetry.maxSpeedOverGround == nil)
-    #expect(telemetry.pointsCount == nil)
+    #expect(telemetry.segmentIndex == nil)
+    #expect(telemetry.totalPointCount == 0)
     #expect(telemetry.lastRecordedNavigationFix == nil)
     #expect(telemetry.lastReceivedNavigationFix == nil)
   }
@@ -36,10 +37,11 @@ struct TrackSessionTelemetryTests {
     telemetry.start()
     #expect(telemetry.startTime == nil)
     #expect(telemetry.lastTimeUpdated == nil)
-    #expect(telemetry.totalDistance == nil)
+    #expect(telemetry.totalDistanceOverGround == nil)
     #expect(telemetry.totalDuration == nil)
     #expect(telemetry.lastRecordedNavigationFixMonotonicTime == nil)
-    #expect(telemetry.pointsCount == 0)
+    #expect(telemetry.segmentIndex == nil)
+    #expect(telemetry.totalPointCount == 0)
     #expect(telemetry.lastRecordedNavigationFix == nil)
     #expect(telemetry.lastReceivedNavigationFix == nil)
     
@@ -53,14 +55,15 @@ struct TrackSessionTelemetryTests {
     telemetry.start()
     
     let fix = makeMockFix(timestamp: Date(timeIntervalSince1970: 1000))
-    let baseMonotonicTime = ContinuousClock().now
-    try telemetry.process(fix: fix, filters: .default, now: baseMonotonicTime)
+    let startMonotonicTime = ContinuousClock().now
+    try telemetry.process(fix: fix, filters: .default, now: startMonotonicTime)
     #expect(telemetry.startTime == fix.timestamp)
     #expect(telemetry.lastTimeUpdated == fix.timestamp)
-    #expect(telemetry.totalDistance?.value == 0)
+    #expect(telemetry.totalDistanceOverGround?.value == 0)
     #expect(telemetry.totalDuration == .seconds(0))
-    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == baseMonotonicTime)
-    #expect(telemetry.pointsCount == 1)
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == startMonotonicTime)
+    #expect(telemetry.segmentIndex ?? -1 == 0)
+    #expect(telemetry.totalPointCount == 1)
     #expect(telemetry.lastRecordedNavigationFix == fix)
     #expect(telemetry.lastReceivedNavigationFix == fix)
   }
@@ -69,12 +72,12 @@ struct TrackSessionTelemetryTests {
   func testSecondFix() throws {
     let filters = TrackFilters.default
     let fix1Timestamp: Double = 1000
-    let baseMonotonicTime = ContinuousClock().now
+    let startMonotonicTime = ContinuousClock().now
     var telemetry: TrackSessionTelemetry
     
     // Start with fix1.
     let fix1: NavigationFix
-    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: startMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
 
     // Second fix.
     let durationForSecondFix = TimeInterval(10)
@@ -82,17 +85,18 @@ struct TrackSessionTelemetryTests {
       longitude: -2.15,
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + durationForSecondFix)
     )
-    let simulatedFutureNow = baseMonotonicTime.advanced(by: .seconds(10))
+    let simulatedFutureNow = startMonotonicTime.advanced(by: .seconds(10))
     try telemetry.process(fix: fix2, filters: filters, now: simulatedFutureNow)
     #expect(telemetry.startTime == fix1.timestamp)
     #expect(telemetry.lastTimeUpdated == fix2.timestamp)
-    #expect(telemetry.totalDistance != nil)
-    if let distance = telemetry.totalDistance {
+    #expect(telemetry.totalDistanceOverGround != nil)
+    if let distance = telemetry.totalDistanceOverGround {
       #expect(distance.converted(to: .meters).value > 0)
     }
     #expect(telemetry.totalDuration?.components.seconds == Int64(durationForSecondFix))
     #expect(telemetry.lastRecordedNavigationFixMonotonicTime == simulatedFutureNow)
-    #expect(telemetry.pointsCount == 2)
+    #expect(telemetry.segmentIndex ?? -1 == 0)
+    #expect(telemetry.totalPointCount == 2)
     #expect(telemetry.lastRecordedNavigationFix == fix2)
     #expect(telemetry.lastReceivedNavigationFix == fix2)
   }
@@ -101,12 +105,12 @@ struct TrackSessionTelemetryTests {
   func testStopAfterSecondFix() throws {
     let filters = TrackFilters.default
     let fix1Timestamp: Double = 1000
-    let baseMonotonicTime = ContinuousClock().now
+    let startMonotonicTime = ContinuousClock().now
     var telemetry: TrackSessionTelemetry
     
     // Start with fix1.
     let fix1: NavigationFix
-    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: startMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
 
     // Second fix.
     let durationForSecondFix = TimeInterval(10)
@@ -114,7 +118,7 @@ struct TrackSessionTelemetryTests {
       longitude: -2.15,
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + durationForSecondFix)
     )
-    let simulatedFutureNow = baseMonotonicTime.advanced(by: .seconds(10))
+    let simulatedFutureNow = startMonotonicTime.advanced(by: .seconds(10))
     try telemetry.process(fix: fix2, filters: filters, now: simulatedFutureNow)
     
     // Stop
@@ -122,13 +126,14 @@ struct TrackSessionTelemetryTests {
     #expect(lastFix == nil)
     #expect(telemetry.startTime == fix1.timestamp)
     #expect(telemetry.lastTimeUpdated == fix2.timestamp)
-    #expect(telemetry.totalDistance != nil)
-    if let distance = telemetry.totalDistance {
+    #expect(telemetry.totalDistanceOverGround != nil)
+    if let distance = telemetry.totalDistanceOverGround {
       #expect(distance.converted(to: .meters).value > 0)
     }
     #expect(telemetry.totalDuration?.components.seconds == Int64(durationForSecondFix))
     #expect(telemetry.lastRecordedNavigationFixMonotonicTime == nil)
-    #expect(telemetry.pointsCount == 2)
+    #expect(telemetry.segmentIndex ?? -1 == 0)
+    #expect(telemetry.totalPointCount == 2)
     #expect(telemetry.lastRecordedNavigationFix == fix2)
     #expect(telemetry.lastReceivedNavigationFix == fix2)
   }
@@ -137,26 +142,29 @@ struct TrackSessionTelemetryTests {
   func testSecondFixIgnored() throws {
     let filters = TrackFilters.default
     let fix1Timestamp: Double = 1000
-    let baseMonotonicTime = ContinuousClock().now
+    let startMonotonicTime = ContinuousClock().now
     var telemetry: TrackSessionTelemetry
 
     // Start with fix1.
     let fix1: NavigationFix
-    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: startMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
 
     // Second fix.
     let durationForSecondFix = TimeInterval(10)
-    let fix2 = makeMockFix(timestamp: Date(timeIntervalSince1970: fix1Timestamp + durationForSecondFix))
-    let simulatedFutureNow = baseMonotonicTime.advanced(by: .seconds(10))
+    let fix2 = makeMockFix(
+      timestamp: Date(timeIntervalSince1970:fix1Timestamp + durationForSecondFix)
+    )
+    let simulatedFutureNow = startMonotonicTime.advanced(by: .seconds(10))
     #expect(throws: TrackSessionTelemetry.ProcessError.self) {
       try telemetry.process(fix: fix2, filters: filters, now: simulatedFutureNow)
     }
     #expect(telemetry.startTime == fix1.timestamp)
     #expect(telemetry.lastTimeUpdated == fix1.timestamp)
-    #expect(telemetry.totalDistance?.value == 0)
+    #expect(telemetry.totalDistanceOverGround?.value == 0)
     #expect(telemetry.totalDuration?.components.seconds == 0)
-    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == baseMonotonicTime)
-    #expect(telemetry.pointsCount == 1)
+    #expect(telemetry.lastRecordedNavigationFixMonotonicTime == startMonotonicTime)
+    #expect(telemetry.segmentIndex ?? -1 == 0)
+    #expect(telemetry.totalPointCount == 1)
     #expect(telemetry.lastReceivedNavigationFix == fix2)
     #expect(telemetry.lastRecordedNavigationFix == fix1)
   }
@@ -165,12 +173,12 @@ struct TrackSessionTelemetryTests {
   func testStopAfterSecondFixIgnored() throws {
     let filters = TrackFilters.default
     let fix1Timestamp: Double = 1000
-    let baseMonotonicTime = ContinuousClock().now
+    let startMonotonicTime = ContinuousClock().now
     var telemetry: TrackSessionTelemetry
     
     // Start with fix1.
     let fix1: NavigationFix
-    (telemetry, fix1) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    (telemetry, fix1) = makeStartedTelemetry(baseTime: startMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
 
     // Second fix.
     let durationForSecondFix = TimeInterval(10)
@@ -178,7 +186,7 @@ struct TrackSessionTelemetryTests {
       longitude: -1.1501,
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + durationForSecondFix)
     )
-    let simulatedFutureNow = baseMonotonicTime.advanced(by: .seconds(10))
+    let simulatedFutureNow = startMonotonicTime.advanced(by: .seconds(10))
     #expect(throws: TrackSessionTelemetry.ProcessError.self) {
       try telemetry.process(fix: fix2, filters: filters, now: simulatedFutureNow)
     }
@@ -188,13 +196,14 @@ struct TrackSessionTelemetryTests {
     #expect(lastFix == fix2)
     #expect(telemetry.startTime == fix1.timestamp)
     #expect(telemetry.lastTimeUpdated == fix2.timestamp)
-    #expect(telemetry.totalDistance != nil)
-    if let distance = telemetry.totalDistance {
+    #expect(telemetry.totalDistanceOverGround != nil)
+    if let distance = telemetry.totalDistanceOverGround {
       #expect(distance.converted(to: .meters).value > 0)
     }
     #expect(telemetry.totalDuration?.components.seconds == Int64(durationForSecondFix))
     #expect(telemetry.lastRecordedNavigationFixMonotonicTime == nil)
-    #expect(telemetry.pointsCount == 2)
+    #expect(telemetry.segmentIndex ?? -1 == 0)
+    #expect(telemetry.totalPointCount == 2)
     #expect(telemetry.lastRecordedNavigationFix == fix2)
     #expect(telemetry.lastReceivedNavigationFix == fix2)
   }
@@ -210,8 +219,7 @@ struct TrackSessionTelemetryTests {
     // Step 1.
     // Add first fix after 10s from start.
     let startMonotonicTime = ContinuousClock().now
-    let fix1 = makeMockFix(timestamp: startDate + TimeInterval(10)
-    )
+    let fix1 = makeMockFix(timestamp: startDate + TimeInterval(10))
     try? telemetry.process(fix: fix1, filters: .default, now: startMonotonicTime)
     #expect(telemetry.totalDuration?.components.seconds == 0)
     let activeDuration1 = telemetry.activeTotalDuration(now: startMonotonicTime)
@@ -266,18 +274,20 @@ struct TrackSessionTelemetryTests {
     
     let fix = makeMockFix(timestamp: Date())
     try? telemetry.process(fix: fix, filters: .default)
-    #expect(telemetry.pointsCount == 1)
+    #expect(telemetry.segmentIndex ?? -1 == 0)
+    #expect(telemetry.totalPointCount == 1)
 
     _ = telemetry.stop()
     telemetry.start()
     
     #expect(telemetry.startTime == nil)
     #expect(telemetry.lastTimeUpdated == nil)
-    #expect(telemetry.totalDistance == nil)
+    #expect(telemetry.totalDistanceOverGround == nil)
     #expect(telemetry.totalDuration == nil)
     #expect(telemetry.geographicBoundingBox == nil)
     #expect(telemetry.maxSpeedOverGround == nil)
-    #expect(telemetry.pointsCount == 0)
+    #expect(telemetry.segmentIndex == nil)
+    #expect(telemetry.totalPointCount == 0)
     #expect(telemetry.lastRecordedNavigationFix == nil)
     #expect(telemetry.lastReceivedNavigationFix == nil)
   }
@@ -291,19 +301,19 @@ struct TrackSessionTelemetryTests {
       id: "test-id",
       startTime: startDate,
       totalDuration: firstSegmentDuration,
-      totalDistance: Measurement(value: 5000, unit: .meters),
+      totalDistanceOverGround: Measurement(value: 5000, unit: .meters),
       southLatitude: Measurement(value: 45.0, unit: .degrees),
       northLatitude: Measurement(value: 46.0, unit: .degrees),
       westLongitude: Measurement(value: -1.0, unit: .degrees),
       eastLongitude: Measurement(value: 1.0, unit: .degrees),
-      maxSpeed: Measurement(value: 10, unit: .metersPerSecond),
-      pointsCount: 150
+      maxSpeedOverGround: Measurement(value: 10, unit: .metersPerSecond),
+      totalPointCount: 150
     )
     
-    telemetry.restore(from: session)
+    telemetry.restore(from: session, lastSegmentIndex: 0)
     #expect(telemetry.startTime == session.startTime)
     #expect(telemetry.lastTimeUpdated == nil)
-    #expect(telemetry.totalDistance == session.totalDistance)
+    #expect(telemetry.totalDistanceOverGround == session.totalDistanceOverGround)
     #expect(telemetry.totalDuration == session.totalDuration)
     #expect(telemetry.geographicBoundingBox != nil)
     if let boundingBox = telemetry.geographicBoundingBox {
@@ -312,8 +322,10 @@ struct TrackSessionTelemetryTests {
       #expect(boundingBox.westLongitude == session.westLongitude)
       #expect(boundingBox.eastLongitude == session.eastLongitude)
     }
-    #expect(telemetry.maxSpeedOverGround == session.maxSpeed)
-    #expect(telemetry.pointsCount == session.pointsCount)
+    #expect(telemetry.maxSpeedOverGround == session.maxSpeedOverGround)
+    #expect(telemetry.segmentIndex != nil)
+    #expect(telemetry.segmentIndex ?? -1 == 0)
+    #expect(telemetry.totalPointCount == session.totalPointCount)
     #expect(telemetry.lastReceivedNavigationFix == nil)
     #expect(telemetry.lastRecordedNavigationFix == nil)
     #expect(telemetry.lastRecordedNavigationFixMonotonicTime == nil)
@@ -332,7 +344,7 @@ struct TrackSessionTelemetryTests {
     try? telemetry.process(fix: fix1, filters: .default, now: secondSegmentMonotonicTime)
     #expect(telemetry.startTime == session.startTime)
     #expect(telemetry.lastTimeUpdated == date1)
-    #expect(telemetry.totalDistance == session.totalDistance)
+    #expect(telemetry.totalDistanceOverGround == session.totalDistanceOverGround)
     #expect(telemetry.totalDuration == session.totalDuration)
     if let boundingBox = telemetry.geographicBoundingBox {
       #expect(boundingBox.southLatitude == session.southLatitude)
@@ -340,8 +352,10 @@ struct TrackSessionTelemetryTests {
       #expect(boundingBox.westLongitude == session.westLongitude)
       #expect(boundingBox.eastLongitude == session.eastLongitude)
     }
-    #expect(telemetry.maxSpeedOverGround == session.maxSpeed)
-    #expect(telemetry.pointsCount == session.pointsCount! + 1)
+    #expect(telemetry.maxSpeedOverGround == session.maxSpeedOverGround)
+    #expect(telemetry.segmentIndex != nil)
+    #expect(telemetry.segmentIndex ?? -1 == 1)
+    #expect(telemetry.totalPointCount == session.totalPointCount + 1)
     #expect(telemetry.lastReceivedNavigationFix == fix1)
     #expect(telemetry.lastRecordedNavigationFix == fix1)
     #expect(telemetry.lastRecordedNavigationFixMonotonicTime == secondSegmentMonotonicTime)
@@ -354,19 +368,19 @@ struct TrackSessionTelemetryTests {
     // Start.
     telemetry.start()
     
-    let baseMonotonicTime = ContinuousClock().now
+    let startMonotonicTime = ContinuousClock().now
     let fix1 = makeMockFix(timestamp: Date())
-    try? telemetry.process(fix: fix1, filters: .default, now: baseMonotonicTime)
+    try? telemetry.process(fix: fix1, filters: .default, now: startMonotonicTime)
     
     let delay2 = 10
-    let simulatedFuture2 = baseMonotonicTime.advanced(by: .seconds(delay2))
+    let simulatedFuture2 = startMonotonicTime.advanced(by: .seconds(delay2))
     let fix2 = makeMockFix(
       longitude: -3.15,
       timestamp: fix1.timestamp + TimeInterval(delay2
     ))
     try? telemetry.process(fix: fix2, filters: .default, now: simulatedFuture2)
     
-    let distance2 = telemetry.totalDistance
+    let distance2 = telemetry.totalDistanceOverGround
     if let distance = distance2 {
       #expect(distance.converted(to: .meters).value > 0)
     }
@@ -377,9 +391,44 @@ struct TrackSessionTelemetryTests {
     #expect(telemetry.lastRecordedNavigationFix == nil)
     #expect(telemetry.lastReceivedNavigationFix == nil)
     #expect(telemetry.lastRecordedNavigationFixMonotonicTime == nil)
-    #expect(telemetry.startTime != nil)
-    #expect(telemetry.pointsCount == 2)
-  }
+    #expect(telemetry.startTime == fix1.timestamp)
+    #expect(telemetry.segmentIndex ?? -1 == 0)
+    #expect(telemetry.totalPointCount == 2)
+    
+    telemetry.resume()
+    let delay3 = delay2 + 10
+    let dateAtResume = delay3
+    let fix3 = makeMockFix(
+      longitude: -2.15,
+      timestamp: fix1.timestamp + TimeInterval(delay3)
+    )
+    let simulatedFuture3 = startMonotonicTime.advanced(by: .seconds(delay3))
+    try? telemetry.process(fix: fix3, filters: .default, now: simulatedFuture3)
+    #expect(telemetry.totalDuration?.components.seconds == Int64(delay2))
+    let activeDuration3 = telemetry.activeTotalDuration(now: simulatedFuture3)
+    #expect(activeDuration3?.components.seconds == Int64(delay2))
+    #expect(telemetry.startTime == fix1.timestamp)
+    #expect(telemetry.segmentIndex ?? -1 == 1)
+    #expect(telemetry.totalPointCount == 3)
+    #expect(telemetry.lastRecordedNavigationFix == fix3)
+    #expect(telemetry.lastReceivedNavigationFix == fix3)
+    
+    let delay4 = delay3 + 10
+    let fix4 = makeMockFix(
+      longitude: -15.15,
+      timestamp: fix1.timestamp + TimeInterval(delay4)
+    )
+    let simulatedFuture4 = startMonotonicTime.advanced(by: .seconds(delay4))
+    try? telemetry.process(fix: fix4, filters: .default, now: simulatedFuture4)
+    #expect(telemetry.totalDuration?.components.seconds == Int64(delay4 - dateAtResume + delay2))
+    let activeDuration4 = telemetry.activeTotalDuration(now: simulatedFuture4)
+    #expect(activeDuration4?.components.seconds == Int64(delay4 - dateAtResume + delay2))
+    #expect(telemetry.startTime == fix1.timestamp)
+    #expect(telemetry.segmentIndex ?? -1 == 1)
+    #expect(telemetry.totalPointCount == 4)
+    #expect(telemetry.lastRecordedNavigationFix == fix4)
+    #expect(telemetry.lastReceivedNavigationFix == fix4)
+}
   
   @Test("Filter acceptance at Null Island (0,0)")
   func testAppendWithNullIslandEdgeCase() throws {
@@ -393,7 +442,7 @@ struct TrackSessionTelemetryTests {
     // Start.
     telemetry.start()
     try? telemetry.process(fix: fix, filters: .default)
-    #expect(telemetry.pointsCount == 1)
+    #expect(telemetry.totalPointCount == 1)
     #expect(telemetry.geographicBoundingBox != nil)
     if let boundingBox = telemetry.geographicBoundingBox {
       #expect(boundingBox.southLatitude.value == fix.coordinate.latitude)
@@ -424,9 +473,9 @@ struct TrackSessionTelemetryTests {
     let fix2 = makeMockFix(latitude: 0, longitude: 0, timestamp: time2)
     
     try? telemetry.process(fix: fix2, filters: filters)
-    #expect(telemetry.pointsCount == 2)
+    #expect(telemetry.totalPointCount == 2)
     
-    let distance = try #require(telemetry.totalDistance)
+    let distance = try #require(telemetry.totalDistanceOverGround)
     // 0.001 degrees of latitude is roughly 110.57 meters on the WGS 84 ellipsoid.
     #expect(distance.value > 110)
     #expect(distance.value < 112)
@@ -463,13 +512,13 @@ struct TrackSessionTelemetryTests {
     // Start.
     telemetry.start()
     let initialFix = makeMockFix()
-    let baseMonotonicTime = ContinuousClock().now
-    try? telemetry.process(fix: initialFix, filters: .default, now: baseMonotonicTime)
+    let startMonotonicTime = ContinuousClock().now
+    try? telemetry.process(fix: initialFix, filters: .default, now: startMonotonicTime)
 
     // The start() method inside telemetry internaly sets `lastRecordedNavigationFixMonotonicTime = .now`.
-    // In our test context, `.now` is extremely close to our `baseMonotonicTime`.
+    // In our test context, `.now` is extremely close to our `startMonotonicTime`.
     // We simulate that 42 seconds have passed in the future.
-    let simulatedFutureNow = baseMonotonicTime.advanced(by: .seconds(42))
+    let simulatedFutureNow = startMonotonicTime.advanced(by: .seconds(42))
     let duration = telemetry.activeTotalDuration(now: simulatedFutureNow)
     
     // The expected duration should be the 42 seconds that elapsed since start()
@@ -489,14 +538,14 @@ struct TrackSessionTelemetryTests {
     let startTime = Date()
     
     // 1. Start the telemetry.
-    let baseMonotonicTime = ContinuousClock().now
+    let startMonotonicTime = ContinuousClock().now
     telemetry.start()
     // Always call updateTime() with the first fix.
-    try? telemetry.process(fix: makeMockFix(timestamp: startTime), filters: .default, now: baseMonotonicTime)
+    try? telemetry.process(fix: makeMockFix(timestamp: startTime), filters: .default, now: startMonotonicTime)
 
     // Simulate a GPS fix update 10 seconds later.
     // This will push 10 seconds into `sessionDuration`
-    let simulatedFutureNow1 = baseMonotonicTime.advanced(by: .seconds(10))
+    let simulatedFutureNow1 = startMonotonicTime.advanced(by: .seconds(10))
     let tenSecondsLater = startTime.addingTimeInterval(10)
     try? telemetry.process(fix: makeMockFix(timestamp: tenSecondsLater), filters: .default, now: simulatedFutureNow1)
     
@@ -528,7 +577,7 @@ struct TrackSessionTelemetryTests {
       try telemetry.process(fix: fix2, filters: .default, now: simulatedNow)
     }
     #expect(telemetry.totalDuration == .seconds(0))
-    #expect(telemetry.pointsCount == 1)
+    #expect(telemetry.totalPointCount == 1)
   }
 
   @Test("Bounding box expands correctly across multiple quadrants")
@@ -569,11 +618,11 @@ struct TrackSessionTelemetryTests {
       maxHorizontalAccuracy: Measurement(value: 50, unit: .meters)
     )
     
-    let baseMonotonicTime = ContinuousClock().now
+    let startMonotonicTime = ContinuousClock().now
     let fix1Timestamp: Double = 1000
     var telemetry: TrackSessionTelemetry
     
-    (telemetry, _) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    (telemetry, _) = makeStartedTelemetry(baseTime: startMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
     
     // Fix 2: distance moved, but time < 60s -> should be REJECTED.
     let fix2 = makeMockFix(
@@ -581,7 +630,7 @@ struct TrackSessionTelemetryTests {
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + 10)
     )
     #expect(throws: TrackSessionTelemetry.ProcessError.self) {
-      try telemetry.process(fix: fix2, filters: filters, now: baseMonotonicTime.advanced(by: .seconds(10)))
+      try telemetry.process(fix: fix2, filters: filters, now: startMonotonicTime.advanced(by: .seconds(10)))
     }
     
     // Fix 3: time > 60s -> should be ACCEPTED.
@@ -589,7 +638,7 @@ struct TrackSessionTelemetryTests {
       latitude: 47.0,
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + 61)
     )
-    try telemetry.process(fix: fix3, filters: filters, now: baseMonotonicTime.advanced(by: .seconds(61)))
+    try telemetry.process(fix: fix3, filters: filters, now: startMonotonicTime.advanced(by: .seconds(61)))
   }
 
   @Test("Distance filter only (time disabled)")
@@ -600,11 +649,11 @@ struct TrackSessionTelemetryTests {
       maxHorizontalAccuracy: Measurement(value: 50, unit: .meters)
     )
     
-    let baseMonotonicTime = ContinuousClock().now
+    let startMonotonicTime = ContinuousClock().now
     let fix1Timestamp: Double = 1000
     var telemetry: TrackSessionTelemetry
     
-    (telemetry, _) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    (telemetry, _) = makeStartedTelemetry(baseTime: startMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
     
     // Fix 2: time passed, but distance < 10m -> should be REJECTED.
     let fix2 = makeMockFix(
@@ -612,7 +661,7 @@ struct TrackSessionTelemetryTests {
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + 100)
     )
     #expect(throws: TrackSessionTelemetry.ProcessError.self) {
-      try telemetry.process(fix: fix2, filters: filters, now: baseMonotonicTime.advanced(by: .seconds(100)))
+      try telemetry.process(fix: fix2, filters: filters, now: startMonotonicTime.advanced(by: .seconds(100)))
     }
     
     // Fix 3: distance > 10m -> should be ACCEPTED.
@@ -620,7 +669,7 @@ struct TrackSessionTelemetryTests {
       latitude: 47.0,
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + 101)
     )
-    try telemetry.process(fix: fix3, filters: filters, now: baseMonotonicTime.advanced(by: .seconds(101)))
+    try telemetry.process(fix: fix3, filters: filters, now: startMonotonicTime.advanced(by: .seconds(101)))
   }
 
   @Test("No filters (distance and time disabled)")
@@ -631,18 +680,18 @@ struct TrackSessionTelemetryTests {
       maxHorizontalAccuracy: Measurement(value: 50, unit: .meters)
     )
     
-    let baseMonotonicTime = ContinuousClock().now
+    let startMonotonicTime = ContinuousClock().now
     let fix1Timestamp: Double = 1000
     var telemetry: TrackSessionTelemetry
     
-    (telemetry, _) = makeStartedTelemetry(baseTime: baseMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
+    (telemetry, _) = makeStartedTelemetry(baseTime: startMonotonicTime, fixTimestamp: Date(timeIntervalSince1970: fix1Timestamp))
     
     // Fix 2: minimal distance, minimal time -> should be ACCEPTED.
     let fix2 = makeMockFix(
       latitude: 46.16, longitude: -1.15,
       timestamp: Date(timeIntervalSince1970: fix1Timestamp + 1)
     )
-    try telemetry.process(fix: fix2, filters: filters, now: baseMonotonicTime.advanced(by: .seconds(1)))
+    try telemetry.process(fix: fix2, filters: filters, now: startMonotonicTime.advanced(by: .seconds(1)))
   }
 
   // MARK: - Helpers

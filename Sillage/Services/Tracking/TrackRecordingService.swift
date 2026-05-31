@@ -46,7 +46,6 @@ public final class TrackRecordingService {
   }
   
   private var currentSessionId: String?
-  private var segmentIndex: Int = 0
   private var unflushedPointCount: Int = 0
   private var filters: TrackFilters
   
@@ -105,7 +104,6 @@ public final class TrackRecordingService {
     }
     
     currentSessionId = nil
-    segmentIndex = 0
     unflushedPointCount = 0
     telemetry.start()
     trackPoints.removeAll()
@@ -155,7 +153,7 @@ public final class TrackRecordingService {
     state = .saving
     
     let finalDurationSeconds = telemetry.totalDuration
-    let finalDistanceMeters = telemetry.totalDistance
+    let finalDistanceMeters = telemetry.totalDistanceOverGround
     let telemetryUpdate = buildTelemetryUpdate(endTime: endTime)
     
     let writerToFinish = persistenceWriter
@@ -209,8 +207,6 @@ public final class TrackRecordingService {
       return
     }
     
-    segmentIndex += 1
-    
     telemetry.resume()
     let service = self.positioningService
     self.backgroundLocationToken = service.requestBackgroundLocation()
@@ -225,7 +221,7 @@ public final class TrackRecordingService {
     })
     
     state = .waitingForFix
-    Logger.database.info("Track recording resumed (segment \(self.segmentIndex, privacy: .public)).")
+    Logger.database.info("Track recording resumed (segment \(self.telemetry.segmentIndex ?? 0, privacy: .public)).")
   }
   
   public func activeSessionDuration() -> Duration? {
@@ -317,9 +313,7 @@ public final class TrackRecordingService {
     let previousPoints = try await databaseManager.fetchRecentPoints(for: trackSession.id, limit: Configuration.maxTrackPoints)
     
     // 2. Setup internal state
-    // Start a new segment.
-    segmentIndex = (lastSegmentIndex ?? 0) + 1
-    telemetry.restore(from: trackSession)
+    telemetry.restore(from: trackSession, lastSegmentIndex: lastSegmentIndex)
     trackPoints = ArraySlice(previousPoints)
     
     // 3. Setup dependencies
@@ -337,7 +331,7 @@ public final class TrackRecordingService {
     })
     
     state = .waitingForFix
-    Logger.database.info("Restored session \(trackSession.id, privacy: .public) at segment \(self.segmentIndex).")
+    Logger.database.info("Restored session \(trackSession.id, privacy: .public) at segment \(self.telemetry.segmentIndex ?? 0).")
   }
   
   private func processLocationUpdate(_ navigationFix: NavigationFix) {
@@ -377,7 +371,7 @@ public final class TrackRecordingService {
   private func saveNavigationFix(_ navigationFix: NavigationFix) {
     let trackPoint = TrackPoint(
       timestamp: navigationFix.timestamp,
-      segmentIndex: segmentIndex,
+      segmentIndex: telemetry.segmentIndex ?? 0,
       latitude: Measurement(value: navigationFix.coordinate.latitude, unit: .degrees),
       longitude: Measurement(value: navigationFix.coordinate.longitude, unit: .degrees),
       horizontalAccuracy: navigationFix.horizontalAccuracy,
@@ -430,14 +424,14 @@ public final class TrackRecordingService {
       id: sessionId,
       endTimestamp_unix: finalEndTime?.timeIntervalSince1970,
       totalDuration_s: activeSessionDuration()?.timeInterval,
-      totalDistance_m: telemetry.totalDistance?.converted(to: .meters).value,
+      totalDistanceOverGround_m: telemetry.totalDistanceOverGround?.converted(to: .meters).value,
       southLatitude_deg: telemetry.geographicBoundingBox?.southLatitude.converted(to: .degrees).value,
       northLatitude_deg: telemetry.geographicBoundingBox?.northLatitude.converted(to: .degrees).value,
       westLongitude_deg: telemetry.geographicBoundingBox?.westLongitude.converted(to: .degrees).value,
       eastLongitude_deg: telemetry.geographicBoundingBox?.eastLongitude.converted(to: .degrees).value,
-      maxSpeed_mps: telemetry.maxSpeedOverGround?.converted(to: .metersPerSecond).value,
-      pointsCount: telemetry.pointsCount,
-      segmentCount: segmentIndex + 1
+      maxSpeedOverGround_mps: telemetry.maxSpeedOverGround?.converted(to: .metersPerSecond).value,
+      segmentCount: telemetry.segmentIndex.map { $0 + 1 } ?? 0,
+      totalPointCount: telemetry.totalPointCount
     )
   }
 }

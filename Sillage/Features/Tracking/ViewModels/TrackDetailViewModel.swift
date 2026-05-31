@@ -49,26 +49,44 @@ final class TrackDetailViewModel {
   }
   
   var totalDuration: Duration? {
-    return liveTelemetry?.activeTotalDuration() ?? session?.totalDuration
+    if let liveTelemetry {
+      return liveTelemetry.activeTotalDuration()
+    }
+    return session?.totalDuration
   }
   
-  var totalDistance: Measurement<UnitLength>? {
-    return liveTelemetry?.totalDistance ?? session?.totalDistance
+  var totalDistanceOverGround: Measurement<UnitLength>? {
+    if let liveTelemetry {
+      return liveTelemetry.totalDistanceOverGround
+    }
+    return session?.totalDistanceOverGround
   }
   
-  var pointsCount: Int? {
-    return liveTelemetry?.pointsCount ?? session?.pointsCount
+  var totalPointCount: Int? {
+    if let liveTelemetry {
+      return liveTelemetry.totalPointCount
+    }
+    return session?.totalPointCount
   }
   
-  var maxSpeed: Measurement<UnitSpeed>? {
-    return liveTelemetry?.maxSpeedOverGround ?? session?.maxSpeed
+  var maxSpeedOverGround: Measurement<UnitSpeed>? {
+    if let liveTelemetry {
+      return liveTelemetry.maxSpeedOverGround
+    }
+    return session?.maxSpeedOverGround
   }
   
-  var averageSpeed: Measurement<UnitSpeed>? {
-    return liveTelemetry?.totalAverageSpeedOverGround() ?? session?.averageSpeed
+  var totalAverageSpeedOverGround: Measurement<UnitSpeed>? {
+    if let liveTelemetry {
+      return liveTelemetry.totalAverageSpeedOverGround()
+    }
+    return session?.totalAverageSpeedOverGround
   }
   
   var segmentCount: Int? {
+    if let liveTelemetry {
+      return liveTelemetry.segmentIndex.map { $0 + 1 }
+    }
     return session?.segmentCount
   }
 

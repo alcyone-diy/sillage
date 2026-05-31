@@ -47,7 +47,7 @@ struct TrackControlView: View {
         Text("Distance")
         Spacer()
         
-        if let distance = activeTrackViewModel.sessionTotalDistance {
+        if let distance = activeTrackViewModel.sessionTotalDistanceOverGround {
           Text(distance.converted(to: .nauticalMiles).formatted(
             .measurement(width: .abbreviated,
                          usage: .asProvided,
