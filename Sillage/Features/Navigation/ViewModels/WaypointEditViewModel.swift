@@ -17,8 +17,13 @@ import CoreLocation
 public final class WaypointEditViewModel {
   public var name: String = ""
   public var description: String = ""
-  public var latitudeString: String = ""
-  public var longitudeString: String = ""
+  public var latHemisphere: Hemisphere = .north
+  public var latDegrees: Int? = nil
+  public var latMinutes: Double? = nil
+  
+  public var lonHemisphere: Hemisphere = .west
+  public var lonDegrees: Int? = nil
+  public var lonMinutes: Double? = nil
   
   public var activeError: Error?
   public var isSaving: Bool = false
@@ -30,8 +35,8 @@ public final class WaypointEditViewModel {
     self.waypointService = waypointService
     self.editingWaypointId = nil
     if let coord = initialCoordinate {
-      self.latitudeString = Self.formatDMM(degrees: coord.latitude, isLatitude: true)
-      self.longitudeString = Self.formatDMM(degrees: coord.longitude, isLatitude: false)
+      setLatitude(coord.latitude)
+      setLongitude(coord.longitude)
     }
   }
   
@@ -40,8 +45,26 @@ public final class WaypointEditViewModel {
     self.editingWaypointId = editingWaypoint.id
     self.name = editingWaypoint.name
     self.description = editingWaypoint.description ?? ""
-    self.latitudeString = Self.formatDMM(degrees: editingWaypoint.latitude.converted(to: .degrees).value, isLatitude: true)
-    self.longitudeString = Self.formatDMM(degrees: editingWaypoint.longitude.converted(to: .degrees).value, isLatitude: false)
+    setLatitude(editingWaypoint.latitude.converted(to: .degrees).value)
+    setLongitude(editingWaypoint.longitude.converted(to: .degrees).value)
+  }
+  
+  private func setLatitude(_ value: Double) {
+    latHemisphere = value >= 0 ? .north : .south
+    let absLat = abs(value)
+    let d = floor(absLat)
+    let m = (absLat - d) * 60.0
+    latDegrees = Int(d)
+    latMinutes = m
+  }
+  
+  private func setLongitude(_ value: Double) {
+    lonHemisphere = value >= 0 ? .east : .west
+    let absLon = abs(value)
+    let d = floor(absLon)
+    let m = (absLon - d) * 60.0
+    lonDegrees = Int(d)
+    lonMinutes = m
   }
   
   public var isValid: Bool {
@@ -52,11 +75,22 @@ public final class WaypointEditViewModel {
   }
   
   public var parsedLatitude: Double? {
-    Self.parseDMM(latitudeString, isLatitude: true)
+    parseCoordinate(degrees: latDegrees, minutes: latMinutes, hemisphere: latHemisphere)
   }
   
   public var parsedLongitude: Double? {
-    Self.parseDMM(longitudeString, isLatitude: false)
+    parseCoordinate(degrees: lonDegrees, minutes: lonMinutes, hemisphere: lonHemisphere)
+  }
+  
+  private func parseCoordinate(degrees: Int?, minutes: Double?, hemisphere: Hemisphere) -> Double? {
+    guard let d = degrees, let m = minutes else { return nil }
+    guard d >= 0, m >= 0, m < 60 else { return nil }
+    
+    var decimal = Double(d) + (m / 60.0)
+    if hemisphere == .south || hemisphere == .west {
+      decimal *= -1
+    }
+    return decimal
   }
   
   public func save() async -> Bool {
@@ -81,64 +115,5 @@ public final class WaypointEditViewModel {
       self.activeError = error
       return false
     }
-  }
-  
-  // MARK: - DMM Parsing & Formatting
-  
-  public static func formatDMM(degrees: Double, isLatitude: Bool) -> String {
-    let hemisphere: String
-    if isLatitude {
-      hemisphere = degrees >= 0 ? "N" : "S"
-    } else {
-      hemisphere = degrees >= 0 ? "E" : "W"
-    }
-    
-    let absDegrees = abs(degrees)
-    let d = floor(absDegrees)
-    let m = (absDegrees - d) * 60.0
-    
-    let formattedMinutes = String(format: "%.3f", m)
-    return "\(hemisphere) \(Int(d))° \(formattedMinutes)'"
-  }
-  
-  public static func parseDMM(_ string: String, isLatitude: Bool) -> Double? {
-    let cleanString = string.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
-    
-    // Support simple decimal format as fallback
-    if let dec = Double(cleanString) {
-        return dec
-    }
-    
-    // Pattern: N 45° 12.345' or 45 12.345 N
-    let pattern = "^([NSWE\\-])?\\s*(\\d+)[°\\s]+(\\d+\\.?\\d*)['\\s]*([NSWE])?$"
-    guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
-    
-    let nsRange = NSRange(cleanString.startIndex..<cleanString.endIndex, in: cleanString)
-    guard let match = regex.firstMatch(in: cleanString, options: [], range: nsRange) else {
-      return nil
-    }
-    
-    var dir1 = ""
-    var dir2 = ""
-    
-    if let r1 = Range(match.range(at: 1), in: cleanString) { dir1 = String(cleanString[r1]) }
-    if let r2 = Range(match.range(at: 4), in: cleanString) { dir2 = String(cleanString[r2]) }
-    
-    let dir = dir1.isEmpty ? dir2 : dir1
-    
-    guard let rDeg = Range(match.range(at: 2), in: cleanString),
-          let rMin = Range(match.range(at: 3), in: cleanString),
-          let d = Double(cleanString[rDeg]),
-          let m = Double(cleanString[rMin]) else {
-      return nil
-    }
-    
-    var decimal = d + (m / 60.0)
-    
-    if dir == "S" || dir == "W" || dir == "-" {
-      decimal *= -1
-    }
-    
-    return decimal
   }
 }

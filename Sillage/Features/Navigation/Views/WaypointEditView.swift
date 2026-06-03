@@ -32,14 +32,18 @@ struct WaypointEditView: View {
         
         Section(
           header: Text("Location"),
-          footer: Text("Format: N 45° 12.345' or decimal degrees.")
+          footer: Text("Format: N/S Degrees Minutes.")
         ) {
           VStack(alignment: .leading, spacing: 4) {
-            TextField("Latitude (e.g. N 45° 12.345')", text: $viewModel.latitudeString)
-              .marineFont(.body)
-              .keyboardType(.numbersAndPunctuation)
+            CoordinateInputView(
+              title: "Latitude",
+              type: .latitude,
+              hemisphere: $viewModel.latHemisphere,
+              degrees: $viewModel.latDegrees,
+              minutes: $viewModel.latMinutes
+            )
             
-            if !viewModel.latitudeString.isEmpty && viewModel.parsedLatitude == nil {
+            if viewModel.latDegrees != nil && viewModel.parsedLatitude == nil {
               Text("Invalid Latitude")
                 .foregroundStyle(.red)
                 .marineFont(.caption)
@@ -48,11 +52,15 @@ struct WaypointEditView: View {
           .marineListCell()
           
           VStack(alignment: .leading, spacing: 4) {
-            TextField("Longitude (e.g. W 02° 34.567')", text: $viewModel.longitudeString)
-              .marineFont(.body)
-              .keyboardType(.numbersAndPunctuation)
+            CoordinateInputView(
+              title: "Longitude",
+              type: .longitude,
+              hemisphere: $viewModel.lonHemisphere,
+              degrees: $viewModel.lonDegrees,
+              minutes: $viewModel.lonMinutes
+            )
             
-            if !viewModel.longitudeString.isEmpty && viewModel.parsedLongitude == nil {
+            if viewModel.lonDegrees != nil && viewModel.parsedLongitude == nil {
               Text("Invalid Longitude")
                 .foregroundStyle(.red)
                 .marineFont(.caption)
