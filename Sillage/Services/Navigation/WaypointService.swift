@@ -75,6 +75,8 @@ public struct WaypointService: Sendable {
         Logger.database.warning("Waypoint not found for deletion: \(id, privacy: .public)")
       }
     }
+    
+    await selectionStore.clearIfSelected(id)
   }
   
   /// Selects a waypoint by its ID.
@@ -101,6 +103,12 @@ actor WaypointSelectionStore {
     selectedId = id
     for continuation in continuations.values {
       continuation.yield(id)
+    }
+  }
+  
+  func clearIfSelected(_ id: String) {
+    if selectedId == id {
+      select(nil)
     }
   }
   
