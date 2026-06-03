@@ -16,6 +16,7 @@ public struct Waypoint: Identifiable, Sendable, Equatable {
   public let name: String
   public let description: String?
   public let symbol: String?
+  public let colorHex: String?
   
   public let latitude: Measurement<UnitAngle>
   public let longitude: Measurement<UnitAngle>
@@ -26,6 +27,7 @@ public struct Waypoint: Identifiable, Sendable, Equatable {
     name: String,
     description: String? = nil,
     symbol: String? = nil,
+    colorHex: String? = nil,
     latitude: Measurement<UnitAngle>,
     longitude: Measurement<UnitAngle>,
     timestamp: Date = Date()
@@ -34,6 +36,7 @@ public struct Waypoint: Identifiable, Sendable, Equatable {
     self.name = name
     self.description = description
     self.symbol = symbol
+    self.colorHex = colorHex
     self.latitude = latitude
     self.longitude = longitude
     self.timestamp = timestamp
