@@ -77,6 +77,7 @@ class MapViewModel {
   var headingVectorFeature: MLNShapeCollectionFeature?
   var gpsAccuracyFeature: MLNPolygonFeature?
   var savedTrackFeature: MLNShape?
+  var selectedWaypointFeature: MLNPointFeature?
   var isDataStale: Bool = true
   
   // MARK: - Private Services & Tasks
@@ -86,6 +87,7 @@ class MapViewModel {
   private let chartStorageService = ChartStorageService()
   private var preferencesService: PreferencesServiceProtocol
   private let authService: GeoGarageAuthServiceProtocol
+  private let waypointService: WaypointService?
   
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
   /// when the ViewModel is deallocated, adhering to Swift 6 strict concurrency rules
@@ -93,6 +95,7 @@ class MapViewModel {
   private var staleDataTask: TaskCancellable?
   private var locationUpdatesTask: TaskCancellable?
   private var observationTask: TaskCancellable?
+  private var waypointSelectionTask: TaskCancellable?
   
   // MARK: - Camera Multicast Stream
   
@@ -123,15 +126,18 @@ class MapViewModel {
   init(
     positioningService: PositioningService,
     preferencesService: PreferencesServiceProtocol,
-    authService: GeoGarageAuthServiceProtocol
+    authService: GeoGarageAuthServiceProtocol,
+    waypointService: WaypointService? = nil
   ) {
     self.positioningService = positioningService
     self.preferencesService = preferencesService
     self.authService = authService
+    self.waypointService = waypointService
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
     
     loadSavedMapSource()
     setupPositioningService()
+    setupWaypointService()
     silentlyFetchGeoGarageLayers()
     startObservingLocalMaps()
     observePreferences()
@@ -139,13 +145,48 @@ class MapViewModel {
   
   // MARK: - Data Observation & Management
   
-  /// Starts a background listener for local file system changes in the Charts directory.
   private func startObservingLocalMaps() {
     observationTask = TaskCancellable(Task { [weak self] in
       guard let self = self else { return }
       for await files in await self.chartStorageService.observeMBTilesDirectory() {
         await MainActor.run {
           self.localOfflineMaps = files
+        }
+      }
+    })
+  }
+  
+  /// Observes the currently selected waypoint and updates the map feature.
+  private func setupWaypointService() {
+    guard let waypointService = waypointService else { return }
+    waypointSelectionTask = TaskCancellable(Task { [weak self] in
+      let stream = await waypointService.observeSelectedWaypoint()
+      for await selectedId in stream {
+        guard !Task.isCancelled else { break }
+        if let id = selectedId, let waypoint = try? await waypointService.fetchWaypoint(id: id) {
+          let coordinate = CLLocationCoordinate2D(
+            latitude: waypoint.latitude.converted(to: .degrees).value,
+            longitude: waypoint.longitude.converted(to: .degrees).value
+          )
+          
+          let feature = MLNPointFeature()
+          feature.coordinate = coordinate
+          feature.attributes = ["name": waypoint.name]
+          
+          await MainActor.run {
+            guard let self = self else { return }
+            self.selectedWaypointFeature = feature
+            self.trackingMode = .free
+            
+            let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
+            for continuation in self.cameraMoveContinuations.values {
+              continuation.yield(event)
+            }
+          }
+        } else {
+          await MainActor.run {
+            self?.selectedWaypointFeature = nil
+          }
         }
       }
     })

@@ -82,7 +82,8 @@ final class AppEnvironment {
       self.mapViewModel = MapViewModel(
         positioningService: positioningService,
         preferencesService: preferencesService,
-        authService: geoGarageAuthService
+        authService: geoGarageAuthService,
+        waypointService: waypointService
       )
       self.panelManagerViewModel = PanelManagerViewModel()
       self.activeTrackViewModel = ActiveTrackViewModel(trackRecordingService: trackRecordingService)

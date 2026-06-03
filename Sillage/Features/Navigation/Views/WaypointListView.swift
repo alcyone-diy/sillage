@@ -31,10 +31,15 @@ struct WaypointListView: View {
             .marineListCell()
         } else {
           ForEach(viewModel.waypoints) { waypoint in
-            WaypointRowView(waypoint: waypoint)
+            WaypointRowView(
+              waypoint: waypoint,
+              isSelected: viewModel.selectedWaypointId == waypoint.id
+            )
               .contentShape(Rectangle())
               .onTapGesture {
-                editingWaypoint = waypoint
+                let newId = viewModel.selectedWaypointId == waypoint.id ? nil : waypoint.id
+                viewModel.selectedWaypointId = newId
+                viewModel.selectWaypoint(id: newId)
               }
               .swipeActions(edge: .leading) {
                 Button {
@@ -128,15 +133,25 @@ struct WaypointListView: View {
 @MainActor
 struct WaypointRowView: View {
   let waypoint: Waypoint
+  let isSelected: Bool
   
   var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Text(waypoint.name)
-        .marineFont(.body)
+    HStack {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(waypoint.name)
+          .marineFont(.body)
+        
+        Text("\(waypoint.latitude.marineFormatted), \(waypoint.longitude.marineFormatted)")
+          .foregroundStyle(.secondary)
+          .marineFont(.caption)
+      }
       
-      Text("\(waypoint.latitude.marineFormatted), \(waypoint.longitude.marineFormatted)")
-        .foregroundStyle(.secondary)
-        .marineFont(.caption)
+      Spacer()
+      
+      if isSelected {
+        Image(systemName: "checkmark")
+          .foregroundColor(.blue)
+      }
     }
   }
 }

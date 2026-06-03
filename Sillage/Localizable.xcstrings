@@ -16,6 +16,9 @@
     "--°" : {
 
     },
+    "'" : {
+
+    },
     "%@, %@" : {
       "localizations" : {
         "en" : {
@@ -27,6 +30,9 @@
       }
     },
     "%@°" : {
+
+    },
+    "°" : {
 
     },
     "1 hr" : {
@@ -104,6 +110,9 @@
     "Critical Error: Missing ViewModels" : {
 
     },
+    "Deg" : {
+
+    },
     "Delete" : {
 
     },
@@ -170,7 +179,7 @@
     "Failed to save changes. Please try again." : {
 
     },
-    "Format: N 45° 12.345' or decimal degrees." : {
+    "Format: N/S Degrees Minutes." : {
 
     },
     "General" : {
@@ -195,6 +204,9 @@
 
     },
     "GRDB" : {
+
+    },
+    "Hemisphere" : {
 
     },
     "I Accept" : {
@@ -224,9 +236,6 @@
     "Invalid response from the server." : {
 
     },
-    "Latitude (e.g. N 45° 12.345')" : {
-
-    },
     "Legal & Licenses" : {
 
     },
@@ -248,9 +257,6 @@
     "Login to GeoGarage" : {
 
     },
-    "Longitude (e.g. W 02° 34.567')" : {
-
-    },
     "Map Preferences" : {
 
     },
@@ -267,6 +273,9 @@
 
     },
     "Max Speed" : {
+
+    },
+    "Min" : {
 
     },
     "N" : {

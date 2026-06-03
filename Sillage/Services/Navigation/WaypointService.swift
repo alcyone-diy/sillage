@@ -15,6 +15,7 @@ import OSLog
 /// A thread-safe service providing read and write operations for waypoints in the database.
 public struct WaypointService: Sendable {
   private let databaseManager: DatabaseManager
+  private let selectionStore = WaypointSelectionStore()
   
   public init(databaseManager: DatabaseManager) {
     self.databaseManager = databaseManager
@@ -45,6 +46,15 @@ public struct WaypointService: Sendable {
     }
   }
   
+  /// Fetches a specific waypoint from the database by its ID.
+  /// - Returns: The `Waypoint` if found, nil otherwise.
+  public func fetchWaypoint(id: String) async throws -> Waypoint? {
+    try await databaseManager.reader.read { db in
+      let record = try WaypointRecord.fetchOne(db, key: id)
+      return record?.toDomain()
+    }
+  }
+  
   /// Saves a waypoint to the database. Inserts or updates existing.
   public func saveWaypoint(_ waypoint: Waypoint) async throws {
     _ = try await databaseManager.write { db in
@@ -64,5 +74,51 @@ public struct WaypointService: Sendable {
         Logger.database.warning("Waypoint not found for deletion: \(id, privacy: .public)")
       }
     }
+  }
+  
+  /// Selects a waypoint by its ID.
+  public func selectWaypoint(id: String?) async {
+    await selectionStore.select(id)
+  }
+  
+  /// Observes the currently selected waypoint ID.
+  public func observeSelectedWaypoint() async -> AsyncStream<String?> {
+    await selectionStore.observe()
+  }
+}
+
+/// An actor responsible for managing the isolated in-memory selection state of a waypoint.
+actor WaypointSelectionStore {
+  private var selectedId: String?
+  private var continuations: [UUID: AsyncStream<String?>.Continuation] = [:]
+  
+  func select(_ id: String?) {
+    selectedId = id
+    for continuation in continuations.values {
+      continuation.yield(id)
+    }
+  }
+  
+  func observe() -> AsyncStream<String?> {
+    AsyncStream { continuation in
+      let id = UUID()
+      Task { [weak self] in
+        await self?.addContinuation(id: id, continuation: continuation)
+      }
+      continuation.onTermination = { _ in
+        Task { [weak self] in
+          await self?.removeContinuation(id: id)
+        }
+      }
+    }
+  }
+  
+  private func addContinuation(id: UUID, continuation: AsyncStream<String?>.Continuation) {
+    continuations[id] = continuation
+    continuation.yield(selectedId)
+  }
+  
+  private func removeContinuation(id: UUID) {
+    continuations.removeValue(forKey: id)
   }
 }
