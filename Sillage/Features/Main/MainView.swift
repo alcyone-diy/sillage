@@ -243,12 +243,12 @@ struct ContentView: View {
           
           if mapViewModel.selectedWaypointFeature != nil {
             VStack {
-              Text("HDG")
+              Text("BTW")
                 .marineFont(.instrumentLabel)
                 .foregroundColor(.secondary)
               Group {
-                if let hdg = mapViewModel.headingToWaypoint {
-                  Text("\(hdg.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
+                if let btw = mapViewModel.bearingToWaypoint {
+                  Text("\(btw.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
                 } else {
                   Text("--°")
                 }
