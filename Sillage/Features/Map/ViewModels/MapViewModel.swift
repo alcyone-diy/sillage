@@ -451,7 +451,7 @@ class MapViewModel {
     guard !points.isEmpty else { return }
     
     let (feature, bounds) = await Task.detached(priority: .userInitiated) {
-      return Self.processTrackData(points)
+      return await Self.processTrackData(points)
     }.value
     
     guard let feature = feature else { return }

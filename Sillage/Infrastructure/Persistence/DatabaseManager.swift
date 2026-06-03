@@ -162,6 +162,24 @@ public final class DatabaseManager: Sendable {
         on: "track_point",
         columns: ["sessionId", "segmentIndex", "timestamp_unix"]
       )
+      
+      // 4. Create the waypoint table
+      try db.create(table: "waypoint") { t in
+        t.column("id", .text).primaryKey()
+        t.column("name", .text).notNull()
+        t.column("description", .text)
+        t.column("symbol", .text)
+        t.column("latitude_deg", .double).notNull()
+        t.column("longitude_deg", .double).notNull()
+        t.column("timestamp_unix", .double).notNull()
+        
+        t.check(sql: "latitude_deg BETWEEN -90 AND 90")
+        t.check(sql: "longitude_deg BETWEEN -180 AND 180")
+      }
+      
+      // 5. Create indexes for the waypoint table
+      try db.create(index: "idx_waypoint_name", on: "waypoint", columns: ["name"])
+      try db.create(index: "idx_waypoint_timestamp_unix", on: "waypoint", columns: ["timestamp_unix"])
     }
     
     return migrator

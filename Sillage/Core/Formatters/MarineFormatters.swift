@@ -39,9 +39,17 @@ extension Measurement where UnitType == UnitLength {
 }
 
 extension Measurement where UnitType == UnitSpeed {
-    var marineFormatted: String {
+    public var marineFormatted: String {
         self.converted(to: .knots).formatted(
             .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(1)))
         )
     }
+}
+
+extension Measurement where UnitType == UnitAngle {
+  public var marineFormatted: String {
+    self.converted(to: .degrees).formatted(
+      .measurement(width: .narrow, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(6)))
+    )
+  }
 }
