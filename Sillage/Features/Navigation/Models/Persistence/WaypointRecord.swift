@@ -18,20 +18,20 @@ public struct WaypointRecord: Codable, FetchableRecord, PersistableRecord, Senda
   public var description: String?
   public var symbol: String?
   public var color_hex: String?
-  public var displayed: Bool
+  public var isVisible: Bool
   public var latitude_deg: Double
   public var longitude_deg: Double
   public var timestamp_unix: Double
   
   public static let databaseTableName = "waypoint"
 
-  public init(id: String, name: String, description: String? = nil, symbol: String? = nil, color_hex: String? = nil, displayed: Bool = true, latitude_deg: Double, longitude_deg: Double, timestamp: Date) {
+  public init(id: String, name: String, description: String? = nil, symbol: String? = nil, color_hex: String? = nil, isVisible: Bool = true, latitude_deg: Double, longitude_deg: Double, timestamp: Date) {
     self.id = id
     self.name = name
     self.description = description
     self.symbol = symbol
     self.color_hex = color_hex
-    self.displayed = displayed
+    self.isVisible = isVisible
     self.latitude_deg = latitude_deg
     self.longitude_deg = longitude_deg
     self.timestamp_unix = timestamp.timeIntervalSince1970
@@ -43,7 +43,7 @@ public struct WaypointRecord: Codable, FetchableRecord, PersistableRecord, Senda
     case description
     case symbol
     case color_hex
-    case displayed
+    case isVisible
     case latitude_deg
     case longitude_deg
     case timestamp_unix
@@ -61,7 +61,7 @@ extension WaypointRecord {
       description: description,
       symbol: symbol,
       colorHex: color_hex,
-      displayed: displayed,
+      isVisible: isVisible,
       latitude: Measurement(value: latitude_deg, unit: UnitAngle.degrees),
       longitude: Measurement(value: longitude_deg, unit: UnitAngle.degrees),
       timestamp: Date(timeIntervalSince1970: timestamp_unix)
@@ -75,7 +75,7 @@ extension WaypointRecord {
     self.description = domainModel.description
     self.symbol = domainModel.symbol
     self.color_hex = domainModel.colorHex
-    self.displayed = domainModel.displayed
+    self.isVisible = domainModel.isVisible
     self.latitude_deg = domainModel.latitude.converted(to: .degrees).value
     self.longitude_deg = domainModel.longitude.converted(to: .degrees).value
     self.timestamp_unix = domainModel.timestamp.timeIntervalSince1970

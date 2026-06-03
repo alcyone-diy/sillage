@@ -33,7 +33,7 @@ struct WaypointEditView: View {
             .marineFont(.body)
             .marineListCell()
             
-          Toggle("Displayed on Map", isOn: $viewModel.displayed)
+          Toggle("Displayed on Map", isOn: $viewModel.isVisible)
             .marineFont(.body)
             .marineListCell()
             .tint(MarineTheme.Colors.primary)

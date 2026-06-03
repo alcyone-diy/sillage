@@ -17,7 +17,7 @@ public struct Waypoint: Identifiable, Sendable, Equatable {
   public let description: String?
   public let symbol: String?
   public let colorHex: String?
-  public let displayed: Bool
+  public let isVisible: Bool
   
   public let latitude: Measurement<UnitAngle>
   public let longitude: Measurement<UnitAngle>
@@ -29,7 +29,7 @@ public struct Waypoint: Identifiable, Sendable, Equatable {
     description: String? = nil,
     symbol: String? = nil,
     colorHex: String? = nil,
-    displayed: Bool = true,
+    isVisible: Bool = true,
     latitude: Measurement<UnitAngle>,
     longitude: Measurement<UnitAngle>,
     timestamp: Date = Date()
@@ -39,7 +39,7 @@ public struct Waypoint: Identifiable, Sendable, Equatable {
     self.description = description
     self.symbol = symbol
     self.colorHex = colorHex
-    self.displayed = displayed
+    self.isVisible = isVisible
     self.latitude = latitude
     self.longitude = longitude
     self.timestamp = timestamp

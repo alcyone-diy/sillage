@@ -34,8 +34,8 @@ struct MapLibreView: UIViewRepresentable {
     let activeTrackLayerId = "active-track-layer"
     let selectedWaypointSourceId = "selected-waypoint-source"
     let selectedWaypointLayerId = "selected-waypoint-layer"
-    let displayedWaypointsSourceId = "displayed-waypoints-source"
-    let displayedWaypointsLayerId = "displayed-waypoints-layer"
+    let visibleWaypointsSourceId = "visible-waypoints-source"
+    let visibleWaypointsLayerId = "visible-waypoints-layer"
     
     if style.source(withIdentifier: vesselSourceId) == nil {
       // Create GPS Accuracy Source and Layers first so they are beneath the heading vector and vessel
@@ -76,14 +76,14 @@ struct MapLibreView: UIViewRepresentable {
       selectedWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       style.insertLayer(selectedWaypointLayer, below: activeTrackLayer)
       
-      let displayedWaypointsSource = MLNShapeSource(identifier: displayedWaypointsSourceId, shape: nil, options: nil)
-      style.addSource(displayedWaypointsSource)
-      let displayedWaypointsLayer = MLNCircleStyleLayer(identifier: displayedWaypointsLayerId, source: displayedWaypointsSource)
-      displayedWaypointsLayer.circleRadius = NSExpression(forConstantValue: 6.0)
-      displayedWaypointsLayer.circleColor = NSExpression(forConstantValue: UIColor.systemTeal)
-      displayedWaypointsLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.5)
-      displayedWaypointsLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
-      style.insertLayer(displayedWaypointsLayer, below: selectedWaypointLayer)
+      let visibleWaypointsSource = MLNShapeSource(identifier: visibleWaypointsSourceId, shape: nil, options: nil)
+      style.addSource(visibleWaypointsSource)
+      let visibleWaypointsLayer = MLNCircleStyleLayer(identifier: visibleWaypointsLayerId, source: visibleWaypointsSource)
+      visibleWaypointsLayer.circleRadius = NSExpression(forConstantValue: 6.0)
+      visibleWaypointsLayer.circleColor = NSExpression(forConstantValue: UIColor.systemTeal)
+      visibleWaypointsLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.5)
+      visibleWaypointsLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+      style.insertLayer(visibleWaypointsLayer, below: selectedWaypointLayer)
       
       // Create Heading Source and Layer so it's above gps accuracy but beneath the vessel
       let headingSource = MLNShapeSource(identifier: headingSourceId, shape: nil, options: nil)
@@ -192,8 +192,8 @@ struct MapLibreView: UIViewRepresentable {
       }
       
       // Displayed waypoints feature update
-      if let source = style.source(withIdentifier: "displayed-waypoints-source") as? MLNShapeSource {
-        source.shape = viewModel.displayedWaypointFeatures
+      if let source = style.source(withIdentifier: "visible-waypoints-source") as? MLNShapeSource {
+        source.shape = viewModel.visibleWaypointFeatures
       }
       
       // Selected waypoint feature update
@@ -381,8 +381,8 @@ struct MapLibreView: UIViewRepresentable {
       if let source = style.source(withIdentifier: "saved-track-source") as? MLNShapeSource {
         source.shape = parent.viewModel.savedTrackFeature
       }
-      if let source = style.source(withIdentifier: "displayed-waypoints-source") as? MLNShapeSource {
-        source.shape = parent.viewModel.displayedWaypointFeatures
+      if let source = style.source(withIdentifier: "visible-waypoints-source") as? MLNShapeSource {
+        source.shape = parent.viewModel.visibleWaypointFeatures
       }
       if let source = style.source(withIdentifier: "selected-waypoint-source") as? MLNShapeSource {
         source.shape = parent.viewModel.selectedWaypointFeature
