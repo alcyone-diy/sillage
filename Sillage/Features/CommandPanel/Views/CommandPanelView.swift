@@ -17,6 +17,7 @@ struct CommandPanelView: View {
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.trackService) private var trackService
+  @Environment(\.waypointService) private var waypointService
   @Environment(TrackRecordingService.self) private var trackRecordingService
   
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
@@ -85,6 +86,16 @@ struct CommandPanelView: View {
             .marineFont(.body)
           }
           .marineListCell()
+          
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.waypoints) {
+            Label {
+              Text("Waypoints").foregroundStyle(.primary)
+            } icon: {
+              Image(systemName: "mappin.circle.fill").foregroundStyle(.blue)
+            }
+            .marineFont(.body)
+          }
+          .marineListCell()
         }
         
         // Zone 3: System
@@ -108,6 +119,11 @@ struct CommandPanelView: View {
           SettingsView()
         case .tracks:
           TracksManagerView()
+        case .waypoints:
+          if let waypointService {
+            let model = WaypointListViewModel(waypointService: waypointService)
+            WaypointListView(viewModel: model)
+          }
         case .sessionDetail(let sessionId):
           if let trackService {
             let model = TrackDetailViewModel(

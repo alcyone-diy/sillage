@@ -290,7 +290,7 @@ struct MapLibreView: UIViewRepresentable {
         for await event in parent.viewModel.cameraMoveStream {
           switch event {
           case .fitBounds(let bounds, let padding):
-            mapView.setVisibleCoordinateBounds(bounds, edgePadding: padding, animated: true, completionHandler: nil)
+            await mapView.setVisibleCoordinateBounds(bounds, edgePadding: padding, animated: true)
           case .center(let coordinate, let zoom, let heading):
             let targetZoom = zoom ?? mapView.zoomLevel
             

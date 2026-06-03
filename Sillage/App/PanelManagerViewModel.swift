@@ -27,6 +27,7 @@ public final class PanelManagerViewModel {
   public enum CommandDestination: Hashable {
     case settings
     case tracks
+    case waypoints
     case sessionDetail(sessionId: TrackSession.ID)
   }
 

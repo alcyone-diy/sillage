@@ -33,6 +33,7 @@ struct SillageApp: App {
              let panelVM = environment.panelManagerViewModel,
              let trackRecService = environment.trackRecordingService,
              let trackService = environment.trackService,
+             let waypointService = environment.waypointService,
              let activeTrackVM = environment.activeTrackViewModel,
              let preferences = environment.preferencesService {
             MainAppView(
@@ -42,6 +43,7 @@ struct SillageApp: App {
               activeTrackViewModel: activeTrackVM,
               trackRecordingService: trackRecService,
               trackService: trackService,
+              waypointService: waypointService,
               preferencesService: preferences
             )
           } else {
@@ -87,6 +89,7 @@ struct MainAppView: View {
   var activeTrackViewModel: ActiveTrackViewModel
   var trackRecordingService: TrackRecordingService
   var trackService: TrackService
+  var waypointService: WaypointService
   var preferencesService: PreferencesService
   
   @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
@@ -102,6 +105,7 @@ struct MainAppView: View {
           .environment(activeTrackViewModel)
           .environment(trackRecordingService)
           .environment(\.trackService, trackService)
+          .environment(\.waypointService, waypointService)
           .onOpenURL { url in
             appViewModel.handleIncomingURL(url)
           }

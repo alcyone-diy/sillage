@@ -25,6 +25,7 @@ final class AppEnvironment {
   private(set) var positioningService: CoreLocationPositioningService?
   private(set) var trackRecordingService: TrackRecordingService?
   private(set) var trackService: TrackService?
+  private(set) var waypointService: WaypointService?
   private(set) var geoGarageAuthService: GeoGarageAuthService?
   
   // ViewModels
@@ -69,6 +70,9 @@ final class AppEnvironment {
       
       let trackService = TrackService(databaseManager: databaseManager)
       self.trackService = trackService
+
+      let waypointService = WaypointService(databaseManager: databaseManager)
+      self.waypointService = waypointService
 
       let geoGarageAuthService = GeoGarageAuthService()
       self.geoGarageAuthService = geoGarageAuthService
