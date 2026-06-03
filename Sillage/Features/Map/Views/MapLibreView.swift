@@ -71,7 +71,7 @@ struct MapLibreView: UIViewRepresentable {
       style.addSource(selectedWaypointSource)
       let selectedWaypointLayer = MLNCircleStyleLayer(identifier: selectedWaypointLayerId, source: selectedWaypointSource)
       selectedWaypointLayer.circleRadius = NSExpression(forConstantValue: 8.0)
-      selectedWaypointLayer.circleColor = NSExpression(forConstantValue: UIColor.systemOrange)
+      selectedWaypointLayer.circleColor = NSExpression(forKeyPath: "color")
       selectedWaypointLayer.circleStrokeWidth = NSExpression(forConstantValue: 2.0)
       selectedWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       style.insertLayer(selectedWaypointLayer, below: activeTrackLayer)
@@ -80,7 +80,7 @@ struct MapLibreView: UIViewRepresentable {
       style.addSource(visibleWaypointsSource)
       let visibleWaypointsLayer = MLNCircleStyleLayer(identifier: visibleWaypointsLayerId, source: visibleWaypointsSource)
       visibleWaypointsLayer.circleRadius = NSExpression(forConstantValue: 6.0)
-      visibleWaypointsLayer.circleColor = NSExpression(forConstantValue: UIColor.systemTeal)
+      visibleWaypointsLayer.circleColor = NSExpression(forKeyPath: "color")
       visibleWaypointsLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.5)
       visibleWaypointsLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       style.insertLayer(visibleWaypointsLayer, below: selectedWaypointLayer)
@@ -199,14 +199,6 @@ struct MapLibreView: UIViewRepresentable {
       // Selected waypoint feature update
       if let source = style.source(withIdentifier: "selected-waypoint-source") as? MLNShapeSource {
         source.shape = viewModel.selectedWaypointFeature
-        if let layer = style.layer(withIdentifier: "selected-waypoint-layer") as? MLNCircleStyleLayer {
-          if let hex = viewModel.selectedWaypointFeature?.attributes["colorHex"] as? String,
-             let color = Color(hex: hex) {
-            layer.circleColor = NSExpression(forConstantValue: UIColor(color))
-          } else {
-            layer.circleColor = NSExpression(forConstantValue: UIColor.systemOrange)
-          }
-        }
       }
       
       // Data Stale state update (Opacity)
@@ -386,14 +378,6 @@ struct MapLibreView: UIViewRepresentable {
       }
       if let source = style.source(withIdentifier: "selected-waypoint-source") as? MLNShapeSource {
         source.shape = parent.viewModel.selectedWaypointFeature
-        if let layer = style.layer(withIdentifier: "selected-waypoint-layer") as? MLNCircleStyleLayer {
-          if let hex = parent.viewModel.selectedWaypointFeature?.attributes["colorHex"] as? String,
-             let color = Color(hex: hex) {
-            layer.circleColor = NSExpression(forConstantValue: UIColor(color))
-          } else {
-            layer.circleColor = NSExpression(forConstantValue: UIColor.systemOrange)
-          }
-        }
       }
       if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
         layer.iconOpacity = NSExpression(forConstantValue: parent.viewModel.isDataStale ? 0.4 : 1.0)

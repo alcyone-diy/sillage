@@ -175,8 +175,11 @@ class MapViewModel {
           let feature = MLNPointFeature()
           feature.coordinate = coordinate
           var attributes: [String: Any] = ["name": waypoint.name]
-          if let colorHex = waypoint.colorHex {
+          if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
             attributes["colorHex"] = colorHex
+            attributes["color"] = UIColor(color)
+          } else {
+            attributes["color"] = UIColor.systemOrange
           }
           feature.attributes = attributes
           
@@ -214,8 +217,11 @@ class MapViewModel {
             let feature = MLNPointFeature()
             feature.coordinate = coordinate
             var attributes: [String: Any] = ["name": waypoint.name]
-            if let colorHex = waypoint.colorHex {
+            if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
               attributes["colorHex"] = colorHex
+              attributes["color"] = UIColor(color)
+            } else {
+              attributes["color"] = UIColor.systemTeal
             }
             feature.attributes = attributes
             return feature
