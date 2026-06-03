@@ -9,6 +9,11 @@
 //
 
 import SwiftUI
+import CoreLocation
+struct CoordinateWrapper: Identifiable {
+  let id = UUID()
+  let coordinate: CLLocationCoordinate2D
+}
 
 @MainActor
 struct WaypointListView: View {
@@ -17,7 +22,7 @@ struct WaypointListView: View {
   @Environment(MapViewModel.self) private var mapViewModel
   @Bindable var viewModel: WaypointListViewModel
   @State private var waypointToDelete: Waypoint?
-  @State private var isPresentingAddView = false
+  @State private var newWaypointItem: CoordinateWrapper?
   @State private var editingWaypoint: Waypoint?
   
   var body: some View {
@@ -70,7 +75,7 @@ struct WaypointListView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          isPresentingAddView = true
+          newWaypointItem = CoordinateWrapper(coordinate: mapViewModel.centerCoordinate)
         } label: {
           Image(systemName: "plus")
         }
@@ -106,11 +111,11 @@ struct WaypointListView: View {
     } message: { error in
       Text(error.localizedDescription)
     }
-    .sheet(isPresented: $isPresentingAddView) {
+    .sheet(item: $newWaypointItem) { item in
       if let waypointService {
         let editVM = WaypointEditViewModel(
           waypointService: waypointService,
-          initialCoordinate: mapViewModel.centerCoordinate
+          initialCoordinate: item.coordinate
         )
         WaypointEditView(viewModel: editVM)
       }
