@@ -79,7 +79,7 @@ class MapViewModel {
   var gpsAccuracyFeature: MLNPolygonFeature?
   var savedTrackFeature: MLNShape?
   var selectedWaypointFeature: MLNPointFeature?
-  var displayedWaypointFeatures: MLNShapeCollectionFeature?
+  var visibleWaypointFeatures: MLNShapeCollectionFeature?
   var isDataStale: Bool = true
   
   // MARK: - Private Services & Tasks
@@ -206,7 +206,7 @@ class MapViewModel {
           guard !Task.isCancelled else { break }
           
           let features: [MLNPointFeature] = waypoints.compactMap { waypoint in
-            guard waypoint.displayed else { return nil }
+            guard waypoint.isVisible else { return nil }
             let coordinate = CLLocationCoordinate2D(
               latitude: waypoint.latitude.converted(to: .degrees).value,
               longitude: waypoint.longitude.converted(to: .degrees).value
@@ -222,7 +222,7 @@ class MapViewModel {
           }
           
           await MainActor.run {
-            self?.displayedWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
+            self?.visibleWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
           }
         }
       } catch {
