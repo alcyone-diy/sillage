@@ -71,8 +71,19 @@ final class AppEnvironment {
       let trackService = TrackService(databaseManager: databaseManager)
       self.trackService = trackService
 
-      let waypointService = WaypointService(databaseManager: databaseManager)
+      let waypointService = WaypointService(
+        databaseManager: databaseManager,
+        initialSelection: preferencesService.selectedWaypointID
+      )
       self.waypointService = waypointService
+
+      Task { [weak preferencesService, waypointService] in
+        for await id in await waypointService.observeSelectedWaypoint() {
+          await MainActor.run {
+            preferencesService?.selectedWaypointID = id
+          }
+        }
+      }
 
       let geoGarageAuthService = GeoGarageAuthService()
       self.geoGarageAuthService = geoGarageAuthService
