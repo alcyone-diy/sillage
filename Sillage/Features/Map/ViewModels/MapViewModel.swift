@@ -172,7 +172,11 @@ class MapViewModel {
           
           let feature = MLNPointFeature()
           feature.coordinate = coordinate
-          feature.attributes = ["name": waypoint.name]
+          var attributes: [String: Any] = ["name": waypoint.name]
+          if let colorHex = waypoint.colorHex {
+            attributes["colorHex"] = colorHex
+          }
+          feature.attributes = attributes
           
           await MainActor.run {
             guard let self = self else { return }
