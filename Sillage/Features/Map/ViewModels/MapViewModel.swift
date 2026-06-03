@@ -80,6 +80,8 @@ class MapViewModel {
   var savedTrackFeature: MLNShape?
   var selectedWaypointFeature: MLNPointFeature?
   var visibleWaypointFeatures: MLNShapeCollectionFeature?
+  var bearingLineFeature: MLNPolylineFeature?
+  var selectedWaypointId: String?
   var isDataStale: Bool = true
   
   // MARK: - Private Services & Tasks
@@ -185,8 +187,10 @@ class MapViewModel {
           
           await MainActor.run {
             guard let self = self else { return }
+            self.selectedWaypointId = id
             self.selectedWaypointFeature = feature
             self.updateBearingToWaypoint()
+            self.updateBearingLine()
             self.trackingMode = .free
             
             let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
@@ -196,8 +200,10 @@ class MapViewModel {
           }
         } else {
           await MainActor.run {
+            self?.selectedWaypointId = nil
             self?.selectedWaypointFeature = nil
             self?.updateBearingToWaypoint()
+            self?.updateBearingLine()
           }
         }
       }
@@ -229,6 +235,27 @@ class MapViewModel {
           
           await MainActor.run {
             self?.visibleWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
+            
+            if let selectedId = self?.selectedWaypointId, let waypoint = waypoints.first(where: { $0.id == selectedId }) {
+              let coordinate = CLLocationCoordinate2D(
+                latitude: waypoint.latitude.converted(to: .degrees).value,
+                longitude: waypoint.longitude.converted(to: .degrees).value
+              )
+              let feature = MLNPointFeature()
+              feature.coordinate = coordinate
+              var attributes: [String: Any] = ["name": waypoint.name]
+              if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
+                attributes["colorHex"] = colorHex
+                attributes["color"] = UIColor(color)
+              } else {
+                attributes["color"] = UIColor.systemOrange
+              }
+              feature.attributes = attributes
+              
+              self?.selectedWaypointFeature = feature
+              self?.updateBearingToWaypoint()
+              self?.updateBearingLine()
+            }
           }
         }
       } catch {
@@ -328,6 +355,7 @@ class MapViewModel {
     // Update current coordinate
     currentCoordinate = navigationFix.coordinate
     updateBearingToWaypoint()
+    updateBearingLine()
     
     // Update SOG using Apple's Measurement
     speedOverGround = navigationFix.speedOverGround
@@ -722,5 +750,18 @@ class MapViewModel {
       return
     }
     bearingToWaypoint = current.greatCircleBearing(to: waypoint)
+  }
+  
+  private func updateBearingLine() {
+    guard let current = currentCoordinate, let waypoint = selectedWaypointFeature?.coordinate else {
+      bearingLineFeature = nil
+      return
+    }
+    var coordinates = [current, waypoint]
+    let feature = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
+    if let color = selectedWaypointFeature?.attributes["color"] {
+      feature.attributes = ["color": color]
+    }
+    bearingLineFeature = feature
   }
 }

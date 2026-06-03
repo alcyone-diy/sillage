@@ -36,6 +36,8 @@ struct MapLibreView: UIViewRepresentable {
     let selectedWaypointLayerId = "selected-waypoint-layer"
     let visibleWaypointsSourceId = "visible-waypoints-source"
     let visibleWaypointsLayerId = "visible-waypoints-layer"
+    let bearingLineSourceId = "bearing-line-source"
+    let bearingLineLayerId = "bearing-line-layer"
     
     if style.source(withIdentifier: vesselSourceId) == nil {
       // Create GPS Accuracy Source and Layers first so they are beneath the heading vector and vessel
@@ -75,6 +77,14 @@ struct MapLibreView: UIViewRepresentable {
       selectedWaypointLayer.circleStrokeWidth = NSExpression(forConstantValue: 2.0)
       selectedWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       style.insertLayer(selectedWaypointLayer, below: activeTrackLayer)
+      
+      let bearingLineSource = MLNShapeSource(identifier: bearingLineSourceId, shape: nil, options: nil)
+      style.addSource(bearingLineSource)
+      let bearingLineLayer = MLNLineStyleLayer(identifier: bearingLineLayerId, source: bearingLineSource)
+      bearingLineLayer.lineWidth = NSExpression(forConstantValue: 1.5)
+      bearingLineLayer.lineColor = NSExpression(forKeyPath: "color")
+      bearingLineLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
+      style.insertLayer(bearingLineLayer, below: selectedWaypointLayer)
       
       let visibleWaypointsSource = MLNShapeSource(identifier: visibleWaypointsSourceId, shape: nil, options: nil)
       style.addSource(visibleWaypointsSource)
@@ -199,6 +209,11 @@ struct MapLibreView: UIViewRepresentable {
       // Selected waypoint feature update
       if let source = style.source(withIdentifier: "selected-waypoint-source") as? MLNShapeSource {
         source.shape = viewModel.selectedWaypointFeature
+      }
+      
+      // Bearing Line feature update
+      if let source = style.source(withIdentifier: "bearing-line-source") as? MLNShapeSource {
+        source.shape = viewModel.bearingLineFeature
       }
       
       // Data Stale state update (Opacity)
@@ -378,6 +393,9 @@ struct MapLibreView: UIViewRepresentable {
       }
       if let source = style.source(withIdentifier: "selected-waypoint-source") as? MLNShapeSource {
         source.shape = parent.viewModel.selectedWaypointFeature
+      }
+      if let source = style.source(withIdentifier: "bearing-line-source") as? MLNShapeSource {
+        source.shape = parent.viewModel.bearingLineFeature
       }
       if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
         layer.iconOpacity = NSExpression(forConstantValue: parent.viewModel.isDataStale ? 0.4 : 1.0)
