@@ -32,6 +32,11 @@ struct WaypointEditView: View {
           ColorPicker("Color", selection: $viewModel.color, supportsOpacity: false)
             .marineFont(.body)
             .marineListCell()
+            
+          Toggle("Displayed on Map", isOn: $viewModel.displayed)
+            .marineFont(.body)
+            .marineListCell()
+            .tint(MarineTheme.Colors.primary)
         }
         
         Section(
