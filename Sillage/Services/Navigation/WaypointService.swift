@@ -15,10 +15,11 @@ import OSLog
 /// A thread-safe service providing read and write operations for waypoints in the database.
 public struct WaypointService: Sendable {
   private let databaseManager: DatabaseManager
-  private let selectionStore = WaypointSelectionStore()
+  private let selectionStore: WaypointSelectionStore
   
-  public init(databaseManager: DatabaseManager) {
+  public init(databaseManager: DatabaseManager, initialSelection: String? = nil) {
     self.databaseManager = databaseManager
+    self.selectionStore = WaypointSelectionStore(initialSelection: initialSelection)
   }
   
   /// Observes saved waypoints, ordered by timestamp descending, in real-time.
@@ -91,6 +92,10 @@ public struct WaypointService: Sendable {
 actor WaypointSelectionStore {
   private var selectedId: String?
   private var continuations: [UUID: AsyncStream<String?>.Continuation] = [:]
+  
+  init(initialSelection: String?) {
+    self.selectedId = initialSelection
+  }
   
   func select(_ id: String?) {
     selectedId = id
