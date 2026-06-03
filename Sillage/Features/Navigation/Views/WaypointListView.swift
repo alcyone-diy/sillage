@@ -13,6 +13,7 @@ import CoreLocation
 struct CoordinateWrapper: Identifiable {
   let id = UUID()
   let coordinate: CLLocationCoordinate2D
+  let defaultName: String?
 }
 
 @MainActor
@@ -75,7 +76,17 @@ struct WaypointListView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          newWaypointItem = CoordinateWrapper(coordinate: mapViewModel.centerCoordinate)
+          if let service = waypointService {
+            Task {
+              var defaultName: String? = nil
+              do {
+                defaultName = try await service.fetchNextDefaultName()
+              } catch {
+                defaultName = "\(String(localized: "Waypoint")) \(viewModel.waypoints.count + 1)"
+              }
+              newWaypointItem = CoordinateWrapper(coordinate: mapViewModel.centerCoordinate, defaultName: defaultName)
+            }
+          }
         } label: {
           Image(systemName: "plus")
         }
@@ -115,6 +126,7 @@ struct WaypointListView: View {
       if let waypointService {
         let editVM = WaypointEditViewModel(
           waypointService: waypointService,
+          defaultName: item.defaultName,
           initialCoordinate: item.coordinate
         )
         WaypointEditView(viewModel: editVM)
