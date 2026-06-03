@@ -169,6 +169,7 @@ public final class DatabaseManager: Sendable {
         t.column("name", .text).notNull()
         t.column("description", .text)
         t.column("symbol", .text)
+        t.column("color_hex", .text)
         t.column("latitude_deg", .double).notNull()
         t.column("longitude_deg", .double).notNull()
         t.column("timestamp_unix", .double).notNull()
