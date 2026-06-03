@@ -11,6 +11,7 @@
 import Foundation
 import Observation
 import CoreLocation
+import SwiftUI
 
 @MainActor
 @Observable
@@ -27,6 +28,7 @@ public final class WaypointEditViewModel {
   
   public var activeError: Error?
   public var isSaving: Bool = false
+  public var color: Color = MarineTheme.Colors.primary
   
   private let waypointService: WaypointService
   public let editingWaypointId: String?
@@ -45,6 +47,7 @@ public final class WaypointEditViewModel {
     self.editingWaypointId = editingWaypoint.id
     self.name = editingWaypoint.name
     self.description = editingWaypoint.description ?? ""
+    self.color = editingWaypoint.colorHex.flatMap { Color(hex: $0) } ?? MarineTheme.Colors.primary
     setLatitude(editingWaypoint.latitude.converted(to: .degrees).value)
     setLongitude(editingWaypoint.longitude.converted(to: .degrees).value)
   }
@@ -104,6 +107,7 @@ public final class WaypointEditViewModel {
       name: name.trimmingCharacters(in: .whitespaces),
       description: description.trimmingCharacters(in: .whitespaces).isEmpty ? nil : description.trimmingCharacters(in: .whitespaces),
       symbol: nil,
+      colorHex: color.hexString,
       latitude: Measurement(value: lat, unit: UnitAngle.degrees),
       longitude: Measurement(value: lon, unit: UnitAngle.degrees)
     )

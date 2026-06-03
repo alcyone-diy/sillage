@@ -28,6 +28,10 @@ struct WaypointEditView: View {
           TextField("Description (Optional)", text: $viewModel.description)
             .marineFont(.body)
             .marineListCell()
+            
+          ColorPicker("Color", selection: $viewModel.color, supportsOpacity: false)
+            .marineFont(.body)
+            .marineListCell()
         }
         
         Section(
