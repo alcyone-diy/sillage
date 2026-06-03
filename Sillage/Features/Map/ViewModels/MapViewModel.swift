@@ -70,7 +70,7 @@ class MapViewModel {
   var currentCoordinate: CLLocationCoordinate2D? = nil
   var speedOverGround: Measurement<UnitSpeed>? = nil
   var courseOverGround: Measurement<UnitAngle>? = nil
-  var headingToWaypoint: Measurement<UnitAngle>? = nil
+  var bearingToWaypoint: Measurement<UnitAngle>? = nil
   
   // MARK: - Map Features (Annotations)
   
@@ -181,7 +181,7 @@ class MapViewModel {
           await MainActor.run {
             guard let self = self else { return }
             self.selectedWaypointFeature = feature
-            self.updateHeadingToWaypoint()
+            self.updateBearingToWaypoint()
             self.trackingMode = .free
             
             let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
@@ -192,7 +192,7 @@ class MapViewModel {
         } else {
           await MainActor.run {
             self?.selectedWaypointFeature = nil
-            self?.updateHeadingToWaypoint()
+            self?.updateBearingToWaypoint()
           }
         }
       }
@@ -289,7 +289,7 @@ class MapViewModel {
     
     // Update current coordinate
     currentCoordinate = navigationFix.coordinate
-    updateHeadingToWaypoint()
+    updateBearingToWaypoint()
     
     // Update SOG using Apple's Measurement
     speedOverGround = navigationFix.speedOverGround
@@ -678,11 +678,11 @@ class MapViewModel {
     }
   }
   
-  private func updateHeadingToWaypoint() {
+  private func updateBearingToWaypoint() {
     guard let current = currentCoordinate, let waypoint = selectedWaypointFeature?.coordinate else {
-      headingToWaypoint = nil
+      bearingToWaypoint = nil
       return
     }
-    headingToWaypoint = current.greatCircleBearing(to: waypoint)
+    bearingToWaypoint = current.greatCircleBearing(to: waypoint)
   }
 }
