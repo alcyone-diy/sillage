@@ -79,6 +79,7 @@ class MapViewModel {
   var gpsAccuracyFeature: MLNPolygonFeature?
   var savedTrackFeature: MLNShape?
   var selectedWaypointFeature: MLNPointFeature?
+  var displayedWaypointFeatures: MLNShapeCollectionFeature?
   var isDataStale: Bool = true
   
   // MARK: - Private Services & Tasks
@@ -97,6 +98,7 @@ class MapViewModel {
   private var locationUpdatesTask: TaskCancellable?
   private var observationTask: TaskCancellable?
   private var waypointSelectionTask: TaskCancellable?
+  private var waypointsObservationTask: TaskCancellable?
   
   // MARK: - Camera Multicast Stream
   
@@ -195,6 +197,36 @@ class MapViewModel {
             self?.updateBearingToWaypoint()
           }
         }
+      }
+    })
+    
+    waypointsObservationTask = TaskCancellable(Task { [weak self] in
+      do {
+        for try await waypoints in waypointService.observeWaypoints() {
+          guard !Task.isCancelled else { break }
+          
+          let features: [MLNPointFeature] = waypoints.compactMap { waypoint in
+            guard waypoint.displayed else { return nil }
+            let coordinate = CLLocationCoordinate2D(
+              latitude: waypoint.latitude.converted(to: .degrees).value,
+              longitude: waypoint.longitude.converted(to: .degrees).value
+            )
+            let feature = MLNPointFeature()
+            feature.coordinate = coordinate
+            var attributes: [String: Any] = ["name": waypoint.name]
+            if let colorHex = waypoint.colorHex {
+              attributes["colorHex"] = colorHex
+            }
+            feature.attributes = attributes
+            return feature
+          }
+          
+          await MainActor.run {
+            self?.displayedWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
+          }
+        }
+      } catch {
+        Logger.map.error("Failed to observe waypoints: \(error, privacy: .public)")
       }
     })
   }

@@ -86,6 +86,9 @@
     "Baro Alarm" : {
 
     },
+    "BTW" : {
+
+    },
     "Build" : {
 
     },
@@ -132,6 +135,9 @@
 
     },
     "Details" : {
+
+    },
+    "Displayed on Map" : {
 
     },
     "Distance" : {
@@ -207,9 +213,6 @@
 
     },
     "GRDB" : {
-
-    },
-    "HDG" : {
 
     },
     "Hemisphere" : {

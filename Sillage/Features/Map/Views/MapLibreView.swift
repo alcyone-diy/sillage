@@ -34,6 +34,8 @@ struct MapLibreView: UIViewRepresentable {
     let activeTrackLayerId = "active-track-layer"
     let selectedWaypointSourceId = "selected-waypoint-source"
     let selectedWaypointLayerId = "selected-waypoint-layer"
+    let displayedWaypointsSourceId = "displayed-waypoints-source"
+    let displayedWaypointsLayerId = "displayed-waypoints-layer"
     
     if style.source(withIdentifier: vesselSourceId) == nil {
       // Create GPS Accuracy Source and Layers first so they are beneath the heading vector and vessel
@@ -73,6 +75,15 @@ struct MapLibreView: UIViewRepresentable {
       selectedWaypointLayer.circleStrokeWidth = NSExpression(forConstantValue: 2.0)
       selectedWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       style.insertLayer(selectedWaypointLayer, below: activeTrackLayer)
+      
+      let displayedWaypointsSource = MLNShapeSource(identifier: displayedWaypointsSourceId, shape: nil, options: nil)
+      style.addSource(displayedWaypointsSource)
+      let displayedWaypointsLayer = MLNCircleStyleLayer(identifier: displayedWaypointsLayerId, source: displayedWaypointsSource)
+      displayedWaypointsLayer.circleRadius = NSExpression(forConstantValue: 6.0)
+      displayedWaypointsLayer.circleColor = NSExpression(forConstantValue: UIColor.systemTeal)
+      displayedWaypointsLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.5)
+      displayedWaypointsLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+      style.insertLayer(displayedWaypointsLayer, below: selectedWaypointLayer)
       
       // Create Heading Source and Layer so it's above gps accuracy but beneath the vessel
       let headingSource = MLNShapeSource(identifier: headingSourceId, shape: nil, options: nil)
@@ -178,6 +189,11 @@ struct MapLibreView: UIViewRepresentable {
       // Saved track feature update
       if let source = style.source(withIdentifier: "saved-track-source") as? MLNShapeSource {
         source.shape = viewModel.savedTrackFeature
+      }
+      
+      // Displayed waypoints feature update
+      if let source = style.source(withIdentifier: "displayed-waypoints-source") as? MLNShapeSource {
+        source.shape = viewModel.displayedWaypointFeatures
       }
       
       // Selected waypoint feature update
@@ -364,6 +380,9 @@ struct MapLibreView: UIViewRepresentable {
       }
       if let source = style.source(withIdentifier: "saved-track-source") as? MLNShapeSource {
         source.shape = parent.viewModel.savedTrackFeature
+      }
+      if let source = style.source(withIdentifier: "displayed-waypoints-source") as? MLNShapeSource {
+        source.shape = parent.viewModel.displayedWaypointFeatures
       }
       if let source = style.source(withIdentifier: "selected-waypoint-source") as? MLNShapeSource {
         source.shape = parent.viewModel.selectedWaypointFeature
