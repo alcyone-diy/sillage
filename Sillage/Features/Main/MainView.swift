@@ -240,6 +240,23 @@ struct ContentView: View {
               .marineFont(.instrumentData)
               .foregroundColor(.white)
           }
+          
+          if mapViewModel.selectedWaypointFeature != nil {
+            VStack {
+              Text("HDG")
+                .marineFont(.instrumentLabel)
+                .foregroundColor(.secondary)
+              Group {
+                if let hdg = mapViewModel.headingToWaypoint {
+                  Text("\(hdg.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
+                } else {
+                  Text("--°")
+                }
+              }
+                .marineFont(.instrumentData)
+                .foregroundColor(.white)
+            }
+          }
         }
       }
       .padding()

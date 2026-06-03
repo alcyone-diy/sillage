@@ -122,4 +122,26 @@ extension CLLocationCoordinate2D {
       longitude: normalizedLonDeg
     )
   }
+
+  /// Calculates the Great Circle initial bearing from this coordinate to another coordinate.
+  /// - Parameter destination: The target coordinate.
+  /// - Returns: The compass bearing as a `Measurement<UnitAngle>` (0 = True North).
+  func greatCircleBearing(to destination: CLLocationCoordinate2D) -> Measurement<UnitAngle>? {
+    let lat1 = self.latitude * .pi / 180.0
+    let lon1 = self.longitude * .pi / 180.0
+    let lat2 = destination.latitude * .pi / 180.0
+    let lon2 = destination.longitude * .pi / 180.0
+
+    let dLon = lon2 - lon1
+    let y = sin(dLon) * cos(lat2)
+    let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+    let bearingRadians = atan2(y, x)
+    
+    var bearingDegrees = bearingRadians * 180.0 / .pi
+    bearingDegrees = (bearingDegrees + 360.0).truncatingRemainder(dividingBy: 360.0)
+
+    guard !bearingDegrees.isNaN, !bearingDegrees.isInfinite else { return nil }
+
+    return Measurement(value: bearingDegrees, unit: UnitAngle.degrees)
+  }
 }
