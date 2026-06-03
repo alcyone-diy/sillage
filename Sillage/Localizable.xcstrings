@@ -116,6 +116,9 @@
     "Description" : {
 
     },
+    "Description (Optional)" : {
+
+    },
     "Details" : {
 
     },
@@ -129,6 +132,9 @@
       "comment" : "East cardinal point"
     },
     "Edit" : {
+
+    },
+    "Edit Waypoint" : {
 
     },
     "Enable COG Vector" : {
@@ -162,6 +168,9 @@
 
     },
     "Failed to save changes. Please try again." : {
+
+    },
+    "Format: N 45° 12.345' or decimal degrees." : {
 
     },
     "General" : {
@@ -206,7 +215,16 @@
     "Initializing Systems..." : {
 
     },
+    "Invalid Latitude" : {
+
+    },
+    "Invalid Longitude" : {
+
+    },
     "Invalid response from the server." : {
+
+    },
+    "Latitude (e.g. N 45° 12.345')" : {
 
     },
     "Legal & Licenses" : {
@@ -221,10 +239,16 @@
     "Local Offline Charts" : {
 
     },
+    "Location" : {
+
+    },
     "Log In" : {
 
     },
     "Login to GeoGarage" : {
+
+    },
+    "Longitude (e.g. W 02° 34.567')" : {
 
     },
     "Map Preferences" : {
@@ -258,6 +282,9 @@
 
     },
     "Network error: %@" : {
+
+    },
+    "New Waypoint" : {
 
     },
     "No active recording to stop." : {
@@ -318,6 +345,9 @@
 
     },
     "Safety & Legal" : {
+
+    },
+    "Save" : {
 
     },
     "Saved Tracks" : {

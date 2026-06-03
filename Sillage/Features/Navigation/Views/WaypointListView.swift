@@ -13,8 +13,12 @@ import SwiftUI
 @MainActor
 struct WaypointListView: View {
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(\.waypointService) private var waypointService
+  @Environment(MapViewModel.self) private var mapViewModel
   @Bindable var viewModel: WaypointListViewModel
   @State private var waypointToDelete: Waypoint?
+  @State private var isPresentingAddView = false
+  @State private var editingWaypoint: Waypoint?
   
   var body: some View {
     List {
@@ -28,6 +32,18 @@ struct WaypointListView: View {
         } else {
           ForEach(viewModel.waypoints) { waypoint in
             WaypointRowView(waypoint: waypoint)
+              .contentShape(Rectangle())
+              .onTapGesture {
+                editingWaypoint = waypoint
+              }
+              .swipeActions(edge: .leading) {
+                Button {
+                  editingWaypoint = waypoint
+                } label: {
+                  Label("Edit", systemImage: "pencil")
+                }
+                .tint(.blue)
+              }
               .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 Button {
                   waypointToDelete = waypoint
@@ -49,7 +65,7 @@ struct WaypointListView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          // TODO: Implement add waypoint
+          isPresentingAddView = true
         } label: {
           Image(systemName: "plus")
         }
@@ -84,6 +100,24 @@ struct WaypointListView: View {
       Button("OK", role: .cancel) { }
     } message: { error in
       Text(error.localizedDescription)
+    }
+    .sheet(isPresented: $isPresentingAddView) {
+      if let waypointService {
+        let editVM = WaypointEditViewModel(
+          waypointService: waypointService,
+          initialCoordinate: mapViewModel.centerCoordinate
+        )
+        WaypointEditView(viewModel: editVM)
+      }
+    }
+    .sheet(item: $editingWaypoint) { waypoint in
+      if let waypointService {
+        let editVM = WaypointEditViewModel(
+          waypointService: waypointService,
+          editingWaypoint: waypoint
+        )
+        WaypointEditView(viewModel: editVM)
+      }
     }
     .task {
       await viewModel.observe()
