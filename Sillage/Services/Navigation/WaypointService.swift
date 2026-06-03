@@ -65,6 +65,26 @@ public struct WaypointService: Sendable {
     }
   }
   
+  /// Computes the next default name (e.g. "Waypoint 3") directly from the database.
+  public func fetchNextDefaultName() async throws -> String {
+    let baseName = String(localized: "Waypoint")
+    return try await databaseManager.reader.read { db in
+      let count = try WaypointRecord.fetchCount(db)
+      let records = try WaypointRecord.fetchAll(db, sql: "SELECT * FROM waypoint WHERE name LIKE ?", arguments: ["\(baseName) %"])
+      
+      var maxNum = 0
+      for record in records {
+        let remainder = record.name.dropFirst(baseName.count + 1)
+        if let num = Int(String(remainder)) {
+          maxNum = max(maxNum, num)
+        }
+      }
+      
+      let nextNum = max(count + 1, maxNum + 1)
+      return "\(baseName) \(nextNum)"
+    }
+  }
+  
   /// Deletes a waypoint from the database by its ID.
   public func deleteWaypoint(id: String) async throws {
     _ = try await databaseManager.write { db in

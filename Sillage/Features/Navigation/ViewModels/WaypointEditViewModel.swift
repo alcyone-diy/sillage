@@ -34,9 +34,17 @@ public final class WaypointEditViewModel {
   private let waypointService: WaypointService
   public let editingWaypointId: String?
   
-  public init(waypointService: WaypointService, initialCoordinate: CLLocationCoordinate2D? = nil) {
+  public init(waypointService: WaypointService, defaultName: String? = nil, initialCoordinate: CLLocationCoordinate2D? = nil) {
     self.waypointService = waypointService
     self.editingWaypointId = nil
+    
+    if let defaultName {
+      self.name = defaultName
+    } else {
+      let timeString = Date.now.formatted(date: .omitted, time: .standard)
+      self.name = "\(String(localized: "Waypoint")) \(timeString)"
+    }
+    
     if let coord = initialCoordinate {
       setLatitude(coord.latitude)
       setLongitude(coord.longitude)
