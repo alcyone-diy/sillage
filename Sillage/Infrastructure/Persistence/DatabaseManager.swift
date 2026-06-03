@@ -109,6 +109,7 @@ public final class DatabaseManager: Sendable {
         t.column("maxSpeedOverGround_mps", .double)
         t.column("segmentCount", .integer).notNull()
         t.column("totalPointCount", .integer).notNull()
+        t.column("color_hex", .text)
 
         t.check(sql: "southLatitude_deg BETWEEN -90 AND 90")
         t.check(sql: "northLatitude_deg BETWEEN -90 AND 90")

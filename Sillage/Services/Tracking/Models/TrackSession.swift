@@ -28,6 +28,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
   public let maxSpeedOverGround: Measurement<UnitSpeed>?
   public let segmentCount: Int
   public let totalPointCount: Int
+  public let colorHex: String?
 
   public init(
     id: String,
@@ -45,7 +46,8 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     eastLongitude: Measurement<UnitAngle>? = nil,
     maxSpeedOverGround: Measurement<UnitSpeed>? = nil,
     segmentCount: Int = 0,
-    totalPointCount: Int = 0
+    totalPointCount: Int = 0,
+    colorHex: String? = nil
   ) {
     self.id = id
     self.startTime = startTime
@@ -63,6 +65,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     self.maxSpeedOverGround = maxSpeedOverGround
     self.segmentCount = segmentCount
     self.totalPointCount = totalPointCount
+    self.colorHex = colorHex
   }
   
   public var totalAverageSpeedOverGround: Measurement<UnitSpeed>? {

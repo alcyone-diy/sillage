@@ -29,6 +29,7 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
   public var maxSpeedOverGround_mps: Double?
   public var segmentCount: Int = 0
   public var totalPointCount: Int = 0
+  public var color_hex: String?
 
   public static let databaseTableName = "track_session"
 
@@ -54,6 +55,7 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
     case maxSpeedOverGround_mps
     case segmentCount
     case totalPointCount
+    case color_hex
   }
 
   // Association with TrackPointRecord
@@ -84,7 +86,8 @@ extension TrackSessionRecord {
       eastLongitude: eastLongitude_deg.map { Measurement(value: $0, unit: .degrees) },
       maxSpeedOverGround: maxSpeedOverGround_mps.flatMap { $0 >= 0 ? Measurement(value: $0, unit: .metersPerSecond) : nil },
       segmentCount: segmentCount,
-      totalPointCount: totalPointCount
+      totalPointCount: totalPointCount,
+      colorHex: color_hex
     )
   }
 
@@ -106,5 +109,6 @@ extension TrackSessionRecord {
     self.maxSpeedOverGround_mps = domainModel.maxSpeedOverGround?.converted(to: .metersPerSecond).value
     self.segmentCount = domainModel.segmentCount
     self.totalPointCount = domainModel.totalPointCount
+    self.color_hex = domainModel.colorHex
   }
 }
