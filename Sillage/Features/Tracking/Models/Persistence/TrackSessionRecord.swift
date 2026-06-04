@@ -10,6 +10,7 @@
 
 import Foundation
 import GRDB
+import CoreLocation
 
 /// GRDB Persistence Model for Track Session
 public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
@@ -22,10 +23,10 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
   public var endLocation: String?
   public var totalDuration_s: Double?
   public var totalDistanceOverGround_m: Double?
-  public var southLatitude_deg: Double?
-  public var northLatitude_deg: Double?
-  public var westLongitude_deg: Double?
-  public var eastLongitude_deg: Double?
+  public var southLatitude_deg: CLLocationDegrees?
+  public var northLatitude_deg: CLLocationDegrees?
+  public var westLongitude_deg: CLLocationDegrees?
+  public var eastLongitude_deg: CLLocationDegrees?
   public var maxSpeedOverGround_mps: Double?
   public var segmentCount: Int = 0
   public var totalPointCount: Int = 0

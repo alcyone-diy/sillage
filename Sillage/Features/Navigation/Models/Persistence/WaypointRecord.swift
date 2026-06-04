@@ -10,6 +10,7 @@
 
 import Foundation
 import GRDB
+import CoreLocation
 
 /// GRDB Persistence Model for a Waypoint
 public struct WaypointRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
@@ -19,13 +20,23 @@ public struct WaypointRecord: Codable, FetchableRecord, PersistableRecord, Senda
   public var symbol: String?
   public var color_hex: String?
   public var isVisible: Bool
-  public var latitude_deg: Double
-  public var longitude_deg: Double
+  public var latitude_deg: CLLocationDegrees
+  public var longitude_deg: CLLocationDegrees
   public var timestamp_unix: Double
   
   public static let databaseTableName = "waypoint"
 
-  public init(id: String, name: String, description: String? = nil, symbol: String? = nil, color_hex: String? = nil, isVisible: Bool = true, latitude_deg: Double, longitude_deg: Double, timestamp: Date) {
+  public init(
+    id: String,
+    name: String,
+    description: String? = nil,
+    symbol: String? = nil,
+    color_hex: String? = nil,
+    isVisible: Bool = true,
+    latitude_deg: CLLocationDegrees,
+    longitude_deg: CLLocationDegrees,
+    timestamp: Date
+  ) {
     self.id = id
     self.name = name
     self.description = description
