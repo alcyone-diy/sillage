@@ -10,6 +10,7 @@
 
 import Foundation
 import GRDB
+import CoreLocation
 
 /// GRDB Persistence Model for Track Point
 /// The raw database persistence entity for a recorded track point.
@@ -19,8 +20,8 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
   public var sessionId: String
   public var timestamp_unix: Double
   public var segmentIndex: Int
-  public var latitude_deg: Double
-  public var longitude_deg: Double
+  public var latitude_deg: CLLocationDegrees
+  public var longitude_deg: CLLocationDegrees
   public var horizontalAccuracy_m: Double
   public var speedOverGround_mps: Double?
   public var courseOverGround_deg: Double?
