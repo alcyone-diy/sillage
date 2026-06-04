@@ -46,8 +46,8 @@ public final class WaypointEditViewModel {
     }
     
     if let coord = initialCoordinate {
-      setLatitude(coord.latitude)
-      setLongitude(coord.longitude)
+      setLatitude(coord.latitude, roundMinutes: true)
+      setLongitude(coord.longitude, roundMinutes: true)
     }
   }
   
@@ -62,22 +62,32 @@ public final class WaypointEditViewModel {
     setLongitude(editingWaypoint.longitude.converted(to: .degrees).value)
   }
   
-  private func setLatitude(_ value: Double) {
+  private func extractDegreesAndMinutes(from value: Double, roundMinutes: Bool) -> (degrees: Int, minutes: Double) {
+    let absValue = abs(value)
+    var d = floor(absValue)
+    let m = (absValue - d) * 60.0
+    var mins = roundMinutes ? (m * 1000).rounded() / 1000.0 : m
+    
+    if mins >= 60.0 {
+      mins -= 60.0
+      d += 1.0
+    }
+    
+    return (Int(d), mins)
+  }
+
+  private func setLatitude(_ value: Double, roundMinutes: Bool = false) {
     latHemisphere = value >= 0 ? .north : .south
-    let absLat = abs(value)
-    let d = floor(absLat)
-    let m = (absLat - d) * 60.0
-    latDegrees = Int(d)
-    latMinutes = m
+    let components = extractDegreesAndMinutes(from: value, roundMinutes: roundMinutes)
+    latDegrees = components.degrees
+    latMinutes = components.minutes
   }
   
-  private func setLongitude(_ value: Double) {
+  private func setLongitude(_ value: Double, roundMinutes: Bool = false) {
     lonHemisphere = value >= 0 ? .east : .west
-    let absLon = abs(value)
-    let d = floor(absLon)
-    let m = (absLon - d) * 60.0
-    lonDegrees = Int(d)
-    lonMinutes = m
+    let components = extractDegreesAndMinutes(from: value, roundMinutes: roundMinutes)
+    lonDegrees = components.degrees
+    lonMinutes = components.minutes
   }
   
   public var isValid: Bool {
