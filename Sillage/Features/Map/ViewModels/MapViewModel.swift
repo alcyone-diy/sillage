@@ -173,7 +173,7 @@ class MapViewModel {
           
           let feature = MLNPointFeature()
           feature.coordinate = coordinate
-          var attributes: [String: Any] = ["name": waypoint.name]
+          var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
           if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
             attributes["colorHex"] = colorHex
             attributes["color"] = UIColor(color)
@@ -216,7 +216,7 @@ class MapViewModel {
             let coordinate = waypoint.coordinate
             let feature = MLNPointFeature()
             feature.coordinate = coordinate
-            var attributes: [String: Any] = ["name": waypoint.name]
+            var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
             if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
               attributes["colorHex"] = colorHex
               attributes["color"] = UIColor(color)
@@ -234,7 +234,7 @@ class MapViewModel {
               let coordinate = waypoint.coordinate
               let feature = MLNPointFeature()
               feature.coordinate = coordinate
-              var attributes: [String: Any] = ["name": waypoint.name]
+              var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
               if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
                 attributes["colorHex"] = colorHex
                 attributes["color"] = UIColor(color)
@@ -544,6 +544,13 @@ class MapViewModel {
     let event = CameraMoveEvent.center(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
+    }
+  }
+  
+  /// Selects or deselects a waypoint by ID
+  func selectWaypoint(id: String?) {
+    Task {
+      await waypointService?.selectWaypoint(id: id)
     }
   }
   
