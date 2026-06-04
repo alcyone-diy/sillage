@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import CoreLocation
 
 /// Domain model representing a Waypoint in the Navigation system.
 public struct Waypoint: Identifiable, Sendable, Equatable {
@@ -19,8 +20,7 @@ public struct Waypoint: Identifiable, Sendable, Equatable {
   public let colorHex: String?
   public let isVisible: Bool
   
-  public let latitude: Measurement<UnitAngle>
-  public let longitude: Measurement<UnitAngle>
+  public let coordinate: CLLocationCoordinate2D
   public let timestamp: Date
   
   public init(
@@ -30,8 +30,7 @@ public struct Waypoint: Identifiable, Sendable, Equatable {
     symbol: String? = nil,
     colorHex: String? = nil,
     isVisible: Bool = true,
-    latitude: Measurement<UnitAngle>,
-    longitude: Measurement<UnitAngle>,
+    coordinate: CLLocationCoordinate2D,
     timestamp: Date = Date()
   ) {
     self.id = id
@@ -40,8 +39,7 @@ public struct Waypoint: Identifiable, Sendable, Equatable {
     self.symbol = symbol
     self.colorHex = colorHex
     self.isVisible = isVisible
-    self.latitude = latitude
-    self.longitude = longitude
+    self.coordinate = coordinate
     self.timestamp = timestamp
   }
 }

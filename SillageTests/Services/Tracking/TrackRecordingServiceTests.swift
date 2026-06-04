@@ -85,6 +85,8 @@ struct TrackRecordingServiceTests {
     func clearActiveTrackSessionID() {
       activeTrackSessionID = nil
     }
+    
+    var selectedWaypointID: String?
   }
 
   // MARK: - Helpers
@@ -356,7 +358,7 @@ struct TrackRecordingServiceTests {
     let trackPoint = try #require(service.trackPoints.first)
     
     // Validate that the underlying Measurement value matches exactly the Double precision
-    #expect(trackPoint.latitude.value == highPrecisionLat)
-    #expect(trackPoint.longitude.value == highPrecisionLon)
+    #expect(trackPoint.coordinate.latitude == highPrecisionLat)
+    #expect(trackPoint.coordinate.longitude == highPrecisionLon)
   }
 }

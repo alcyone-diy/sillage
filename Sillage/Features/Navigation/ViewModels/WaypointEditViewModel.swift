@@ -46,8 +46,7 @@ public final class WaypointEditViewModel {
     }
     
     if let coord = initialCoordinate {
-      setLatitude(coord.latitude, roundMinutes: true)
-      setLongitude(coord.longitude, roundMinutes: true)
+      setCoordinate(coord, roundMinutes: true)
     }
   }
   
@@ -58,8 +57,7 @@ public final class WaypointEditViewModel {
     self.description = editingWaypoint.description ?? ""
     self.color = editingWaypoint.colorHex.flatMap { Color(hex: $0) } ?? MarineTheme.Colors.primary
     self.isVisible = editingWaypoint.isVisible
-    setLatitude(editingWaypoint.latitude.converted(to: .degrees).value)
-    setLongitude(editingWaypoint.longitude.converted(to: .degrees).value)
+    setCoordinate(editingWaypoint.coordinate)
   }
   
   private func extractDegreesAndMinutes(from value: Double, roundMinutes: Bool) -> (degrees: Int, minutes: Double) {
@@ -76,18 +74,16 @@ public final class WaypointEditViewModel {
     return (Int(d), mins)
   }
 
-  private func setLatitude(_ value: Double, roundMinutes: Bool = false) {
-    latHemisphere = value >= 0 ? .north : .south
-    let components = extractDegreesAndMinutes(from: value, roundMinutes: roundMinutes)
-    latDegrees = components.degrees
-    latMinutes = components.minutes
-  }
-  
-  private func setLongitude(_ value: Double, roundMinutes: Bool = false) {
-    lonHemisphere = value >= 0 ? .east : .west
-    let components = extractDegreesAndMinutes(from: value, roundMinutes: roundMinutes)
-    lonDegrees = components.degrees
-    lonMinutes = components.minutes
+  private func setCoordinate(_ coordinate: CLLocationCoordinate2D, roundMinutes: Bool = false) {
+    latHemisphere = coordinate.latitude >= 0 ? .north : .south
+    let latComponents = extractDegreesAndMinutes(from: coordinate.latitude, roundMinutes: roundMinutes)
+    latDegrees = latComponents.degrees
+    latMinutes = latComponents.minutes
+    
+    lonHemisphere = coordinate.longitude >= 0 ? .east : .west
+    let lonComponents = extractDegreesAndMinutes(from: coordinate.longitude, roundMinutes: roundMinutes)
+    lonDegrees = lonComponents.degrees
+    lonMinutes = lonComponents.minutes
   }
   
   public var isValid: Bool {
@@ -129,8 +125,7 @@ public final class WaypointEditViewModel {
       symbol: nil,
       colorHex: color.hexString,
       isVisible: isVisible,
-      latitude: Measurement(value: lat, unit: UnitAngle.degrees),
-      longitude: Measurement(value: lon, unit: UnitAngle.degrees)
+      coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)
     )
     
     do {

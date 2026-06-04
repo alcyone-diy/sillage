@@ -9,13 +9,13 @@
 //
 
 import Foundation
+import CoreLocation
 
 /// The in-memory domain representation of a recorded track point.
 public struct TrackPoint: Sendable {
   public let timestamp: Date
   public let segmentIndex: Int
-  public let latitude: Measurement<UnitAngle>
-  public let longitude: Measurement<UnitAngle>
+  public let coordinate: CLLocationCoordinate2D
   public let horizontalAccuracy: Measurement<UnitLength>
   public let speedOverGround: Measurement<UnitSpeed>?
   public let courseOverGround: Measurement<UnitAngle>?
@@ -23,16 +23,14 @@ public struct TrackPoint: Sendable {
   public init(
     timestamp: Date,
     segmentIndex: Int,
-    latitude: Measurement<UnitAngle>,
-    longitude: Measurement<UnitAngle>,
+    coordinate: CLLocationCoordinate2D,
     horizontalAccuracy: Measurement<UnitLength>,
     speedOverGround: Measurement<UnitSpeed>? = nil,
     courseOverGround: Measurement<UnitAngle>? = nil
   ) {
     self.timestamp = timestamp
     self.segmentIndex = segmentIndex
-    self.latitude = latitude
-    self.longitude = longitude
+    self.coordinate = coordinate
     self.horizontalAccuracy = horizontalAccuracy
     self.speedOverGround = speedOverGround
     self.courseOverGround = courseOverGround

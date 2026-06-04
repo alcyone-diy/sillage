@@ -73,8 +73,7 @@ extension WaypointRecord {
       symbol: symbol,
       colorHex: color_hex,
       isVisible: isVisible,
-      latitude: Measurement(value: latitude_deg, unit: UnitAngle.degrees),
-      longitude: Measurement(value: longitude_deg, unit: UnitAngle.degrees),
+      coordinate: CLLocationCoordinate2D(latitude: latitude_deg, longitude: longitude_deg),
       timestamp: Date(timeIntervalSince1970: timestamp_unix)
     )
   }
@@ -87,8 +86,8 @@ extension WaypointRecord {
     self.symbol = domainModel.symbol
     self.color_hex = domainModel.colorHex
     self.isVisible = domainModel.isVisible
-    self.latitude_deg = domainModel.latitude.converted(to: .degrees).value
-    self.longitude_deg = domainModel.longitude.converted(to: .degrees).value
+    self.latitude_deg = domainModel.coordinate.latitude
+    self.longitude_deg = domainModel.coordinate.longitude
     self.timestamp_unix = domainModel.timestamp.timeIntervalSince1970
   }
 }

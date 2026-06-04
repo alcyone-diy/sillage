@@ -66,6 +66,8 @@ struct TrackServiceTests {
     func clearActiveTrackSessionID() {
       activeTrackSessionID = nil
     }
+    
+    var selectedWaypointID: String?
   }
   
   // MARK: - Helpers
@@ -118,8 +120,7 @@ struct TrackServiceTests {
       sessionId: sessionId,
       timestamp: Date(),
       segmentIndex: 0,
-      latitude: Measurement(value: 45.0, unit: .degrees),
-      longitude: Measurement(value: -1.0, unit: .degrees),
+      coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),
       horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
     )
     

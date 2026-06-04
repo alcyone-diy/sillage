@@ -302,10 +302,7 @@ struct TrackSessionTelemetryTests {
       startTime: startDate,
       totalDuration: firstSegmentDuration,
       totalDistanceOverGround: Measurement(value: 5000, unit: .meters),
-      southLatitude: Measurement(value: 45.0, unit: .degrees),
-      northLatitude: Measurement(value: 46.0, unit: .degrees),
-      westLongitude: Measurement(value: -1.0, unit: .degrees),
-      eastLongitude: Measurement(value: 1.0, unit: .degrees),
+      boundingBox: GeographicBoundingBox(southWest: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0), northEast: CLLocationCoordinate2D(latitude: 46.0, longitude: 1.0)),
       maxSpeedOverGround: Measurement(value: 10, unit: .metersPerSecond),
       totalPointCount: 150
     )
@@ -317,10 +314,10 @@ struct TrackSessionTelemetryTests {
     #expect(telemetry.totalDuration == session.totalDuration)
     #expect(telemetry.geographicBoundingBox != nil)
     if let boundingBox = telemetry.geographicBoundingBox {
-      #expect(boundingBox.southLatitude == session.southLatitude)
-      #expect(boundingBox.northLatitude == session.northLatitude)
-      #expect(boundingBox.westLongitude == session.westLongitude)
-      #expect(boundingBox.eastLongitude == session.eastLongitude)
+      #expect(boundingBox.southWest.latitude == session.boundingBox?.southWest.latitude)
+      #expect(boundingBox.northEast.latitude == session.boundingBox?.northEast.latitude)
+      #expect(boundingBox.southWest.longitude == session.boundingBox?.southWest.longitude)
+      #expect(boundingBox.northEast.longitude == session.boundingBox?.northEast.longitude)
     }
     #expect(telemetry.maxSpeedOverGround == session.maxSpeedOverGround)
     #expect(telemetry.segmentIndex != nil)
@@ -347,10 +344,10 @@ struct TrackSessionTelemetryTests {
     #expect(telemetry.totalDistanceOverGround == session.totalDistanceOverGround)
     #expect(telemetry.totalDuration == session.totalDuration)
     if let boundingBox = telemetry.geographicBoundingBox {
-      #expect(boundingBox.southLatitude == session.southLatitude)
-      #expect(boundingBox.northLatitude == session.northLatitude)
-      #expect(boundingBox.westLongitude == session.westLongitude)
-      #expect(boundingBox.eastLongitude == session.eastLongitude)
+      #expect(boundingBox.southWest.latitude == session.boundingBox?.southWest.latitude)
+      #expect(boundingBox.northEast.latitude == session.boundingBox?.northEast.latitude)
+      #expect(boundingBox.southWest.longitude == session.boundingBox?.southWest.longitude)
+      #expect(boundingBox.northEast.longitude == session.boundingBox?.northEast.longitude)
     }
     #expect(telemetry.maxSpeedOverGround == session.maxSpeedOverGround)
     #expect(telemetry.segmentIndex != nil)
@@ -445,10 +442,10 @@ struct TrackSessionTelemetryTests {
     #expect(telemetry.totalPointCount == 1)
     #expect(telemetry.geographicBoundingBox != nil)
     if let boundingBox = telemetry.geographicBoundingBox {
-      #expect(boundingBox.southLatitude.value == fix.coordinate.latitude)
-      #expect(boundingBox.northLatitude.value == fix.coordinate.latitude)
-      #expect(boundingBox.eastLongitude.value == fix.coordinate.longitude)
-      #expect(boundingBox.westLongitude.value == fix.coordinate.longitude)
+      #expect(boundingBox.southWest.latitude == fix.coordinate.latitude)
+      #expect(boundingBox.northEast.latitude == fix.coordinate.latitude)
+      #expect(boundingBox.northEast.longitude == fix.coordinate.longitude)
+      #expect(boundingBox.southWest.longitude == fix.coordinate.longitude)
     }
   }
   
@@ -594,20 +591,20 @@ struct TrackSessionTelemetryTests {
     try? telemetry.process(fix: fix2, filters: nil)
     
     let box1 = try #require(telemetry.geographicBoundingBox)
-    #expect(box1.southLatitude.value == 45.0)
-    #expect(box1.northLatitude.value == 46.0)
-    #expect(box1.westLongitude.value == -1.0)
-    #expect(box1.eastLongitude.value == 0.0)
+    #expect(box1.southWest.latitude == 45.0)
+    #expect(box1.northEast.latitude == 46.0)
+    #expect(box1.southWest.longitude == -1.0)
+    #expect(box1.northEast.longitude == 0.0)
     
     // Fix 3: Further South and West than initial
     let fix3 = makeMockFix(latitude: 44.0, longitude: -2.0)
     try? telemetry.process(fix: fix3, filters: nil)
     
     let box2 = try #require(telemetry.geographicBoundingBox)
-    #expect(box2.southLatitude.value == 44.0)
-    #expect(box2.northLatitude.value == 46.0)
-    #expect(box2.westLongitude.value == -2.0)
-    #expect(box2.eastLongitude.value == 0.0)
+    #expect(box2.southWest.latitude == 44.0)
+    #expect(box2.northEast.latitude == 46.0)
+    #expect(box2.southWest.longitude == -2.0)
+    #expect(box2.northEast.longitude == 0.0)
   }
 
   @Test("Time filter only (distance disabled)")

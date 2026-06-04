@@ -158,7 +158,7 @@ struct WaypointRowView: View {
         Text(waypoint.name)
           .marineFont(.body)
         
-        Text(CLLocationCoordinate2D(latitude: waypoint.latitude.converted(to: .degrees).value, longitude: waypoint.longitude.converted(to: .degrees).value).formatted())
+        Text(waypoint.coordinate.formatted())
           .foregroundStyle(.secondary)
           .marineFont(.caption)
       }

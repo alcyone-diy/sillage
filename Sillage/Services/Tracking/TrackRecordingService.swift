@@ -372,8 +372,7 @@ public final class TrackRecordingService {
     let trackPoint = TrackPoint(
       timestamp: navigationFix.timestamp,
       segmentIndex: telemetry.segmentIndex ?? 0,
-      latitude: Measurement(value: navigationFix.coordinate.latitude, unit: .degrees),
-      longitude: Measurement(value: navigationFix.coordinate.longitude, unit: .degrees),
+      coordinate: navigationFix.coordinate,
       horizontalAccuracy: navigationFix.horizontalAccuracy,
       speedOverGround: navigationFix.speedOverGround,
       courseOverGround: navigationFix.courseOverGround
@@ -425,10 +424,10 @@ public final class TrackRecordingService {
       endTimestamp_unix: finalEndTime?.timeIntervalSince1970,
       totalDuration_s: activeSessionDuration()?.timeInterval,
       totalDistanceOverGround_m: telemetry.totalDistanceOverGround?.converted(to: .meters).value,
-      southLatitude_deg: telemetry.geographicBoundingBox?.southLatitude.converted(to: .degrees).value,
-      northLatitude_deg: telemetry.geographicBoundingBox?.northLatitude.converted(to: .degrees).value,
-      westLongitude_deg: telemetry.geographicBoundingBox?.westLongitude.converted(to: .degrees).value,
-      eastLongitude_deg: telemetry.geographicBoundingBox?.eastLongitude.converted(to: .degrees).value,
+      southLatitude_deg: telemetry.geographicBoundingBox?.southWest.latitude,
+      northLatitude_deg: telemetry.geographicBoundingBox?.northEast.latitude,
+      westLongitude_deg: telemetry.geographicBoundingBox?.southWest.longitude,
+      eastLongitude_deg: telemetry.geographicBoundingBox?.northEast.longitude,
       maxSpeedOverGround_mps: telemetry.maxSpeedOverGround?.converted(to: .metersPerSecond).value,
       segmentCount: telemetry.segmentIndex.map { $0 + 1 } ?? 0,
       totalPointCount: telemetry.totalPointCount
