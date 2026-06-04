@@ -11,6 +11,7 @@
 import Testing
 import Foundation
 import GRDB
+import CoreLocation
 @testable import Sillage
 
 @Suite("Database Manager Tests")
@@ -267,8 +268,7 @@ final class DatabaseManagerTests {
       sessionId: sessionId,
       timestamp: Date(),
       segmentIndex: 0,
-      latitude: Measurement(value: 91.0, unit: .degrees),
-      longitude: Measurement(value: 0.0, unit: .degrees),
+      coordinate: CLLocationCoordinate2D(latitude: 91.0, longitude: 0.0),
       horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
     )
     
@@ -287,8 +287,7 @@ final class DatabaseManagerTests {
       sessionId: sessionId,
       timestamp: timestamp,
       segmentIndex: segmentIndex,
-      latitude: Measurement(value: 45.0, unit: .degrees),
-      longitude: Measurement(value: -1.0, unit: .degrees),
+      coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),
       horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
     )
   }

@@ -124,19 +124,7 @@ public struct TrackSessionTelemetry: Sendable {
     lastTimeUpdated = nil
     totalDuration = session.totalDuration
     totalDistanceOverGround = session.totalDistanceOverGround
-    if let southLatitude = session.southLatitude,
-       let northLatitude = session.northLatitude,
-       let westLongitude = session.westLongitude,
-       let eastLongitude = session.eastLongitude {
-      geographicBoundingBox = GeographicBoundingBox(
-        southLatitude: southLatitude,
-        northLatitude: northLatitude,
-        westLongitude: westLongitude,
-        eastLongitude: eastLongitude
-      )
-    } else {
-      geographicBoundingBox = nil
-    }
+    geographicBoundingBox = session.boundingBox
     maxSpeedOverGround = session.maxSpeedOverGround
     segmentIndex = (lastSegmentIndex == nil) ? 0 : lastSegmentIndex
     totalPointCount = session.totalPointCount
@@ -231,13 +219,11 @@ public struct TrackSessionTelemetry: Sendable {
     totalDistanceOverGround = currentDistance + distanceSinceLast
     
     // Bounding Box
-    let fixLat = Measurement(value: fix.coordinate.latitude, unit: UnitAngle.degrees)
-    let fixLon = Measurement(value: fix.coordinate.longitude, unit: UnitAngle.degrees)
     if var box = geographicBoundingBox {
-      box.expand(toIncludeLatitude: fixLat, longitude: fixLon)
+      box.expand(toInclude: fix.coordinate)
       geographicBoundingBox = box
     } else {
-      geographicBoundingBox = GeographicBoundingBox(latitude: fixLat, longitude: fixLon)
+      geographicBoundingBox = GeographicBoundingBox(coordinate: fix.coordinate)
     }
     
     // Speed

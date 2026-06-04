@@ -277,12 +277,7 @@ struct MapLibreView: UIViewRepresentable {
         currentSegment.reserveCapacity(points.count)
       }
       currentSegmentIndex = point.segmentIndex
-      currentSegment.append(
-        CLLocationCoordinate2D(
-          latitude: point.latitude.converted(to: .degrees).value,
-          longitude: point.longitude.converted(to: .degrees).value
-        )
-      )
+      currentSegment.append(point.coordinate)
     }
     
     if currentSegment.count >= 2 {

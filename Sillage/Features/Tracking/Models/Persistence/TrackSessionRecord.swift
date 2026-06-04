@@ -71,6 +71,16 @@ public struct TrackSessionRecord: Codable, FetchableRecord, PersistableRecord, S
 extension TrackSessionRecord {
   /// Converts the persistence `TrackSessionRecord` into a domain `TrackSession`.
   public func toDomain() -> TrackSession {
+    let boundingBox: GeographicBoundingBox?
+    if let southLat = southLatitude_deg, let northLat = northLatitude_deg, let westLon = westLongitude_deg, let eastLon = eastLongitude_deg {
+      boundingBox = GeographicBoundingBox(
+        southWest: CLLocationCoordinate2D(latitude: southLat, longitude: westLon),
+        northEast: CLLocationCoordinate2D(latitude: northLat, longitude: eastLon)
+      )
+    } else {
+      boundingBox = nil
+    }
+
     return TrackSession(
       id: id,
       startTime: Date(timeIntervalSince1970: startTimestamp_unix),
@@ -81,10 +91,7 @@ extension TrackSessionRecord {
       endLocation: endLocation,
       totalDuration: totalDuration_s.map { .seconds($0) },
       totalDistanceOverGround: totalDistanceOverGround_m.map { Measurement(value: $0, unit: UnitLength.meters) },
-      southLatitude: southLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
-      northLatitude: northLatitude_deg.map { Measurement(value: $0, unit: .degrees) },
-      westLongitude: westLongitude_deg.map { Measurement(value: $0, unit: .degrees) },
-      eastLongitude: eastLongitude_deg.map { Measurement(value: $0, unit: .degrees) },
+      boundingBox: boundingBox,
       maxSpeedOverGround: maxSpeedOverGround_mps.flatMap { $0 >= 0 ? Measurement(value: $0, unit: .metersPerSecond) : nil },
       segmentCount: segmentCount,
       totalPointCount: totalPointCount,
@@ -103,10 +110,10 @@ extension TrackSessionRecord {
     self.endLocation = domainModel.endLocation
     self.totalDuration_s = domainModel.totalDuration?.timeInterval
     self.totalDistanceOverGround_m = domainModel.totalDistanceOverGround?.converted(to: .meters).value
-    self.southLatitude_deg = domainModel.southLatitude?.converted(to: .degrees).value
-    self.northLatitude_deg = domainModel.northLatitude?.converted(to: .degrees).value
-    self.westLongitude_deg = domainModel.westLongitude?.converted(to: .degrees).value
-    self.eastLongitude_deg = domainModel.eastLongitude?.converted(to: .degrees).value
+    self.southLatitude_deg = domainModel.boundingBox?.southWest.latitude
+    self.northLatitude_deg = domainModel.boundingBox?.northEast.latitude
+    self.westLongitude_deg = domainModel.boundingBox?.southWest.longitude
+    self.eastLongitude_deg = domainModel.boundingBox?.northEast.longitude
     self.maxSpeedOverGround_mps = domainModel.maxSpeedOverGround?.converted(to: .metersPerSecond).value
     self.segmentCount = domainModel.segmentCount
     self.totalPointCount = domainModel.totalPointCount

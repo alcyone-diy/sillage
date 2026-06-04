@@ -10,6 +10,7 @@
 
 import Testing
 import Foundation
+import CoreLocation
 @testable import Sillage
 
 @Suite("Geographic Bounding Box Tests")
@@ -17,162 +18,147 @@ struct GeographicBoundingBoxTests {
 
   @Test("Init with 4 coordinates")
   func testInitWithFourCoordinates() {
-    let south = Measurement(value: 40.0, unit: UnitAngle.degrees)
-    let north = Measurement(value: 50.0, unit: UnitAngle.degrees)
-    let west = Measurement(value: -10.0, unit: UnitAngle.degrees)
-    let east = Measurement(value: 10.0, unit: UnitAngle.degrees)
+    let southWest = CLLocationCoordinate2D(latitude: 40.0, longitude: -10.0)
+    let northEast = CLLocationCoordinate2D(latitude: 50.0, longitude: 10.0)
     
-    let box = GeographicBoundingBox(southLatitude: south, northLatitude: north, westLongitude: west, eastLongitude: east)
+    let box = GeographicBoundingBox(southWest: southWest, northEast: northEast)
     
-    #expect(box.southLatitude == south)
-    #expect(box.northLatitude == north)
-    #expect(box.westLongitude == west)
-    #expect(box.eastLongitude == east)
+    #expect(box.southWest.latitude == southWest.latitude)
+    #expect(box.northEast.latitude == northEast.latitude)
+    #expect(box.southWest.longitude == southWest.longitude)
+    #expect(box.northEast.longitude == northEast.longitude)
   }
 
   @Test("Init with single coordinate")
   func testInitWithSingleCoordinate() {
-    let lat = Measurement(value: 45.0, unit: UnitAngle.degrees)
-    let lon = Measurement(value: -5.0, unit: UnitAngle.degrees)
+    let coordinate = CLLocationCoordinate2D(latitude: 45.0, longitude: -5.0)
     
-    let box = GeographicBoundingBox(latitude: lat, longitude: lon)
+    let box = GeographicBoundingBox(coordinate: coordinate)
     
-    #expect(box.southLatitude == lat)
-    #expect(box.northLatitude == lat)
-    #expect(box.westLongitude == lon)
-    #expect(box.eastLongitude == lon)
+    #expect(box.southWest.latitude == coordinate.latitude)
+    #expect(box.northEast.latitude == coordinate.latitude)
+    #expect(box.southWest.longitude == coordinate.longitude)
+    #expect(box.northEast.longitude == coordinate.longitude)
   }
   
   @Test("Expand North")
   func testExpandNorth() {
-    let initialLat = Measurement(value: 40.0, unit: UnitAngle.degrees)
-    let initialLon = Measurement(value: -10.0, unit: UnitAngle.degrees)
-    var box = GeographicBoundingBox(latitude: initialLat, longitude: initialLon)
+    let initialCoordinate = CLLocationCoordinate2D(latitude: 40.0, longitude: -10.0)
+    var box = GeographicBoundingBox(coordinate: initialCoordinate)
     
-    let newLat = Measurement(value: 50.0, unit: UnitAngle.degrees)
-    box.expand(toIncludeLatitude: newLat, longitude: initialLon)
+    let newCoordinate = CLLocationCoordinate2D(latitude: 50.0, longitude: -10.0)
+    box.expand(toInclude: newCoordinate)
     
-    #expect(box.southLatitude == initialLat)
-    #expect(box.northLatitude == newLat)
-    #expect(box.westLongitude == initialLon)
-    #expect(box.eastLongitude == initialLon)
+    #expect(box.southWest.latitude == initialCoordinate.latitude)
+    #expect(box.northEast.latitude == newCoordinate.latitude)
+    #expect(box.southWest.longitude == initialCoordinate.longitude)
+    #expect(box.northEast.longitude == initialCoordinate.longitude)
   }
   
   @Test("Expand South")
   func testExpandSouth() {
-    let initialLat = Measurement(value: 40.0, unit: UnitAngle.degrees)
-    let initialLon = Measurement(value: -10.0, unit: UnitAngle.degrees)
-    var box = GeographicBoundingBox(latitude: initialLat, longitude: initialLon)
+    let initialCoordinate = CLLocationCoordinate2D(latitude: 40.0, longitude: -10.0)
+    var box = GeographicBoundingBox(coordinate: initialCoordinate)
     
-    let newLat = Measurement(value: 30.0, unit: UnitAngle.degrees)
-    box.expand(toIncludeLatitude: newLat, longitude: initialLon)
+    let newCoordinate = CLLocationCoordinate2D(latitude: 30.0, longitude: -10.0)
+    box.expand(toInclude: newCoordinate)
     
-    #expect(box.southLatitude == newLat)
-    #expect(box.northLatitude == initialLat)
-    #expect(box.westLongitude == initialLon)
-    #expect(box.eastLongitude == initialLon)
+    #expect(box.southWest.latitude == newCoordinate.latitude)
+    #expect(box.northEast.latitude == initialCoordinate.latitude)
+    #expect(box.southWest.longitude == initialCoordinate.longitude)
+    #expect(box.northEast.longitude == initialCoordinate.longitude)
   }
   
   @Test("Expand East")
   func testExpandEast() {
-    let initialLat = Measurement(value: 40.0, unit: UnitAngle.degrees)
-    let initialLon = Measurement(value: -10.0, unit: UnitAngle.degrees)
-    var box = GeographicBoundingBox(latitude: initialLat, longitude: initialLon)
+    let initialCoordinate = CLLocationCoordinate2D(latitude: 40.0, longitude: -10.0)
+    var box = GeographicBoundingBox(coordinate: initialCoordinate)
     
-    let newLon = Measurement(value: 10.0, unit: UnitAngle.degrees)
-    box.expand(toIncludeLatitude: initialLat, longitude: newLon)
+    let newCoordinate = CLLocationCoordinate2D(latitude: 40.0, longitude: 10.0)
+    box.expand(toInclude: newCoordinate)
     
-    #expect(box.southLatitude == initialLat)
-    #expect(box.northLatitude == initialLat)
-    #expect(box.westLongitude == initialLon)
-    #expect(box.eastLongitude == newLon)
+    #expect(box.southWest.latitude == initialCoordinate.latitude)
+    #expect(box.northEast.latitude == initialCoordinate.latitude)
+    #expect(box.southWest.longitude == initialCoordinate.longitude)
+    #expect(box.northEast.longitude == newCoordinate.longitude)
   }
   
   @Test("Expand West")
   func testExpandWest() {
-    let initialLat = Measurement(value: 40.0, unit: UnitAngle.degrees)
-    let initialLon = Measurement(value: 10.0, unit: UnitAngle.degrees)
-    var box = GeographicBoundingBox(latitude: initialLat, longitude: initialLon)
+    let initialCoordinate = CLLocationCoordinate2D(latitude: 40.0, longitude: 10.0)
+    var box = GeographicBoundingBox(coordinate: initialCoordinate)
     
-    let newLon = Measurement(value: -10.0, unit: UnitAngle.degrees)
-    box.expand(toIncludeLatitude: initialLat, longitude: newLon)
+    let newCoordinate = CLLocationCoordinate2D(latitude: 40.0, longitude: -10.0)
+    box.expand(toInclude: newCoordinate)
     
-    #expect(box.southLatitude == initialLat)
-    #expect(box.northLatitude == initialLat)
-    #expect(box.westLongitude == newLon)
-    #expect(box.eastLongitude == initialLon)
+    #expect(box.southWest.latitude == initialCoordinate.latitude)
+    #expect(box.northEast.latitude == initialCoordinate.latitude)
+    #expect(box.southWest.longitude == newCoordinate.longitude)
+    #expect(box.northEast.longitude == initialCoordinate.longitude)
   }
 
   @Test("Expand Inside Bounds")
   func testExpandInsideBounds() {
-    let south = Measurement(value: 40.0, unit: UnitAngle.degrees)
-    let north = Measurement(value: 50.0, unit: UnitAngle.degrees)
-    let west = Measurement(value: -10.0, unit: UnitAngle.degrees)
-    let east = Measurement(value: 10.0, unit: UnitAngle.degrees)
+    let southWest = CLLocationCoordinate2D(latitude: 40.0, longitude: -10.0)
+    let northEast = CLLocationCoordinate2D(latitude: 50.0, longitude: 10.0)
     
-    var box = GeographicBoundingBox(southLatitude: south, northLatitude: north, westLongitude: west, eastLongitude: east)
+    var box = GeographicBoundingBox(southWest: southWest, northEast: northEast)
     
-    let insideLat = Measurement(value: 45.0, unit: UnitAngle.degrees)
-    let insideLon = Measurement(value: 0.0, unit: UnitAngle.degrees)
+    let insideCoordinate = CLLocationCoordinate2D(latitude: 45.0, longitude: 0.0)
     
-    box.expand(toIncludeLatitude: insideLat, longitude: insideLon)
+    box.expand(toInclude: insideCoordinate)
     
-    #expect(box.southLatitude == south)
-    #expect(box.northLatitude == north)
-    #expect(box.westLongitude == west)
-    #expect(box.eastLongitude == east)
+    #expect(box.southWest.latitude == southWest.latitude)
+    #expect(box.northEast.latitude == northEast.latitude)
+    #expect(box.southWest.longitude == southWest.longitude)
+    #expect(box.northEast.longitude == northEast.longitude)
   }
   
   @Test("Cross Antimeridian (Eastbound)")
   func testCrossAntimeridianEastbound() {
-    let initialLat = Measurement(value: 40.0, unit: UnitAngle.degrees)
-    let initialLon = Measurement(value: 175.0, unit: UnitAngle.degrees)
-    var box = GeographicBoundingBox(latitude: initialLat, longitude: initialLon)
+    let initialCoordinate = CLLocationCoordinate2D(latitude: 40.0, longitude: 175.0)
+    var box = GeographicBoundingBox(coordinate: initialCoordinate)
     
-    let newLon = Measurement(value: -175.0, unit: UnitAngle.degrees)
-    box.expand(toIncludeLatitude: initialLat, longitude: newLon)
+    let newCoordinate = CLLocationCoordinate2D(latitude: 40.0, longitude: -175.0)
+    box.expand(toInclude: newCoordinate)
     
-    #expect(box.southLatitude == initialLat)
-    #expect(box.northLatitude == initialLat)
-    #expect(box.westLongitude == initialLon)
-    #expect(box.eastLongitude == newLon)
+    #expect(box.southWest.latitude == initialCoordinate.latitude)
+    #expect(box.northEast.latitude == initialCoordinate.latitude)
+    #expect(box.southWest.longitude == initialCoordinate.longitude)
+    #expect(box.northEast.longitude == newCoordinate.longitude)
   }
   
   @Test("Cross Antimeridian (Westbound)")
   func testCrossAntimeridianWestbound() {
-    let initialLat = Measurement(value: 40.0, unit: UnitAngle.degrees)
-    let initialLon = Measurement(value: -175.0, unit: UnitAngle.degrees)
-    var box = GeographicBoundingBox(latitude: initialLat, longitude: initialLon)
+    let initialCoordinate = CLLocationCoordinate2D(latitude: 40.0, longitude: -175.0)
+    var box = GeographicBoundingBox(coordinate: initialCoordinate)
     
-    let newLon = Measurement(value: 175.0, unit: UnitAngle.degrees)
-    box.expand(toIncludeLatitude: initialLat, longitude: newLon)
+    let newCoordinate = CLLocationCoordinate2D(latitude: 40.0, longitude: 175.0)
+    box.expand(toInclude: newCoordinate)
     
-    #expect(box.southLatitude == initialLat)
-    #expect(box.northLatitude == initialLat)
-    #expect(box.westLongitude == newLon)
-    #expect(box.eastLongitude == initialLon)
+    #expect(box.southWest.latitude == initialCoordinate.latitude)
+    #expect(box.northEast.latitude == initialCoordinate.latitude)
+    #expect(box.southWest.longitude == newCoordinate.longitude)
+    #expect(box.northEast.longitude == initialCoordinate.longitude)
   }
   
   @Test("Inside Bounds over Antimeridian")
   func testInsideBoundsOverAntimeridian() {
-    let south = Measurement(value: 40.0, unit: UnitAngle.degrees)
-    let north = Measurement(value: 50.0, unit: UnitAngle.degrees)
-    let west = Measurement(value: 170.0, unit: UnitAngle.degrees)
-    let east = Measurement(value: -170.0, unit: UnitAngle.degrees)
+    let southWest = CLLocationCoordinate2D(latitude: 40.0, longitude: 170.0)
+    let northEast = CLLocationCoordinate2D(latitude: 50.0, longitude: -170.0)
     
-    var box = GeographicBoundingBox(southLatitude: south, northLatitude: north, westLongitude: west, eastLongitude: east)
+    var box = GeographicBoundingBox(southWest: southWest, northEast: northEast)
     
     // Test points that should be inside this box (e.g., 175, 180, -175)
-    let insideLon1 = Measurement(value: 175.0, unit: UnitAngle.degrees)
-    let insideLon2 = Measurement(value: -175.0, unit: UnitAngle.degrees)
-    let insideLat = Measurement(value: 45.0, unit: UnitAngle.degrees)
+    let insideCoordinate1 = CLLocationCoordinate2D(latitude: 45.0, longitude: 175.0)
+    let insideCoordinate2 = CLLocationCoordinate2D(latitude: 45.0, longitude: -175.0)
     
-    box.expand(toIncludeLatitude: insideLat, longitude: insideLon1)
-    box.expand(toIncludeLatitude: insideLat, longitude: insideLon2)
+    box.expand(toInclude: insideCoordinate1)
+    box.expand(toInclude: insideCoordinate2)
     
-    #expect(box.southLatitude == south)
-    #expect(box.northLatitude == north)
-    #expect(box.westLongitude == west)
-    #expect(box.eastLongitude == east)
+    #expect(box.southWest.latitude == southWest.latitude)
+    #expect(box.northEast.latitude == northEast.latitude)
+    #expect(box.southWest.longitude == southWest.longitude)
+    #expect(box.northEast.longitude == northEast.longitude)
   }
 }

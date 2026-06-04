@@ -169,10 +169,7 @@ class MapViewModel {
       for await selectedId in stream {
         guard !Task.isCancelled else { break }
         if let id = selectedId, let waypoint = try? await waypointService.fetchWaypoint(id: id) {
-          let coordinate = CLLocationCoordinate2D(
-            latitude: waypoint.latitude.converted(to: .degrees).value,
-            longitude: waypoint.longitude.converted(to: .degrees).value
-          )
+          let coordinate = waypoint.coordinate
           
           let feature = MLNPointFeature()
           feature.coordinate = coordinate
@@ -216,10 +213,7 @@ class MapViewModel {
           
           let features: [MLNPointFeature] = waypoints.compactMap { waypoint in
             guard waypoint.isVisible else { return nil }
-            let coordinate = CLLocationCoordinate2D(
-              latitude: waypoint.latitude.converted(to: .degrees).value,
-              longitude: waypoint.longitude.converted(to: .degrees).value
-            )
+            let coordinate = waypoint.coordinate
             let feature = MLNPointFeature()
             feature.coordinate = coordinate
             var attributes: [String: Any] = ["name": waypoint.name]
@@ -237,10 +231,7 @@ class MapViewModel {
             self?.visibleWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
             
             if let selectedId = self?.selectedWaypointId, let waypoint = waypoints.first(where: { $0.id == selectedId }) {
-              let coordinate = CLLocationCoordinate2D(
-                latitude: waypoint.latitude.converted(to: .degrees).value,
-                longitude: waypoint.longitude.converted(to: .degrees).value
-              )
+              let coordinate = waypoint.coordinate
               let feature = MLNPointFeature()
               feature.coordinate = coordinate
               var attributes: [String: Any] = ["name": waypoint.name]
@@ -579,10 +570,7 @@ class MapViewModel {
         continuation.yield(event)
       }
     } else if let firstPoint = points.first {
-      let center = CLLocationCoordinate2D(
-        latitude: firstPoint.latitude.converted(to: .degrees).value,
-        longitude: firstPoint.longitude.converted(to: .degrees).value
-      )
+      let center = firstPoint.coordinate
       let event = CameraMoveEvent.center(coordinate: center, zoom: 10.0, heading: nil)
       for continuation in self.cameraMoveContinuations.values {
         continuation.yield(event)
@@ -616,8 +604,8 @@ class MapViewModel {
         continue
       }
       
-      let lat = point.latitude.converted(to: .degrees).value
-      let lon = point.longitude.converted(to: .degrees).value
+      let lat = point.coordinate.latitude
+      let lon = point.coordinate.longitude
       
       if lat < minLat { minLat = lat }
       if lat > maxLat { maxLat = lat }

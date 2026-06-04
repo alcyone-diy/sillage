@@ -9,72 +9,64 @@
 //
 
 import Foundation
+import CoreLocation
 
-public struct GeographicBoundingBox: Sendable, Equatable {
+public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   
   // MARK: - Properties
   
-  public private(set) var southLatitude: Measurement<UnitAngle>
-  public private(set) var northLatitude: Measurement<UnitAngle>
-  public private(set) var westLongitude: Measurement<UnitAngle>
-  public private(set) var eastLongitude: Measurement<UnitAngle>
+  /// (Minimums)
+  public private(set) var southWest: CLLocationCoordinate2D
+  /// (Maximums)
+  public private(set) var northEast: CLLocationCoordinate2D
   
   // MARK: - Initialization
   
-  public init(southLatitude: Measurement<UnitAngle>,
-              northLatitude: Measurement<UnitAngle>,
-              westLongitude: Measurement<UnitAngle>,
-              eastLongitude: Measurement<UnitAngle>) {
-    self.southLatitude = southLatitude
-    self.northLatitude = northLatitude
-    self.westLongitude = westLongitude
-    self.eastLongitude = eastLongitude
+  public init(southWest: CLLocationCoordinate2D, northEast: CLLocationCoordinate2D) {
+    self.southWest = southWest
+    self.northEast = northEast
   }
   
-  public init(latitude: Measurement<UnitAngle>, longitude: Measurement<UnitAngle>) {
-    self.southLatitude = latitude
-    self.northLatitude = latitude
-    self.westLongitude = longitude
-    self.eastLongitude = longitude
+  public init(coordinate: CLLocationCoordinate2D) {
+    self.southWest = coordinate
+    self.northEast = coordinate
   }
   
   // MARK: - Public
   
-  public mutating func expand(toIncludeLatitude latitude: Measurement<UnitAngle>, longitude: Measurement<UnitAngle>) {
-    if latitude < southLatitude { southLatitude = latitude }
-    if latitude > northLatitude { northLatitude = latitude }
+  public mutating func expand(toInclude coordinate: CLLocationCoordinate2D) {
+    if coordinate.latitude < southWest.latitude { southWest.latitude = coordinate.latitude }
+    if coordinate.latitude > northEast.latitude { northEast.latitude = coordinate.latitude }
     
     let isInside: Bool
-    if westLongitude <= eastLongitude {
-      isInside = (longitude >= westLongitude) && (longitude <= eastLongitude)
+    if southWest.longitude <= northEast.longitude {
+      isInside = (coordinate.longitude >= southWest.longitude) && (coordinate.longitude <= northEast.longitude)
     } else {
-      isInside = (longitude >= westLongitude) || (longitude <= eastLongitude)
+      isInside = (coordinate.longitude >= southWest.longitude) || (coordinate.longitude <= northEast.longitude)
     }
     
     if !isInside {
-      let expandEast = degreesDistance(from: eastLongitude, to: longitude)
-      let expandWest = degreesDistance(from: longitude, to: westLongitude)
+      let expandEast = degreesDistance(from: northEast.longitude, to: coordinate.longitude)
+      let expandWest = degreesDistance(from: coordinate.longitude, to: southWest.longitude)
       
       if expandEast < expandWest {
-        eastLongitude = longitude
+        northEast.longitude = coordinate.longitude
       } else {
-        westLongitude = longitude
+        southWest.longitude = coordinate.longitude
       }
     }
   }
   
   // MARK: - Private Math
   
-  private func degreesDistance(from start: Measurement<UnitAngle>, to end: Measurement<UnitAngle>) -> Measurement<UnitAngle> {
+  private func degreesDistance(from start: CLLocationDegrees, to end: CLLocationDegrees) -> CLLocationDegrees {
     var diff = end - start
-    let fullCircle = Measurement<UnitAngle>(value: 360.0, unit: .degrees)
-    let zero = Measurement<UnitAngle>(value: 0.0, unit: .degrees)
     
-    while diff < zero {
-      diff = diff + fullCircle
+    while diff < 0.0 {
+      diff += 360.0
     }
-    while diff >= fullCircle {
-      diff = diff - fullCircle
+    while diff >= 360.0 {
+      diff -= 360.0
     }
     return diff
   }

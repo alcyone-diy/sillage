@@ -10,6 +10,7 @@
 
 import Foundation
 import GRDB
+import CoreLocation
 
 public enum GPXExportError: Error {
   case emptyTrack
@@ -40,8 +41,8 @@ public struct GPXExportService: Sendable {
     var count = 0
     while let record = try cursor.next() {
       let point = record.domainModel
-      let latString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.latitude.converted(to: .degrees).value)
-      let lonString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.longitude.converted(to: .degrees).value)
+      let latString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.coordinate.latitude)
+      let lonString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.coordinate.longitude)
       let timeString = point.timestamp.ISO8601Format()
 
       var pointXml = "\n      <trkpt lat=\"\(latString)\" lon=\"\(lonString)\">"

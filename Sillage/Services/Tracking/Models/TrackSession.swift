@@ -21,10 +21,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
   public let endLocation: String?
   public let totalDuration: Duration?
   public let totalDistanceOverGround: Measurement<UnitLength>?
-  public let southLatitude: Measurement<UnitAngle>?
-  public let northLatitude: Measurement<UnitAngle>?
-  public let westLongitude: Measurement<UnitAngle>?
-  public let eastLongitude: Measurement<UnitAngle>?
+  public let boundingBox: GeographicBoundingBox?
   public let maxSpeedOverGround: Measurement<UnitSpeed>?
   public let segmentCount: Int
   public let totalPointCount: Int
@@ -40,10 +37,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     endLocation: String? = nil,
     totalDuration: Duration? = nil,
     totalDistanceOverGround: Measurement<UnitLength>? = nil,
-    southLatitude: Measurement<UnitAngle>? = nil,
-    northLatitude: Measurement<UnitAngle>? = nil,
-    westLongitude: Measurement<UnitAngle>? = nil,
-    eastLongitude: Measurement<UnitAngle>? = nil,
+    boundingBox: GeographicBoundingBox? = nil,
     maxSpeedOverGround: Measurement<UnitSpeed>? = nil,
     segmentCount: Int = 0,
     totalPointCount: Int = 0,
@@ -58,10 +52,7 @@ public struct TrackSession: Sendable, Codable, Identifiable {
     self.endLocation = endLocation
     self.totalDuration = totalDuration
     self.totalDistanceOverGround = totalDistanceOverGround
-    self.southLatitude = southLatitude
-    self.northLatitude = northLatitude
-    self.westLongitude = westLongitude
-    self.eastLongitude = eastLongitude
+    self.boundingBox = boundingBox
     self.maxSpeedOverGround = maxSpeedOverGround
     self.segmentCount = segmentCount
     self.totalPointCount = totalPointCount

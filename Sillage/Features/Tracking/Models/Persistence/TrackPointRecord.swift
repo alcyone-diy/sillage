@@ -39,8 +39,7 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
     sessionId: String,
     timestamp: Date,
     segmentIndex: Int,
-    latitude: Measurement<UnitAngle>,
-    longitude: Measurement<UnitAngle>,
+    coordinate: CLLocationCoordinate2D,
     horizontalAccuracy: Measurement<UnitLength>,
     speedOverGround: Measurement<UnitSpeed>? = nil,
     courseOverGround: Measurement<UnitAngle>? = nil,
@@ -49,8 +48,8 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
     self.sessionId = sessionId
     self.timestamp_unix = timestamp.timeIntervalSince1970
     self.segmentIndex = segmentIndex
-    self.latitude_deg = latitude.converted(to: .degrees).value
-    self.longitude_deg = longitude.converted(to: .degrees).value
+    self.latitude_deg = coordinate.latitude
+    self.longitude_deg = coordinate.longitude
     self.horizontalAccuracy_m = horizontalAccuracy.converted(to: .meters).value
     self.speedOverGround_mps = speedOverGround.map { $0.converted(to: .metersPerSecond).value }
     self.courseOverGround_deg = courseOverGround.map { $0.converted(to: .degrees).value }
@@ -67,8 +66,7 @@ extension TrackPointRecord {
       sessionId: sessionId,
       timestamp: domainModel.timestamp,
       segmentIndex: domainModel.segmentIndex,
-      latitude: domainModel.latitude,
-      longitude: domainModel.longitude,
+      coordinate: domainModel.coordinate,
       horizontalAccuracy: domainModel.horizontalAccuracy,
       speedOverGround: domainModel.speedOverGround,
       courseOverGround: domainModel.courseOverGround,
@@ -95,8 +93,7 @@ extension TrackPointRecord {
     return TrackPoint(
       timestamp: Date(timeIntervalSince1970: timestamp_unix),
       segmentIndex: segmentIndex,
-      latitude: Measurement(value: latitude_deg, unit: .degrees),
-      longitude: Measurement(value: longitude_deg, unit: .degrees),
+      coordinate: CLLocationCoordinate2D(latitude: latitude_deg, longitude: longitude_deg),
       horizontalAccuracy: Measurement(value: horizontalAccuracy_m, unit: .meters),
       speedOverGround: speedOverGround,
       courseOverGround: courseOverGround,
