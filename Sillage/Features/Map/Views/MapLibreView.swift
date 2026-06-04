@@ -165,6 +165,10 @@ struct MapLibreView: UIViewRepresentable {
     // Setup subscription for explicit user location centering via AsyncStream
     context.coordinator.setupSubscription(for: mapView)
     
+    // Setup long press gesture for waypoint selection
+    let longPressGesture = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
+    mapView.addGestureRecognizer(longPressGesture)
+    
     return mapView
   }
   
@@ -324,6 +328,31 @@ struct MapLibreView: UIViewRepresentable {
     
     deinit {
       streamTask?.cancel()
+    }
+    
+    @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
+      guard sender.state == .began else { return }
+      guard let mapView = sender.view as? MLNMapView else { return }
+      let point = sender.location(in: mapView)
+      
+      // Expand touch area for better UX (Fitts's Law / Glove Mode)
+      let touchRect = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
+      let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: ["selected-waypoint-layer", "visible-waypoints-layer"])
+      
+      if let feature = features.first as? MLNPointFeature, let id = feature.attributes["id"] as? String {
+        Task { @MainActor in
+          if self.parent.viewModel.selectedWaypointId == id {
+            self.parent.viewModel.selectWaypoint(id: nil) // Deselect if already selected
+          } else {
+            self.parent.viewModel.selectWaypoint(id: id)
+          }
+        }
+      } else {
+        // Deselect if long pressed on empty space
+        Task { @MainActor in
+          self.parent.viewModel.selectWaypoint(id: nil)
+        }
+      }
     }
     
     func setupSubscription(for mapView: MLNMapView) {
