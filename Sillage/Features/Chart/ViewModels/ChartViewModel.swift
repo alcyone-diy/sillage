@@ -197,35 +197,41 @@ class ChartViewModel {
   }
   
   private func handleGoToWaypointChange(id: String?) {
-    if let id = id, let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == id }) {
-      let coordinate = waypoint.coordinate
-      
-      let feature = MLNPointFeature()
-      feature.coordinate = coordinate
-      var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
-      if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
-        attributes["colorHex"] = colorHex
-        attributes["color"] = UIColor(color)
-      } else {
-        attributes["color"] = UIColor.systemOrange
-      }
-      feature.attributes = attributes
-      
-      self.goToWaypointID = id
-      self.goToWaypointFeature = feature
-      self.updateBearingToWaypoint()
-      self.updateBearingLine()
-      self.trackingMode = .free
-      
-      let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
-      for continuation in self.cameraMoveContinuations.values {
-        continuation.yield(event)
-      }
-    } else {
+    // 1. Validation stricte
+    guard let id = id,
+          let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == id }) else {
+      // 2. Fallback sécurisé : Reset total si invalide ou nil
       self.goToWaypointID = nil
       self.goToWaypointFeature = nil
       self.updateBearingToWaypoint()
       self.updateBearingLine()
+      return
+    }
+    
+    // 3. Application de l'état valide
+    let coordinate = waypoint.coordinate
+    let feature = MLNPointFeature()
+    feature.coordinate = coordinate
+    
+    var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
+    if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
+      attributes["colorHex"] = colorHex
+      attributes["color"] = UIColor(color)
+    } else {
+      attributes["color"] = UIColor.systemOrange
+    }
+    feature.attributes = attributes
+    
+    self.goToWaypointID = id
+    self.goToWaypointFeature = feature
+    self.updateBearingToWaypoint()
+    self.updateBearingLine()
+    self.trackingMode = .free
+    
+    // 4. Émission de l'événement
+    let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
+    for continuation in self.cameraMoveContinuations.values {
+      continuation.yield(event)
     }
   }
   
@@ -248,23 +254,44 @@ class ChartViewModel {
     
     self.visibleWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
     
-    if let goToID = self.goToWaypointID, let waypoint = waypoints.first(where: { $0.id == goToID }) {
-      let coordinate = waypoint.coordinate
-      let feature = MLNPointFeature()
-      feature.coordinate = coordinate
-      var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
-      if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
-        attributes["colorHex"] = colorHex
-        attributes["color"] = UIColor(color)
-      } else {
-        attributes["color"] = UIColor.systemOrange
-      }
-      feature.attributes = attributes
-      
-      self.goToWaypointFeature = feature
+    // Vérification de la persistance du waypoint cible actuel
+    // Note: On lit l'intention depuis le waypointService au lieu de self.goToWaypointID
+    // Cela permet de restaurer correctement la navigation au démarrage de l'app,
+    // car handleGoToWaypointChange a pu purger l'état temporairement si les waypoints n'étaient pas encore chargés.
+    guard let targetID = waypointService?.goToWaypointID else {
+      self.goToWaypointID = nil
+      self.goToWaypointFeature = nil
       self.updateBearingToWaypoint()
       self.updateBearingLine()
+      return
     }
+    
+    guard let waypoint = waypoints.first(where: { $0.id == targetID }) else {
+      // Le waypoint cible n'existe plus (supprimé), on annule la navigation
+      self.goToWaypointID = nil
+      self.goToWaypointFeature = nil
+      self.updateBearingToWaypoint()
+      self.updateBearingLine()
+      return
+    }
+    
+    // Le waypoint existe toujours, on met à jour ses données (couleur, nom, position)
+    let feature = MLNPointFeature()
+    feature.coordinate = waypoint.coordinate
+    var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
+    
+    if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
+      attributes["colorHex"] = colorHex
+      attributes["color"] = UIColor(color)
+    } else {
+      attributes["color"] = UIColor.systemOrange
+    }
+    feature.attributes = attributes
+    
+    self.goToWaypointID = targetID
+    self.goToWaypointFeature = feature
+    self.updateBearingToWaypoint()
+    self.updateBearingLine()
   }
   
   /// Initiates the asynchronous import of an MBTiles file and switches the chart to it upon success.
