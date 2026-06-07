@@ -17,6 +17,7 @@ struct WaypointDetailView: View {
   
   @Bindable var viewModel: WaypointDetailViewModel
   var onGoToRequested: ((String) -> Void)?
+  var onCancelNavigationRequested: (() -> Void)?
   
   var body: some View {
     VStack(spacing: 0) {
@@ -95,21 +96,39 @@ struct WaypointDetailView: View {
       
       if !viewModel.isEditable, let waypointID = viewModel.editingWaypointID {
         VStack(spacing: MarineTheme.Spacing.small) {
-          Button(action: {
-            onGoToRequested?(waypointID)
-          }) {
-            HStack {
-              Image(systemName: "mappin.circle.fill")
-              Text("Go To")
+          if viewModel.isGoTo {
+            Button(action: {
+              onCancelNavigationRequested?()
+            }) {
+              HStack {
+                Image(systemName: "xmark.circle.fill")
+                Text("Cancel Navigation")
+              }
+              .font(.headline)
+              .fontWeight(.semibold)
+              .foregroundColor(MarineTheme.Colors.onPrimary)
+              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+              .background(MarineTheme.Colors.destructive)
+              .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
-            .font(.headline)
-            .fontWeight(.semibold)
-            .foregroundColor(MarineTheme.Colors.onPrimary)
-            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(MarineTheme.Colors.primary)
-            .cornerRadius(MarineTheme.Metrics.cornerRadius)
+            .buttonStyle(MarineButtonStyle())
+          } else {
+            Button(action: {
+              onGoToRequested?(waypointID)
+            }) {
+              HStack {
+                Image(systemName: "mappin.circle.fill")
+                Text("Go To")
+              }
+              .font(.headline)
+              .fontWeight(.semibold)
+              .foregroundColor(MarineTheme.Colors.onPrimary)
+              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+              .background(MarineTheme.Colors.primary)
+              .cornerRadius(MarineTheme.Metrics.cornerRadius)
+            }
+            .buttonStyle(MarineButtonStyle())
           }
-          .buttonStyle(MarineButtonStyle())
         }
         .padding(MarineTheme.Spacing.medium)
         .background(MarineTheme.Colors.surfaceBackground)

@@ -559,11 +559,7 @@ class ChartViewModel {
     }
   }
   
-  /// Selects or deselects a waypoint by ID
-  func setGoToWaypoint(id: String?) {
-    waypointService?.setGoToWaypoint(id: id)
-  }
-  
+
   // MARK: - Saved Tracks
   
   func loadAndDisplaySavedTrack(sessionID: String, trackService: TrackService, edgePadding: CGFloat) async throws {

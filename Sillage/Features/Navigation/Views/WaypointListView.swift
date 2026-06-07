@@ -46,13 +46,22 @@ struct WaypointListView: View {
               )
             }
               .swipeActions(edge: .leading) {
-                Button {
-                  chartViewModel.setGoToWaypoint(id: waypoint.id)
-                  panelManager.closePanel()
-                } label: {
-                  Label("Go To", systemImage: "mappin.circle.fill")
+                if viewModel.goToWaypointID == waypoint.id {
+                  Button {
+                    viewModel.setDestination(waypointID: nil)
+                  } label: {
+                    Label("Cancel", systemImage: "xmark.circle.fill")
+                  }
+                  .tint(.red)
+                } else {
+                  Button {
+                    viewModel.setDestination(waypointID: waypoint.id)
+                    panelManager.closePanel()
+                  } label: {
+                    Label("Go To", systemImage: "mappin.circle.fill")
+                  }
+                  .tint(.green)
                 }
-                .tint(.green)
               }
               .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 Button {
@@ -129,11 +138,18 @@ struct WaypointListView: View {
             defaultName: item.defaultName,
             initialCoordinate: item.coordinate
           )
-          WaypointDetailView(viewModel: viewModel) { waypointID in
-            newWaypointItem = nil
-            chartViewModel.setGoToWaypoint(id: waypointID)
-            panelManager.closePanel()
-          }
+          WaypointDetailView(
+            viewModel: viewModel,
+            onGoToRequested: { waypointID in
+              newWaypointItem = nil
+              waypointService.setDestination(waypointID: waypointID)
+              panelManager.closePanel()
+            },
+            onCancelNavigationRequested: {
+              newWaypointItem = nil
+              waypointService.setDestination(waypointID: nil)
+            }
+          )
         }
       }
     }
@@ -145,11 +161,18 @@ struct WaypointListView: View {
             editingWaypoint: waypoint,
             startEditable: true
           )
-          WaypointDetailView(viewModel: viewModel) { waypointID in
-            editingWaypoint = nil
-            chartViewModel.setGoToWaypoint(id: waypointID)
-            panelManager.closePanel()
-          }
+          WaypointDetailView(
+            viewModel: viewModel,
+            onGoToRequested: { waypointID in
+              editingWaypoint = nil
+              waypointService.setDestination(waypointID: waypointID)
+              panelManager.closePanel()
+            },
+            onCancelNavigationRequested: {
+              editingWaypoint = nil
+              waypointService.setDestination(waypointID: nil)
+            }
+          )
         }
       }
     }
@@ -206,10 +229,16 @@ struct WaypointDetailContainer: View {
             await loadData()
           }
       case .loaded(let viewModel):
-        WaypointDetailView(viewModel: viewModel) { waypointID in
-          chartViewModel.setGoToWaypoint(id: waypointID)
-          panelManager.closePanel()
-        }
+        WaypointDetailView(
+          viewModel: viewModel,
+          onGoToRequested: { waypointID in
+            waypointService?.setDestination(waypointID: waypointID)
+            panelManager.closePanel()
+          },
+          onCancelNavigationRequested: {
+            waypointService?.setDestination(waypointID: nil)
+          }
+        )
       case .error(let error):
         VStack(spacing: 16) {
           Image(systemName: "exclamationmark.triangle")

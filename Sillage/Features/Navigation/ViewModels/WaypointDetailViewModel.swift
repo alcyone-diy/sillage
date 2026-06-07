@@ -32,6 +32,11 @@ public final class WaypointDetailViewModel {
   public var isVisible: Bool = true
   public var isEditable: Bool
   
+  public var isGoTo: Bool {
+    guard let id = editingWaypointID else { return false }
+    return waypointService.goToWaypointID == id
+  }
+  
   private let waypointService: WaypointService
   public let editingWaypointID: String?
   private let originalWaypoint: Waypoint?

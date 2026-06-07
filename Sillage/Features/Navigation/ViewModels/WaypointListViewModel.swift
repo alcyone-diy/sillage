@@ -39,7 +39,7 @@ public final class WaypointListViewModel {
     }
   }
   
-  public func setGoToWaypoint(id: String?) {
-    waypointService.setGoToWaypoint(id: id)
+  public func setDestination(waypointID: String?) {
+    waypointService.setDestination(waypointID: waypointID)
   }
 }

@@ -115,11 +115,11 @@ public final class WaypointService {
     }
     
     if goToWaypointID == id {
-      setGoToWaypoint(id: nil)
+      setDestination(waypointID: nil)
     }
   }
 
-  public func setGoToWaypoint(id: String?) {
-    goToWaypointID = id
+  public func setDestination(waypointID: String?) {
+    goToWaypointID = waypointID
   }
 }
