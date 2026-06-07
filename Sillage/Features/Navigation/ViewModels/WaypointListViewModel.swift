@@ -21,8 +21,8 @@ public final class WaypointListViewModel {
     waypointService.currentWaypoints
   }
   
-  public var selectedWaypointID: String? {
-    waypointService.selectedWaypointID
+  public var goToWaypointID: String? {
+    waypointService.goToWaypointID
   }
   
   public init(waypointService: WaypointService) {
@@ -39,7 +39,7 @@ public final class WaypointListViewModel {
     }
   }
   
-  public func selectWaypoint(id: String?) {
-    waypointService.selectWaypoint(id: id)
+  public func setGoToWaypoint(id: String?) {
+    waypointService.setGoToWaypoint(id: id)
   }
 }

@@ -32,8 +32,8 @@ struct MapLibreView: UIViewRepresentable {
     let savedTrackLayerID = "saved-track-layer"
     let activeTrackSourceID = "active-track-source"
     let activeTrackLayerID = "active-track-layer"
-    let selectedWaypointSourceID = "selected-waypoint-source"
-    let selectedWaypointLayerID = "selected-waypoint-layer"
+    let goToWaypointSourceID = "goto-waypoint-source"
+    let goToWaypointLayerID = "goto-waypoint-layer"
     let visibleWaypointsSourceID = "visible-waypoints-source"
     let visibleWaypointsLayerID = "visible-waypoints-layer"
     let bearingLineSourceID = "bearing-line-source"
@@ -69,14 +69,14 @@ struct MapLibreView: UIViewRepresentable {
       savedTrackLayer.lineColor = NSExpression(forConstantValue: UIColor.systemBlue)
       style.insertLayer(savedTrackLayer, below: activeTrackLayer)
       
-      let selectedWaypointSource = MLNShapeSource(identifier: selectedWaypointSourceID, shape: nil, options: nil)
-      style.addSource(selectedWaypointSource)
-      let selectedWaypointLayer = MLNCircleStyleLayer(identifier: selectedWaypointLayerID, source: selectedWaypointSource)
-      selectedWaypointLayer.circleRadius = NSExpression(forConstantValue: 8.0)
-      selectedWaypointLayer.circleColor = NSExpression(forKeyPath: "color")
-      selectedWaypointLayer.circleStrokeWidth = NSExpression(forConstantValue: 2.0)
-      selectedWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
-      style.insertLayer(selectedWaypointLayer, below: activeTrackLayer)
+      let goToWaypointSource = MLNShapeSource(identifier: goToWaypointSourceID, shape: nil, options: nil)
+      style.addSource(goToWaypointSource)
+      let goToWaypointLayer = MLNCircleStyleLayer(identifier: goToWaypointLayerID, source: goToWaypointSource)
+      goToWaypointLayer.circleRadius = NSExpression(forConstantValue: 8.0)
+      goToWaypointLayer.circleColor = NSExpression(forKeyPath: "color")
+      goToWaypointLayer.circleStrokeWidth = NSExpression(forConstantValue: 2.0)
+      goToWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+      style.insertLayer(goToWaypointLayer, below: activeTrackLayer)
       
       let bearingLineSource = MLNShapeSource(identifier: bearingLineSourceID, shape: nil, options: nil)
       style.addSource(bearingLineSource)
@@ -84,7 +84,7 @@ struct MapLibreView: UIViewRepresentable {
       bearingLineLayer.lineWidth = NSExpression(forConstantValue: 1.5)
       bearingLineLayer.lineColor = NSExpression(forKeyPath: "color")
       bearingLineLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
-      style.insertLayer(bearingLineLayer, below: selectedWaypointLayer)
+      style.insertLayer(bearingLineLayer, below: goToWaypointLayer)
       
       let visibleWaypointsSource = MLNShapeSource(identifier: visibleWaypointsSourceID, shape: nil, options: nil)
       style.addSource(visibleWaypointsSource)
@@ -93,7 +93,7 @@ struct MapLibreView: UIViewRepresentable {
       visibleWaypointsLayer.circleColor = NSExpression(forKeyPath: "color")
       visibleWaypointsLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.5)
       visibleWaypointsLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
-      style.insertLayer(visibleWaypointsLayer, below: selectedWaypointLayer)
+      style.insertLayer(visibleWaypointsLayer, below: goToWaypointLayer)
       
       // Create Heading Source and Layer so it's above gps accuracy but beneath the vessel
       let headingSource = MLNShapeSource(identifier: headingSourceID, shape: nil, options: nil)
@@ -210,9 +210,9 @@ struct MapLibreView: UIViewRepresentable {
         source.shape = viewModel.visibleWaypointFeatures
       }
       
-      // Selected waypoint feature update
-      if let source = style.source(withIdentifier: "selected-waypoint-source") as? MLNShapeSource {
-        source.shape = viewModel.selectedWaypointFeature
+      // GoTo waypoint feature update
+      if let source = style.source(withIdentifier: "goto-waypoint-source") as? MLNShapeSource {
+        source.shape = viewModel.goToWaypointFeature
       }
       
       // Bearing Line feature update
@@ -337,20 +337,20 @@ struct MapLibreView: UIViewRepresentable {
       
       // Expand touch area for better UX (Fitts's Law / Glove Mode)
       let touchRect = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
-      let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: ["selected-waypoint-layer", "visible-waypoints-layer"])
+      let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: ["goto-waypoint-layer", "visible-waypoints-layer"])
       
       if let feature = features.first as? MLNPointFeature, let id = feature.attributes["id"] as? String {
         Task { @MainActor in
-          if self.parent.viewModel.selectedWaypointID == id {
-            self.parent.viewModel.selectWaypoint(id: nil) // Deselect if already selected
+          if self.parent.viewModel.goToWaypointID == id {
+            self.parent.viewModel.setGoToWaypoint(id: nil) // Deselect if already selected
           } else {
-            self.parent.viewModel.selectWaypoint(id: id)
+            self.parent.viewModel.setGoToWaypoint(id: id)
           }
         }
       } else {
         // Deselect if long pressed on empty space
         Task { @MainActor in
-          self.parent.viewModel.selectWaypoint(id: nil)
+          self.parent.viewModel.setGoToWaypoint(id: nil)
         }
       }
     }
@@ -415,8 +415,8 @@ struct MapLibreView: UIViewRepresentable {
       if let source = style.source(withIdentifier: "visible-waypoints-source") as? MLNShapeSource {
         source.shape = parent.viewModel.visibleWaypointFeatures
       }
-      if let source = style.source(withIdentifier: "selected-waypoint-source") as? MLNShapeSource {
-        source.shape = parent.viewModel.selectedWaypointFeature
+      if let source = style.source(withIdentifier: "goto-waypoint-source") as? MLNShapeSource {
+        source.shape = parent.viewModel.goToWaypointFeature
       }
       if let source = style.source(withIdentifier: "bearing-line-source") as? MLNShapeSource {
         source.shape = parent.viewModel.bearingLineFeature

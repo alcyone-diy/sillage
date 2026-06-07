@@ -67,7 +67,7 @@ struct TrackServiceTests {
       activeTrackSessionID = nil
     }
     
-    var selectedWaypointID: String?
+    var goToWaypointID: String?
   }
   
   // MARK: - Helpers

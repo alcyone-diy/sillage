@@ -73,22 +73,22 @@ final class AppEnvironment {
 
       let waypointService = WaypointService(
         databaseManager: databaseManager,
-        initialSelection: preferencesService.selectedWaypointID
+        initialGoToWaypointID: preferencesService.goToWaypointID
       )
       self.waypointService = waypointService
 
-      func observeWaypointSelection() {
+      func observeWaypointGoTo() {
         withObservationTracking {
-          _ = waypointService.selectedWaypointID
+          _ = waypointService.goToWaypointID
         } onChange: {
           Task { @MainActor [weak waypointService, weak preferencesService] in
             guard let service = waypointService else { return }
-            preferencesService?.selectedWaypointID = service.selectedWaypointID
-            observeWaypointSelection()
+            preferencesService?.goToWaypointID = service.goToWaypointID
+            observeWaypointGoTo()
           }
         }
       }
-      observeWaypointSelection()
+      observeWaypointGoTo()
 
       let geoGarageAuthService = GeoGarageAuthService()
       self.geoGarageAuthService = geoGarageAuthService

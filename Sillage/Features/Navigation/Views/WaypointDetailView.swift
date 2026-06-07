@@ -16,7 +16,7 @@ struct WaypointDetailView: View {
   @Environment(\.marineTheme) private var marineTheme
   
   @Bindable var viewModel: WaypointDetailViewModel
-  var onViewRequested: ((String) -> Void)?
+  var onGoToRequested: ((String) -> Void)?
   
   var body: some View {
     VStack(spacing: 0) {
@@ -96,7 +96,7 @@ struct WaypointDetailView: View {
       if !viewModel.isEditable, let waypointID = viewModel.editingWaypointID {
         VStack(spacing: MarineTheme.Spacing.small) {
           Button(action: {
-            onViewRequested?(waypointID)
+            onGoToRequested?(waypointID)
           }) {
             HStack {
               Image(systemName: "mappin.circle.fill")

@@ -29,14 +29,14 @@ public enum WaypointError: LocalizedError {
 @Observable
 public final class WaypointService {
   public private(set) var currentWaypoints: [Waypoint] = []
-  public private(set) var selectedWaypointID: String?
+  public private(set) var goToWaypointID: String?
   
   private let databaseManager: DatabaseManager
   private var observationTask: TaskCancellable?
 
-  public init(databaseManager: DatabaseManager, initialSelection: String? = nil) {
+  public init(databaseManager: DatabaseManager, initialGoToWaypointID: String? = nil) {
     self.databaseManager = databaseManager
-    self.selectedWaypointID = initialSelection
+    self.goToWaypointID = initialGoToWaypointID
     startObservation()
   }
 
@@ -114,12 +114,12 @@ public final class WaypointService {
       }
     }
     
-    if selectedWaypointID == id {
-      selectWaypoint(id: nil)
+    if goToWaypointID == id {
+      setGoToWaypoint(id: nil)
     }
   }
 
-  public func selectWaypoint(id: String?) {
-    selectedWaypointID = id
+  public func setGoToWaypoint(id: String?) {
+    goToWaypointID = id
   }
 }

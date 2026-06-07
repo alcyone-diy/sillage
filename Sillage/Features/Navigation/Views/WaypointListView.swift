@@ -42,15 +42,15 @@ struct WaypointListView: View {
             NavigationLink(value: PanelManagerViewModel.CommandDestination.waypointDetail(waypoint.id)) {
               WaypointRowView(
                 waypoint: waypoint,
-                isSelected: viewModel.selectedWaypointID == waypoint.id
+                isGoTo: viewModel.goToWaypointID == waypoint.id
               )
             }
               .swipeActions(edge: .leading) {
                 Button {
-                  chartViewModel.selectWaypoint(id: waypoint.id)
+                  chartViewModel.setGoToWaypoint(id: waypoint.id)
                   panelManager.closePanel()
                 } label: {
-                  Label("Go To", systemImage: "map")
+                  Label("Go To", systemImage: "mappin.circle.fill")
                 }
                 .tint(.green)
               }
@@ -131,7 +131,7 @@ struct WaypointListView: View {
           )
           WaypointDetailView(viewModel: viewModel) { waypointID in
             newWaypointItem = nil
-            chartViewModel.selectWaypoint(id: waypointID)
+            chartViewModel.setGoToWaypoint(id: waypointID)
             panelManager.closePanel()
           }
         }
@@ -147,7 +147,7 @@ struct WaypointListView: View {
           )
           WaypointDetailView(viewModel: viewModel) { waypointID in
             editingWaypoint = nil
-            chartViewModel.selectWaypoint(id: waypointID)
+            chartViewModel.setGoToWaypoint(id: waypointID)
             panelManager.closePanel()
           }
         }
@@ -159,7 +159,7 @@ struct WaypointListView: View {
 @MainActor
 struct WaypointRowView: View {
   let waypoint: Waypoint
-  let isSelected: Bool
+  let isGoTo: Bool
   
   var body: some View {
     HStack {
@@ -174,7 +174,7 @@ struct WaypointRowView: View {
       
       Spacer()
       
-      if isSelected {
+      if isGoTo {
         Image(systemName: "mappin.circle.fill")
           .foregroundColor(.blue)
       }
@@ -207,7 +207,7 @@ struct WaypointDetailContainer: View {
           }
       case .loaded(let viewModel):
         WaypointDetailView(viewModel: viewModel) { waypointID in
-          chartViewModel.selectWaypoint(id: waypointID)
+          chartViewModel.setGoToWaypoint(id: waypointID)
           panelManager.closePanel()
         }
       case .error(let error):
