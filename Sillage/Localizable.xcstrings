@@ -127,9 +127,6 @@
     "Details" : {
 
     },
-    "Displayed on Map" : {
-
-    },
     "Distance" : {
 
     },
@@ -200,6 +197,9 @@
 
     },
     "Glove Mode" : {
+
+    },
+    "Go To" : {
 
     },
     "GRDB" : {
@@ -365,6 +365,9 @@
 
     },
     "Settings" : {
+
+    },
+    "Show" : {
 
     },
     "Show Time Ticks" : {

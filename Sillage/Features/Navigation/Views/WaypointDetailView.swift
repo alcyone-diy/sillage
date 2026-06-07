@@ -37,7 +37,7 @@ struct WaypointDetailView: View {
             .marineListCell()
             .disabled(!viewModel.isEditable)
             
-          Toggle("Displayed on Map", isOn: $viewModel.isVisible)
+          Toggle("Show", isOn: $viewModel.isVisible)
             .marineFont(.body)
             .marineListCell()
             .tint(MarineTheme.Colors.primary)
@@ -99,8 +99,8 @@ struct WaypointDetailView: View {
             onViewRequested?(waypointId)
           }) {
             HStack {
-              Image(systemName: "map")
-              Text("View")
+              Image(systemName: "mappin.circle.fill")
+              Text("Go To")
             }
             .font(.headline)
             .fontWeight(.semibold)
