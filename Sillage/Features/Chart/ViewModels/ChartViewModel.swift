@@ -82,6 +82,7 @@ class ChartViewModel {
   var visibleWaypointFeatures: MLNShapeCollectionFeature?
   var bearingLineFeature: MLNPolylineFeature?
   var goToWaypointID: String?
+  var displayedTrackSessionID: String?
   var isDataStale: Bool = true
   
   // MARK: - Private Services & Tasks
@@ -603,6 +604,7 @@ class ChartViewModel {
     guard let feature = feature else { return }
     
     self.savedTrackFeature = feature
+    self.displayedTrackSessionID = sessionID
     
     if let bounds = bounds {
       let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: edgePadding, left: edgePadding, bottom: edgePadding, right: edgePadding))
@@ -620,6 +622,7 @@ class ChartViewModel {
   
   func clearSavedTrack() {
     self.savedTrackFeature = nil
+    self.displayedTrackSessionID = nil
   }
   
   private static func processTrackData(_ points: [TrackPoint]) -> (MLNShape?, MLNCoordinateBounds?) {

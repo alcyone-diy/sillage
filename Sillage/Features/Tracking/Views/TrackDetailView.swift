@@ -15,6 +15,7 @@ import SwiftUI
 struct TrackDetailView: View {
   @Bindable var viewModel: TrackDetailViewModel
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(ChartViewModel.self) private var chartViewModel
   
   var onViewRequested: ((String) async throws -> Void)?
   
@@ -180,11 +181,16 @@ struct TrackDetailView: View {
           }
           .buttonStyle(MarineButtonStyle())
 
+          let isVisible = chartViewModel.displayedTrackSessionID == viewModel.sessionID
           Button(action: {
             Task {
               do {
-                if let onViewRequested = onViewRequested {
-                  try await onViewRequested(viewModel.sessionID)
+                if isVisible {
+                  chartViewModel.clearSavedTrack()
+                } else {
+                  if let onViewRequested = onViewRequested {
+                    try await onViewRequested(viewModel.sessionID)
+                  }
                 }
               } catch {
                 errorMessage = String(localized: "Failed to load track points.")
@@ -192,14 +198,14 @@ struct TrackDetailView: View {
             }
           }) {
             HStack {
-              Image(systemName: "map")
-              Text("View")
+              Image(systemName: isVisible ? "" : "point.topleft.down.curvedto.point.bottomright.up")
+              Text(isVisible ? "Hide" : "Show")
             }
             .font(.headline)
             .fontWeight(.semibold)
             .foregroundColor(MarineTheme.Colors.onPrimary)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(MarineTheme.Colors.primary)
+            .background(isVisible ? MarineTheme.Colors.destructive : MarineTheme.Colors.primary)
             .cornerRadius(MarineTheme.Metrics.cornerRadius)
           }
           .buttonStyle(MarineButtonStyle())
