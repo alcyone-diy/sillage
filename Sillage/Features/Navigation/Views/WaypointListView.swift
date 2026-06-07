@@ -152,10 +152,6 @@ struct WaypointListView: View {
         }
       }
     }
-
-    .task {
-      await viewModel.observe()
-    }
   }
 }
 
