@@ -62,7 +62,7 @@ struct TrackRecordingServiceTests {
 
   @Observable
   class MockPreferencesService: PreferencesServiceProtocol {
-    var savedMapSource: String?
+    var savedChartSource: String?
     var savedGeoGarageLayerID: String?
     var savedLatitude: Double?
     var savedLongitude: Double?

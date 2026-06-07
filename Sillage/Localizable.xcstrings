@@ -88,6 +88,9 @@
     "Cannot delete a track while it is actively recording." : {
 
     },
+    "Chart Preferences" : {
+
+    },
     "COG" : {
 
     },
@@ -257,9 +260,6 @@
 
     },
     "Login to GeoGarage" : {
-
-    },
-    "Map Preferences" : {
 
     },
     "MapLibre GL Native (BSD 2-Clause License)" : {

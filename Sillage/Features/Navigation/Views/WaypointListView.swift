@@ -21,7 +21,7 @@ struct CoordinateWrapper: Identifiable {
 struct WaypointListView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.waypointService) private var waypointService
-  @Environment(MapViewModel.self) private var mapViewModel
+  @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManager
   @Bindable var viewModel: WaypointListViewModel
   @State private var waypointToDelete: Waypoint?
@@ -47,7 +47,7 @@ struct WaypointListView: View {
             }
               .swipeActions(edge: .leading) {
                 Button {
-                  mapViewModel.selectWaypoint(id: waypoint.id)
+                  chartViewModel.selectWaypoint(id: waypoint.id)
                   panelManager.closePanel()
                 } label: {
                   Label("Go To", systemImage: "map")
@@ -83,7 +83,7 @@ struct WaypointListView: View {
               } catch {
                 defaultName = "\(String(localized: "Waypoint")) \(viewModel.waypoints.count + 1)"
               }
-              newWaypointItem = CoordinateWrapper(coordinate: mapViewModel.centerCoordinate, defaultName: defaultName)
+              newWaypointItem = CoordinateWrapper(coordinate: chartViewModel.centerCoordinate, defaultName: defaultName)
             }
           }
         } label: {
@@ -131,7 +131,7 @@ struct WaypointListView: View {
           )
           WaypointDetailView(viewModel: editVM) { waypointId in
             newWaypointItem = nil
-            mapViewModel.selectWaypoint(id: waypointId)
+            chartViewModel.selectWaypoint(id: waypointId)
             panelManager.closePanel()
           }
         }
@@ -147,7 +147,7 @@ struct WaypointListView: View {
           )
           WaypointDetailView(viewModel: editVM) { waypointId in
             editingWaypoint = nil
-            mapViewModel.selectWaypoint(id: waypointId)
+            chartViewModel.selectWaypoint(id: waypointId)
             panelManager.closePanel()
           }
         }
@@ -192,7 +192,7 @@ struct WaypointDetailContainer: View {
 
   let waypointId: String
   @Environment(\.waypointService) private var waypointService
-  @Environment(MapViewModel.self) private var mapViewModel
+  @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManager
   @State private var state: LoadState = .loading
 
@@ -207,7 +207,7 @@ struct WaypointDetailContainer: View {
           }
       case .loaded(let viewModel):
         WaypointDetailView(viewModel: viewModel) { waypointId in
-          mapViewModel.selectWaypoint(id: waypointId)
+          chartViewModel.selectWaypoint(id: waypointId)
           panelManager.closePanel()
         }
       case .error(let error):

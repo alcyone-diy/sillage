@@ -1,5 +1,5 @@
 //
-//  MapPreferencesView.swift
+//  ChartPreferencesView.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-04-05.
@@ -11,12 +11,12 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// A view that allows the user to manage map settings, including selecting
+/// A view that allows the user to manage chart settings, including selecting
 /// the active map source (local or remote), importing new offline charts, and toggling overlays.
-struct MapPreferencesView: View {
+struct ChartPreferencesView: View {
   
   /// The central view model managing the map's state and data sources.
-  @Environment(MapViewModel.self) var mapViewModel
+  @Environment(ChartViewModel.self) var chartViewModel
   
   /// Injects the global design system theme.
   @Environment(\.marineTheme) private var marineTheme
@@ -26,16 +26,16 @@ struct MapPreferencesView: View {
 
   /// An internal helper enum to simplify determining which broad category of map source is currently active,
   /// facilitating UI updates (like showing checkmarks on the correct row).
-  private enum MapSourceSelection {
+  private enum ChartSourceSelection {
     case local
     case remote
     case openSeaMap
   }
 
-  /// Computed property that maps the specific `currentMapSource` from the view model
-  /// to a generic `MapSourceSelection` category for UI rendering.
-  private var currentSelection: MapSourceSelection {
-    switch mapViewModel.currentMapSource {
+  /// Computed property that maps the specific `currentChartSource` from the view model
+  /// to a generic `ChartSourceSelection` category for UI rendering.
+  private var currentSelection: ChartSourceSelection {
+    switch chartViewModel.currentChartSource {
     case .localMBTiles:
       return .local
     case .remoteGeoGarage:
@@ -57,19 +57,19 @@ struct MapPreferencesView: View {
 
   var body: some View {
     // Allows creating bindings to the observable view model properties
-    @Bindable var mapViewModel = mapViewModel
+    @Bindable var chartViewModel = chartViewModel
     
     Form {
       // MARK: - Local Offline Charts Section
       Section(header: Text("Local Offline Charts").marineFont(.headline)) {
 
         // Dynamically list all imported local MBTiles files
-        ForEach(mapViewModel.localOfflineMaps, id: \.filename) { mapFile in
+        ForEach(chartViewModel.localOfflineCharts, id: \.filename) { mapFile in
           let url = mapFile.fileURL
           
           // Check if this specific file is the one currently displayed on the map
           let isSelected = currentSelection == .local && {
-            if case .localMBTiles(let currentURL) = mapViewModel.currentMapSource {
+            if case .localMBTiles(let currentURL) = chartViewModel.currentChartSource {
               return currentURL == url
             }
             return false
@@ -81,9 +81,9 @@ struct MapPreferencesView: View {
             : "Imported map"
 
           Button(action: {
-            mapViewModel.switchMapSource(to: .localMBTiles(url: url))
+            chartViewModel.switchChartSource(to: .localMBTiles(url: url))
           }) {
-            MapSourceRowView(
+            ChartSourceRowView(
               title: mapFile.filename,
               subtitle: subtitle,
               isSelected: isSelected
@@ -107,9 +107,9 @@ struct MapPreferencesView: View {
         
         // Free OpenSeaMap source
         Button(action: {
-          mapViewModel.switchMapSource(to: .openSeaMap)
+          chartViewModel.switchChartSource(to: .openSeaMap)
         }) {
-          MapSourceRowView(
+          ChartSourceRowView(
             title: "OpenSeaMap (Free)",
             subtitle: "Global map",
             isSelected: currentSelection == .openSeaMap
@@ -120,7 +120,7 @@ struct MapPreferencesView: View {
 
         // GeoGarage premium sources
         // If no layers are available, prompt the user to log in.
-        if mapViewModel.availableGeoGarageLayers.isEmpty {
+        if chartViewModel.availableGeoGarageLayers.isEmpty {
           NavigationLink(destination: GeoGarageLoginView()) {
             Text("Login to GeoGarage")
               .marineFont(.body)
@@ -128,18 +128,18 @@ struct MapPreferencesView: View {
           .marineListCell()
         } else {
           // List all authorized GeoGarage layers fetched from the API
-          ForEach(mapViewModel.availableGeoGarageLayers) { layer in
+          ForEach(chartViewModel.availableGeoGarageLayers) { layer in
             let isSelected = currentSelection == .remote && {
-              if case .remoteGeoGarage(_, let currentLayerID) = mapViewModel.currentMapSource {
+              if case .remoteGeoGarage(_, let currentLayerID) = chartViewModel.currentChartSource {
                 return currentLayerID == layer.layer
               }
               return false
             }()
 
             Button(action: {
-              mapViewModel.switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: layer.layer))
+              chartViewModel.switchChartSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: layer.layer))
             }) {
-              MapSourceRowView(
+              ChartSourceRowView(
                 title: layer.brand_name,
                 subtitle: "Valid until \(layer.valid_until)",
                 isSelected: isSelected
@@ -153,7 +153,7 @@ struct MapPreferencesView: View {
 
       // MARK: - Maritime Layers Section
       Section(header: Text("Maritime Layers").marineFont(.headline)) {
-        Toggle(isOn: $mapViewModel.isOpenSeaMapOverlayEnabled) {
+        Toggle(isOn: $chartViewModel.isOpenSeaMapOverlayEnabled) {
           VStack(alignment: .leading, spacing: 4) {
             Text("OpenSeaMap Seamarks")
               .marineFont(.body)
@@ -168,7 +168,7 @@ struct MapPreferencesView: View {
       }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-    .navigationTitle("Map Preferences")
+    .navigationTitle("Chart Preferences")
     .navigationBarTitleDisplayMode(.inline)
     
     // MARK: - File Importer Config
@@ -180,19 +180,19 @@ struct MapPreferencesView: View {
       switch result {
       case .success(let urls):
         if let url = urls.first {
-          mapViewModel.importOfflineMap(from: url)
+          chartViewModel.importOfflineChart(from: url)
         }
       case .failure(let error):
-        mapViewModel.mapImportError = error.localizedDescription
-        mapViewModel.showImportError = true
+        chartViewModel.chartImportError = error.localizedDescription
+        chartViewModel.showImportError = true
       }
     }
     
     // MARK: - Error Handling Alert
-    .alert(isPresented: $mapViewModel.showImportError) {
+    .alert(isPresented: $chartViewModel.showImportError) {
       Alert(
         title: Text("Import Failed"),
-        message: Text(mapViewModel.mapImportError ?? "Unknown error occurred."),
+        message: Text(chartViewModel.chartImportError ?? "Unknown error occurred."),
         dismissButton: .default(Text("OK"))
       )
     }
@@ -200,7 +200,7 @@ struct MapPreferencesView: View {
 }
 
 /// A reusable UI component representing a single selectable row in the map sources list.
-private struct MapSourceRowView: View {
+private struct ChartSourceRowView: View {
   let title: String
   let subtitle: String
   let isSelected: Bool

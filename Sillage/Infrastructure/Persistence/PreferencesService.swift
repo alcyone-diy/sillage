@@ -14,7 +14,7 @@ import Observation
 
 @MainActor
 protocol PreferencesServiceProtocol {
-  var savedMapSource: String? { get set }
+  var savedChartSource: String? { get set }
   var savedGeoGarageLayerID: String? { get set }
   var savedLatitude: Double? { get set }
   var savedLongitude: Double? { get set }
@@ -41,7 +41,7 @@ protocol PreferencesServiceProtocol {
 @Observable
 @MainActor
 class PreferencesService: PreferencesServiceProtocol {
-  @ObservationIgnored private let mapSourceKey = "selectedMapSource"
+  @ObservationIgnored private let chartSourceKey = "chartSource"
   @ObservationIgnored private let savedGeoGarageLayerIDKey = "savedGeoGarageLayerID"
   @ObservationIgnored private let savedLatitudeKey = "savedLatitude"
   @ObservationIgnored private let savedLongitudeKey = "savedLongitude"
@@ -59,8 +59,8 @@ class PreferencesService: PreferencesServiceProtocol {
 
   @ObservationIgnored private let defaults = UserDefaults.standard
 
-  var savedMapSource: String? {
-    didSet { defaults.set(savedMapSource, forKey: mapSourceKey) }
+  var savedChartSource: String? {
+    didSet { defaults.set(savedChartSource, forKey: chartSourceKey) }
   }
 
   var savedGeoGarageLayerID: String? {
@@ -126,7 +126,7 @@ class PreferencesService: PreferencesServiceProtocol {
   }
 
   init() {
-    self.savedMapSource = defaults.string(forKey: mapSourceKey)
+    self.savedChartSource = defaults.string(forKey: chartSourceKey)
     self.savedGeoGarageLayerID = defaults.string(forKey: savedGeoGarageLayerIDKey)
     self.savedLatitude = defaults.object(forKey: savedLatitudeKey) as? Double
     self.savedLongitude = defaults.object(forKey: savedLongitudeKey) as? Double

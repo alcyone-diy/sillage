@@ -12,7 +12,7 @@ import SwiftUI
 
 struct GeoGarageLoginView: View {
   @Environment(\.marineTheme) private var marineTheme
-  @Environment(MapViewModel.self) private var mapViewModel
+  @Environment(ChartViewModel.self) private var chartViewModel
   @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
   @State private var viewModel = GeoGarageLoginViewModel()
   @Environment(\.dismiss) private var dismiss
@@ -98,7 +98,7 @@ struct GeoGarageLoginView: View {
     .interactiveDismissDisabled(viewModel.isLoading)
     .onChange(of: viewModel.isAuthorizationReady) { oldState, isReady in
       if isReady {
-        mapViewModel.updateGeoGarageLayers(viewModel.availableLayers)
+        chartViewModel.updateGeoGarageLayers(viewModel.availableLayers)
         dismiss()
       }
     }

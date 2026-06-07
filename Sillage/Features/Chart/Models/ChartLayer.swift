@@ -1,5 +1,5 @@
 //
-//  MapLayer.swift
+//  ChartLayer.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-04-05.
@@ -10,16 +10,16 @@
 
 import Foundation
 
-enum MapSource: Equatable {
+enum ChartSource: Equatable {
   case localMBTiles(url: URL)
   case remoteGeoGarage(clientID: String, layerID: String)
   case openSeaMap
 }
 
-struct MapLayer {
-  /// The displayed name or identifier of the map layer
+struct ChartLayer {
+  /// The displayed name or identifier of the chart layer
   let name: LocalizedStringResource
 
-  /// The map source defining where the tiles come from
-  let source: MapSource
+  /// The chart source defining where the tiles come from
+  let source: ChartSource
 }
