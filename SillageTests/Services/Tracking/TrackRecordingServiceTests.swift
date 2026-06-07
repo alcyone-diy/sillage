@@ -323,8 +323,8 @@ struct TrackRecordingServiceTests {
     #expect(service.state == .recording)
     
     do {
-      let sessionId = try await service.stopRecording()
-      #expect(!sessionId.isEmpty)
+      let sessionID = try await service.stopRecording()
+      #expect(!sessionID.isEmpty)
     } catch {
       Issue.record("Expected successful stop but got error: \(error)")
     }

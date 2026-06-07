@@ -17,7 +17,7 @@ import CoreLocation
 /// When fetched from the database, it must be mapped to the `TrackPoint` domain model for in-memory physical type safety.
 public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
   public var id: Int64?
-  public var sessionId: String
+  public var sessionID: String
   public var timestamp_unix: Double
   public var segmentIndex: Int
   public var latitude_deg: CLLocationDegrees
@@ -36,7 +36,7 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
 
   public init(
     id: Int64?,
-    sessionId: String,
+    sessionID: String,
     timestamp: Date,
     segmentIndex: Int,
     coordinate: CLLocationCoordinate2D,
@@ -45,7 +45,7 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
     courseOverGround: Measurement<UnitAngle>? = nil,
   ) {
     self.id = id
-    self.sessionId = sessionId
+    self.sessionID = sessionID
     self.timestamp_unix = timestamp.timeIntervalSince1970
     self.segmentIndex = segmentIndex
     self.latitude_deg = coordinate.latitude
@@ -60,10 +60,10 @@ public struct TrackPointRecord: Codable, FetchableRecord, PersistableRecord, Sen
 
 extension TrackPointRecord {
   /// Converts the domain `TrackPoint` into a persistence `TrackPointRecord`.
-  public init(domainModel: TrackPoint, sessionId: String) {
+  public init(domainModel: TrackPoint, sessionID: String) {
     self.init(
       id: nil,
-      sessionId: sessionId,
+      sessionID: sessionID,
       timestamp: domainModel.timestamp,
       segmentIndex: domainModel.segmentIndex,
       coordinate: domainModel.coordinate,
@@ -75,7 +75,7 @@ extension TrackPointRecord {
   
   public enum Columns: String, ColumnExpression {
     case id
-    case sessionId
+    case sessionID
     case timestamp_unix
     case segmentIndex
     case latitude_deg

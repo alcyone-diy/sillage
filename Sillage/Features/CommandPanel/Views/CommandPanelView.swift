@@ -125,16 +125,16 @@ struct CommandPanelView: View {
             let model = WaypointListViewModel(waypointService: waypointService)
             WaypointListView(viewModel: model)
           }
-        case .sessionDetail(let sessionId):
+        case .sessionDetail(let sessionID):
           if let trackService {
             let model = TrackDetailViewModel(
-              sessionId: sessionId,
+              sessionID: sessionID,
               trackService: trackService,
               trackRecordingService: trackRecordingService
             )
             TrackDetailView(viewModel: model) { id in
               try await chartViewModel.loadAndDisplaySavedTrack(
-                sessionId: id,
+                sessionID: id,
                 trackService: trackService,
                 edgePadding: MarineTheme.Spacing.large
               )
@@ -142,7 +142,7 @@ struct CommandPanelView: View {
             }
           }
         case .waypointDetail(let id):
-          WaypointDetailContainer(waypointId: id)
+          WaypointDetailContainer(waypointID: id)
         }
       }
       .handleTrackRecordingErrors()

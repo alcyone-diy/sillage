@@ -81,7 +81,7 @@ class ChartViewModel {
   var selectedWaypointFeature: MLNPointFeature?
   var visibleWaypointFeatures: MLNShapeCollectionFeature?
   var bearingLineFeature: MLNPolylineFeature?
-  var selectedWaypointId: String?
+  var selectedWaypointID: String?
   var isDataStale: Bool = true
   
   // MARK: - Private Services & Tasks
@@ -166,11 +166,11 @@ class ChartViewModel {
     
     func observeSelection() {
       withObservationTracking {
-        _ = waypointService.selectedWaypointId
+        _ = waypointService.selectedWaypointID
       } onChange: { [weak self] in
         Task { @MainActor [weak self] in
           guard let self = self else { return }
-          self.handleSelectedWaypointChange(id: waypointService.selectedWaypointId)
+          self.handleSelectedWaypointChange(id: waypointService.selectedWaypointID)
           observeSelection()
         }
       }
@@ -190,7 +190,7 @@ class ChartViewModel {
     
     // Initial handling
     handleWaypointsChange(waypoints: waypointService.currentWaypoints)
-    handleSelectedWaypointChange(id: waypointService.selectedWaypointId)
+    handleSelectedWaypointChange(id: waypointService.selectedWaypointID)
     
     observeSelection()
     observeWaypoints()
@@ -211,7 +211,7 @@ class ChartViewModel {
       }
       feature.attributes = attributes
       
-      self.selectedWaypointId = id
+      self.selectedWaypointID = id
       self.selectedWaypointFeature = feature
       self.updateBearingToWaypoint()
       self.updateBearingLine()
@@ -222,7 +222,7 @@ class ChartViewModel {
         continuation.yield(event)
       }
     } else {
-      self.selectedWaypointId = nil
+      self.selectedWaypointID = nil
       self.selectedWaypointFeature = nil
       self.updateBearingToWaypoint()
       self.updateBearingLine()
@@ -248,7 +248,7 @@ class ChartViewModel {
     
     self.visibleWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
     
-    if let selectedId = self.selectedWaypointId, let waypoint = waypoints.first(where: { $0.id == selectedId }) {
+    if let selectedID = self.selectedWaypointID, let waypoint = waypoints.first(where: { $0.id == selectedID }) {
       let coordinate = waypoint.coordinate
       let feature = MLNPointFeature()
       feature.coordinate = coordinate
@@ -566,11 +566,11 @@ class ChartViewModel {
   
   // MARK: - Saved Tracks
   
-  func loadAndDisplaySavedTrack(sessionId: String, trackService: TrackService, edgePadding: CGFloat) async throws {
+  func loadAndDisplaySavedTrack(sessionID: String, trackService: TrackService, edgePadding: CGFloat) async throws {
     // Switch to free tracking mode when viewing a saved track
     trackingMode = .free
     
-    let points = try await trackService.fetchTrackPoints(for: sessionId)
+    let points = try await trackService.fetchTrackPoints(for: sessionID)
     guard !points.isEmpty else { return }
     
     let (feature, bounds) = await Task.detached(priority: .userInitiated) {

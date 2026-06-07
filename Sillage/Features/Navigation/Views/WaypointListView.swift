@@ -42,7 +42,7 @@ struct WaypointListView: View {
             NavigationLink(value: PanelManagerViewModel.CommandDestination.waypointDetail(waypoint.id)) {
               WaypointRowView(
                 waypoint: waypoint,
-                isSelected: viewModel.selectedWaypointId == waypoint.id
+                isSelected: viewModel.selectedWaypointID == waypoint.id
               )
             }
               .swipeActions(edge: .leading) {
@@ -129,9 +129,9 @@ struct WaypointListView: View {
             defaultName: item.defaultName,
             initialCoordinate: item.coordinate
           )
-          WaypointDetailView(viewModel: viewModel) { waypointId in
+          WaypointDetailView(viewModel: viewModel) { waypointID in
             newWaypointItem = nil
-            chartViewModel.selectWaypoint(id: waypointId)
+            chartViewModel.selectWaypoint(id: waypointID)
             panelManager.closePanel()
           }
         }
@@ -145,9 +145,9 @@ struct WaypointListView: View {
             editingWaypoint: waypoint,
             startEditable: true
           )
-          WaypointDetailView(viewModel: viewModel) { waypointId in
+          WaypointDetailView(viewModel: viewModel) { waypointID in
             editingWaypoint = nil
-            chartViewModel.selectWaypoint(id: waypointId)
+            chartViewModel.selectWaypoint(id: waypointID)
             panelManager.closePanel()
           }
         }
@@ -190,7 +190,7 @@ struct WaypointDetailContainer: View {
     case error(Error)
   }
 
-  let waypointId: String
+  let waypointID: String
   @Environment(\.waypointService) private var waypointService
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManager
@@ -206,8 +206,8 @@ struct WaypointDetailContainer: View {
             await loadData()
           }
       case .loaded(let viewModel):
-        WaypointDetailView(viewModel: viewModel) { waypointId in
-          chartViewModel.selectWaypoint(id: waypointId)
+        WaypointDetailView(viewModel: viewModel) { waypointID in
+          chartViewModel.selectWaypoint(id: waypointID)
           panelManager.closePanel()
         }
       case .error(let error):
@@ -241,7 +241,7 @@ struct WaypointDetailContainer: View {
     }
     
     do {
-      if let waypoint = try await service.fetchWaypoint(id: waypointId) {
+      if let waypoint = try await service.fetchWaypoint(id: waypointID) {
         let vm = WaypointDetailViewModel(
           waypointService: service,
           editingWaypoint: waypoint,

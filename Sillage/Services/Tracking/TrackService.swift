@@ -86,12 +86,12 @@ public struct TrackService: Sendable {
   }
   
   /// Fetches all track points for a given session.
-  /// - Parameter sessionId: The unique identifier of the track session.
+  /// - Parameter sessionID: The unique identifier of the track session.
   /// - Returns: An array of `TrackPoint`.
-  public func fetchTrackPoints(for sessionId: String) async throws -> [TrackPoint] {
+  public func fetchTrackPoints(for sessionID: String) async throws -> [TrackPoint] {
     try await databaseManager.reader.read { db in
       let records = try TrackPointRecord
-        .filter(Column("sessionId") == sessionId)
+        .filter(Column("sessionID") == sessionID)
         .order(Column("timestamp_unix").asc)
         .fetchAll(db)
       return records.map { $0.domainModel }

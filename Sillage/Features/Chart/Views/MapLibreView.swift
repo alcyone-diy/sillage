@@ -21,74 +21,74 @@ struct MapLibreView: UIViewRepresentable {
   
   
   private func ensureVesselLayersExist(in style: MLNStyle, with theme: MarineTheme) {
-    let vesselSourceId = "vessel-source"
-    let vesselLayerId = "vessel-layer"
-    let headingSourceId = "heading-vector-source"
-    let headingLayerId = "heading-vector-layer"
-    let gpsAccuracySourceId = "gps-accuracy-source"
-    let gpsAccuracyLayerId = "gps-accuracy-layer"
-    let gpsAccuracyStrokeLayerId = "gps-accuracy-stroke-layer"
-    let savedTrackSourceId = "saved-track-source"
-    let savedTrackLayerId = "saved-track-layer"
-    let activeTrackSourceId = "active-track-source"
-    let activeTrackLayerId = "active-track-layer"
-    let selectedWaypointSourceId = "selected-waypoint-source"
-    let selectedWaypointLayerId = "selected-waypoint-layer"
-    let visibleWaypointsSourceId = "visible-waypoints-source"
-    let visibleWaypointsLayerId = "visible-waypoints-layer"
-    let bearingLineSourceId = "bearing-line-source"
-    let bearingLineLayerId = "bearing-line-layer"
+    let vesselSourceID = "vessel-source"
+    let vesselLayerID = "vessel-layer"
+    let headingSourceID = "heading-vector-source"
+    let headingLayerID = "heading-vector-layer"
+    let gpsAccuracySourceID = "gps-accuracy-source"
+    let gpsAccuracyLayerID = "gps-accuracy-layer"
+    let gpsAccuracyStrokeLayerID = "gps-accuracy-stroke-layer"
+    let savedTrackSourceID = "saved-track-source"
+    let savedTrackLayerID = "saved-track-layer"
+    let activeTrackSourceID = "active-track-source"
+    let activeTrackLayerID = "active-track-layer"
+    let selectedWaypointSourceID = "selected-waypoint-source"
+    let selectedWaypointLayerID = "selected-waypoint-layer"
+    let visibleWaypointsSourceID = "visible-waypoints-source"
+    let visibleWaypointsLayerID = "visible-waypoints-layer"
+    let bearingLineSourceID = "bearing-line-source"
+    let bearingLineLayerID = "bearing-line-layer"
     
-    if style.source(withIdentifier: vesselSourceId) == nil {
+    if style.source(withIdentifier: vesselSourceID) == nil {
       // Create GPS Accuracy Source and Layers first so they are beneath the heading vector and vessel
-      let gpsAccuracySource = MLNShapeSource(identifier: gpsAccuracySourceId, shape: nil, options: nil)
+      let gpsAccuracySource = MLNShapeSource(identifier: gpsAccuracySourceID, shape: nil, options: nil)
       style.addSource(gpsAccuracySource)
       
-      let gpsAccuracyFillLayer = MLNFillStyleLayer(identifier: gpsAccuracyLayerId, source: gpsAccuracySource)
+      let gpsAccuracyFillLayer = MLNFillStyleLayer(identifier: gpsAccuracyLayerID, source: gpsAccuracySource)
       gpsAccuracyFillLayer.fillColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.accent))
       gpsAccuracyFillLayer.fillOpacity = NSExpression(forConstantValue: MarineTheme.ChartMetrics.gpsAccuracyFillOpacity)
       style.addLayer(gpsAccuracyFillLayer)
       
-      let gpsAccuracyStrokeLayer = MLNLineStyleLayer(identifier: gpsAccuracyStrokeLayerId, source: gpsAccuracySource)
+      let gpsAccuracyStrokeLayer = MLNLineStyleLayer(identifier: gpsAccuracyStrokeLayerID, source: gpsAccuracySource)
       gpsAccuracyStrokeLayer.lineColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.accent))
       gpsAccuracyStrokeLayer.lineOpacity = NSExpression(forConstantValue: MarineTheme.ChartMetrics.gpsAccuracyStrokeOpacity)
       gpsAccuracyStrokeLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.ChartMetrics.gpsAccuracyLineWidth)
       style.insertLayer(gpsAccuracyStrokeLayer, above: gpsAccuracyFillLayer)
       
-      let activeTrackSource = MLNShapeSource(identifier: activeTrackSourceId, shape: nil, options: nil)
+      let activeTrackSource = MLNShapeSource(identifier: activeTrackSourceID, shape: nil, options: nil)
       style.addSource(activeTrackSource)
-      let activeTrackLayer = MLNLineStyleLayer(identifier: activeTrackLayerId, source: activeTrackSource)
+      let activeTrackLayer = MLNLineStyleLayer(identifier: activeTrackLayerID, source: activeTrackSource)
       activeTrackLayer.lineWidth = NSExpression(forConstantValue: 4.0)
       activeTrackLayer.lineColor = NSExpression(forConstantValue: UIColor.systemRed)
       style.insertLayer(activeTrackLayer, above: gpsAccuracyStrokeLayer)
       
-      let savedTrackSource = MLNShapeSource(identifier: savedTrackSourceId, shape: nil, options: nil)
+      let savedTrackSource = MLNShapeSource(identifier: savedTrackSourceID, shape: nil, options: nil)
       style.addSource(savedTrackSource)
-      let savedTrackLayer = MLNLineStyleLayer(identifier: savedTrackLayerId, source: savedTrackSource)
+      let savedTrackLayer = MLNLineStyleLayer(identifier: savedTrackLayerID, source: savedTrackSource)
       savedTrackLayer.lineWidth = NSExpression(forConstantValue: 4.0)
       savedTrackLayer.lineColor = NSExpression(forConstantValue: UIColor.systemBlue)
       style.insertLayer(savedTrackLayer, below: activeTrackLayer)
       
-      let selectedWaypointSource = MLNShapeSource(identifier: selectedWaypointSourceId, shape: nil, options: nil)
+      let selectedWaypointSource = MLNShapeSource(identifier: selectedWaypointSourceID, shape: nil, options: nil)
       style.addSource(selectedWaypointSource)
-      let selectedWaypointLayer = MLNCircleStyleLayer(identifier: selectedWaypointLayerId, source: selectedWaypointSource)
+      let selectedWaypointLayer = MLNCircleStyleLayer(identifier: selectedWaypointLayerID, source: selectedWaypointSource)
       selectedWaypointLayer.circleRadius = NSExpression(forConstantValue: 8.0)
       selectedWaypointLayer.circleColor = NSExpression(forKeyPath: "color")
       selectedWaypointLayer.circleStrokeWidth = NSExpression(forConstantValue: 2.0)
       selectedWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       style.insertLayer(selectedWaypointLayer, below: activeTrackLayer)
       
-      let bearingLineSource = MLNShapeSource(identifier: bearingLineSourceId, shape: nil, options: nil)
+      let bearingLineSource = MLNShapeSource(identifier: bearingLineSourceID, shape: nil, options: nil)
       style.addSource(bearingLineSource)
-      let bearingLineLayer = MLNLineStyleLayer(identifier: bearingLineLayerId, source: bearingLineSource)
+      let bearingLineLayer = MLNLineStyleLayer(identifier: bearingLineLayerID, source: bearingLineSource)
       bearingLineLayer.lineWidth = NSExpression(forConstantValue: 1.5)
       bearingLineLayer.lineColor = NSExpression(forKeyPath: "color")
       bearingLineLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
       style.insertLayer(bearingLineLayer, below: selectedWaypointLayer)
       
-      let visibleWaypointsSource = MLNShapeSource(identifier: visibleWaypointsSourceId, shape: nil, options: nil)
+      let visibleWaypointsSource = MLNShapeSource(identifier: visibleWaypointsSourceID, shape: nil, options: nil)
       style.addSource(visibleWaypointsSource)
-      let visibleWaypointsLayer = MLNCircleStyleLayer(identifier: visibleWaypointsLayerId, source: visibleWaypointsSource)
+      let visibleWaypointsLayer = MLNCircleStyleLayer(identifier: visibleWaypointsLayerID, source: visibleWaypointsSource)
       visibleWaypointsLayer.circleRadius = NSExpression(forConstantValue: 6.0)
       visibleWaypointsLayer.circleColor = NSExpression(forKeyPath: "color")
       visibleWaypointsLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.5)
@@ -96,17 +96,17 @@ struct MapLibreView: UIViewRepresentable {
       style.insertLayer(visibleWaypointsLayer, below: selectedWaypointLayer)
       
       // Create Heading Source and Layer so it's above gps accuracy but beneath the vessel
-      let headingSource = MLNShapeSource(identifier: headingSourceId, shape: nil, options: nil)
+      let headingSource = MLNShapeSource(identifier: headingSourceID, shape: nil, options: nil)
       style.addSource(headingSource)
       
-      let headingLayer = MLNLineStyleLayer(identifier: headingLayerId, source: headingSource)
+      let headingLayer = MLNLineStyleLayer(identifier: headingLayerID, source: headingSource)
       headingLayer.predicate = NSPredicate(format: "featureType == 'vectorLine'")
       headingLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.ChartMetrics.headingLineWidth)
       headingLayer.lineColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.vectorCOG))
       style.addLayer(headingLayer)
       
-      let headingTickLayerId = "heading-vector-tick-layer"
-      let headingTickLayer = MLNCircleStyleLayer(identifier: headingTickLayerId, source: headingSource)
+      let headingTickLayerID = "heading-vector-tick-layer"
+      let headingTickLayer = MLNCircleStyleLayer(identifier: headingTickLayerID, source: headingSource)
       headingTickLayer.predicate = NSPredicate(format: "featureType == 'vectorTick'")
       headingTickLayer.circleRadius = NSExpression(format: "TERNARY(isMajorTick == YES, 4.0, 2.0)")
       headingTickLayer.circleColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.vectorCOG))
@@ -115,10 +115,10 @@ struct MapLibreView: UIViewRepresentable {
       style.insertLayer(headingTickLayer, above: headingLayer)
       
       // Create Vessel Source and Layer
-      let vesselSource = MLNShapeSource(identifier: vesselSourceId, shape: nil, options: nil)
+      let vesselSource = MLNShapeSource(identifier: vesselSourceID, shape: nil, options: nil)
       style.addSource(vesselSource)
       
-      let vesselLayer = MLNSymbolStyleLayer(identifier: vesselLayerId, source: vesselSource)
+      let vesselLayer = MLNSymbolStyleLayer(identifier: vesselLayerID, source: vesselSource)
       vesselLayer.iconImageName = NSExpression(forConstantValue: "vessel-cursor")
       vesselLayer.iconRotationAlignment = NSExpression(forConstantValue: "map")
       vesselLayer.iconRotation = NSExpression(forKeyPath: "course")
@@ -341,7 +341,7 @@ struct MapLibreView: UIViewRepresentable {
       
       if let feature = features.first as? MLNPointFeature, let id = feature.attributes["id"] as? String {
         Task { @MainActor in
-          if self.parent.viewModel.selectedWaypointId == id {
+          if self.parent.viewModel.selectedWaypointID == id {
             self.parent.viewModel.selectWaypoint(id: nil) // Deselect if already selected
           } else {
             self.parent.viewModel.selectWaypoint(id: id)
@@ -438,13 +438,13 @@ struct MapLibreView: UIViewRepresentable {
       lastChartSource = source
       
       // Remove existing layer and source if they exist
-      let layerId = "base-raster-layer"
-      let sourceId = "base-raster-source"
+      let layerID = "base-raster-layer"
+      let sourceID = "base-raster-source"
       
-      if let existingLayer = style.layer(withIdentifier: layerId) {
+      if let existingLayer = style.layer(withIdentifier: layerID) {
         style.removeLayer(existingLayer)
       }
-      if let existingSource = style.source(withIdentifier: sourceId) {
+      if let existingSource = style.source(withIdentifier: sourceID) {
         style.removeSource(existingSource)
       }
       
@@ -464,11 +464,11 @@ struct MapLibreView: UIViewRepresentable {
         
         if let configURL = configurationURL {
           // Add the raster source using configurationURL and tileSize
-          let rasterSource = MLNRasterTileSource(identifier: sourceId, configurationURL: configURL, tileSize: 256)
+          let rasterSource = MLNRasterTileSource(identifier: sourceID, configurationURL: configURL, tileSize: 256)
           style.addSource(rasterSource)
           
           // Add the raster layer at the bottom so it doesn't cover vessel overlays
-          let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
+          let rasterLayer = MLNRasterStyleLayer(identifier: layerID, source: rasterSource)
           style.insertLayer(rasterLayer, at: 0)
           
           Logger.chart.info("Programmatically injected MBTiles raster source and layer.")
@@ -478,14 +478,14 @@ struct MapLibreView: UIViewRepresentable {
         // Construct GeoGarage URL template using custom local scheme to bypass MapLibre direct request
         let template = "sillage-geo://geogarage-proxy/\(layerID)/{z}/{x}/{y}.png"
         
-        let rasterSource = MLNRasterTileSource(identifier: sourceId, tileURLTemplates: [template], options: [
+        let rasterSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
           .minimumZoomLevel: 0,
           .maximumZoomLevel: 16
         ])
         
         style.addSource(rasterSource)
         
-        let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
+        let rasterLayer = MLNRasterStyleLayer(identifier: layerID, source: rasterSource)
         style.insertLayer(rasterLayer, at: 0)
         
         Logger.chart.info("Programmatically injected GeoGarage raster source and layer.")
@@ -493,7 +493,7 @@ struct MapLibreView: UIViewRepresentable {
       case .openSeaMap:
         let template = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         let attribution = MLNAttributionInfo(title: NSAttributedString(string: "© OpenStreetMap contributors"), url: URL(string: "https://www.openstreetmap.org/copyright"))
-        let rasterSource = MLNRasterTileSource(identifier: sourceId, tileURLTemplates: [template], options: [
+        let rasterSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
           .minimumZoomLevel: 0,
           .maximumZoomLevel: 18,
           .attributionInfos: [attribution]
@@ -501,7 +501,7 @@ struct MapLibreView: UIViewRepresentable {
         
         style.addSource(rasterSource)
         
-        let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
+        let rasterLayer = MLNRasterStyleLayer(identifier: layerID, source: rasterSource)
         style.insertLayer(rasterLayer, at: 0)
         
         Logger.chart.info("Programmatically injected OpenSeaMap raster source and layer.")
@@ -510,7 +510,7 @@ struct MapLibreView: UIViewRepresentable {
       // Re-apply OpenSeaMap overlay if it was enabled, to ensure it stays on top of the new base map
       if lastOpenSeaMapOverlayEnabled {
         OpenSeaMapLayerService.shared.removeSeamarkLayer(from: style)
-        OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: layerId)
+        OpenSeaMapLayerService.shared.addSeamarkLayer(to: style, above: layerID)
       }
       
       // Re-center on the new source's preferred coordinate and zoom if needed

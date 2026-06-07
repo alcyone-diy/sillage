@@ -20,7 +20,7 @@ struct AnyLocalizedError: LocalizedError {
 @MainActor
 public final class ActiveTrackViewModel {
   public var recordingError: LocalizedError?
-  public var recentlySavedSessionId: String?
+  public var recentlySavedSessionID: String?
   private let trackRecordingService: TrackRecordingService
   
   public init(trackRecordingService: TrackRecordingService) {
@@ -54,8 +54,8 @@ public final class ActiveTrackViewModel {
     Task { [weak self] in
       guard let self else { return }
       do {
-        if let sessionId = try await trackRecordingService.toggleRecording() {
-          self.recentlySavedSessionId = sessionId
+        if let sessionID = try await trackRecordingService.toggleRecording() {
+          self.recentlySavedSessionID = sessionID
         }
       } catch {
         let localized = error as? LocalizedError ?? AnyLocalizedError(errorDescription: error.localizedDescription)

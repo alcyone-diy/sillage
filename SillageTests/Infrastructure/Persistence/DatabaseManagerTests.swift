@@ -32,7 +32,7 @@ final class DatabaseManagerTests {
     let session1Id = "session-1"
     let session1 = TrackSessionRecord(id: session1Id, startTime: now.addingTimeInterval(-1000))
     let point1 = makeTrackPoint(
-      sessionId: session1Id,
+      sessionID: session1Id,
       timestamp: now.addingTimeInterval(-500)
     )
     
@@ -77,25 +77,25 @@ final class DatabaseManagerTests {
   
   @Test("fetchMaxSegmentIndex returns correct max index")
   func testFetchMaxSegmentIndex() async throws {
-    let sessionId = "session-1"
-    let session = TrackSessionRecord(id: sessionId, startTime: Date(timeIntervalSince1970: 0))
+    let sessionID = "session-1"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date(timeIntervalSince1970: 0))
     
     try await dbManager.write { db in
       try session.insert(db)
     }
     
     // Empty session should return nil
-    let emptyIndex = try await dbManager.fetchMaxSegmentIndex(for: sessionId)
+    let emptyIndex = try await dbManager.fetchMaxSegmentIndex(for: sessionID)
     #expect(emptyIndex == nil)
     
     // Add points with different segment indices
     let point0 = makeTrackPoint(
-      sessionId: sessionId,
+      sessionID: sessionID,
       timestamp: Date(timeIntervalSince1970: 0),
       segmentIndex: 0
     )
     let point2 = makeTrackPoint(
-      sessionId: sessionId,
+      sessionID: sessionID,
       timestamp: Date(timeIntervalSince1970: 10),
       segmentIndex: 2
     )
@@ -104,32 +104,32 @@ final class DatabaseManagerTests {
       try point2.insert(db)
     }
     
-    let maxIndex = try await dbManager.fetchMaxSegmentIndex(for: sessionId)
+    let maxIndex = try await dbManager.fetchMaxSegmentIndex(for: sessionID)
     #expect(maxIndex == 2)
   }
   
   @Test("fetchLastPointTime returns precise Date of the last point")
   func testFetchLastPointTime() async throws {
-    let sessionId = "session-1"
-    let session = TrackSessionRecord(id: sessionId, startTime: Date(timeIntervalSince1970: 0))
+    let sessionID = "session-1"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date(timeIntervalSince1970: 0))
     
     try await dbManager.write { db in
       try session.insert(db)
     }
     
     // Empty session should return nil
-    let emptyTime = try await dbManager.fetchLastPointTime(for: sessionId)
+    let emptyTime = try await dbManager.fetchLastPointTime(for: sessionID)
     #expect(emptyTime == nil)
     
     let time1 = Date(timeIntervalSince1970: 10)
     let time2 = Date(timeIntervalSince1970: 10.001)
     
     let point1 = makeTrackPoint(
-      sessionId: sessionId,
+      sessionID: sessionID,
       timestamp: time1
     )
     let point2 = makeTrackPoint(
-      sessionId: sessionId,
+      sessionID: sessionID,
       timestamp: time2
     )
     
@@ -138,7 +138,7 @@ final class DatabaseManagerTests {
       try point2.insert(db)
     }
     
-    let lastTime = try await dbManager.fetchLastPointTime(for: sessionId)
+    let lastTime = try await dbManager.fetchLastPointTime(for: sessionID)
     if let lastTime = lastTime {
       #expect(abs(lastTime.timeIntervalSince(time2)) < 0.0001)
     } else {
@@ -148,8 +148,8 @@ final class DatabaseManagerTests {
   
   @Test("fetchRecentPoints returns most recent points within limit")
   func testFetchRecentPoints() async throws {
-    let sessionId = "session-1"
-    let session = TrackSessionRecord(id: sessionId, startTime: Date(timeIntervalSince1970: 0))
+    let sessionID = "session-1"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date(timeIntervalSince1970: 0))
     
     try await dbManager.write { db in
       try session.insert(db)
@@ -159,7 +159,7 @@ final class DatabaseManagerTests {
     try await dbManager.write { db in
       for i in 0..<5 {
         let point = self.makeTrackPoint(
-          sessionId: sessionId,
+          sessionID: sessionID,
           timestamp: Date(timeIntervalSince1970: TimeInterval(1000 + i * 10))
         )
         try point.insert(db)
@@ -167,7 +167,7 @@ final class DatabaseManagerTests {
     }
     
     // Fetch with limit 3
-    let recentPoints = try await dbManager.fetchRecentPoints(for: sessionId, limit: 3)
+    let recentPoints = try await dbManager.fetchRecentPoints(for: sessionID, limit: 3)
     
     #expect(recentPoints.count == 3)
     // Should be oldest of the recent ones first (chronological order)
@@ -181,8 +181,8 @@ final class DatabaseManagerTests {
   
   @Test("Cascade deletion removes all associated points")
   func testCascadeDeletionRemovesAllAssociatedPoints() async throws {
-    let sessionId = "session-cascade"
-    let session = TrackSessionRecord(id: sessionId, startTime: Date(timeIntervalSince1970: 0))
+    let sessionID = "session-cascade"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date(timeIntervalSince1970: 0))
     
     try await dbManager.write { db in
       try session.insert(db)
@@ -192,7 +192,7 @@ final class DatabaseManagerTests {
     try await dbManager.write { db in
       for i in 0..<5 {
         let point = self.makeTrackPoint(
-          sessionId: sessionId,
+          sessionID: sessionID,
           timestamp: Date(timeIntervalSince1970: TimeInterval(1000 + i * 10))
         )
         try point.insert(db)
@@ -219,8 +219,8 @@ final class DatabaseManagerTests {
   
   @Test("Concurrent track point insertions")
   func testConcurrentTrackPointInsertions() async throws {
-    let sessionId = "session-concurrent"
-    let session = TrackSessionRecord(id: sessionId, startTime: Date(timeIntervalSince1970: 0))
+    let sessionID = "session-concurrent"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date(timeIntervalSince1970: 0))
     
     try await dbManager.write { db in
       try session.insert(db)
@@ -232,7 +232,7 @@ final class DatabaseManagerTests {
     try await withThrowingTaskGroup(of: Void.self) { group in
       for i in 0..<100 {
         let point = self.makeTrackPoint(
-          sessionId: sessionId,
+          sessionID: sessionID,
           timestamp: Date(timeIntervalSince1970: TimeInterval(1000 + i))
         )
         
@@ -256,8 +256,8 @@ final class DatabaseManagerTests {
   
   @Test("Database constraints reject invalid coordinates")
   func testDatabaseConstraintsRejectInvalidCoordinates() async throws {
-    let sessionId = "session-invalid-coord"
-    let session = TrackSessionRecord(id: sessionId, startTime: Date(timeIntervalSince1970: 0))
+    let sessionID = "session-invalid-coord"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date(timeIntervalSince1970: 0))
     
     try await dbManager.write { db in
       try session.insert(db)
@@ -265,7 +265,7 @@ final class DatabaseManagerTests {
     
     let invalidPoint = TrackPointRecord(
       id: nil,
-      sessionId: sessionId,
+      sessionID: sessionID,
       timestamp: Date(),
       segmentIndex: 0,
       coordinate: CLLocationCoordinate2D(latitude: 91.0, longitude: 0.0),
@@ -281,10 +281,10 @@ final class DatabaseManagerTests {
   
   // MARK: - Helpers
   
-  private func makeTrackPoint(sessionId: String, timestamp: Date, segmentIndex: Int = 0) -> TrackPointRecord {
+  private func makeTrackPoint(sessionID: String, timestamp: Date, segmentIndex: Int = 0) -> TrackPointRecord {
     return TrackPointRecord(
       id: nil,
-      sessionId: sessionId,
+      sessionID: sessionID,
       timestamp: timestamp,
       segmentIndex: segmentIndex,
       coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),

@@ -22,29 +22,29 @@ final class TrackDetailViewModel {
   var isEditing: Bool = false
   var isSaving: Bool = false
 
-  let sessionId: String
+  let sessionID: String
   private let trackService: TrackService
   private let trackRecordingService: TrackRecordingService
 
   init(
-    sessionId: String,
+    sessionID: String,
     trackService: TrackService,
     trackRecordingService: TrackRecordingService
   ) {
-    self.sessionId = sessionId
+    self.sessionID = sessionID
     self.trackService = trackService
     self.trackRecordingService = trackRecordingService
   }
 
   /// Indicates whether deletion is allowed (hides/disables the button in the UI)
   var canDelete: Bool {
-    return !trackRecordingService.isSessionActive(sessionId)
+    return !trackRecordingService.isSessionActive(sessionID)
   }
 
   // MARK: - Live Metrics
   
   private var liveTelemetry: TrackSessionTelemetry? {
-    guard trackRecordingService.isSessionActive(sessionId) else { return nil }
+    guard trackRecordingService.isSessionActive(sessionID) else { return nil }
     return trackRecordingService.telemetry
   }
   
@@ -93,7 +93,7 @@ final class TrackDetailViewModel {
   func load() async {
     // Observe session updates reactively
     do {
-      for try await updatedSession in trackService.observeTrackSession(id: sessionId) {
+      for try await updatedSession in trackService.observeTrackSession(id: sessionID) {
         self.session = updatedSession
         if let updatedSession, !isEditing {
           self.name = updatedSession.name ?? ""
@@ -101,9 +101,9 @@ final class TrackDetailViewModel {
         }
       }
     } catch is CancellationError {
-      Logger.database.debug("Track session observation cancelled for \(self.sessionId, privacy: .public)")
+      Logger.database.debug("Track session observation cancelled for \(self.sessionID, privacy: .public)")
     } catch {
-      Logger.database.error("Failed to observe track session \(self.sessionId, privacy: .public): \(error, privacy: .public)")
+      Logger.database.error("Failed to observe track session \(self.sessionID, privacy: .public): \(error, privacy: .public)")
     }
   }
 
@@ -126,7 +126,7 @@ final class TrackDetailViewModel {
       )
       isEditing = false
     } catch {
-      Logger.database.error("Failed to update track session \(self.sessionId, privacy: .public): \(error, privacy: .public)")
+      Logger.database.error("Failed to update track session \(self.sessionID, privacy: .public): \(error, privacy: .public)")
       throw error
     }
   }
@@ -144,14 +144,14 @@ final class TrackDetailViewModel {
   func deleteSession() async throws {
     guard canDelete else {
       let error = TrackDeletionError.activeSession
-      Logger.database.warning("Attempted to delete active session: \(self.sessionId, privacy: .public)")
+      Logger.database.warning("Attempted to delete active session: \(self.sessionID, privacy: .public)")
       throw error
     }
 
     do {
-      try await trackService.deleteSession(id: sessionId)
+      try await trackService.deleteSession(id: sessionID)
     } catch {
-      Logger.database.error("Failed to delete track session \(self.sessionId, privacy: .public): \(error, privacy: .public)")
+      Logger.database.error("Failed to delete track session \(self.sessionID, privacy: .public): \(error, privacy: .public)")
       throw error
     }
   }

@@ -33,12 +33,12 @@ public final class WaypointDetailViewModel {
   public var isEditable: Bool
   
   private let waypointService: WaypointService
-  public let editingWaypointId: String?
+  public let editingWaypointID: String?
   private let originalWaypoint: Waypoint?
   
   public init(waypointService: WaypointService, defaultName: String? = nil, initialCoordinate: CLLocationCoordinate2D? = nil) {
     self.waypointService = waypointService
-    self.editingWaypointId = nil
+    self.editingWaypointID = nil
     self.originalWaypoint = nil
     self.isEditable = true
     
@@ -56,7 +56,7 @@ public final class WaypointDetailViewModel {
   
   public init(waypointService: WaypointService, editingWaypoint: Waypoint, startEditable: Bool = false) {
     self.waypointService = waypointService
-    self.editingWaypointId = editingWaypoint.id
+    self.editingWaypointID = editingWaypoint.id
     self.originalWaypoint = editingWaypoint
     self.isEditable = startEditable
     self.name = editingWaypoint.name
@@ -135,7 +135,7 @@ public final class WaypointDetailViewModel {
     defer { isSaving = false }
     
     let waypoint = Waypoint(
-      id: editingWaypointId ?? UUID().uuidString,
+      id: editingWaypointID ?? UUID().uuidString,
       name: name.trimmingCharacters(in: .whitespaces),
       description: description.trimmingCharacters(in: .whitespaces).isEmpty ? nil : description.trimmingCharacters(in: .whitespaces),
       symbol: nil,

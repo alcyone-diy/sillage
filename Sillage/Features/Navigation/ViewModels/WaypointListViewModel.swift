@@ -21,8 +21,8 @@ public final class WaypointListViewModel {
     waypointService.currentWaypoints
   }
   
-  public var selectedWaypointId: String? {
-    waypointService.selectedWaypointId
+  public var selectedWaypointID: String? {
+    waypointService.selectedWaypointID
   }
   
   public init(waypointService: WaypointService) {

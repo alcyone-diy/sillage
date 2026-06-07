@@ -93,10 +93,10 @@ struct WaypointDetailView: View {
       .scrollContentBackground(.hidden)
       .background(MarineTheme.Colors.panelBackground)
       
-      if !viewModel.isEditable, let waypointId = viewModel.editingWaypointId {
+      if !viewModel.isEditable, let waypointID = viewModel.editingWaypointID {
         VStack(spacing: MarineTheme.Spacing.small) {
           Button(action: {
-            onViewRequested?(waypointId)
+            onViewRequested?(waypointID)
           }) {
             HStack {
               Image(systemName: "mappin.circle.fill")
@@ -115,14 +115,14 @@ struct WaypointDetailView: View {
         .background(MarineTheme.Colors.surfaceBackground)
       }
     }
-    .navigationTitle(viewModel.editingWaypointId == nil ? "New Waypoint" : (viewModel.isEditable ? "Edit Waypoint" : viewModel.name))
+    .navigationTitle(viewModel.editingWaypointID == nil ? "New Waypoint" : (viewModel.isEditable ? "Edit Waypoint" : viewModel.name))
     .navigationBarTitleDisplayMode(.inline)
-      .navigationBarBackButtonHidden(viewModel.isEditable && viewModel.editingWaypointId != nil)
+      .navigationBarBackButtonHidden(viewModel.isEditable && viewModel.editingWaypointID != nil)
       .toolbar {
         if viewModel.isEditable {
           ToolbarItem(placement: .cancellationAction) {
             Button {
-              if viewModel.editingWaypointId == nil {
+              if viewModel.editingWaypointID == nil {
                 dismiss()
               } else {
                 viewModel.revert()
@@ -137,7 +137,7 @@ struct WaypointDetailView: View {
             Button {
               Task {
                 if await viewModel.save() {
-                  if viewModel.editingWaypointId == nil {
+                  if viewModel.editingWaypointID == nil {
                     dismiss()
                   } else {
                     viewModel.isEditable = false
