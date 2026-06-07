@@ -127,7 +127,7 @@ struct WaypointListView: View {
             defaultName: item.defaultName,
             initialCoordinate: item.coordinate
           )
-          WaypointEditView(viewModel: editVM)
+          WaypointDetailView(viewModel: editVM)
         }
       }
     }
@@ -139,7 +139,7 @@ struct WaypointListView: View {
             editingWaypoint: waypoint,
             startEditable: true
           )
-          WaypointEditView(viewModel: editVM)
+          WaypointDetailView(viewModel: editVM)
         }
       }
     }
@@ -198,7 +198,7 @@ struct WaypointDetailContainer: View {
             await loadData()
           }
       case .loaded(let viewModel):
-        WaypointEditView(viewModel: viewModel)
+        WaypointDetailView(viewModel: viewModel)
       case .error(let error):
         VStack(spacing: 16) {
           Image(systemName: "exclamationmark.triangle")
