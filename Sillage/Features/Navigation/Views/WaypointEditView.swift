@@ -18,9 +18,8 @@ struct WaypointEditView: View {
   @Bindable var viewModel: WaypointEditViewModel
   
   var body: some View {
-    NavigationStack {
-      Form {
-        Section(header: Text("Details")) {
+    Form {
+      Section(header: Text("Details")) {
           TextField("Name", text: $viewModel.name)
             .marineFont(.body)
             .marineListCell()
@@ -38,6 +37,7 @@ struct WaypointEditView: View {
             .marineListCell()
             .tint(MarineTheme.Colors.primary)
         }
+        .disabled(!viewModel.isEditable)
         
         Section(
           header: Text("Location"),
@@ -77,26 +77,52 @@ struct WaypointEditView: View {
           }
           .marineListCell()
         }
+        .disabled(!viewModel.isEditable)
       }
       .scrollContentBackground(.hidden)
       .background(MarineTheme.Colors.panelBackground)
-      .navigationTitle(viewModel.editingWaypointId == nil ? "New Waypoint" : "Edit Waypoint")
+      .navigationTitle(viewModel.editingWaypointId == nil ? "New Waypoint" : (viewModel.isEditable ? "Edit Waypoint" : viewModel.name))
       .navigationBarTitleDisplayMode(.inline)
+      .navigationBarBackButtonHidden(viewModel.isEditable && viewModel.editingWaypointId != nil)
       .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") {
-            dismiss()
-          }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Save") {
-            Task {
-              if await viewModel.save() {
+        if viewModel.isEditable {
+          ToolbarItem(placement: .cancellationAction) {
+            Button {
+              if viewModel.editingWaypointId == nil {
                 dismiss()
+              } else {
+                viewModel.revert()
               }
+            } label: {
+              Image(systemName: "xmark")
+                .padding(8)
+                .contentShape(Rectangle())
             }
           }
-          .disabled(!viewModel.isValid || viewModel.isSaving)
+          ToolbarItem(placement: .confirmationAction) {
+            Button {
+              Task {
+                if await viewModel.save() {
+                  if viewModel.editingWaypointId == nil {
+                    dismiss()
+                  } else {
+                    viewModel.isEditable = false
+                  }
+                }
+              }
+            } label: {
+              Image(systemName: "checkmark")
+                .padding(8)
+                .contentShape(Rectangle())
+            }
+            .disabled(!viewModel.isValid || viewModel.isSaving)
+          }
+        } else {
+          ToolbarItem(placement: .primaryAction) {
+            Button("Edit") {
+              viewModel.isEditable = true
+            }
+          }
         }
       }
       .alert(
@@ -110,7 +136,6 @@ struct WaypointEditView: View {
         Button("OK", role: .cancel) { }
       } message: { error in
         Text(error.localizedDescription)
-      }
     }
   }
 }

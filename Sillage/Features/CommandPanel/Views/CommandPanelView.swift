@@ -133,9 +133,25 @@ struct CommandPanelView: View {
             )
             TrackDetailView(viewModel: model)
           }
+        case .waypointDetail(let id):
+          WaypointDetailContainer(waypointId: id)
         }
       }
       .handleTrackRecordingErrors()
+      .task(id: bindableViewModel.commandPath) {
+        if let waypointService {
+          // Find the deepest waypoint detail in the navigation path
+          let selectedId = bindableViewModel.commandPath.compactMap { dest -> String? in
+            if case .waypointDetail(let id) = dest { return id }
+            return nil
+          }.last
+          
+          // Paranoiac safety: ensure we aren't already cancelled by a rapid swipe
+          guard !Task.isCancelled else { return }
+          
+          await waypointService.selectWaypoint(id: selectedId)
+        }
+      }
       .alert(
         "Track Recording",
         isPresented: Binding(

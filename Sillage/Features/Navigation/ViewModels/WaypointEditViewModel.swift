@@ -30,13 +30,17 @@ public final class WaypointEditViewModel {
   public var isSaving: Bool = false
   public var color: Color = MarineTheme.Colors.primary
   public var isVisible: Bool = true
+  public var isEditable: Bool
   
   private let waypointService: WaypointService
   public let editingWaypointId: String?
+  private let originalWaypoint: Waypoint?
   
   public init(waypointService: WaypointService, defaultName: String? = nil, initialCoordinate: CLLocationCoordinate2D? = nil) {
     self.waypointService = waypointService
     self.editingWaypointId = nil
+    self.originalWaypoint = nil
+    self.isEditable = true
     
     if let defaultName {
       self.name = defaultName
@@ -50,14 +54,26 @@ public final class WaypointEditViewModel {
     }
   }
   
-  public init(waypointService: WaypointService, editingWaypoint: Waypoint) {
+  public init(waypointService: WaypointService, editingWaypoint: Waypoint, startEditable: Bool = false) {
     self.waypointService = waypointService
     self.editingWaypointId = editingWaypoint.id
+    self.originalWaypoint = editingWaypoint
+    self.isEditable = startEditable
     self.name = editingWaypoint.name
     self.description = editingWaypoint.description ?? ""
     self.color = editingWaypoint.colorHex.flatMap { Color(hex: $0) } ?? MarineTheme.Colors.primary
     self.isVisible = editingWaypoint.isVisible
     setCoordinate(editingWaypoint.coordinate)
+  }
+  
+  public func revert() {
+    guard let original = originalWaypoint else { return }
+    self.name = original.name
+    self.description = original.description ?? ""
+    self.color = original.colorHex.flatMap { Color(hex: $0) } ?? MarineTheme.Colors.primary
+    self.isVisible = original.isVisible
+    setCoordinate(original.coordinate)
+    self.isEditable = false
   }
   
   private func extractDegreesAndMinutes(from value: Double, roundMinutes: Bool) -> (degrees: Int, minutes: Double) {
