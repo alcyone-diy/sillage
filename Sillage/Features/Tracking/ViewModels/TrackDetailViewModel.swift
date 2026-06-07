@@ -36,7 +36,7 @@ final class TrackDetailViewModel {
     self.trackRecordingService = trackRecordingService
   }
 
-  /// Indique si la suppression est autorisée (masque/désactive le bouton dans l'UI)
+  /// Indicates whether deletion is allowed (hides/disables the button in the UI)
   var canDelete: Bool {
     return !trackRecordingService.isSessionActive(sessionId)
   }

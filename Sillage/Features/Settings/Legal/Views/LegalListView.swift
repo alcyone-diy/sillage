@@ -15,7 +15,7 @@ struct LegalListView: View {
   let sillageLicenseDocument: LegalDocument
   let thirdPartyLicenseDocuments: [LegalDocument]
   
-  // 1. Injection du thème pour le Glove Mode
+  // 1. Theme injection for Glove Mode
   @Environment(\.marineTheme) private var marineTheme
   
   var body: some View {
