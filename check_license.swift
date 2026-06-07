@@ -4,7 +4,7 @@ import Foundation
 let fileManager = FileManager.default
 let currentPath = fileManager.currentDirectoryPath
 guard let enumerator = fileManager.enumerator(atPath: currentPath) else {
-    print("❌ Erreur : Impossible d'énumérer le répertoire courant.")
+    print("❌ Error: Unable to enumerate the current directory.")
     exit(1)
 }
 
@@ -24,18 +24,18 @@ while let filePath = enumerator.nextObject() as? String {
         do {
             let content = try String(contentsOf: fullPath, encoding: .utf8)
             
-            // Vérification de la présence de la licence
+            // Check for the presence of the license
             if !content.contains("This file is released under the MIT License") {
                 print("📝 Adding dynamic header to: \(filePath)")
                 
-                // Récupération sécurisée de la date de création
+                // Safely retrieve the creation date
                 let attributes = try? fileManager.attributesOfItem(atPath: fullPath.path)
                 let creationDate = (attributes?[.creationDate] as? Date) ?? Date()
                 
                 let dateString = dateFormatter.string(from: creationDate)
                 let yearString = yearFormatter.string(from: creationDate)
                 
-                // Génération de l'en-tête (sans saut de ligne final parasite)
+                // Generate the header (without trailing newline)
                 let dynamicHeader = """
                 //
                 //  \(fileName)
@@ -48,7 +48,7 @@ while let filePath = enumerator.nextObject() as? String {
                 //
                 """
                 
-                // CORRECTION : Insertion explicite d'une ligne vide entre l'en-tête et le code
+                // FIX: Explicitly insert an empty line between the header and the code
                 let updatedContent = dynamicHeader + "\n\n" + content
                 try updatedContent.write(to: fullPath, atomically: true, encoding: .utf8)
             }

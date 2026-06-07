@@ -42,7 +42,7 @@ struct TrackControlView: View {
       .marineListCell()
       .marineFont(.body)
       
-      // Télémétrie : Distance
+      // Telemetry: Distance
       HStack {
         Text("Distance")
         Spacer()
