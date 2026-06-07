@@ -25,21 +25,30 @@ struct WaypointDetailView: View {
           TextField("Name", text: $viewModel.name)
             .marineFont(.body)
             .marineListCell()
+            .disabled(!viewModel.isEditable)
           
           TextField("Description (Optional)", text: $viewModel.description)
             .marineFont(.body)
             .marineListCell()
+            .disabled(!viewModel.isEditable)
             
           ColorPicker("Color", selection: $viewModel.color, supportsOpacity: false)
             .marineFont(.body)
             .marineListCell()
+            .disabled(!viewModel.isEditable)
             
           Toggle("Displayed on Map", isOn: $viewModel.isVisible)
             .marineFont(.body)
             .marineListCell()
             .tint(MarineTheme.Colors.primary)
+            .onChange(of: viewModel.isVisible) { _, _ in
+              if !viewModel.isEditable {
+                Task {
+                  _ = await viewModel.save()
+                }
+              }
+            }
         }
-        .disabled(!viewModel.isEditable)
         
         Section(
           header: Text("Location"),
