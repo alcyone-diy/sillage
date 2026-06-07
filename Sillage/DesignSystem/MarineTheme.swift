@@ -28,6 +28,7 @@ struct MarineTheme {
     static let surfaceBackground = Color(uiColor: .secondarySystemGroupedBackground)
     static let activeToggle = Color.cyan
     static let textOnActive = Color.white
+    static let onPrimary = Color.white
     static let textSecondary = Color.secondary
     static let panelBackground = Color(uiColor: .systemGroupedBackground)
     static let secondarySurface = Color(uiColor: .secondarySystemGroupedBackground)
