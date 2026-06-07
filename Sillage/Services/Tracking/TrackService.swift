@@ -71,11 +71,11 @@ public struct TrackService: Sendable {
   ) async throws {
     _ = try await databaseManager.write { db in
       let updatedCount = try TrackSessionRecord
-        .filter(Column("id") == id)
+        .filter(TrackSessionRecord.Columns.id == id)
         .updateAll(
           db,
-          Column("name").set(to: name),
-          Column("description").set(to: description)
+          TrackSessionRecord.Columns.name.set(to: name),
+          TrackSessionRecord.Columns.description.set(to: description)
         )
       if updatedCount > 0 {
         Logger.database.info("Successfully updated metadata for track session: \(id, privacy: .public)")
@@ -91,10 +91,25 @@ public struct TrackService: Sendable {
   public func fetchTrackPoints(for sessionID: String) async throws -> [TrackPoint] {
     try await databaseManager.reader.read { db in
       let records = try TrackPointRecord
-        .filter(Column("sessionID") == sessionID)
-        .order(Column("timestamp_unix").asc)
+        .filter(TrackPointRecord.Columns.sessionID == sessionID)
+        .order(TrackPointRecord.Columns.timestamp_unix.asc)
         .fetchAll(db)
       return records.map { $0.domainModel }
+    }
+  }
+  
+  /// Exports a track session to a GPX file.
+  /// - Parameters:
+  ///   - id: The unique identifier of the track session.
+  ///   - url: The destination file URL.
+  /// - Returns: The number of exported track points.
+  public func exportSession(id: String, to url: URL) async throws -> Int {
+    try await databaseManager.reader.read { db in
+      let request = TrackPointRecord
+        .filter(TrackPointRecord.Columns.sessionID == id)
+        .order(TrackPointRecord.Columns.timestamp_unix.asc)
+      let cursor = try request.fetchCursor(db)
+      return try GPXExportService.export(cursor: cursor, to: url)
     }
   }
 }

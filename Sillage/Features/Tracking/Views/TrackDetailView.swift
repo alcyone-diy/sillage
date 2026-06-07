@@ -169,6 +169,17 @@ struct TrackDetailView: View {
       
       if !viewModel.isEditing {
         VStack(spacing: MarineTheme.Spacing.small) {
+          ShareLink(
+            item: viewModel.gpxExport,
+            preview: SharePreview(
+              viewModel.name.isEmpty ? "Track Export" : viewModel.name,
+              image: Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+            )
+          ) {
+            exportButtonLabel
+          }
+          .buttonStyle(MarineButtonStyle())
+
           Button(action: {
             Task {
               do {
@@ -247,6 +258,13 @@ struct TrackDetailView: View {
       Button("OK", role: .cancel) {}
     } message: { message in
       Text(verbatim: message)
+    }
+  }
+  
+  private var exportButtonLabel: some View {
+    HStack {
+      Image(systemName: "square.and.arrow.up")
+      Text(String(localized: "Export GPX"))
     }
   }
 }
