@@ -30,7 +30,7 @@ final class AppEnvironment {
   
   // ViewModels
   private(set) var appViewModel: AppViewModel?
-  private(set) var mapViewModel: MapViewModel?
+  private(set) var chartViewModel: ChartViewModel?
   private(set) var panelManagerViewModel: PanelManagerViewModel?
   private(set) var activeTrackViewModel: ActiveTrackViewModel?
   
@@ -95,7 +95,7 @@ final class AppEnvironment {
       
       // d. ViewModels instantiation (injecting the ready Services)
       self.appViewModel = AppViewModel(preferencesService: preferencesService)
-      self.mapViewModel = MapViewModel(
+      self.chartViewModel = ChartViewModel(
         positioningService: positioningService,
         preferencesService: preferencesService,
         authService: geoGarageAuthService,

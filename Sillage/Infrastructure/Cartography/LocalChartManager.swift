@@ -1,5 +1,5 @@
 //
-//  LocalMapManager.swift
+//  LocalChartManager.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-04-05.
@@ -11,8 +11,8 @@
 import Foundation
 import OSLog
 
-actor LocalMapManager {
-  static let shared = LocalMapManager()
+actor LocalChartManager {
+  static let shared = LocalChartManager()
 
   private let fileManager = FileManager.default
 
@@ -20,7 +20,7 @@ actor LocalMapManager {
     fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
   }
 
-  func fetchLocalMaps() -> [URL] {
+  func fetchLocalCharts() -> [URL] {
     do {
       let urls = try fileManager.contentsOfDirectory(at: documentsDirectory, includingPropertiesForKeys: nil)
       return urls.filter { $0.pathExtension == "mbtiles" }
@@ -30,10 +30,10 @@ actor LocalMapManager {
     }
   }
 
-  func importMap(from sourceURL: URL) throws -> URL {
+  func importChart(from sourceURL: URL) throws -> URL {
     // Start accessing the security-scoped resource
     guard sourceURL.startAccessingSecurityScopedResource() else {
-      throw LocalMapError.securityAccessFailed
+      throw LocalChartError.securityAccessFailed
     }
 
     // Ensure we stop accessing the resource when we exit this scope
@@ -57,12 +57,12 @@ actor LocalMapManager {
       try fileManager.copyItem(at: sourceURL, to: destinationURL)
       return destinationURL
     } catch {
-      throw LocalMapError.copyFailed(error)
+      throw LocalChartError.copyFailed(error)
     }
   }
 }
 
-enum LocalMapError: Error, LocalizedError {
+enum LocalChartError: Error, LocalizedError {
   case securityAccessFailed
   case copyFailed(Error)
 

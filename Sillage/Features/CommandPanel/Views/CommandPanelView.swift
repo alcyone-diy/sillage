@@ -14,7 +14,7 @@ import OSLog
 @MainActor
 struct CommandPanelView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
-  @Environment(MapViewModel.self) private var mapViewModel
+  @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.trackService) private var trackService
@@ -133,7 +133,7 @@ struct CommandPanelView: View {
               trackRecordingService: trackRecordingService
             )
             TrackDetailView(viewModel: model) { id in
-              try await mapViewModel.loadAndDisplaySavedTrack(
+              try await chartViewModel.loadAndDisplaySavedTrack(
                 sessionId: id,
                 trackService: trackService,
                 edgePadding: MarineTheme.Spacing.large

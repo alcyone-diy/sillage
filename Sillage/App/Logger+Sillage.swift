@@ -20,7 +20,7 @@ extension Logger {
 
   nonisolated static let database = Logger(subsystem: subsystem, category: "Database")
   nonisolated static let network = Logger(subsystem: subsystem, category: "Network")
-  nonisolated static let map = Logger(subsystem: subsystem, category: "Map")
+  nonisolated static let chart = Logger(subsystem: subsystem, category: "Chart")
   nonisolated static let storage = Logger(subsystem: subsystem, category: "Storage")
   nonisolated static let system = Logger(subsystem: subsystem, category: "System")
   nonisolated static let telemetry = Logger(subsystem: subsystem, category: "Telemetry")

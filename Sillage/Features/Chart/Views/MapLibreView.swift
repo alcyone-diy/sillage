@@ -17,7 +17,7 @@ struct MapLibreView: UIViewRepresentable {
   
   @Environment(\.marineTheme) var marineTheme
   @Environment(TrackRecordingService.self) private var trackRecordingService
-  var viewModel: MapViewModel
+  var viewModel: ChartViewModel
   
   
   private func ensureVesselLayersExist(in style: MLNStyle, with theme: MarineTheme) {
@@ -46,13 +46,13 @@ struct MapLibreView: UIViewRepresentable {
       
       let gpsAccuracyFillLayer = MLNFillStyleLayer(identifier: gpsAccuracyLayerId, source: gpsAccuracySource)
       gpsAccuracyFillLayer.fillColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.accent))
-      gpsAccuracyFillLayer.fillOpacity = NSExpression(forConstantValue: MarineTheme.MapMetrics.gpsAccuracyFillOpacity)
+      gpsAccuracyFillLayer.fillOpacity = NSExpression(forConstantValue: MarineTheme.ChartMetrics.gpsAccuracyFillOpacity)
       style.addLayer(gpsAccuracyFillLayer)
       
       let gpsAccuracyStrokeLayer = MLNLineStyleLayer(identifier: gpsAccuracyStrokeLayerId, source: gpsAccuracySource)
       gpsAccuracyStrokeLayer.lineColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.accent))
-      gpsAccuracyStrokeLayer.lineOpacity = NSExpression(forConstantValue: MarineTheme.MapMetrics.gpsAccuracyStrokeOpacity)
-      gpsAccuracyStrokeLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.MapMetrics.gpsAccuracyLineWidth)
+      gpsAccuracyStrokeLayer.lineOpacity = NSExpression(forConstantValue: MarineTheme.ChartMetrics.gpsAccuracyStrokeOpacity)
+      gpsAccuracyStrokeLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.ChartMetrics.gpsAccuracyLineWidth)
       style.insertLayer(gpsAccuracyStrokeLayer, above: gpsAccuracyFillLayer)
       
       let activeTrackSource = MLNShapeSource(identifier: activeTrackSourceId, shape: nil, options: nil)
@@ -101,7 +101,7 @@ struct MapLibreView: UIViewRepresentable {
       
       let headingLayer = MLNLineStyleLayer(identifier: headingLayerId, source: headingSource)
       headingLayer.predicate = NSPredicate(format: "featureType == 'vectorLine'")
-      headingLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.MapMetrics.headingLineWidth)
+      headingLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.ChartMetrics.headingLineWidth)
       headingLayer.lineColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.vectorCOG))
       style.addLayer(headingLayer)
       
@@ -160,7 +160,7 @@ struct MapLibreView: UIViewRepresentable {
     }
     
     // Centering of the initial camera using ViewModel's state
-    mapView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, direction: viewModel.mapDirection.converted(to: .degrees).value, animated: false)
+    mapView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, direction: viewModel.chartDirection.converted(to: .degrees).value, animated: false)
     
     // Setup subscription for explicit user location centering via AsyncStream
     context.coordinator.setupSubscription(for: mapView)
@@ -236,10 +236,10 @@ struct MapLibreView: UIViewRepresentable {
     
     
     // If the map source has changed, update the map's style/source
-    if let currentSource = viewModel.currentMapSource,
-       context.coordinator.lastMapSource != currentSource,
+    if let currentSource = viewModel.currentChartSource,
+       context.coordinator.lastChartSource != currentSource,
        let style = uiView.style {
-      context.coordinator.updateMapSource(currentSource, style: style, mapView: uiView)
+      context.coordinator.updateChartSource(currentSource, style: style, mapView: uiView)
     }
     
     // Handle OpenSeaMap overlay toggle
@@ -309,7 +309,7 @@ struct MapLibreView: UIViewRepresentable {
   /// Creates a minimal empty JSON style to force MapLibre to load its engine and fire the finish loading delegate method.
   private func createBlankStyleJSON() -> URL? {
     guard let styleURL = Bundle.main.url(forResource: "blank-style", withExtension: "json") else {
-      Logger.map.warning("blank-style.json not found in App Bundle. MapLibre may not initialize correctly.")
+      Logger.chart.warning("blank-style.json not found in App Bundle. MapLibre may not initialize correctly.")
       return nil
     }
     return styleURL
@@ -320,7 +320,7 @@ struct MapLibreView: UIViewRepresentable {
   class Coordinator: NSObject, MLNMapViewDelegate {
     var parent: MapLibreView
     private var streamTask: Task<Void, Never>?
-    var lastMapSource: MapSource?
+    var lastChartSource: ChartSource?
     
     init(_ parent: MapLibreView) {
       self.parent = parent
@@ -382,15 +382,15 @@ struct MapLibreView: UIViewRepresentable {
     
     // Called when the map has finished loading its style
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-      Logger.map.info("MapLibre successfully loaded the default style.")
+      Logger.chart.info("MapLibre successfully loaded the default style.")
       
       // Add vessel cursor image
-      if let image = VesselGraphicsFactory.createVesselImage(size: MarineTheme.MapMetrics.vesselCursorBaseSize, color: UIColor(MarineTheme.Colors.accent)) {
+      if let image = VesselGraphicsFactory.createVesselImage(size: MarineTheme.ChartMetrics.vesselCursorBaseSize, color: UIColor(MarineTheme.Colors.accent)) {
         style.setImage(image, forName: "vessel-cursor")
       }
       
-      if let currentSource = parent.viewModel.currentMapSource {
-        updateMapSource(currentSource, style: style, mapView: mapView)
+      if let currentSource = parent.viewModel.currentChartSource {
+        updateChartSource(currentSource, style: style, mapView: mapView)
       }
       
       updateOpenSeaMapOverlay(isEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: mapView)
@@ -431,11 +431,11 @@ struct MapLibreView: UIViewRepresentable {
       // Instead, we simply jump the camera back to the exact metadata `centerCoordinate` and `zoomLevel`.
       // This is required because loading the blank JSON style resets the map to (0,0), which leaves it looking at
       // the African coast where no French marine chart tiles exist, causing the map to appear blank.
-      mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection.converted(to: .degrees).value, animated: false)
+      mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.chartDirection.converted(to: .degrees).value, animated: false)
     }
     
-    func updateMapSource(_ source: MapSource, style: MLNStyle, mapView: MLNMapView) {
-      lastMapSource = source
+    func updateChartSource(_ source: ChartSource, style: MLNStyle, mapView: MLNMapView) {
+      lastChartSource = source
       
       // Remove existing layer and source if they exist
       let layerId = "base-raster-layer"
@@ -471,7 +471,7 @@ struct MapLibreView: UIViewRepresentable {
           let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
           style.insertLayer(rasterLayer, at: 0)
           
-          Logger.map.info("Programmatically injected MBTiles raster source and layer.")
+          Logger.chart.info("Programmatically injected MBTiles raster source and layer.")
         }
         
       case .remoteGeoGarage(_, let layerID):
@@ -488,7 +488,7 @@ struct MapLibreView: UIViewRepresentable {
         let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
         style.insertLayer(rasterLayer, at: 0)
         
-        Logger.map.info("Programmatically injected GeoGarage raster source and layer.")
+        Logger.chart.info("Programmatically injected GeoGarage raster source and layer.")
         
       case .openSeaMap:
         let template = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -504,7 +504,7 @@ struct MapLibreView: UIViewRepresentable {
         let rasterLayer = MLNRasterStyleLayer(identifier: layerId, source: rasterSource)
         style.insertLayer(rasterLayer, at: 0)
         
-        Logger.map.info("Programmatically injected OpenSeaMap raster source and layer.")
+        Logger.chart.info("Programmatically injected OpenSeaMap raster source and layer.")
       }
       
       // Re-apply OpenSeaMap overlay if it was enabled, to ensure it stays on top of the new base map
@@ -514,7 +514,7 @@ struct MapLibreView: UIViewRepresentable {
       }
       
       // Re-center on the new source's preferred coordinate and zoom if needed
-      mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.mapDirection.converted(to: .degrees).value, animated: false)
+      mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.chartDirection.converted(to: .degrees).value, animated: false)
       
 
       if let gpsAccuracyFillLayer = style.layer(withIdentifier: "gps-accuracy-layer") {
@@ -584,33 +584,33 @@ struct MapLibreView: UIViewRepresentable {
     func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       if shouldBreakTracking(for: reason) {
         DispatchQueue.main.async {
-          self.parent.viewModel.mapInteractedByUser()
+          self.parent.viewModel.chartInteractedByUser()
         }
       }
     }
     
-    // Capture user's map movements to break tracking ONLY when the movement stops, as requested
-    // Also sync the final camera state back to the ViewModel so it knows where the map is.
+    // Capture user's chart movements to break tracking ONLY when the movement stops, as requested
+    // Also sync the final camera state back to the ViewModel so it knows where the chart is.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       DispatchQueue.main.async {
-        // Keep ViewModel state in sync with the map
+        // Keep ViewModel state in sync with the chart.
         self.parent.viewModel.centerCoordinate = mapView.centerCoordinate
         self.parent.viewModel.zoomLevel = mapView.zoomLevel
-        self.parent.viewModel.mapDirection = Measurement(value: mapView.direction, unit: UnitAngle.degrees)
+        self.parent.viewModel.chartDirection = Measurement(value: mapView.direction, unit: UnitAngle.degrees)
         
         // Save the camera state to UserDefaults
         self.parent.viewModel.saveCameraState()
         
         // If it was a manual interaction, break tracking
         if self.shouldBreakTracking(for: reason) {
-          self.parent.viewModel.mapInteractedByUser()
+          self.parent.viewModel.chartInteractedByUser()
         }
       }
     }
     
     // Potential loading errors
     func mapViewDidFailLoadingMap(_ mapView: MLNMapView, withError error: Error) {
-      Logger.map.error("Error loading MapLibre map: \(error.localizedDescription, privacy: .public)")
+      Logger.chart.error("Error loading MapLibre map: \(error.localizedDescription, privacy: .public)")
     }
   }
 }

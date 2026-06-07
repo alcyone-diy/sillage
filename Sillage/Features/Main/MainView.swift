@@ -16,7 +16,7 @@ struct ContentView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @Environment(\.verticalSizeClass) private var verticalSizeClass
   @Environment(AppViewModel.self) private var appViewModel
-  @Environment(MapViewModel.self) var mapViewModel
+  @Environment(ChartViewModel.self) var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
   @Environment(TrackRecordingService.self) private var trackRecordingService
 
@@ -33,8 +33,8 @@ struct ContentView: View {
       ZStack {
 
         // Conditional display of the map (if the current map source was successfully found)
-        if mapViewModel.currentMapSource != nil {
-          MapLibreView(viewModel: mapViewModel)
+        if chartViewModel.currentChartSource != nil {
+          MapLibreView(viewModel: chartViewModel)
             .ignoresSafeArea() // Essential for full-screen immersion
             .simultaneousGesture(
               TapGesture().onEnded {
@@ -65,13 +65,13 @@ struct ContentView: View {
           HStack {
             // Recenter Button
             Button(action: {
-              mapViewModel.toggleTrackingMode()
+              chartViewModel.toggleTrackingMode()
             }) {
-              Image(systemName: trackingIconName(for: mapViewModel.trackingMode))
+              Image(systemName: trackingIconName(for: chartViewModel.trackingMode))
                 .marineFont(.title3)
                 .foregroundColor(.white)
             }
-            .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: mapViewModel.trackingMode)))
+            .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: chartViewModel.trackingMode)))
             .padding()
             .padding(.bottom, 30) // Clears bottom safe area
 
@@ -175,7 +175,7 @@ struct ContentView: View {
     }
   }
 
-  private func trackingIconName(for mode: MapTrackingMode) -> String {
+  private func trackingIconName(for mode: ChartTrackingMode) -> String {
     switch mode {
     case .free: return "location"
     case .northUp: return "location.fill"
@@ -183,7 +183,7 @@ struct ContentView: View {
     }
   }
 
-  private func trackingBackgroundColor(for mode: MapTrackingMode) -> Color {
+  private func trackingBackgroundColor(for mode: ChartTrackingMode) -> Color {
     switch mode {
     case .free: return MarineTheme.Colors.inactive
     case .northUp, .courseUp: return MarineTheme.Colors.primary
@@ -195,7 +195,7 @@ struct ContentView: View {
       VStack(spacing: 8) {
         // TODO: Need to find a way to add it back without taking too much space.
         /*
-        if let coordinate = mapViewModel.currentCoordinate {
+        if let coordinate = chartViewModel.currentCoordinate {
           Text(coordinate.formatted(.marineCoordinate))
             .marineFont(.instrumentData)
             .foregroundColor(.yellow)
@@ -211,7 +211,7 @@ struct ContentView: View {
               .marineFont(.instrumentLabel)
               .foregroundColor(.secondary)
             Group {
-              if let sogMeasurement = mapViewModel.speedOverGround {
+              if let sogMeasurement = chartViewModel.speedOverGround {
                 let sogKnots = sogMeasurement.converted(to: .knots).value
                 Text(Measurement(value: sogKnots, unit: UnitSpeed.knots).formatted(
                     .measurement(width: .abbreviated,
@@ -231,7 +231,7 @@ struct ContentView: View {
               .marineFont(.instrumentLabel)
               .foregroundColor(.secondary)
             Group {
-              if let cog = mapViewModel.courseOverGround {
+              if let cog = chartViewModel.courseOverGround {
                 Text("\(cog.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
               } else {
                 Text("--°")
@@ -241,13 +241,13 @@ struct ContentView: View {
               .foregroundColor(.white)
           }
           
-          if mapViewModel.selectedWaypointFeature != nil {
+          if chartViewModel.selectedWaypointFeature != nil {
             VStack {
               Text("BTW")
                 .marineFont(.instrumentLabel)
                 .foregroundColor(.secondary)
               Group {
-                if let btw = mapViewModel.bearingToWaypoint {
+                if let btw = chartViewModel.bearingToWaypoint {
                   Text("\(btw.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
                 } else {
                   Text("--°")

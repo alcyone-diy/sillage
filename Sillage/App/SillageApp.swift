@@ -29,7 +29,7 @@ struct SillageApp: App {
           }
         case .ready:
           if let appVM = environment.appViewModel,
-             let mapVM = environment.mapViewModel,
+             let chartVM = environment.chartViewModel,
              let panelVM = environment.panelManagerViewModel,
              let trackRecService = environment.trackRecordingService,
              let trackService = environment.trackService,
@@ -38,7 +38,7 @@ struct SillageApp: App {
              let preferences = environment.preferencesService {
             MainAppView(
               appViewModel: appVM,
-              mapViewModel: mapVM,
+              chartViewModel: chartVM,
               panelManagerViewModel: panelVM,
               activeTrackViewModel: activeTrackVM,
               trackRecordingService: trackRecService,
@@ -84,7 +84,7 @@ struct SillageApp: App {
 
 struct MainAppView: View {
   @Bindable var appViewModel: AppViewModel
-  var mapViewModel: MapViewModel
+  var chartViewModel: ChartViewModel
   var panelManagerViewModel: PanelManagerViewModel
   var activeTrackViewModel: ActiveTrackViewModel
   var trackRecordingService: TrackRecordingService
@@ -100,7 +100,7 @@ struct MainAppView: View {
         ContentView()
           .environment(\.marineTheme, appViewModel.marineTheme)
           .environment(appViewModel)
-          .environment(mapViewModel)
+          .environment(chartViewModel)
           .environment(panelManagerViewModel)
           .environment(activeTrackViewModel)
           .environment(trackRecordingService)

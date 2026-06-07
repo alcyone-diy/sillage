@@ -57,7 +57,7 @@ struct MarineTheme {
     static let large: CGFloat = 24
   }
 
-  struct MapMetrics {
+  struct ChartMetrics {
     static let vesselCursorBaseSize = CGSize(width: 24, height: 36)
     static let headingLineWidth: Double = 2.5
     static let planningLineWidth: Double = 1.0

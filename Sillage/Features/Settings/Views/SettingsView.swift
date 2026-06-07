@@ -26,8 +26,8 @@ struct SettingsView: View {
         }
         .marineListCell()
         
-        NavigationLink(destination: MapPreferencesView()) {
-          Label("Map Preferences", systemImage: "map")
+        NavigationLink(destination: ChartPreferencesView()) {
+          Label("Chart Preferences", systemImage: "map")
             .marineFont(.body)
         }
         .marineListCell()

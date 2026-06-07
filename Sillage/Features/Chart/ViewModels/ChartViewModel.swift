@@ -1,5 +1,5 @@
 //
-//  MapViewModel.swift
+//  ChartViewModel.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-04-05.
@@ -21,36 +21,36 @@ enum CameraMoveEvent {
   case fitBounds(bounds: MLNCoordinateBounds, padding: UIEdgeInsets)
 }
 
-/// Defines how the map camera should behave relative to the user's location and orientation.
-enum MapTrackingMode {
+/// Defines how the chart camera should behave relative to the user's location and orientation.
+enum ChartTrackingMode {
   case free
   case northUp
   case courseUp
 }
 
-/// The central state manager for the map interface.
-/// It handles location updates, map source switching, and coordinates camera movements.
+/// The central state manager for the chart interface.
+/// It handles location updates, chart source switching, and coordinates camera movements.
 @Observable
 @MainActor
-class MapViewModel {
+class ChartViewModel {
   
   // MARK: - Core State
   
-  var trackingMode: MapTrackingMode = .free
-  var currentMapSource: MapSource?
-  var mapBounds: MBTilesBounds?
+  var trackingMode: ChartTrackingMode = .free
+  var currentChartSource: ChartSource?
+  var chartBounds: MBTilesBounds?
   var maxZoom: Double?
   var minZoom: Double?
   
-  // MARK: - Map Sources Data
+  // MARK: - Chart Sources Data
   
   var availableGeoGarageLayers: [GeoGarageLayer] = []
   
   /// Represents locally stored MBTiles files.
   /// This array is automatically kept in sync with the file system by the ChartStorageService.
-  var localOfflineMaps: [MBTileFile] = []
+  var localOfflineCharts: [MBTileFile] = []
   
-  var mapImportError: String?
+  var chartImportError: String?
   var showImportError: Bool = false
   
   var isOpenSeaMapOverlayEnabled: Bool = false {
@@ -59,11 +59,11 @@ class MapViewModel {
     }
   }
   
-  // MARK: - Map Camera State
+  // MARK: - Chart Camera State
   
   var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
   var zoomLevel: Double = 10.0
-  var mapDirection: Measurement<UnitAngle> = Measurement(value: 0.0, unit: UnitAngle.degrees)
+  var chartDirection: Measurement<UnitAngle> = Measurement(value: 0.0, unit: UnitAngle.degrees)
   
   // MARK: - Navigation & Telemetry
   
@@ -72,7 +72,7 @@ class MapViewModel {
   var courseOverGround: Measurement<UnitAngle>? = nil
   var bearingToWaypoint: Measurement<UnitAngle>? = nil
   
-  // MARK: - Map Features (Annotations)
+  // MARK: - Chart Features (Annotations)
   
   var vesselFeature: MLNPointFeature?
   var headingVectorFeature: MLNShapeCollectionFeature?
@@ -86,7 +86,7 @@ class MapViewModel {
   
   // MARK: - Private Services & Tasks
   
-  private var mapLayer: MapLayer?
+  private var chartLayer: ChartLayer?
   private let positioningService: PositioningService
   private let chartStorageService = ChartStorageService()
   private var preferencesService: PreferencesServiceProtocol
@@ -140,22 +140,22 @@ class MapViewModel {
     self.waypointService = waypointService
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
     
-    loadSavedMapSource()
+    loadSavedChartSource()
     setupPositioningService()
     setupWaypointService()
     silentlyFetchGeoGarageLayers()
-    startObservingLocalMaps()
+    startObservingLocalCharts()
     observePreferences()
   }
   
   // MARK: - Data Observation & Management
   
-  private func startObservingLocalMaps() {
+  private func startObservingLocalCharts() {
     observationTask = TaskCancellable(Task { [weak self] in
       guard let self = self else { return }
       for await files in await self.chartStorageService.observeMBTilesDirectory() {
         await MainActor.run {
-          self.localOfflineMaps = files
+          self.localOfflineCharts = files
         }
       }
     })
@@ -267,17 +267,17 @@ class MapViewModel {
     }
   }
   
-  /// Initiates the asynchronous import of an MBTiles file and switches the map to it upon success.
-  func importOfflineMap(from url: URL) {
+  /// Initiates the asynchronous import of an MBTiles file and switches the chart to it upon success.
+  func importOfflineChart(from url: URL) {
     Task {
       do {
-        let importedURL = try await LocalMapManager.shared.importMap(from: url)
+        let importedURL = try await LocalChartManager.shared.importChart(from: url)
         await MainActor.run {
-          self.switchMapSource(to: .localMBTiles(url: importedURL))
+          self.switchChartSource(to: .localMBTiles(url: importedURL))
         }
       } catch {
         await MainActor.run {
-          self.mapImportError = error.localizedDescription
+          self.chartImportError = error.localizedDescription
           self.showImportError = true
         }
       }
@@ -335,7 +335,7 @@ class MapViewModel {
     positioningService.requestAuthorization()
   }
   
-  /// Processes a new GPS fix, updating telemetry measurements, map features, and camera position if tracking is enabled.
+  /// Processes a new GPS fix, updating telemetry measurements, chart features, and camera position if tracking is enabled.
   private func handleNewNavigationFix(_ navigationFix: NavigationFix) {
     // Discard highly inaccurate fixes
     if navigationFix.horizontalAccuracy.converted(to: .meters).value > 50 {
@@ -366,7 +366,7 @@ class MapViewModel {
     // Update COG
     courseOverGround = navigationFix.courseOverGround
     
-    // Generate Map Annotations
+    // Generate Chart Annotations
     let feature = MLNPointFeature()
     feature.coordinate = navigationFix.coordinate
     var attributes: [String: Any] = [:]
@@ -467,40 +467,40 @@ class MapViewModel {
     return MLNPolygonFeature(coordinates: &accuracyCoords, count: UInt(accuracyCoords.count))
   }
   
-  // MARK: - Map State Management
+  // MARK: - Chart State Management
   
-  /// Changes the active map source and reconfigures map limits (bounds, zoom) accordingly.
-  func switchMapSource(to source: MapSource) {
-    self.currentMapSource = source
+  /// Changes the active chart source and reconfigures chart limits (bounds, zoom) accordingly.
+  func switchChartSource(to source: ChartSource) {
+    self.currentChartSource = source
     
     switch source {
     case .localMBTiles(let url):
       let fileName = url.deletingPathExtension().lastPathComponent
-      preferencesService.savedMapSource = fileName
+      preferencesService.savedChartSource = fileName
       
-      self.mapLayer = MapLayer(name: LocalizedStringResource("Marine Raster Chart"), source: source)
+      self.chartLayer = ChartLayer(name: LocalizedStringResource("Marine Raster Chart"), source: source)
       let metadata = MBTilesHelper.extractMetadata(from: url)
-      if let bounds = metadata.bounds { self.mapBounds = bounds }
+      if let bounds = metadata.bounds { self.chartBounds = bounds }
       if let minZ = metadata.minZoom { self.minZoom = minZ }
       if let maxZ = metadata.maxZoom { self.maxZoom = maxZ }
       
       resetToDefaultsIfNeeded(defaultZoom: metadata.defaultZoom ?? 10.0, defaultCenter: metadata.center)
       
     case .remoteGeoGarage(_, let layerID):
-      preferencesService.savedMapSource = "remoteGeoGarage"
+      preferencesService.savedChartSource = "remoteGeoGarage"
       preferencesService.savedGeoGarageLayerID = layerID
       
-      self.mapLayer = MapLayer(name: LocalizedStringResource("GeoGarage Marine Chart"), source: source)
-      self.mapBounds = nil
+      self.chartLayer = ChartLayer(name: LocalizedStringResource("GeoGarage Marine Chart"), source: source)
+      self.chartBounds = nil
       self.minZoom = 0.0
       self.maxZoom = 20.0
       
       resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: lastKnownNavigationFix?.coordinate)
       
     case .openSeaMap:
-      preferencesService.savedMapSource = "openSeaMap"
-      self.mapLayer = MapLayer(name: LocalizedStringResource("OpenSeaMap"), source: source)
-      self.mapBounds = nil
+      preferencesService.savedChartSource = "openSeaMap"
+      self.chartLayer = ChartLayer(name: LocalizedStringResource("OpenSeaMap"), source: source)
+      self.chartBounds = nil
       self.minZoom = 0.0
       self.maxZoom = 18.0
       
@@ -508,7 +508,7 @@ class MapViewModel {
     }
   }
   
-  /// Applies default map position settings only if the user hasn't previously saved a camera state.
+  /// Applies default chart position settings only if the user hasn't previously saved a camera state.
   private func resetToDefaultsIfNeeded(defaultZoom: Double, defaultCenter: CLLocationCoordinate2D?) {
     if preferencesService.savedLatitude == nil {
       self.zoomLevel = defaultZoom
@@ -520,8 +520,8 @@ class MapViewModel {
   
   // MARK: - User Interactions
   
-  /// Called when the user manually pans or zooms the map, breaking any active tracking lock.
-  func mapInteractedByUser() {
+  /// Called when the user manually pans or zooms the chart, breaking any active tracking lock.
+  func chartInteractedByUser() {
     trackingMode = .free
   }
   
@@ -544,10 +544,10 @@ class MapViewModel {
     }
   }
   
-  /// Forces the map camera to jump to the user's last known location.
+  /// Forces the chart camera to jump to the user's last known location.
   func centerOnUserLocation() {
     guard let navigationFix = lastKnownNavigationFix else {
-      Logger.map.warning("Cannot center: lastKnownNavigationFix is nil. Waiting for a valid GPS fix from PositioningService.")
+      Logger.chart.warning("Cannot center: lastKnownNavigationFix is nil. Waiting for a valid GPS fix from PositioningService.")
       return
     }
     
@@ -680,24 +680,24 @@ class MapViewModel {
   // MARK: - Persistence
   
   func saveCameraState() {
-    preferencesService.saveCameraState(coordinate: centerCoordinate, zoom: zoomLevel, direction: mapDirection.converted(to: .degrees).value)
+    preferencesService.saveCameraState(coordinate: centerCoordinate, zoom: zoomLevel, direction: chartDirection.converted(to: .degrees).value)
   }
   
   func loadSavedCameraState() {
     if let state = preferencesService.loadCameraState() {
       self.centerCoordinate = state.coordinate
       self.zoomLevel = state.zoom
-      self.mapDirection = Measurement(value: state.direction, unit: UnitAngle.degrees)
+      self.chartDirection = Measurement(value: state.direction, unit: UnitAngle.degrees)
     }
   }
   
-  /// Restores the previously selected map source upon application launch.
+  /// Restores the previously selected chart source upon application launch.
   /// It verifies file existence in the Documents directory and falls back appropriately.
-  private func loadSavedMapSource() {
-    let savedSource = preferencesService.savedMapSource
+  private func loadSavedChartSource() {
+    let savedSource = preferencesService.savedChartSource
     
     if savedSource == "remoteGeoGarage", let savedLayerID = preferencesService.savedGeoGarageLayerID {
-      switchMapSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: savedLayerID))
+      switchChartSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: savedLayerID))
       
     } else if let savedFileName = savedSource {
       let fileManager = FileManager.default
@@ -708,18 +708,18 @@ class MapViewModel {
           .appendingPathExtension("mbtiles")
         
         if fileManager.fileExists(atPath: chartURL.path) {
-          switchMapSource(to: .localMBTiles(url: chartURL))
+          switchChartSource(to: .localMBTiles(url: chartURL))
         } else if let bundleURL = Bundle.main.url(forResource: savedFileName, withExtension: "mbtiles") {
-          // Fallback to internal app bundle if the map is a shipped default
-          switchMapSource(to: .localMBTiles(url: bundleURL))
+          // Fallback to internal app bundle if the chart is a shipped default
+          switchChartSource(to: .localMBTiles(url: bundleURL))
         } else {
-          switchMapSource(to: .openSeaMap)
+          switchChartSource(to: .openSeaMap)
         }
       } else {
-        switchMapSource(to: .openSeaMap)
+        switchChartSource(to: .openSeaMap)
       }
     } else {
-      switchMapSource(to: .openSeaMap)
+      switchChartSource(to: .openSeaMap)
     }
     
     loadSavedCameraState()
