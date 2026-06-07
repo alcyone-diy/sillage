@@ -131,7 +131,27 @@ final class AppEnvironment {
       let text = "Alcyone Sillage - Chart Plotter.\nPlease place your .mbtiles files in the 'Charts' directory."
       try text.write(to: dummyURL, atomically: true, encoding: .utf8)
     }
+    
+    // Cleanup GPX temporary directory explicitly in background to avoid blocking bootstrap
+    cleanupGPXExports()
+    
     Logger.storage.debug("⚓️ FileSystem ready: \(docsURL.path)")
+  }
+  
+  /// Cleans up GPX export temporary files asynchronously.
+  public func cleanupGPXExports() {
+    Task.detached(priority: .background) {
+      let fm = FileManager.default
+      let gpxTempDir = fm.temporaryDirectory.appendingPathComponent("GPXExports")
+      if fm.fileExists(atPath: gpxTempDir.path) {
+        do {
+          try fm.removeItem(at: gpxTempDir)
+          Logger.storage.debug("🧹 GPX temporary folder cleanup successful.")
+        } catch {
+          Logger.storage.error("❌ Failed to clean GPX temporary folder: \(error.localizedDescription)")
+        }
+      }
+    }
   }
 
   private func setupMapLibreProtocol() {

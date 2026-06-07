@@ -11,6 +11,8 @@
 import Foundation
 import Observation
 import OSLog
+import UniformTypeIdentifiers
+import CoreTransferable
 
 @MainActor
 @Observable
@@ -39,6 +41,20 @@ final class TrackDetailViewModel {
   /// Indicates whether deletion is allowed (hides/disables the button in the UI)
   var canDelete: Bool {
     return !trackRecordingService.isSessionActive(sessionID)
+  }
+
+  /// Provides the export representation for sharing.
+  var gpxExport: GPXExport {
+    let rawName = name.isEmpty ? "Track_\(sessionID)" : name
+    let invalidCharacters = CharacterSet.alphanumerics.inverted
+    var safeName = rawName.components(separatedBy: invalidCharacters)
+                          .filter { !$0.isEmpty }
+                          .joined(separator: "-")
+    if safeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      safeName = "Track_\(sessionID)"
+    }
+    let fileName = "\(safeName).gpx"
+    return GPXExport(sessionID: sessionID, trackService: trackService, defaultFileName: fileName)
   }
 
   // MARK: - Live Metrics
@@ -165,5 +181,33 @@ public enum TrackDeletionError: LocalizedError {
     case .activeSession:
       return String(localized: "Cannot delete a track while it is actively recording.")
     }
+  }
+}
+
+public struct GPXExport: Transferable, Sendable {
+  public let sessionID: String
+  public let trackService: TrackService
+  public let defaultFileName: String
+
+  public static var transferRepresentation: some TransferRepresentation {
+    FileRepresentation(exportedContentType: .gpx) { export in
+      let gpxTempDir = URL.temporaryDirectory.appendingPathComponent("GPXExports")
+      try FileManager.default.createDirectory(at: gpxTempDir, withIntermediateDirectories: true)
+      let uniqueFileName = "\(UUID().uuidString)_\(export.defaultFileName)"
+      let tempURL = gpxTempDir.appendingPathComponent(uniqueFileName)
+      do {
+        _ = try await export.trackService.exportSession(id: export.sessionID, to: tempURL)
+        return SentTransferredFile(tempURL)
+      } catch {
+        Logger.tracking.error("Failed to generate GPX for session \(export.sessionID): \(error.localizedDescription)")
+        throw error
+      }
+    }
+  }
+}
+
+extension UTType {
+  static var gpx: UTType {
+    UTType(importedAs: "org.topografix.gpx", conformingTo: .xml)
   }
 }

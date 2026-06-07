@@ -34,6 +34,7 @@ struct MarineTheme {
     static let secondarySurface = Color(uiColor: .secondarySystemGroupedBackground)
     static let destructiveBackground = Color(uiColor: .systemRed).opacity(0.15)
     static let disabledBackground = Color.gray.opacity(0.15)
+    static let border = Color(uiColor: .separator)
 
     // Marine Navigation Vectors
     static let vectorCOG = Color(red: 1.0, green: 0.0, blue: 1.0) // Magenta
@@ -45,6 +46,7 @@ struct MarineTheme {
   struct Metrics {
     let touchTarget: CGFloat
     static let cornerRadius: CGFloat = 12.0
+    static let borderWidth: CGFloat = 1.0
   }
 
   var metrics: Metrics {
