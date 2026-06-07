@@ -1,5 +1,5 @@
 //
-//  WaypointEditViewModel.swift
+//  WaypointDetailViewModel.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-06-03.
@@ -15,7 +15,7 @@ import SwiftUI
 
 @MainActor
 @Observable
-public final class WaypointEditViewModel {
+public final class WaypointDetailViewModel {
   public var name: String = ""
   public var description: String = ""
   public var latHemisphere: Hemisphere = .north

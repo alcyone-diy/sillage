@@ -124,12 +124,12 @@ struct WaypointListView: View {
     .sheet(item: $newWaypointItem) { item in
       if let waypointService {
         NavigationStack {
-          let editVM = WaypointEditViewModel(
+          let viewModel = WaypointDetailViewModel(
             waypointService: waypointService,
             defaultName: item.defaultName,
             initialCoordinate: item.coordinate
           )
-          WaypointDetailView(viewModel: editVM) { waypointId in
+          WaypointDetailView(viewModel: viewModel) { waypointId in
             newWaypointItem = nil
             chartViewModel.selectWaypoint(id: waypointId)
             panelManager.closePanel()
@@ -140,12 +140,12 @@ struct WaypointListView: View {
     .sheet(item: $editingWaypoint) { waypoint in
       if let waypointService {
         NavigationStack {
-          let editVM = WaypointEditViewModel(
+          let viewModel = WaypointDetailViewModel(
             waypointService: waypointService,
             editingWaypoint: waypoint,
             startEditable: true
           )
-          WaypointDetailView(viewModel: editVM) { waypointId in
+          WaypointDetailView(viewModel: viewModel) { waypointId in
             editingWaypoint = nil
             chartViewModel.selectWaypoint(id: waypointId)
             panelManager.closePanel()
@@ -186,7 +186,7 @@ struct WaypointRowView: View {
 struct WaypointDetailContainer: View {
   enum LoadState {
     case loading
-    case loaded(WaypointEditViewModel)
+    case loaded(WaypointDetailViewModel)
     case error(Error)
   }
 
@@ -242,7 +242,7 @@ struct WaypointDetailContainer: View {
     
     do {
       if let waypoint = try await service.fetchWaypoint(id: waypointId) {
-        let vm = WaypointEditViewModel(
+        let vm = WaypointDetailViewModel(
           waypointService: service,
           editingWaypoint: waypoint,
           startEditable: false

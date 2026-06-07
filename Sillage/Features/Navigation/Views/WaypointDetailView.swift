@@ -15,7 +15,7 @@ struct WaypointDetailView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.marineTheme) private var marineTheme
   
-  @Bindable var viewModel: WaypointEditViewModel
+  @Bindable var viewModel: WaypointDetailViewModel
   var onViewRequested: ((String) -> Void)?
   
   var body: some View {
