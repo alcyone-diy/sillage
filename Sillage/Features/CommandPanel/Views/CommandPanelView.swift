@@ -157,7 +157,7 @@ struct CommandPanelView: View {
           // Paranoiac safety: ensure we aren't already cancelled by a rapid swipe
           guard !Task.isCancelled else { return }
           
-          await waypointService.selectWaypoint(id: selectedId)
+          waypointService.selectWaypoint(id: selectedId)
         }
       }
       .alert(

@@ -561,9 +561,7 @@ class MapViewModel {
   
   /// Selects or deselects a waypoint by ID
   func selectWaypoint(id: String?) {
-    Task {
-      await waypointService?.selectWaypoint(id: id)
-    }
+    waypointService?.selectWaypoint(id: id)
   }
   
   // MARK: - Saved Tracks
