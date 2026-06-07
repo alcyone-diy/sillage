@@ -177,67 +177,108 @@ struct MapLibreView: UIViewRepresentable {
     // Updates the coordinator's parent to always point to the latest view (SwiftUI struct)
     context.coordinator.parent = self
     
+    // Unconditional observation of state to ensure updateUIView is triggered 
+    // even if the map style hasn't fully loaded yet.
+    let vesselFeature = viewModel.vesselFeature
+    let headingVectorFeature = viewModel.headingVectorFeature
+    let gpsAccuracyFeature = viewModel.gpsAccuracyFeature
+    let activeTrackPoints = trackRecordingService.trackPoints
+    let savedTrackFeature = viewModel.savedTrackFeature
+    let visibleWaypointFeatures = viewModel.visibleWaypointFeatures
+    let goToWaypointFeature = viewModel.goToWaypointFeature
+    let bearingLineFeature = viewModel.bearingLineFeature
+    let isDataStale = viewModel.isDataStale
+    let currentSource = viewModel.currentChartSource
+    let isOpenSeaMapOverlayEnabled = viewModel.isOpenSeaMapOverlayEnabled
+    let trackingMode = viewModel.trackingMode
+    
     // Defensive Update for Vessel and Heading Features
     if let style = uiView.style {
       ensureVesselLayersExist(in: style, with: marineTheme)
       
       // Vessel feature update
-      if let source = style.source(withIdentifier: "vessel-source") as? MLNShapeSource {
-        source.shape = viewModel.vesselFeature
+      if vesselFeature !== context.coordinator.lastVesselFeature {
+        if let source = style.source(withIdentifier: "vessel-source") as? MLNShapeSource {
+          source.shape = vesselFeature
+          context.coordinator.lastVesselFeature = vesselFeature
+        }
       }
       
       // Heading vector feature update
-      if let source = style.source(withIdentifier: "heading-vector-source") as? MLNShapeSource {
-        source.shape = viewModel.headingVectorFeature
+      if headingVectorFeature !== context.coordinator.lastHeadingVectorFeature {
+        if let source = style.source(withIdentifier: "heading-vector-source") as? MLNShapeSource {
+          source.shape = headingVectorFeature
+          context.coordinator.lastHeadingVectorFeature = headingVectorFeature
+        }
       }
       
       // GPS accuracy feature update
-      if let source = style.source(withIdentifier: "gps-accuracy-source") as? MLNShapeSource {
-        source.shape = viewModel.gpsAccuracyFeature
+      if gpsAccuracyFeature !== context.coordinator.lastGpsAccuracyFeature {
+        if let source = style.source(withIdentifier: "gps-accuracy-source") as? MLNShapeSource {
+          source.shape = gpsAccuracyFeature
+          context.coordinator.lastGpsAccuracyFeature = gpsAccuracyFeature
+        }
       }
       
       // Active track feature update
-      if let source = style.source(withIdentifier: "active-track-source") as? MLNShapeSource {
-        source.shape = generateActiveTrackFeature(from: trackRecordingService.trackPoints)
+      let currentActiveCount = activeTrackPoints.count
+      let currentActiveTimestamp = activeTrackPoints.last?.timestamp
+      if currentActiveCount != context.coordinator.lastActiveTrackCount || currentActiveTimestamp != context.coordinator.lastActiveTrackTimestamp {
+        if let source = style.source(withIdentifier: "active-track-source") as? MLNShapeSource {
+          source.shape = generateActiveTrackFeature(from: activeTrackPoints)
+          context.coordinator.lastActiveTrackCount = currentActiveCount
+          context.coordinator.lastActiveTrackTimestamp = currentActiveTimestamp
+        }
       }
       
       // Saved track feature update
-      if let source = style.source(withIdentifier: "saved-track-source") as? MLNShapeSource {
-        source.shape = viewModel.savedTrackFeature
+      if savedTrackFeature !== context.coordinator.lastSavedTrackFeature {
+        if let source = style.source(withIdentifier: "saved-track-source") as? MLNShapeSource {
+          source.shape = savedTrackFeature
+          context.coordinator.lastSavedTrackFeature = savedTrackFeature
+        }
       }
       
       // Displayed waypoints feature update
-      if let source = style.source(withIdentifier: "visible-waypoints-source") as? MLNShapeSource {
-        source.shape = viewModel.visibleWaypointFeatures
+      if visibleWaypointFeatures !== context.coordinator.lastVisibleWaypointFeatures {
+        if let source = style.source(withIdentifier: "visible-waypoints-source") as? MLNShapeSource {
+          source.shape = visibleWaypointFeatures
+          context.coordinator.lastVisibleWaypointFeatures = visibleWaypointFeatures
+        }
       }
       
       // GoTo waypoint feature update
-      if let source = style.source(withIdentifier: "goto-waypoint-source") as? MLNShapeSource {
-        source.shape = viewModel.goToWaypointFeature
+      if goToWaypointFeature !== context.coordinator.lastGoToWaypointFeature {
+        if let source = style.source(withIdentifier: "goto-waypoint-source") as? MLNShapeSource {
+          source.shape = goToWaypointFeature
+          context.coordinator.lastGoToWaypointFeature = goToWaypointFeature
+        }
       }
       
       // Bearing Line feature update
-      if let source = style.source(withIdentifier: "bearing-line-source") as? MLNShapeSource {
-        source.shape = viewModel.bearingLineFeature
+      if bearingLineFeature !== context.coordinator.lastBearingLineFeature {
+        if let source = style.source(withIdentifier: "bearing-line-source") as? MLNShapeSource {
+          source.shape = bearingLineFeature
+          context.coordinator.lastBearingLineFeature = bearingLineFeature
+        }
       }
       
       // Data Stale state update (Opacity)
-      if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
-        layer.iconOpacity = NSExpression(forConstantValue: viewModel.isDataStale ? 0.4 : 1.0)
+      if isDataStale != context.coordinator.lastDataStale {
+        if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
+          layer.iconOpacity = NSExpression(forConstantValue: isDataStale ? 0.4 : 1.0)
+          context.coordinator.lastDataStale = isDataStale
+        }
       }
     }
     
-    
     // Force tracking mode to none if it deviated, since tracking is explicitly handled in the viewModel
-    _ = viewModel.trackingMode
     if uiView.userTrackingMode != .none {
       uiView.userTrackingMode = .none
     }
     
-    
-    
     // If the map source has changed, update the map's style/source
-    if let currentSource = viewModel.currentChartSource,
+    if let currentSource = currentSource,
        context.coordinator.lastChartSource != currentSource,
        let style = uiView.style {
       context.coordinator.updateChartSource(currentSource, style: style, mapView: uiView)
@@ -245,12 +286,12 @@ struct MapLibreView: UIViewRepresentable {
     
     // Handle OpenSeaMap overlay toggle
     if let style = uiView.style {
-      context.coordinator.updateOpenSeaMapOverlay(isEnabled: viewModel.isOpenSeaMapOverlayEnabled, style: style, mapView: uiView)
+      context.coordinator.updateOpenSeaMapOverlay(isEnabled: isOpenSeaMapOverlayEnabled, style: style, mapView: uiView)
     }
     
     // Handle Content Inset for Look-ahead in Course Up mode
     let newInset: UIEdgeInsets
-    if viewModel.trackingMode == .courseUp {
+    if trackingMode == .courseUp {
       let lookAheadOffset = uiView.bounds.height / 3.0
       newInset = UIEdgeInsets(top: lookAheadOffset, left: 0, bottom: 0, right: 0)
     } else {
@@ -262,7 +303,7 @@ struct MapLibreView: UIViewRepresentable {
     }
     
     // Disable compass interaction when in an automated tracking mode to prevent state conflicts
-    uiView.compassView.isUserInteractionEnabled = (viewModel.trackingMode != .courseUp)
+    uiView.compassView.isUserInteractionEnabled = (trackingMode != .courseUp)
   }
   
   private func generateActiveTrackFeature(from points: ArraySlice<TrackPoint>) -> MLNShape? {
@@ -322,6 +363,19 @@ struct MapLibreView: UIViewRepresentable {
     var parent: MapLibreView
     private var streamTask: Task<Void, Never>?
     var lastChartSource: ChartSource?
+    
+    // Cache for diffing to avoid unnecessary MapLibre shape updates
+    var lastVesselFeature: MLNShape?
+    var lastHeadingVectorFeature: MLNShape?
+    var lastGpsAccuracyFeature: MLNShape?
+    var lastSavedTrackFeature: MLNShape?
+    var lastVisibleWaypointFeatures: MLNShape?
+    var lastGoToWaypointFeature: MLNShape?
+    var lastBearingLineFeature: MLNShape?
+    
+    var lastActiveTrackCount: Int?
+    var lastActiveTrackTimestamp: Date?
+    var lastDataStale: Bool?
     
     init(_ parent: MapLibreView) {
       self.parent = parent
@@ -400,30 +454,40 @@ struct MapLibreView: UIViewRepresentable {
       parent.ensureVesselLayersExist(in: style, with: parent.marineTheme)
       if let source = style.source(withIdentifier: "heading-vector-source") as? MLNShapeSource {
         source.shape = parent.viewModel.headingVectorFeature
+        lastHeadingVectorFeature = parent.viewModel.headingVectorFeature
       }
       if let source = style.source(withIdentifier: "gps-accuracy-source") as? MLNShapeSource {
         source.shape = parent.viewModel.gpsAccuracyFeature
+        lastGpsAccuracyFeature = parent.viewModel.gpsAccuracyFeature
       }
       if let source = style.source(withIdentifier: "vessel-source") as? MLNShapeSource {
         source.shape = parent.viewModel.vesselFeature
+        lastVesselFeature = parent.viewModel.vesselFeature
       }
       if let source = style.source(withIdentifier: "active-track-source") as? MLNShapeSource {
         source.shape = parent.generateActiveTrackFeature(from: parent.trackRecordingService.trackPoints)
+        lastActiveTrackCount = parent.trackRecordingService.trackPoints.count
+        lastActiveTrackTimestamp = parent.trackRecordingService.trackPoints.last?.timestamp
       }
       if let source = style.source(withIdentifier: "saved-track-source") as? MLNShapeSource {
         source.shape = parent.viewModel.savedTrackFeature
+        lastSavedTrackFeature = parent.viewModel.savedTrackFeature
       }
       if let source = style.source(withIdentifier: "visible-waypoints-source") as? MLNShapeSource {
         source.shape = parent.viewModel.visibleWaypointFeatures
+        lastVisibleWaypointFeatures = parent.viewModel.visibleWaypointFeatures
       }
       if let source = style.source(withIdentifier: "goto-waypoint-source") as? MLNShapeSource {
         source.shape = parent.viewModel.goToWaypointFeature
+        lastGoToWaypointFeature = parent.viewModel.goToWaypointFeature
       }
       if let source = style.source(withIdentifier: "bearing-line-source") as? MLNShapeSource {
         source.shape = parent.viewModel.bearingLineFeature
+        lastBearingLineFeature = parent.viewModel.bearingLineFeature
       }
       if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
         layer.iconOpacity = NSExpression(forConstantValue: parent.viewModel.isDataStale ? 0.4 : 1.0)
+        lastDataStale = parent.viewModel.isDataStale
       }
       
       // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
