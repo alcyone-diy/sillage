@@ -78,10 +78,10 @@ class ChartViewModel {
   var headingVectorFeature: MLNShapeCollectionFeature?
   var gpsAccuracyFeature: MLNPolygonFeature?
   var savedTrackFeature: MLNShape?
-  var selectedWaypointFeature: MLNPointFeature?
+  var goToWaypointFeature: MLNPointFeature?
   var visibleWaypointFeatures: MLNShapeCollectionFeature?
   var bearingLineFeature: MLNPolylineFeature?
-  var selectedWaypointID: String?
+  var goToWaypointID: String?
   var isDataStale: Bool = true
   
   // MARK: - Private Services & Tasks
@@ -166,11 +166,11 @@ class ChartViewModel {
     
     func observeSelection() {
       withObservationTracking {
-        _ = waypointService.selectedWaypointID
+        _ = waypointService.goToWaypointID
       } onChange: { [weak self] in
         Task { @MainActor [weak self] in
           guard let self = self else { return }
-          self.handleSelectedWaypointChange(id: waypointService.selectedWaypointID)
+          self.handleGoToWaypointChange(id: waypointService.goToWaypointID)
           observeSelection()
         }
       }
@@ -190,13 +190,13 @@ class ChartViewModel {
     
     // Initial handling
     handleWaypointsChange(waypoints: waypointService.currentWaypoints)
-    handleSelectedWaypointChange(id: waypointService.selectedWaypointID)
+    handleGoToWaypointChange(id: waypointService.goToWaypointID)
     
     observeSelection()
     observeWaypoints()
   }
   
-  private func handleSelectedWaypointChange(id: String?) {
+  private func handleGoToWaypointChange(id: String?) {
     if let id = id, let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == id }) {
       let coordinate = waypoint.coordinate
       
@@ -211,8 +211,8 @@ class ChartViewModel {
       }
       feature.attributes = attributes
       
-      self.selectedWaypointID = id
-      self.selectedWaypointFeature = feature
+      self.goToWaypointID = id
+      self.goToWaypointFeature = feature
       self.updateBearingToWaypoint()
       self.updateBearingLine()
       self.trackingMode = .free
@@ -222,8 +222,8 @@ class ChartViewModel {
         continuation.yield(event)
       }
     } else {
-      self.selectedWaypointID = nil
-      self.selectedWaypointFeature = nil
+      self.goToWaypointID = nil
+      self.goToWaypointFeature = nil
       self.updateBearingToWaypoint()
       self.updateBearingLine()
     }
@@ -248,7 +248,7 @@ class ChartViewModel {
     
     self.visibleWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
     
-    if let selectedID = self.selectedWaypointID, let waypoint = waypoints.first(where: { $0.id == selectedID }) {
+    if let goToID = self.goToWaypointID, let waypoint = waypoints.first(where: { $0.id == goToID }) {
       let coordinate = waypoint.coordinate
       let feature = MLNPointFeature()
       feature.coordinate = coordinate
@@ -261,7 +261,7 @@ class ChartViewModel {
       }
       feature.attributes = attributes
       
-      self.selectedWaypointFeature = feature
+      self.goToWaypointFeature = feature
       self.updateBearingToWaypoint()
       self.updateBearingLine()
     }
@@ -560,8 +560,8 @@ class ChartViewModel {
   }
   
   /// Selects or deselects a waypoint by ID
-  func selectWaypoint(id: String?) {
-    waypointService?.selectWaypoint(id: id)
+  func setGoToWaypoint(id: String?) {
+    waypointService?.setGoToWaypoint(id: id)
   }
   
   // MARK: - Saved Tracks
@@ -750,7 +750,7 @@ class ChartViewModel {
   }
   
   private func updateBearingToWaypoint() {
-    guard let current = currentCoordinate, let waypoint = selectedWaypointFeature?.coordinate else {
+    guard let current = currentCoordinate, let waypoint = goToWaypointFeature?.coordinate else {
       bearingToWaypoint = nil
       return
     }
@@ -758,13 +758,13 @@ class ChartViewModel {
   }
   
   private func updateBearingLine() {
-    guard let current = currentCoordinate, let waypoint = selectedWaypointFeature?.coordinate else {
+    guard let current = currentCoordinate, let waypoint = goToWaypointFeature?.coordinate else {
       bearingLineFeature = nil
       return
     }
     var coordinates = [current, waypoint]
     let feature = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
-    if let color = selectedWaypointFeature?.attributes["color"] {
+    if let color = goToWaypointFeature?.attributes["color"] {
       feature.attributes = ["color": color]
     }
     bearingLineFeature = feature
