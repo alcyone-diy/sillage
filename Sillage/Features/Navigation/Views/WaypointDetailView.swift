@@ -1,5 +1,5 @@
 //
-//  WaypointEditView.swift
+//  WaypointDetailView.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-06-03.
@@ -11,7 +11,7 @@
 import SwiftUI
 
 @MainActor
-struct WaypointEditView: View {
+struct WaypointDetailView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.marineTheme) private var marineTheme
   
