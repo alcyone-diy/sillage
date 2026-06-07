@@ -77,13 +77,18 @@ final class AppEnvironment {
       )
       self.waypointService = waypointService
 
-      Task { [weak preferencesService, waypointService] in
-        for await id in await waypointService.observeSelectedWaypoint() {
-          await MainActor.run {
-            preferencesService?.selectedWaypointID = id
+      func observeWaypointSelection() {
+        withObservationTracking {
+          _ = waypointService.selectedWaypointId
+        } onChange: { [weak preferencesService] in
+          Task { @MainActor [weak waypointService] in
+            guard let service = waypointService else { return }
+            preferencesService?.selectedWaypointID = service.selectedWaypointId
+            observeWaypointSelection()
           }
         }
       }
+      observeWaypointSelection()
 
       let geoGarageAuthService = GeoGarageAuthService()
       self.geoGarageAuthService = geoGarageAuthService

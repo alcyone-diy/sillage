@@ -161,98 +161,110 @@ class MapViewModel {
     })
   }
   
-  /// Observes the currently selected waypoint and updates the map feature.
   private func setupWaypointService() {
     guard let waypointService = waypointService else { return }
-    waypointSelectionTask = TaskCancellable(Task { [weak self] in
-      let stream = await waypointService.observeSelectedWaypoint()
-      for await selectedId in stream {
-        guard !Task.isCancelled else { break }
-        if let id = selectedId, let waypoint = try? await waypointService.fetchWaypoint(id: id) {
-          let coordinate = waypoint.coordinate
-          
-          let feature = MLNPointFeature()
-          feature.coordinate = coordinate
-          var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
-          if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
-            attributes["colorHex"] = colorHex
-            attributes["color"] = UIColor(color)
-          } else {
-            attributes["color"] = UIColor.systemOrange
-          }
-          feature.attributes = attributes
-          
-          await MainActor.run {
-            guard let self = self else { return }
-            self.selectedWaypointId = id
-            self.selectedWaypointFeature = feature
-            self.updateBearingToWaypoint()
-            self.updateBearingLine()
-            self.trackingMode = .free
-            
-            let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
-            for continuation in self.cameraMoveContinuations.values {
-              continuation.yield(event)
-            }
-          }
-        } else {
-          await MainActor.run {
-            self?.selectedWaypointId = nil
-            self?.selectedWaypointFeature = nil
-            self?.updateBearingToWaypoint()
-            self?.updateBearingLine()
-          }
-        }
-      }
-    })
     
-    waypointsObservationTask = TaskCancellable(Task { [weak self] in
-      do {
-        for try await waypoints in waypointService.observeWaypoints() {
-          guard !Task.isCancelled else { break }
-          
-          let features: [MLNPointFeature] = waypoints.compactMap { waypoint in
-            guard waypoint.isVisible else { return nil }
-            let coordinate = waypoint.coordinate
-            let feature = MLNPointFeature()
-            feature.coordinate = coordinate
-            var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
-            if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
-              attributes["colorHex"] = colorHex
-              attributes["color"] = UIColor(color)
-            } else {
-              attributes["color"] = UIColor.systemTeal
-            }
-            feature.attributes = attributes
-            return feature
-          }
-          
-          await MainActor.run {
-            self?.visibleWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
-            
-            if let selectedId = self?.selectedWaypointId, let waypoint = waypoints.first(where: { $0.id == selectedId }) {
-              let coordinate = waypoint.coordinate
-              let feature = MLNPointFeature()
-              feature.coordinate = coordinate
-              var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
-              if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
-                attributes["colorHex"] = colorHex
-                attributes["color"] = UIColor(color)
-              } else {
-                attributes["color"] = UIColor.systemOrange
-              }
-              feature.attributes = attributes
-              
-              self?.selectedWaypointFeature = feature
-              self?.updateBearingToWaypoint()
-              self?.updateBearingLine()
-            }
-          }
+    func observeSelection() {
+      withObservationTracking {
+        _ = waypointService.selectedWaypointId
+      } onChange: { [weak self] in
+        Task { @MainActor [weak self] in
+          guard let self = self else { return }
+          self.handleSelectedWaypointChange(id: waypointService.selectedWaypointId)
+          observeSelection()
         }
-      } catch {
-        Logger.map.error("Failed to observe waypoints: \(error, privacy: .public)")
       }
-    })
+    }
+    
+    func observeWaypoints() {
+      withObservationTracking {
+        _ = waypointService.currentWaypoints
+      } onChange: { [weak self] in
+        Task { @MainActor [weak self] in
+          guard let self = self else { return }
+          self.handleWaypointsChange(waypoints: waypointService.currentWaypoints)
+          observeWaypoints()
+        }
+      }
+    }
+    
+    // Initial handling
+    handleWaypointsChange(waypoints: waypointService.currentWaypoints)
+    handleSelectedWaypointChange(id: waypointService.selectedWaypointId)
+    
+    observeSelection()
+    observeWaypoints()
+  }
+  
+  private func handleSelectedWaypointChange(id: String?) {
+    if let id = id, let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == id }) {
+      let coordinate = waypoint.coordinate
+      
+      let feature = MLNPointFeature()
+      feature.coordinate = coordinate
+      var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
+      if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
+        attributes["colorHex"] = colorHex
+        attributes["color"] = UIColor(color)
+      } else {
+        attributes["color"] = UIColor.systemOrange
+      }
+      feature.attributes = attributes
+      
+      self.selectedWaypointId = id
+      self.selectedWaypointFeature = feature
+      self.updateBearingToWaypoint()
+      self.updateBearingLine()
+      self.trackingMode = .free
+      
+      let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
+      for continuation in self.cameraMoveContinuations.values {
+        continuation.yield(event)
+      }
+    } else {
+      self.selectedWaypointId = nil
+      self.selectedWaypointFeature = nil
+      self.updateBearingToWaypoint()
+      self.updateBearingLine()
+    }
+  }
+  
+  private func handleWaypointsChange(waypoints: [Waypoint]) {
+    let features: [MLNPointFeature] = waypoints.compactMap { waypoint in
+      guard waypoint.isVisible else { return nil }
+      let coordinate = waypoint.coordinate
+      let feature = MLNPointFeature()
+      feature.coordinate = coordinate
+      var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
+      if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
+        attributes["colorHex"] = colorHex
+        attributes["color"] = UIColor(color)
+      } else {
+        attributes["color"] = UIColor.systemTeal
+      }
+      feature.attributes = attributes
+      return feature
+    }
+    
+    self.visibleWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
+    
+    if let selectedId = self.selectedWaypointId, let waypoint = waypoints.first(where: { $0.id == selectedId }) {
+      let coordinate = waypoint.coordinate
+      let feature = MLNPointFeature()
+      feature.coordinate = coordinate
+      var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
+      if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
+        attributes["colorHex"] = colorHex
+        attributes["color"] = UIColor(color)
+      } else {
+        attributes["color"] = UIColor.systemOrange
+      }
+      feature.attributes = attributes
+      
+      self.selectedWaypointFeature = feature
+      self.updateBearingToWaypoint()
+      self.updateBearingLine()
+    }
   }
   
   /// Initiates the asynchronous import of an MBTiles file and switches the map to it upon success.
