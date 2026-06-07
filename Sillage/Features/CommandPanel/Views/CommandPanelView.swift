@@ -14,6 +14,7 @@ import OSLog
 @MainActor
 struct CommandPanelView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
+  @Environment(MapViewModel.self) private var mapViewModel
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.trackService) private var trackService
@@ -131,7 +132,14 @@ struct CommandPanelView: View {
               trackService: trackService,
               trackRecordingService: trackRecordingService
             )
-            TrackDetailView(viewModel: model)
+            TrackDetailView(viewModel: model) { id in
+              try await mapViewModel.loadAndDisplaySavedTrack(
+                sessionId: id,
+                trackService: trackService,
+                edgePadding: MarineTheme.Spacing.large
+              )
+              viewModel.closePanel()
+            }
           }
         case .waypointDetail(let id):
           WaypointDetailContainer(waypointId: id)

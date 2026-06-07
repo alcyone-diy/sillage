@@ -15,9 +15,8 @@ import SwiftUI
 struct TrackDetailView: View {
   @Bindable var viewModel: TrackDetailViewModel
   @Environment(\.marineTheme) private var marineTheme
-  @Environment(PanelManagerViewModel.self) private var panelManager
-  @Environment(MapViewModel.self) private var mapViewModel
-  @Environment(\.trackService) private var trackService
+  
+  var onViewRequested: ((String) async throws -> Void)?
   
   @Environment(\.dismiss) private var dismiss
   @State private var showDeleteConfirmation = false
@@ -172,21 +171,11 @@ struct TrackDetailView: View {
         VStack(spacing: MarineTheme.Spacing.small) {
           Button(action: {
             Task {
-              guard let trackService = trackService else {
-                Logger.tracking.error("Failed to load track points: TrackService is unavailable in Environment.")
-                errorMessage = String(localized: "Failed to load track points.")
-                return
-              }
-              
               do {
-                try await mapViewModel.loadAndDisplaySavedTrack(
-                  sessionId: viewModel.sessionId,
-                  trackService: trackService,
-                  edgePadding: MarineTheme.Spacing.large
-                )
-                panelManager.closePanel()
+                if let onViewRequested = onViewRequested {
+                  try await onViewRequested(viewModel.sessionId)
+                }
               } catch {
-                Logger.tracking.error("Failed to fetch track points for session \(viewModel.sessionId): \(error.localizedDescription)")
                 errorMessage = String(localized: "Failed to load track points.")
               }
             }
@@ -197,7 +186,7 @@ struct TrackDetailView: View {
             }
             .font(.headline)
             .fontWeight(.semibold)
-            .foregroundColor(.white)
+            .foregroundColor(MarineTheme.Colors.onPrimary)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
             .background(MarineTheme.Colors.primary)
             .cornerRadius(MarineTheme.Metrics.cornerRadius)

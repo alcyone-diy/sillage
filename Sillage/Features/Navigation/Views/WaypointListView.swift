@@ -22,6 +22,7 @@ struct WaypointListView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.waypointService) private var waypointService
   @Environment(MapViewModel.self) private var mapViewModel
+  @Environment(PanelManagerViewModel.self) private var panelManager
   @Bindable var viewModel: WaypointListViewModel
   @State private var waypointToDelete: Waypoint?
   @State private var newWaypointItem: CoordinateWrapper?
@@ -127,7 +128,11 @@ struct WaypointListView: View {
             defaultName: item.defaultName,
             initialCoordinate: item.coordinate
           )
-          WaypointDetailView(viewModel: editVM)
+          WaypointDetailView(viewModel: editVM) { waypointId in
+            newWaypointItem = nil
+            mapViewModel.selectWaypoint(id: waypointId)
+            panelManager.closePanel()
+          }
         }
       }
     }
@@ -139,7 +144,11 @@ struct WaypointListView: View {
             editingWaypoint: waypoint,
             startEditable: true
           )
-          WaypointDetailView(viewModel: editVM)
+          WaypointDetailView(viewModel: editVM) { waypointId in
+            editingWaypoint = nil
+            mapViewModel.selectWaypoint(id: waypointId)
+            panelManager.closePanel()
+          }
         }
       }
     }
@@ -186,6 +195,8 @@ struct WaypointDetailContainer: View {
 
   let waypointId: String
   @Environment(\.waypointService) private var waypointService
+  @Environment(MapViewModel.self) private var mapViewModel
+  @Environment(PanelManagerViewModel.self) private var panelManager
   @State private var state: LoadState = .loading
 
   var body: some View {
@@ -198,7 +209,10 @@ struct WaypointDetailContainer: View {
             await loadData()
           }
       case .loaded(let viewModel):
-        WaypointDetailView(viewModel: viewModel)
+        WaypointDetailView(viewModel: viewModel) { waypointId in
+          mapViewModel.selectWaypoint(id: waypointId)
+          panelManager.closePanel()
+        }
       case .error(let error):
         VStack(spacing: 16) {
           Image(systemName: "exclamationmark.triangle")

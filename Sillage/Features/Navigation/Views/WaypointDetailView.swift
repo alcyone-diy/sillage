@@ -16,10 +16,12 @@ struct WaypointDetailView: View {
   @Environment(\.marineTheme) private var marineTheme
   
   @Bindable var viewModel: WaypointEditViewModel
+  var onViewRequested: ((String) -> Void)?
   
   var body: some View {
-    Form {
-      Section(header: Text("Details")) {
+    VStack(spacing: 0) {
+      Form {
+        Section(header: Text("Details")) {
           TextField("Name", text: $viewModel.name)
             .marineFont(.body)
             .marineListCell()
@@ -81,8 +83,31 @@ struct WaypointDetailView: View {
       }
       .scrollContentBackground(.hidden)
       .background(MarineTheme.Colors.panelBackground)
-      .navigationTitle(viewModel.editingWaypointId == nil ? "New Waypoint" : (viewModel.isEditable ? "Edit Waypoint" : viewModel.name))
-      .navigationBarTitleDisplayMode(.inline)
+      
+      if !viewModel.isEditable, let waypointId = viewModel.editingWaypointId {
+        VStack(spacing: MarineTheme.Spacing.small) {
+          Button(action: {
+            onViewRequested?(waypointId)
+          }) {
+            HStack {
+              Image(systemName: "map")
+              Text("View")
+            }
+            .font(.headline)
+            .fontWeight(.semibold)
+            .foregroundColor(MarineTheme.Colors.onPrimary)
+            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+            .background(MarineTheme.Colors.primary)
+            .cornerRadius(MarineTheme.Metrics.cornerRadius)
+          }
+          .buttonStyle(MarineButtonStyle())
+        }
+        .padding(MarineTheme.Spacing.medium)
+        .background(MarineTheme.Colors.surfaceBackground)
+      }
+    }
+    .navigationTitle(viewModel.editingWaypointId == nil ? "New Waypoint" : (viewModel.isEditable ? "Edit Waypoint" : viewModel.name))
+    .navigationBarTitleDisplayMode(.inline)
       .navigationBarBackButtonHidden(viewModel.isEditable && viewModel.editingWaypointId != nil)
       .toolbar {
         if viewModel.isEditable {
