@@ -175,7 +175,7 @@ struct WaypointRowView: View {
       Spacer()
       
       if isSelected {
-        Image(systemName: "checkmark")
+        Image(systemName: "mappin.circle.fill")
           .foregroundColor(.blue)
       }
     }
