@@ -17,6 +17,7 @@ struct MapLibreView: UIViewRepresentable {
   
   @Environment(\.marineTheme) var marineTheme
   @Environment(TrackRecordingService.self) private var trackRecordingService
+  @Environment(\.waypointService) private var waypointService
   var viewModel: ChartViewModel
   
   
@@ -342,15 +343,15 @@ struct MapLibreView: UIViewRepresentable {
       if let feature = features.first as? MLNPointFeature, let id = feature.attributes["id"] as? String {
         Task { @MainActor in
           if self.parent.viewModel.goToWaypointID == id {
-            self.parent.viewModel.setGoToWaypoint(id: nil) // Deselect if already selected
+            self.parent.waypointService?.setDestination(waypointID: nil)
           } else {
-            self.parent.viewModel.setGoToWaypoint(id: id)
+            self.parent.waypointService?.setDestination(waypointID: id)
           }
         }
       } else {
         // Deselect if long pressed on empty space
         Task { @MainActor in
-          self.parent.viewModel.setGoToWaypoint(id: nil)
+          self.parent.waypointService?.setDestination(waypointID: nil)
         }
       }
     }

@@ -32,6 +32,7 @@ struct MarineTheme {
     static let textSecondary = Color.secondary
     static let panelBackground = Color(uiColor: .systemGroupedBackground)
     static let secondarySurface = Color(uiColor: .secondarySystemGroupedBackground)
+    static let destructive = Color(uiColor: .systemRed)
     static let destructiveBackground = Color(uiColor: .systemRed).opacity(0.15)
     static let disabledBackground = Color.gray.opacity(0.15)
     static let border = Color(uiColor: .separator)
