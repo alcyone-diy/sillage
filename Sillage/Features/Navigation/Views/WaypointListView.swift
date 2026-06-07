@@ -16,6 +16,7 @@ struct CoordinateWrapper: Identifiable {
   let defaultName: String?
 }
 
+
 @MainActor
 struct WaypointListView: View {
   @Environment(\.marineTheme) private var marineTheme
@@ -37,16 +38,12 @@ struct WaypointListView: View {
             .marineListCell()
         } else {
           ForEach(viewModel.waypoints) { waypoint in
-            WaypointRowView(
-              waypoint: waypoint,
-              isSelected: viewModel.selectedWaypointId == waypoint.id
-            )
-              .contentShape(Rectangle())
-              .onTapGesture {
-                let newId = viewModel.selectedWaypointId == waypoint.id ? nil : waypoint.id
-                viewModel.selectedWaypointId = newId
-                viewModel.selectWaypoint(id: newId)
-              }
+            NavigationLink(value: PanelManagerViewModel.CommandDestination.waypointDetail(waypoint.id)) {
+              WaypointRowView(
+                waypoint: waypoint,
+                isSelected: viewModel.selectedWaypointId == waypoint.id
+              )
+            }
               .swipeActions(edge: .leading) {
                 Button {
                   editingWaypoint = waypoint
@@ -124,23 +121,29 @@ struct WaypointListView: View {
     }
     .sheet(item: $newWaypointItem) { item in
       if let waypointService {
-        let editVM = WaypointEditViewModel(
-          waypointService: waypointService,
-          defaultName: item.defaultName,
-          initialCoordinate: item.coordinate
-        )
-        WaypointEditView(viewModel: editVM)
+        NavigationStack {
+          let editVM = WaypointEditViewModel(
+            waypointService: waypointService,
+            defaultName: item.defaultName,
+            initialCoordinate: item.coordinate
+          )
+          WaypointEditView(viewModel: editVM)
+        }
       }
     }
     .sheet(item: $editingWaypoint) { waypoint in
       if let waypointService {
-        let editVM = WaypointEditViewModel(
-          waypointService: waypointService,
-          editingWaypoint: waypoint
-        )
-        WaypointEditView(viewModel: editVM)
+        NavigationStack {
+          let editVM = WaypointEditViewModel(
+            waypointService: waypointService,
+            editingWaypoint: waypoint,
+            startEditable: true
+          )
+          WaypointEditView(viewModel: editVM)
+        }
       }
     }
+
     .task {
       await viewModel.observe()
     }
@@ -169,6 +172,76 @@ struct WaypointRowView: View {
         Image(systemName: "checkmark")
           .foregroundColor(.blue)
       }
+    }
+  }
+}
+
+@MainActor
+struct WaypointDetailContainer: View {
+  enum LoadState {
+    case loading
+    case loaded(WaypointEditViewModel)
+    case error(Error)
+  }
+
+  let waypointId: String
+  @Environment(\.waypointService) private var waypointService
+  @State private var state: LoadState = .loading
+
+  var body: some View {
+    Group {
+      switch state {
+      case .loading:
+        ProgressView("Loading Waypoint...")
+          .marineFont(.body)
+          .task {
+            await loadData()
+          }
+      case .loaded(let viewModel):
+        WaypointEditView(viewModel: viewModel)
+      case .error(let error):
+        VStack(spacing: 16) {
+          Image(systemName: "exclamationmark.triangle")
+            .font(.largeTitle)
+            .foregroundColor(.red)
+          
+          Text("Failed to load waypoint")
+            .marineFont(.title3)
+            
+          Text(error.localizedDescription)
+            .marineFont(.caption)
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.secondary)
+          
+          Button("Retry") {
+            state = .loading
+          }
+          .buttonStyle(MarineButtonStyle())
+        }
+        .padding()
+      }
+    }
+  }
+
+  private func loadData() async {
+    guard let service = waypointService else {
+      state = .error(WaypointError.serviceUnavailable)
+      return
+    }
+    
+    do {
+      if let waypoint = try await service.fetchWaypoint(id: waypointId) {
+        let vm = WaypointEditViewModel(
+          waypointService: service,
+          editingWaypoint: waypoint,
+          startEditable: false
+        )
+        state = .loaded(vm)
+      } else {
+        state = .error(WaypointError.notFound)
+      }
+    } catch {
+      state = .error(error)
     }
   }
 }

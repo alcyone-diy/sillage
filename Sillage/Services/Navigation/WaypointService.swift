@@ -12,6 +12,18 @@ import Foundation
 import GRDB
 import OSLog
 
+public enum WaypointError: LocalizedError {
+  case notFound
+  case serviceUnavailable
+
+  public var errorDescription: String? {
+    switch self {
+    case .notFound: return String(localized: "Waypoint not found in the database.")
+    case .serviceUnavailable: return String(localized: "Waypoint service is unavailable.")
+    }
+  }
+}
+
 /// A thread-safe service providing read and write operations for waypoints in the database.
 public struct WaypointService: Sendable {
   private let databaseManager: DatabaseManager

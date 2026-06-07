@@ -142,9 +142,6 @@
     "Edit" : {
 
     },
-    "Edit Waypoint" : {
-
-    },
     "Enable COG Vector" : {
 
     },
@@ -170,6 +167,9 @@
 
     },
     "Failed to load track points." : {
+
+    },
+    "Failed to load waypoint" : {
 
     },
     "Failed to move the chart file: %@" : {
@@ -244,6 +244,9 @@
     "Loading marine charts…" : {
 
     },
+    "Loading Waypoint..." : {
+
+    },
     "Local Offline Charts" : {
 
     },
@@ -290,9 +293,6 @@
 
     },
     "Network error: %@" : {
-
-    },
-    "New Waypoint" : {
 
     },
     "No active recording to stop." : {
@@ -353,9 +353,6 @@
 
     },
     "Safety & Legal" : {
-
-    },
-    "Save" : {
 
     },
     "Saved Tracks" : {
@@ -443,6 +440,12 @@
 
     },
     "Waypoint" : {
+
+    },
+    "Waypoint not found in the database." : {
+
+    },
+    "Waypoint service is unavailable." : {
 
     },
     "Waypoints" : {

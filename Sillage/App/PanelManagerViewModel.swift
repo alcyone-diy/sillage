@@ -29,6 +29,7 @@ public final class PanelManagerViewModel {
     case tracks
     case waypoints
     case sessionDetail(sessionId: TrackSession.ID)
+    case waypointDetail(String)
   }
 
   /// The currently active panel visible to the user.
