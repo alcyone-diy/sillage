@@ -45,7 +45,7 @@ public final class TrackRecordingService {
     nonisolated static let maxRecoveryAge: TimeInterval = 12 * 3600
   }
   
-  private var currentSessionId: String?
+  private var currentSessionID: String?
   private var unflushedPointCount: Int = 0
   private var filters: TrackFilters
   
@@ -103,7 +103,7 @@ public final class TrackRecordingService {
       return
     }
     
-    currentSessionId = nil
+    currentSessionID = nil
     unflushedPointCount = 0
     telemetry.start()
     trackPoints.removeAll()
@@ -142,7 +142,7 @@ public final class TrackRecordingService {
       self.saveNavigationFix(lastNavigationFix)
     }
     
-    guard let sessionId = currentSessionId,
+    guard let sessionID = currentSessionID,
           let endTime = telemetry.lastRecordedNavigationFix?.timestamp else {
       state = .idle
       throw TrackRecordingError.abortedNoFix
@@ -159,7 +159,7 @@ public final class TrackRecordingService {
     let writerToFinish = persistenceWriter
     persistenceWriter = nil
     
-    await BackgroundTaskRunner.executeAndWait(name: "FinalizeTrack_\(sessionId)") { [weak self, writerToFinish] in
+    await BackgroundTaskRunner.executeAndWait(name: "FinalizeTrack_\(sessionID)") { [weak self, writerToFinish] in
       if let update = telemetryUpdate {
         await writerToFinish?.flush(telemetryUpdate: update)
       }
@@ -167,14 +167,14 @@ public final class TrackRecordingService {
       
       let durationStr = finalDurationSeconds.map { String(describing: $0) } ?? "nil"
       let distanceStr = finalDistanceMeters.map { String(describing:$0) } ?? "nil"
-      Logger.database.info("Track session \(sessionId, privacy: .public) finalized successfully with \(durationStr, privacy: .public)s and \(distanceStr, privacy: .public)m.")
+      Logger.database.info("Track session \(sessionID, privacy: .public) finalized successfully with \(durationStr, privacy: .public)s and \(distanceStr, privacy: .public)m.")
       await self?.stopSavingState()
     }
     
-    currentSessionId = nil
+    currentSessionID = nil
     preferencesService.clearActiveTrackSessionID()
     
-    return sessionId
+    return sessionID
   }
   
   public func pauseRecording() {
@@ -229,10 +229,10 @@ public final class TrackRecordingService {
   }
   
   /// Checks if a session is currently actively recording or paused.
-  /// - Parameter sessionId: The ID of the session to check.
+  /// - Parameter sessionID: The ID of the session to check.
   /// - Returns: True if the session is currently active.
-  public func isSessionActive(_ sessionId: String) -> Bool {
-    return (state != .idle && state != .saving) && currentSessionId == sessionId
+  public func isSessionActive(_ sessionID: String) -> Bool {
+    return (state != .idle && state != .saving) && currentSessionID == sessionID
   }
   
   public func emergencyFlushAsync() async {
@@ -254,27 +254,27 @@ public final class TrackRecordingService {
   }
   
   public func attemptRecoveryIfNeeded() async {
-    let activeId = preferencesService.activeTrackSessionID
+    let activeID = preferencesService.activeTrackSessionID
     
     // 1. Sanitize ONLY what is NOT the active session
     do {
-      try await databaseManager.sanitizeUnfinishedSessions(excluding: activeId)
+      try await databaseManager.sanitizeUnfinishedSessions(excluding: activeID)
       Logger.database.info("Sanitized ghost tracks successfully.")
     } catch {
       Logger.database.error("Failed to sanitize ghost tracks: \(error.localizedDescription)")
     }
     
     // 2. Resume activef session
-    await resumeTrackIfPossible(sessionId: activeId)
+    await resumeTrackIfPossible(sessionID: activeID)
   }
   
   // MARK: - Private
   
-  private func resumeTrackIfPossible(sessionId: String?) async {
-    guard let sessionId = sessionId else { return }
+  private func resumeTrackIfPossible(sessionID: String?) async {
+    guard let sessionID = sessionID else { return }
     do {
       let trackSession = try await databaseManager.reader.read { db in
-        try TrackSessionRecord.fetchOne(db, key: sessionId)?.toDomain()
+        try TrackSessionRecord.fetchOne(db, key: sessionID)?.toDomain()
       }
       
       guard let validTrackSession = trackSession else {
@@ -283,12 +283,12 @@ public final class TrackRecordingService {
       }
       
       // 1. Find the true last update time (last point recorded in DB)
-      let lastPointDate = try await databaseManager.fetchLastPointTime(for: sessionId)
+      let lastPointDate = try await databaseManager.fetchLastPointTime(for: sessionID)
       let lastUpdate = lastPointDate ?? validTrackSession.startTime
       // 2. Evaluate age
       let age = abs(Date().timeIntervalSince(lastUpdate))
       if age > Configuration.maxRecoveryAge {
-        Logger.database.warning("Track \(sessionId, privacy: .public) is too old (\(age)s). Forcing closure.")
+        Logger.database.warning("Track \(sessionID, privacy: .public) is too old (\(age)s). Forcing closure.")
         // 3. Critial: Close it in DB immediately by running a sanitize with NO exclusion
         try await databaseManager.sanitizeUnfinishedSessions(excluding: nil)
         preferencesService.clearActiveTrackSessionID()
@@ -306,7 +306,7 @@ public final class TrackRecordingService {
   
   private func recoverRecording(trackSession: TrackSession) async throws {
     guard state == .idle else { return }
-    currentSessionId = trackSession.id
+    currentSessionID = trackSession.id
     
     // 1. Fetch all async data BEFORE starting the engine
     let lastSegmentIndex = try await databaseManager.fetchMaxSegmentIndex(for: trackSession.id)
@@ -341,14 +341,14 @@ public final class TrackRecordingService {
     case .waitingForFix:
       state = .recording
       
-      if currentSessionId == nil {
-        let sessionId = UUID().uuidString
+      if currentSessionID == nil {
+        let sessionID = UUID().uuidString
         let startTime = navigationFix.timestamp
         
-        currentSessionId = sessionId
-        preferencesService.saveActiveTrackSessionID(sessionId)
+        currentSessionID = sessionID
+        preferencesService.saveActiveTrackSessionID(sessionID)
         
-        let sessionRecord = TrackSessionRecord(id: sessionId, startTime: startTime)
+        let sessionRecord = TrackSessionRecord(id: sessionID, startTime: startTime)
         persistenceWriter?.insertSession(sessionRecord)
       }
       
@@ -383,8 +383,8 @@ public final class TrackRecordingService {
       trackPoints.removeFirst()
     }
     
-    if let sessionId = currentSessionId {
-      let record = TrackPointRecord(domainModel: trackPoint, sessionId: sessionId)
+    if let sessionID = currentSessionID {
+      let record = TrackPointRecord(domainModel: trackPoint, sessionID: sessionID)
       persistenceWriter?.appendPoint(record)
       
       unflushedPointCount += 1
@@ -415,12 +415,12 @@ public final class TrackRecordingService {
   }
   
   private func buildTelemetryUpdate(endTime: Date? = nil) -> TrackTelemetryUpdate? {
-    guard let sessionId = currentSessionId else { return nil }
+    guard let sessionID = currentSessionID else { return nil }
     
     let finalEndTime = endTime ?? telemetry.lastRecordedNavigationFix?.timestamp
     
     return TrackTelemetryUpdate(
-      id: sessionId,
+      id: sessionID,
       endTimestamp_unix: finalEndTime?.timeIntervalSince1970,
       totalDuration_s: activeSessionDuration()?.timeInterval,
       totalDistanceOverGround_m: telemetry.totalDistanceOverGround?.converted(to: .meters).value,

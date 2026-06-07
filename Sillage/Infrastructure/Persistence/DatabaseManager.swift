@@ -130,11 +130,11 @@ public final class DatabaseManager: Sendable {
       
       // 2. Create the point table with foreign key
       try db.create(table: "track_point") { t in
-        // DO NOT use composite PK (sessionId + timestamp). Auto-incremented ID is required
+        // DO NOT use composite PK (sessionID + timestamp). Auto-incremented ID is required
         // for SQLite ROWID performance, SwiftUI Identifiable conformance, and to prevent
         // crashes on duplicate CoreLocation timestamps.
         t.autoIncrementedPrimaryKey("id")
-        t.column("sessionId", .text)
+        t.column("sessionID", .text)
           .notNull()
           .references("track_session", column: "id", onDelete: .cascade)
         t.column("segmentIndex", .integer).notNull()
@@ -156,12 +156,12 @@ public final class DatabaseManager: Sendable {
       try db.create(
         index: "idx_track_point_sessionId_timestamp_unix",
         on: "track_point",
-        columns: ["sessionId", "timestamp_unix"]
+        columns: ["sessionID", "timestamp_unix"]
       )
       try db.create(
         index: "idx_track_point_track_sessionId_segmentIndex_timestamp_unix",
         on: "track_point",
-        columns: ["sessionId", "segmentIndex", "timestamp_unix"]
+        columns: ["sessionID", "segmentIndex", "timestamp_unix"]
       )
       
       // 4. Create the waypoint table
@@ -198,23 +198,23 @@ extension DatabaseManager {
     try await self.writer.write(updates)
   }
   
-  func sanitizeUnfinishedSessions(excluding activeSessionId: String?) async throws {
+  func sanitizeUnfinishedSessions(excluding activeSessionID: String?) async throws {
     try await self.writer.write { db in
       // 1. Update unfinished sessions with the true last point timestamp.
       var updateQuery = TrackSessionRecord.filter(TrackSessionRecord.Columns.endTimestamp_unix == nil)
-      if let activeId = activeSessionId {
-        updateQuery = updateQuery.filter(TrackSessionRecord.Columns.id != activeId)
+      if let activeID = activeSessionID {
+        updateQuery = updateQuery.filter(TrackSessionRecord.Columns.id != activeID)
       }
       try updateQuery.updateAll(
         db,
         [TrackSessionRecord.Columns.endTimestamp_unix.set(
-          to: SQL("(SELECT MAX(timestamp_unix) FROM track_point WHERE sessionId = track_session.id)")
+          to: SQL("(SELECT MAX(timestamp_unix) FROM track_point WHERE sessionID = track_session.id)")
         )]
       )
       // 2. Delete empty ghost sessions without points.
       var deleteQuery = TrackSessionRecord.having(TrackSessionRecord.trackPoints.isEmpty)
-      if let activeId = activeSessionId {
-        deleteQuery = deleteQuery.filter(TrackSessionRecord.Columns.id != activeId)
+      if let activeID = activeSessionID {
+        deleteQuery = deleteQuery.filter(TrackSessionRecord.Columns.id != activeID)
       }
       let deletedCount = try deleteQuery.deleteAll(db)
       if deletedCount > 0 {
@@ -224,21 +224,21 @@ extension DatabaseManager {
   }
   
   /// Fetches the highest segment index for a given session. Returns nil if no points exist.
-  func fetchMaxSegmentIndex(for sessionId: String) async throws -> Int? {
+  func fetchMaxSegmentIndex(for sessionID: String) async throws -> Int? {
     try await self.reader.read { db in
       try Int.fetchOne(db, TrackPointRecord
         .select(max(TrackPointRecord.Columns.segmentIndex))
-        .filter(TrackPointRecord.Columns.sessionId == sessionId)
+        .filter(TrackPointRecord.Columns.sessionID == sessionID)
       )
     }
   }
   
   /// Fetches the precise Date of the last recorded point for a given session.
-  func fetchLastPointTime(for sessionId: String) async throws -> Date? {
+  func fetchLastPointTime(for sessionID: String) async throws -> Date? {
     try await self.reader.read { db in
       if let maxTimestamp = try Double.fetchOne(db, TrackPointRecord
         .select(max(TrackPointRecord.Columns.timestamp_unix))
-        .filter(TrackPointRecord.Columns.sessionId == sessionId)) {
+        .filter(TrackPointRecord.Columns.sessionID == sessionID)) {
         return Date(timeIntervalSince1970: maxTimestamp)
       }
       return nil
@@ -246,10 +246,10 @@ extension DatabaseManager {
   }
   
   /// Fetches the most recent points to repopulate the RAM buffer after a crash.
-  func fetchRecentPoints(for sessionId: String, limit: Int) async throws -> [TrackPoint] {
+  func fetchRecentPoints(for sessionID: String, limit: Int) async throws -> [TrackPoint] {
     try await self.reader.read { db in
       let records = try TrackPointRecord
-        .filter(TrackPointRecord.Columns.sessionId == sessionId)
+        .filter(TrackPointRecord.Columns.sessionID == sessionID)
         .order(TrackPointRecord.Columns.timestamp_unix.desc)
         .limit(limit)
         .fetchAll(db)

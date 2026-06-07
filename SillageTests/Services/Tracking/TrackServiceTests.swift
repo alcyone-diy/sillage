@@ -112,12 +112,12 @@ struct TrackServiceTests {
     let dbManager = try makeDatabaseManager()
     let trackService = TrackService(databaseManager: dbManager)
     
-    let sessionId = "session-to-delete"
-    let session = TrackSessionRecord(id: sessionId, startTime: Date())
+    let sessionID = "session-to-delete"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date())
     
     let point = TrackPointRecord(
       id: nil,
-      sessionId: sessionId,
+      sessionID: sessionID,
       timestamp: Date(),
       segmentIndex: 0,
       coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),
@@ -131,23 +131,23 @@ struct TrackServiceTests {
     
     // Verify they exist
     let sessionExistsBefore = try await dbManager.reader.read { db in
-      try TrackSessionRecord.exists(db, key: sessionId)
+      try TrackSessionRecord.exists(db, key: sessionID)
     }
     let totalPointCountBefore = try await dbManager.reader.read { db in
-      try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track_point WHERE sessionId = ?", arguments: [sessionId]) ?? 0
+      try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track_point WHERE sessionID = ?", arguments: [sessionID]) ?? 0
     }
     #expect(sessionExistsBefore)
     #expect(totalPointCountBefore == 1)
     
     // Perform deletion
-    try await trackService.deleteSession(id: sessionId)
+    try await trackService.deleteSession(id: sessionID)
     
     // Verify they are deleted
     let sessionExistsAfter = try await dbManager.reader.read { db in
-      try TrackSessionRecord.exists(db, key: sessionId)
+      try TrackSessionRecord.exists(db, key: sessionID)
     }
     let totalPointCountAfter = try await dbManager.reader.read { db in
-      try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track_point WHERE sessionId = ?", arguments: [sessionId]) ?? 0
+      try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track_point WHERE sessionID = ?", arguments: [sessionID]) ?? 0
     }
     #expect(!sessionExistsAfter)
     #expect(totalPointCountAfter == 0)
@@ -174,14 +174,14 @@ struct TrackServiceTests {
       preferencesService: mockPreferences
     )
     
-    let sessionId = "session-to-delete-vm"
-    let session = TrackSessionRecord(id: sessionId, startTime: Date())
+    let sessionID = "session-to-delete-vm"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date())
     try await dbManager.write { db in
       try session.insert(db)
     }
     
     let viewModel = TrackDetailViewModel(
-      sessionId: sessionId,
+      sessionID: sessionID,
       trackService: trackService,
       trackRecordingService: recordingService
     )
@@ -195,7 +195,7 @@ struct TrackServiceTests {
     
     // Verify it is gone
     let sessionExists = try await dbManager.reader.read { db in
-      try TrackSessionRecord.exists(db, key: sessionId)
+      try TrackSessionRecord.exists(db, key: sessionID)
     }
     #expect(!sessionExists)
   }
@@ -214,7 +214,7 @@ struct TrackServiceTests {
     
     // Start recording so we have an active session
     recordingService.startRecording()
-    // Emit a fix to transition state to .recording and generate sessionId
+    // Emit a fix to transition state to .recording and generate sessionID
     let fix = NavigationFix(
       coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),
       horizontalAccuracy: Measurement(value: 5.0, unit: .meters),
@@ -230,7 +230,7 @@ struct TrackServiceTests {
     try await waitUntil { recordingService.state == .recording }
     
     #expect(recordingService.state == .recording)
-    guard let activeSessionId = mockPreferences.activeTrackSessionID else {
+    guard let activeSessionID = mockPreferences.activeTrackSessionID else {
       Issue.record("Active session ID was not generated")
       return
     }
@@ -239,7 +239,7 @@ struct TrackServiceTests {
     await recordingService.emergencyFlushAsync()
     
     let viewModel = TrackDetailViewModel(
-      sessionId: activeSessionId,
+      sessionID: activeSessionID,
       trackService: trackService,
       trackRecordingService: recordingService
     )
@@ -256,7 +256,7 @@ struct TrackServiceTests {
     
     // Verify it is NOT deleted from DB (should still exist)
     let sessionExists = try await dbManager.reader.read { db in
-      try TrackSessionRecord.exists(db, key: activeSessionId)
+      try TrackSessionRecord.exists(db, key: activeSessionID)
     }
     #expect(sessionExists)
   }
@@ -266,11 +266,11 @@ struct TrackServiceTests {
     let dbManager = try makeDatabaseManager()
     let trackService = TrackService(databaseManager: dbManager)
     
-    let sessionId = "session-lost-update-test"
+    let sessionID = "session-lost-update-test"
     
     // 1. Initial session creation (e.g., at the start of the track)
     let session = TrackSessionRecord(
-      id: sessionId,
+      id: sessionID,
       startTime: Date()
     )
     
@@ -278,22 +278,22 @@ struct TrackServiceTests {
       try session.insert(db)
       // Simulating a starting value for distance (e.g., 10 nautical miles)
       // Using a raw query to simulate the initial state on the SQLite side.
-      try db.execute(sql: "UPDATE track_session SET totalDistanceOverGround_m = 18520 WHERE id = ?", arguments: [sessionId])
+      try db.execute(sql: "UPDATE track_session SET totalDistanceOverGround_m = 18520 WHERE id = ?", arguments: [sessionID])
     }
     
     // 2. BACKGROUND GPS SIMULATION:
     // TrackRecordingService updates the distance in the database (e.g., changes to 15 nautical miles)
     try await dbManager.write { db in
-      try db.execute(sql: "UPDATE track_session SET totalDistanceOverGround_m = 27780 WHERE id = ?", arguments: [sessionId])
+      try db.execute(sql: "UPDATE track_session SET totalDistanceOverGround_m = 27780 WHERE id = ?", arguments: [sessionID])
     }
     
     // 3. UI ACTION:
     // The user renames the track while the boat is sailing.
-    try await trackService.updateSession(id: sessionId, name: "Crossing to Re", description: "Good weather")
+    try await trackService.updateSession(id: sessionID, name: "Crossing to Re", description: "Good weather")
     
     // 4. VERIFICATION: The source of truth audit
     let updatedSession = try await dbManager.reader.read { db in
-      try TrackSessionRecord.fetchOne(db, key: sessionId)
+      try TrackSessionRecord.fetchOne(db, key: sessionID)
     }
     
     // Ensure metadata has been successfully updated

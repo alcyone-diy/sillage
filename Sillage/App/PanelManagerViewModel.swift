@@ -28,7 +28,7 @@ public final class PanelManagerViewModel {
     case settings
     case tracks
     case waypoints
-    case sessionDetail(sessionId: TrackSession.ID)
+    case sessionDetail(sessionID: TrackSession.ID)
     case waypointDetail(String)
   }
 

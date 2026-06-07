@@ -14,10 +14,10 @@ import OSLog
 // Creates an async task to make sure it won't be killed by iOS.
 @MainActor
 private final class BackgroundTaskTracker {
-  private var taskId: UIBackgroundTaskIdentifier = .invalid
+  private var taskID: UIBackgroundTaskIdentifier = .invalid
 
   func begin(name: String) {
-    taskId = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
+    taskID = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
       Logger.system.warning("iOS background time expired before flush completed: \(name).")
       MainActor.assumeIsolated {
         self?.end()
@@ -26,9 +26,9 @@ private final class BackgroundTaskTracker {
   }
 
   func end() {
-    if taskId != .invalid {
-      UIApplication.shared.endBackgroundTask(taskId)
-      taskId = .invalid
+    if taskID != .invalid {
+      UIApplication.shared.endBackgroundTask(taskID)
+      taskID = .invalid
     }
   }
 }

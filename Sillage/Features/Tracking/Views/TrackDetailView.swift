@@ -173,7 +173,7 @@ struct TrackDetailView: View {
             Task {
               do {
                 if let onViewRequested = onViewRequested {
-                  try await onViewRequested(viewModel.sessionId)
+                  try await onViewRequested(viewModel.sessionID)
                 }
               } catch {
                 errorMessage = String(localized: "Failed to load track points.")

@@ -79,11 +79,11 @@ final class AppEnvironment {
 
       func observeWaypointSelection() {
         withObservationTracking {
-          _ = waypointService.selectedWaypointId
+          _ = waypointService.selectedWaypointID
         } onChange: {
           Task { @MainActor [weak waypointService, weak preferencesService] in
             guard let service = waypointService else { return }
-            preferencesService?.selectedWaypointID = service.selectedWaypointId
+            preferencesService?.selectedWaypointID = service.selectedWaypointID
             observeWaypointSelection()
           }
         }
