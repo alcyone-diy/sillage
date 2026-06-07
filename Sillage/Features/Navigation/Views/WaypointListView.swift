@@ -47,11 +47,12 @@ struct WaypointListView: View {
             }
               .swipeActions(edge: .leading) {
                 Button {
-                  editingWaypoint = waypoint
+                  mapViewModel.selectWaypoint(id: waypoint.id)
+                  panelManager.closePanel()
                 } label: {
-                  Label("Edit", systemImage: "pencil")
+                  Label("Go To", systemImage: "map")
                 }
-                .tint(.blue)
+                .tint(.green)
               }
               .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 Button {
