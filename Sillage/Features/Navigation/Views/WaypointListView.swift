@@ -60,7 +60,7 @@ struct WaypointListView: View {
                   } label: {
                     Label("Go To", systemImage: "mappin.circle.fill")
                   }
-                  .tint(.green)
+                  .tint(.blue)
                 }
               }
               .swipeActions(edge: .trailing, allowsFullSwipe: true) {
