@@ -14,11 +14,14 @@ import OSLog
 
 enum TrackError: LocalizedError {
   case deletionFailed
+  case loadFailed
   
   var errorDescription: String? {
     switch self {
     case .deletionFailed:
       return String(localized: "Failed to delete track. Please try again.")
+    case .loadFailed:
+      return String(localized: "Failed to load track points.")
     }
   }
 }

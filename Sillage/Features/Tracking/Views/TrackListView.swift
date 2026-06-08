@@ -9,11 +9,14 @@
 //
 
 import SwiftUI
+import OSLog
 
 @MainActor
 struct TrackListView: View {
   @Environment(\.trackService) private var trackService
   @Environment(TrackRecordingService.self) private var trackRecordingService
+  @Environment(ChartViewModel.self) private var chartViewModel
+  @Environment(PanelManagerViewModel.self) private var panelManager
   
   @State private var viewModel = TrackListViewModel()
   
@@ -33,6 +36,38 @@ struct TrackListView: View {
         ForEach(viewModel.sessions) { session in
           NavigationLink(value: PanelManagerViewModel.CommandDestination.sessionDetail(sessionID: session.id)) {
             TrackRowView(session: session, subtitle: viewModel.subtitle(for: session))
+          }
+          .swipeActions(edge: .leading) {
+            let isVisible = chartViewModel.displayedTrackSessionID == session.id
+            if isVisible {
+              Button {
+                chartViewModel.clearSavedTrack()
+              } label: {
+                Label("Hide", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+              }
+              .tint(.orange)
+            } else {
+              Button {
+                Task {
+                  if let trackService {
+                    do {
+                      try await chartViewModel.loadAndDisplaySavedTrack(
+                        sessionID: session.id,
+                        trackService: trackService,
+                        edgePadding: MarineTheme.Spacing.large
+                      )
+                      panelManager.closePanel()
+                    } catch {
+                      Logger.chart.error("Failed to display track \(session.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                      viewModel.activeError = .loadFailed
+                    }
+                  }
+                }
+              } label: {
+                Label("Show", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+              }
+              .tint(.blue)
+            }
           }
           .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             if !trackRecordingService.isSessionActive(session.id) {

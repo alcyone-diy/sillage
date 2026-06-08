@@ -193,12 +193,13 @@ struct TrackDetailView: View {
                   }
                 }
               } catch {
+                Logger.chart.error("Failed to load and display track \(viewModel.sessionID, privacy: .public): \(error.localizedDescription, privacy: .public)")
                 errorMessage = String(localized: "Failed to load track points.")
               }
             }
           }) {
             HStack {
-              Image(systemName: isVisible ? "" : "point.topleft.down.curvedto.point.bottomright.up")
+              Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
               Text(isVisible ? "Hide" : "Show")
             }
             .font(.headline)
