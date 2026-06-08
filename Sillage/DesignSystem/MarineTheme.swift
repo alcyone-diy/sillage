@@ -42,6 +42,7 @@ struct MarineTheme {
     static let vectorHDG = Color(UIColor { traitCollection in
       traitCollection.userInterfaceStyle == .dark ? .systemYellow : .darkGray
     }) // Amber for dark mode, dark gray for light mode
+    static let vectorTick = Color.black
   }
 
   struct Metrics {
