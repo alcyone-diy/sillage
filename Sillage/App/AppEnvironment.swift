@@ -46,8 +46,10 @@ final class AppEnvironment {
     
     do {
       // a. File system preparation
-      try setupFileSystem()
-      setupMapLibreProtocol()
+      try await Task.detached {
+        try self.setupFileSystem()
+        self.setupMapLibreProtocol()
+      }.value
       
       // b. DatabaseManager async initialization
       let databaseManager = try await Task.detached {
@@ -111,7 +113,11 @@ final class AppEnvironment {
           guard let self = self, 
                 let chartVM = self.chartViewModel, 
                 let trackSvc = self.trackService else { return }
-          try? await chartVM.loadAndDisplaySavedTrack(sessionID: displayedTrackID, trackService: trackSvc, edgePadding: 50, centerOnTrack: false)
+          do {
+            try await chartVM.loadAndDisplaySavedTrack(sessionID: displayedTrackID, trackService: trackSvc, edgePadding: 50, centerOnTrack: false)
+          } catch {
+            Logger.system.error("❌ Failed to reload previous active track: \(error.localizedDescription, privacy: .public)")
+          }
         }
       }
       
@@ -124,7 +130,7 @@ final class AppEnvironment {
     }
   }
   
-  private func setupFileSystem() throws {
+  nonisolated private func setupFileSystem() throws {
     let fm = FileManager.default
     guard let docsURL = fm.urls(for: .documentDirectory, in: .userDomainMask).first else {
       throw NSError(domain: "AppEnvironmentError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Document directory not found"])
@@ -148,7 +154,7 @@ final class AppEnvironment {
   }
   
   /// Cleans up GPX export temporary files asynchronously.
-  public func cleanupGPXExports() {
+  nonisolated public func cleanupGPXExports() {
     Task.detached(priority: .background) {
       let fm = FileManager.default
       let gpxTempDir = fm.temporaryDirectory.appendingPathComponent("GPXExports")
@@ -163,7 +169,7 @@ final class AppEnvironment {
     }
   }
 
-  private func setupMapLibreProtocol() {
+  nonisolated private func setupMapLibreProtocol() {
     URLProtocol.registerClass(TileProxyProtocol.self)
     guard let config = MLNNetworkConfiguration.sharedManager.sessionConfiguration else { return }
     
