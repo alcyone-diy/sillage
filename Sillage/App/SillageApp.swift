@@ -27,31 +27,16 @@ struct SillageApp: App {
               await environment.bootstrap()
             }
           }
-        case .ready:
-          if let appVM = environment.appViewModel,
-             let chartVM = environment.chartViewModel,
-             let panelVM = environment.panelManagerViewModel,
-             let trackRecService = environment.trackRecordingService,
-             let trackService = environment.trackService,
-             let waypointService = environment.waypointService,
-             let activeTrackVM = environment.activeTrackViewModel,
-             let preferences = environment.preferencesService {
-            MainAppView(
-              appViewModel: appVM,
-              chartViewModel: chartVM,
-              panelManagerViewModel: panelVM,
-              activeTrackViewModel: activeTrackVM,
-              trackRecordingService: trackRecService,
-              trackService: trackService,
-              waypointService: waypointService,
-              preferencesService: preferences
-            )
-          } else {
-            // Fallback in case of an unexpected nil after .ready transition
-            Text("Critical Error: Missing ViewModels")
-              .marineFont(.headline)
-              .foregroundColor(.red)
-          }
+        case .ready(let container):
+          MainAppView()
+            .environment(container.appViewModel)
+            .environment(container.chartViewModel)
+            .environment(container.panelManagerViewModel)
+            .environment(container.activeTrackViewModel)
+            .environment(container.trackRecordingService)
+            .environment(\.trackService, container.trackService)
+            .environment(\.waypointService, container.waypointService)
+            .environment(container.preferencesService)
         }
       }
       .environment(environment)
@@ -70,7 +55,8 @@ struct SillageApp: App {
   
   @MainActor
   private func performEmergencySave() {
-    guard let trackService = environment.trackRecordingService else { return }
+    guard case .ready(let container) = environment.state else { return }
+    let trackService = container.trackRecordingService
     switch trackService.state {
     case .recording, .paused, .waitingForFix:
       BackgroundTaskRunner.execute(name: "EmergencyTrackFlush", priority: .high) { [weak trackService] in
@@ -83,14 +69,7 @@ struct SillageApp: App {
 }
 
 struct MainAppView: View {
-  @Bindable var appViewModel: AppViewModel
-  var chartViewModel: ChartViewModel
-  var panelManagerViewModel: PanelManagerViewModel
-  var activeTrackViewModel: ActiveTrackViewModel
-  var trackRecordingService: TrackRecordingService
-  var trackService: TrackService
-  var waypointService: WaypointService
-  var preferencesService: PreferencesService
+  @Environment(AppViewModel.self) private var appViewModel
   
   @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
   
@@ -99,13 +78,6 @@ struct MainAppView: View {
       if hasAcceptedDisclaimer {
         ContentView()
           .environment(\.marineTheme, appViewModel.marineTheme)
-          .environment(appViewModel)
-          .environment(chartViewModel)
-          .environment(panelManagerViewModel)
-          .environment(activeTrackViewModel)
-          .environment(trackRecordingService)
-          .environment(\.trackService, trackService)
-          .environment(\.waypointService, waypointService)
           .onOpenURL { url in
             appViewModel.handleIncomingURL(url)
           }
@@ -116,6 +88,5 @@ struct MainAppView: View {
           }
       }
     }
-    .environment(preferencesService)
   }
 }

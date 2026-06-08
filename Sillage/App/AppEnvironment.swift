@@ -20,19 +20,19 @@ final class AppEnvironment {
 
   public let metadata: AppMetadata
   
-  // Services
-  private(set) var preferencesService: PreferencesService?
-  private(set) var positioningService: CoreLocationPositioningService?
-  private(set) var trackRecordingService: TrackRecordingService?
-  private(set) var trackService: TrackService?
-  private(set) var waypointService: WaypointService?
-  private(set) var geoGarageAuthService: GeoGarageAuthService?
-  
-  // ViewModels
-  private(set) var appViewModel: AppViewModel?
-  private(set) var chartViewModel: ChartViewModel?
-  private(set) var panelManagerViewModel: PanelManagerViewModel?
-  private(set) var activeTrackViewModel: ActiveTrackViewModel?
+  struct AppContainer {
+    let preferencesService: PreferencesService
+    let positioningService: CoreLocationPositioningService
+    let trackRecordingService: TrackRecordingService
+    let trackService: TrackService
+    let waypointService: WaypointService
+    let geoGarageAuthService: GeoGarageAuthService
+    
+    let appViewModel: AppViewModel
+    let chartViewModel: ChartViewModel
+    let panelManagerViewModel: PanelManagerViewModel
+    let activeTrackViewModel: ActiveTrackViewModel
+  }
   
   public init(metadata: AppMetadata? = nil) {
     self.metadata = metadata ?? AppMetadataProvider.resolve()
@@ -58,26 +58,21 @@ final class AppEnvironment {
       
       // c. Other Services instantiation (injecting the ready DB)
       let preferencesService = PreferencesService()
-      self.preferencesService = preferencesService
       
       let positioningService = CoreLocationPositioningService()
-      self.positioningService = positioningService
       
       let trackRecordingService = TrackRecordingService(
         positioningService: positioningService,
         databaseManager: databaseManager,
         preferencesService: preferencesService
       )
-      self.trackRecordingService = trackRecordingService
       
       let trackService = TrackService(databaseManager: databaseManager)
-      self.trackService = trackService
 
       let waypointService = WaypointService(
         databaseManager: databaseManager,
         initialGoToWaypointID: preferencesService.goToWaypointID
       )
-      self.waypointService = waypointService
 
       func observeWaypointGoTo() {
         withObservationTracking {
@@ -93,36 +88,45 @@ final class AppEnvironment {
       observeWaypointGoTo()
 
       let geoGarageAuthService = GeoGarageAuthService()
-      self.geoGarageAuthService = geoGarageAuthService
       
       // d. ViewModels instantiation (injecting the ready Services)
-      self.appViewModel = AppViewModel(preferencesService: preferencesService)
-      self.chartViewModel = ChartViewModel(
+      let appViewModel = AppViewModel(preferencesService: preferencesService)
+      let chartViewModel = ChartViewModel(
         positioningService: positioningService,
         preferencesService: preferencesService,
         authService: geoGarageAuthService,
         waypointService: waypointService
       )
-      self.panelManagerViewModel = PanelManagerViewModel()
-      self.activeTrackViewModel = ActiveTrackViewModel(trackRecordingService: trackRecordingService)
+      let panelManagerViewModel = PanelManagerViewModel()
+      let activeTrackViewModel = ActiveTrackViewModel(trackRecordingService: trackRecordingService)
 
       await trackRecordingService.attemptRecoveryIfNeeded()
       
       if let displayedTrackID = preferencesService.displayedTrackSessionID {
-        Task { @MainActor [weak self] in
-          guard let self = self, 
-                let chartVM = self.chartViewModel, 
-                let trackSvc = self.trackService else { return }
+        Task { @MainActor in
           do {
-            try await chartVM.loadAndDisplaySavedTrack(sessionID: displayedTrackID, trackService: trackSvc, edgePadding: 50, centerOnTrack: false)
+            try await chartViewModel.loadAndDisplaySavedTrack(sessionID: displayedTrackID, trackService: trackService, edgePadding: 50, centerOnTrack: false)
           } catch {
             Logger.system.error("❌ Failed to reload previous active track: \(error.localizedDescription, privacy: .public)")
           }
         }
       }
       
+      let container = AppContainer(
+        preferencesService: preferencesService,
+        positioningService: positioningService,
+        trackRecordingService: trackRecordingService,
+        trackService: trackService,
+        waypointService: waypointService,
+        geoGarageAuthService: geoGarageAuthService,
+        appViewModel: appViewModel,
+        chartViewModel: chartViewModel,
+        panelManagerViewModel: panelManagerViewModel,
+        activeTrackViewModel: activeTrackViewModel
+      )
+      
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
-      state = .ready
+      state = .ready(container)
       
     } catch {
       Logger.system.error("❌ AppEnvironment bootstrap failed: \(error.localizedDescription, privacy: .public)")

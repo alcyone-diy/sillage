@@ -13,6 +13,6 @@ import Foundation
 enum AppState {
   case uninitialized
   case bootstrapping
-  case ready
+  case ready(AppEnvironment.AppContainer)
   case error(Error)
 }
