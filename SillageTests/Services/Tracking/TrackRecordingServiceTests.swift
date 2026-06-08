@@ -87,6 +87,7 @@ struct TrackRecordingServiceTests {
     }
     
     var goToWaypointID: String?
+    var displayedTrackSessionID: String?
   }
 
   // MARK: - Helpers
