@@ -502,16 +502,22 @@ struct MapLibreView: UIViewRepresentable {
     func updateChartSource(_ source: ChartSource, style: MLNStyle, mapView: MLNMapView) {
       lastChartSource = source
       
-      // Remove existing layer and source if they exist
       let layerID = "base-raster-layer"
       let sourceID = "base-raster-source"
       
+      // 1. Clean up the layer FIRST
       if let existingLayer = style.layer(withIdentifier: layerID) {
         style.removeLayer(existingLayer)
+        Logger.chart.debug("Removed existing layer: \(layerID, privacy: .public)")
       }
+      
+      // 2. Clean up the source SECOND
       if let existingSource = style.source(withIdentifier: sourceID) {
         style.removeSource(existingSource)
+        Logger.chart.debug("Removed existing source: \(sourceID, privacy: .public)")
       }
+      
+      var newSource: MLNRasterTileSource?
       
       switch source {
       case .localMBTiles(let activeMapPath):
@@ -528,48 +534,43 @@ struct MapLibreView: UIViewRepresentable {
         }
         
         if let configURL = configurationURL {
-          // Add the raster source using configurationURL and tileSize
-          let rasterSource = MLNRasterTileSource(identifier: sourceID, configurationURL: configURL, tileSize: 256)
-          style.addSource(rasterSource)
-          
-          // Add the raster layer at the bottom so it doesn't cover vessel overlays
-          let rasterLayer = MLNRasterStyleLayer(identifier: layerID, source: rasterSource)
-          style.insertLayer(rasterLayer, at: 0)
-          
-          Logger.chart.info("Programmatically injected MBTiles raster source and layer.")
+          newSource = MLNRasterTileSource(identifier: sourceID, configurationURL: configURL, tileSize: 256)
         }
         
       case .remoteGeoGarage(_, let remoteLayerID):
         // Construct GeoGarage URL template using custom local scheme to bypass MapLibre direct request
         let template = "sillage-geo://geogarage-proxy/\(remoteLayerID)/{z}/{x}/{y}.png"
-        
-        let rasterSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
+        newSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
           .minimumZoomLevel: 0,
           .maximumZoomLevel: 16
         ])
         
-        style.addSource(rasterSource)
-        
-        let rasterLayer = MLNRasterStyleLayer(identifier: layerID, source: rasterSource)
-        style.insertLayer(rasterLayer, at: 0)
-        
-        Logger.chart.info("Programmatically injected GeoGarage raster source and layer.")
-        
       case .openSeaMap:
         let template = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         let attribution = MLNAttributionInfo(title: NSAttributedString(string: "© OpenStreetMap contributors"), url: URL(string: "https://www.openstreetmap.org/copyright"))
-        let rasterSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
+        newSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
           .minimumZoomLevel: 0,
           .maximumZoomLevel: 18,
           .attributionInfos: [attribution]
         ])
+      }
+      
+      // 3. Defensively add the new source and layer
+      if let rasterSource = newSource {
+        if style.source(withIdentifier: sourceID) == nil {
+          style.addSource(rasterSource)
+          Logger.chart.debug("Added source: \(sourceID, privacy: .public)")
+        } else {
+          Logger.chart.error("Defensive check failed: Source \(sourceID, privacy: .public) already exists despite cleanup.")
+        }
         
-        style.addSource(rasterSource)
-        
-        let rasterLayer = MLNRasterStyleLayer(identifier: layerID, source: rasterSource)
-        style.insertLayer(rasterLayer, at: 0)
-        
-        Logger.chart.info("Programmatically injected OpenSeaMap raster source and layer.")
+        if style.layer(withIdentifier: layerID) == nil {
+          let rasterLayer = MLNRasterStyleLayer(identifier: layerID, source: rasterSource)
+          style.insertLayer(rasterLayer, at: 0)
+          Logger.chart.debug("Added layer: \(layerID, privacy: .public)")
+        } else {
+          Logger.chart.error("Defensive check failed: Layer \(layerID, privacy: .public) already exists despite cleanup.")
+        }
       }
       
       // Re-apply OpenSeaMap overlay if it was enabled, to ensure it stays on top of the new base map
