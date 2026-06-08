@@ -36,6 +36,7 @@ protocol PreferencesServiceProtocol {
   func clearActiveTrackSessionID()
 
   var goToWaypointID: String? { get set }
+  var displayedTrackSessionID: String? { get set }
 }
 
 @Observable
@@ -56,6 +57,7 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let isCOGVectorTicksEnabledKey = "isCOGVectorTicksEnabled"
   @ObservationIgnored private let activeTrackSessionIDKey = "activeTrackSessionID"
   @ObservationIgnored private let goToWaypointIDKey = "goToWaypointID"
+  @ObservationIgnored private let displayedTrackSessionIDKey = "displayedTrackSessionID"
 
   @ObservationIgnored private let defaults = UserDefaults.standard
 
@@ -112,6 +114,10 @@ class PreferencesService: PreferencesServiceProtocol {
     didSet { defaults.set(goToWaypointID, forKey: goToWaypointIDKey) }
   }
 
+  var displayedTrackSessionID: String? {
+    didSet { defaults.set(displayedTrackSessionID, forKey: displayedTrackSessionIDKey) }
+  }
+
   private var rawCogVectorTimeHorizonSeconds: Double {
     didSet { defaults.set(rawCogVectorTimeHorizonSeconds, forKey: cogVectorTimeHorizonSecondsKey) }
   }
@@ -141,6 +147,7 @@ class PreferencesService: PreferencesServiceProtocol {
     self.rawCogVectorTimeHorizonSeconds = defaults.object(forKey: cogVectorTimeHorizonSecondsKey) as? Double ?? 3600.0
     self.activeTrackSessionID = defaults.string(forKey: activeTrackSessionIDKey)
     self.goToWaypointID = defaults.string(forKey: goToWaypointIDKey)
+    self.displayedTrackSessionID = defaults.string(forKey: displayedTrackSessionIDKey)
   }
 
   func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double) {

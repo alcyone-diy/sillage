@@ -106,6 +106,15 @@ final class AppEnvironment {
 
       await trackRecordingService.attemptRecoveryIfNeeded()
       
+      if let displayedTrackID = preferencesService.displayedTrackSessionID {
+        Task { @MainActor [weak self] in
+          guard let self = self, 
+                let chartVM = self.chartViewModel, 
+                let trackSvc = self.trackService else { return }
+          try? await chartVM.loadAndDisplaySavedTrack(sessionID: displayedTrackID, trackService: trackSvc, edgePadding: 50, centerOnTrack: false)
+        }
+      }
+      
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
       state = .ready
       
