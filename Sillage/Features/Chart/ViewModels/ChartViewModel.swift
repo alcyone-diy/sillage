@@ -82,7 +82,11 @@ class ChartViewModel {
   var visibleWaypointFeatures: MLNShapeCollectionFeature?
   var bearingLineFeature: MLNPolylineFeature?
   var goToWaypointID: String?
-  var displayedTrackSessionID: String?
+  var displayedTrackSessionID: String? {
+    didSet {
+      preferencesService.displayedTrackSessionID = displayedTrackSessionID
+    }
+  }
   var isDataStale: Bool = true
   
   // MARK: - Private Services & Tasks
@@ -590,9 +594,11 @@ class ChartViewModel {
 
   // MARK: - Saved Tracks
   
-  func loadAndDisplaySavedTrack(sessionID: String, trackService: TrackService, edgePadding: CGFloat) async throws {
+  func loadAndDisplaySavedTrack(sessionID: String, trackService: TrackService, edgePadding: CGFloat, centerOnTrack: Bool = true) async throws {
     // Switch to free tracking mode when viewing a saved track
-    trackingMode = .free
+    if centerOnTrack {
+      trackingMode = .free
+    }
     
     let points = try await trackService.fetchTrackPoints(for: sessionID)
     guard !points.isEmpty else { return }
@@ -606,16 +612,18 @@ class ChartViewModel {
     self.savedTrackFeature = feature
     self.displayedTrackSessionID = sessionID
     
-    if let bounds = bounds {
-      let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: edgePadding, left: edgePadding, bottom: edgePadding, right: edgePadding))
-      for continuation in self.cameraMoveContinuations.values {
-        continuation.yield(event)
-      }
-    } else if let firstPoint = points.first {
-      let center = firstPoint.coordinate
-      let event = CameraMoveEvent.center(coordinate: center, zoom: 10.0, heading: nil)
-      for continuation in self.cameraMoveContinuations.values {
-        continuation.yield(event)
+    if centerOnTrack {
+      if let bounds = bounds {
+        let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: edgePadding, left: edgePadding, bottom: edgePadding, right: edgePadding))
+        for continuation in self.cameraMoveContinuations.values {
+          continuation.yield(event)
+        }
+      } else if let firstPoint = points.first {
+        let center = firstPoint.coordinate
+        let event = CameraMoveEvent.center(coordinate: center, zoom: 10.0, heading: nil)
+        for continuation in self.cameraMoveContinuations.values {
+          continuation.yield(event)
+        }
       }
     }
   }
