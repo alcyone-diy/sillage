@@ -261,9 +261,19 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
         finalCourseOverGround = Measurement(value: smoothedAngleOverGround, unit: .radians)
         lastSmoothedCourseOverGround = finalCourseOverGround
       } else {
+#if DEBUG
+        // Debug value to understand why the cog is not updated.
+        finalCourseOverGround = Measurement(value: 1, unit: .radians)
+#else
         // Fallback to the last known good course if GPS briefly loses course accuracy while moving
         finalCourseOverGround = lastSmoothedCourseOverGround
+#endif
       }
+    } else {
+#if DEBUG
+      // Debug value to understand why the cog is not updated.
+      finalCourseOverGround = Measurement(value: 2, unit: .radians)
+#endif
     }
     
     var speedOverGround: Measurement<UnitSpeed>?
