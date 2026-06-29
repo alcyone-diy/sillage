@@ -40,6 +40,9 @@ struct SillageApp: App {
         }
       }
       .environment(environment)
+      .onAppear {
+        UIApplication.shared.isIdleTimerDisabled = true
+      }
       .task {
         if case .uninitialized = environment.state {
           await environment.bootstrap()
