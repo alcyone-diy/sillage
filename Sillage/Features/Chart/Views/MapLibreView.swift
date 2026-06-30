@@ -74,6 +74,7 @@ struct MapLibreView: UIViewRepresentable {
   @Environment(\.marineTheme) var marineTheme
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(\.waypointService) private var waypointService
+  @Environment(PanelManagerViewModel.self) private var panelManager
   var viewModel: ChartViewModel
   
   
@@ -467,7 +468,16 @@ struct MapLibreView: UIViewRepresentable {
           mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
         }
         
-        showPopover(actions: [selectAction], at: point, in: mapView)
+        let editAction = PopoverMenuAction(title: String(localized: "Show Details"), systemImage: MarineIcon.details.rawValue) { [weak self] in
+          guard let self = self else { return }
+          Task { @MainActor in
+            self.parent.panelManager.commandPath = [.waypointDetail(id)]
+            self.parent.panelManager.openPanel(.command)
+          }
+          mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
+        }
+        
+        showPopover(actions: [selectAction, editAction], at: point, in: mapView)
         
       } else {
         let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
