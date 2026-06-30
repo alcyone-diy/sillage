@@ -19,7 +19,7 @@ struct CommandButtonView: View {
     Button(action: {
       bindableViewModel.openPanel(.command)
     }) {
-      Image(systemName: "line.3.horizontal")
+      Image(marineIcon: .menu)
         .marineFont(.title2)
         .foregroundColor(.white)
     }

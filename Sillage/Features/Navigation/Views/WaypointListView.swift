@@ -50,7 +50,7 @@ struct WaypointListView: View {
                   Button {
                     viewModel.setDestination(waypointID: nil)
                   } label: {
-                    Label("Cancel", systemImage: "xmark.circle.fill")
+                    Label("Cancel", systemImage: MarineIcon.cancelAction.rawValue)
                   }
                   .tint(.red)
                 } else {
@@ -58,7 +58,7 @@ struct WaypointListView: View {
                     viewModel.setDestination(waypointID: waypoint.id)
                     panelManager.closePanel()
                   } label: {
-                    Label("Go To", systemImage: "mappin.circle.fill")
+                    Label("Go To", systemImage: MarineIcon.waypoint.rawValue)
                   }
                   .tint(.blue)
                 }
@@ -67,7 +67,7 @@ struct WaypointListView: View {
                 Button {
                   waypointToDelete = waypoint
                 } label: {
-                  Label("Delete", systemImage: "trash")
+                  Label("Delete", systemImage: MarineIcon.delete.rawValue)
                 }
                 .tint(.red)
               }
@@ -96,7 +96,7 @@ struct WaypointListView: View {
             }
           }
         } label: {
-          Image(systemName: "plus")
+          Image(marineIcon: .add)
         }
       }
     }
@@ -198,7 +198,7 @@ struct WaypointRowView: View {
       Spacer()
       
       if isGoTo {
-        Image(systemName: "mappin.circle.fill")
+        Image(marineIcon: .waypoint)
           .foregroundColor(.blue)
       }
     }
@@ -241,7 +241,7 @@ struct WaypointDetailContainer: View {
         )
       case .error(let error):
         VStack(spacing: 16) {
-          Image(systemName: "exclamationmark.triangle")
+          Image(marineIcon: .warning)
             .font(.largeTitle)
             .foregroundColor(.red)
           

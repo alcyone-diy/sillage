@@ -453,7 +453,7 @@ struct MapLibreView: UIViewRepresentable {
         let isSelected = self.parent.viewModel.goToWaypointID == id
         
         let actionTitle = isSelected ? String(localized: "Deselect") : String(localized: "Select")
-        let actionImageName = isSelected ? "xmark.circle" : "checkmark.circle"
+        let actionImageName = isSelected ? MarineIcon.deselect.rawValue : MarineIcon.select.rawValue
         
         let selectAction = PopoverMenuAction(title: actionTitle, systemImage: actionImageName) { [weak self] in
           guard let self = self else { return }
@@ -473,7 +473,7 @@ struct MapLibreView: UIViewRepresentable {
         let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
         var actions: [PopoverMenuAction] = []
         
-        let createAction = PopoverMenuAction(title: String(localized: "Create Waypoint"), systemImage: "mappin.and.ellipse") { [weak self] in
+        let createAction = PopoverMenuAction(title: String(localized: "Create Waypoint"), systemImage: MarineIcon.waypoint.rawValue) { [weak self] in
           guard let self = self else { return }
           Task { @MainActor in
             if let service = self.parent.waypointService {
@@ -487,7 +487,7 @@ struct MapLibreView: UIViewRepresentable {
         actions.append(createAction)
         
         if self.parent.viewModel.goToWaypointID != nil {
-          let deselectAction = PopoverMenuAction(title: String(localized: "Deselect Target"), systemImage: "xmark.circle", isDestructive: true) { [weak self] in
+          let deselectAction = PopoverMenuAction(title: String(localized: "Deselect Target"), systemImage: MarineIcon.deselect.rawValue, isDestructive: true) { [weak self] in
             Task { @MainActor in
               self?.parent.waypointService?.setDestination(waypointID: nil)
             }

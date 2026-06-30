@@ -18,7 +18,7 @@ struct DisclaimerView: View {
     VStack(spacing: 0) {
       ScrollView {
         VStack(spacing: 30) {
-          Image(systemName: "exclamationmark.triangle.fill")
+          Image(marineIcon: .warningFill)
             .font(.system(size: 60))
             .foregroundColor(.yellow)
             .padding(.top, 40)

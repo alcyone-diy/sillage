@@ -128,7 +128,7 @@ struct TrackDetailView: View {
             showDeleteConfirmation = true
           }) {
             HStack {
-              Image(systemName: "trash")
+              Image(marineIcon: .delete)
               Text("Delete")
             }
             .font(.headline)
@@ -174,7 +174,7 @@ struct TrackDetailView: View {
             item: viewModel.gpxExport,
             preview: SharePreview(
               viewModel.name.isEmpty ? "Track Export" : viewModel.name,
-              image: Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+              image: Image(marineIcon: .track)
             )
           ) {
             exportButtonLabel
@@ -199,7 +199,7 @@ struct TrackDetailView: View {
             }
           }) {
             HStack {
-              Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+              Image(marineIcon: .track)
               Text(isVisible ? "Hide" : "Show")
             }
             .font(.headline)
@@ -224,7 +224,7 @@ struct TrackDetailView: View {
           Button {
             viewModel.cancelEditing()
           } label: {
-            Image(systemName: "xmark")
+            Image(marineIcon: .close)
           }
         }
         
@@ -238,7 +238,7 @@ struct TrackDetailView: View {
               }
             }
           } label: {
-            Image(systemName: "checkmark")
+            Image(marineIcon: .save)
           }
           .fontWeight(.semibold)
           .disabled(viewModel.isSaving)
@@ -270,7 +270,7 @@ struct TrackDetailView: View {
   
   private var exportButtonLabel: some View {
     HStack {
-      Image(systemName: "square.and.arrow.up")
+      Image(marineIcon: .share)
       Text(String(localized: "Export GPX"))
     }
   }

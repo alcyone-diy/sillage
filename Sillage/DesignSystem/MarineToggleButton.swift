@@ -13,14 +13,14 @@ import SwiftUI
 @MainActor
 struct MarineToggleButton: View {
   let title: LocalizedStringKey
-  let systemImage: String
+  let icon: MarineIcon
   @Binding var isOn: Bool
 
   @Environment(\.marineTheme) private var marineTheme
 
   var body: some View {
     VStack(spacing: MarineTheme.Spacing.small) {
-      Image(systemName: systemImage)
+      Image(marineIcon: icon)
         .font(.title2)
       Text(title)
         .marineFont(.caption)
@@ -46,8 +46,8 @@ struct MarineToggleButton: View {
     @State private var isOn = false
     var body: some View {
       HStack {
-        MarineToggleButton(title: "Glove Mode", systemImage: "hand.raised.fill", isOn: $isOn)
-        MarineToggleButton(title: "Track", systemImage: "record.circle", isOn: .constant(false))
+        MarineToggleButton(title: "Glove Mode", icon: .gloveMode, isOn: $isOn)
+        MarineToggleButton(title: "Track", icon: .record, isOn: .constant(false))
       }
       .padding()
       .environment(\.marineTheme, .standard)

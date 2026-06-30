@@ -67,7 +67,7 @@ struct ContentView: View {
             Button(action: {
               chartViewModel.toggleTrackingMode()
             }) {
-              Image(systemName: trackingIconName(for: chartViewModel.trackingMode))
+              Image(marineIcon: trackingIconName(for: chartViewModel.trackingMode))
                 .marineFont(.title3)
                 .foregroundColor(.white)
             }
@@ -175,11 +175,11 @@ struct ContentView: View {
     }
   }
 
-  private func trackingIconName(for mode: ChartTrackingMode) -> String {
+  private func trackingIconName(for mode: ChartTrackingMode) -> MarineIcon {
     switch mode {
-    case .free: return "location"
-    case .northUp: return "location.fill"
-    case .courseUp: return "location.north.line.fill"
+    case .free: return .trackingFree
+    case .northUp: return .trackingNorthUp
+    case .courseUp: return .trackingCourseUp
     }
   }
 

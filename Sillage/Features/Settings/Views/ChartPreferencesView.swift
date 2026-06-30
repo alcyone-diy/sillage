@@ -218,7 +218,7 @@ private struct ChartSourceRowView: View {
       Spacer()
       // Display a checkmark if this source is currently active
       if isSelected {
-        Image(systemName: "checkmark")
+        Image(marineIcon: .save)
           .foregroundColor(.blue)
           .font(.title2.weight(.bold))
       }
