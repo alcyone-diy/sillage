@@ -10,11 +10,6 @@
 
 import SwiftUI
 import CoreLocation
-struct CoordinateWrapper: Identifiable {
-  let id = UUID()
-  let coordinate: CLLocationCoordinate2D
-  let defaultName: String?
-}
 
 
 @MainActor
@@ -87,11 +82,7 @@ struct WaypointListView: View {
           if let service = waypointService {
             Task {
               var defaultName: String? = nil
-              do {
-                defaultName = try await service.fetchNextDefaultName()
-              } catch {
-                defaultName = "\(String(localized: "Waypoint")) \(viewModel.waypoints.count + 1)"
-              }
+              defaultName = await service.generateDefaultName()
               newWaypointItem = CoordinateWrapper(coordinate: chartViewModel.centerCoordinate, defaultName: defaultName)
             }
           }

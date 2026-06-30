@@ -10,6 +10,7 @@
 
 import SwiftUI
 import OSLog
+import CoreLocation
 
 @MainActor
 struct CommandPanelView: View {
