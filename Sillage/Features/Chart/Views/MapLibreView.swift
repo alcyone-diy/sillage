@@ -471,7 +471,7 @@ struct MapLibreView: UIViewRepresentable {
         let editAction = PopoverMenuAction(title: String(localized: "Show Details"), systemImage: MarineIcon.details.rawValue) { [weak self] in
           guard let self = self else { return }
           Task { @MainActor in
-            self.parent.panelManager.commandPath = [.waypointDetail(id)]
+            self.parent.panelManager.commandPath = [.waypoints, .waypointDetail(id)]
             self.parent.panelManager.openPanel(.command)
           }
           mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
