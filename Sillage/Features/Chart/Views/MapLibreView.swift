@@ -13,22 +13,46 @@ import MapLibre
 import CoreLocation
 import OSLog
 
-struct PopoverActionView: View {
+struct PopoverMenuAction: Identifiable {
+  let id = UUID()
   let title: String
   let systemImage: String
+  let isDestructive: Bool
   let action: () -> Void
   
+  init(title: String, systemImage: String, isDestructive: Bool = false, action: @escaping () -> Void) {
+    self.title = title
+    self.systemImage = systemImage
+    self.isDestructive = isDestructive
+    self.action = action
+  }
+}
+
+struct PopoverMenuView: View {
+  let actions: [PopoverMenuAction]
+  
   var body: some View {
-    Button(action: action) {
-      HStack {
-        Text(title)
-        Spacer()
-        Image(systemName: systemImage)
+    VStack(spacing: 0) {
+      ForEach(actions) { action in
+        Button(action: action.action) {
+          HStack {
+            Text(action.title)
+              .foregroundColor(action.isDestructive ? .red : .primary)
+            Spacer()
+            Image(systemName: action.systemImage)
+              .foregroundColor(action.isDestructive ? .red : .primary)
+          }
+          .padding()
+          .frame(height: 50)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        
+        if action.id != actions.last?.id {
+          Divider()
+        }
       }
-      .padding()
-      .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
   }
 }
 
@@ -431,7 +455,7 @@ struct MapLibreView: UIViewRepresentable {
         let actionTitle = isSelected ? String(localized: "Deselect") : String(localized: "Select")
         let actionImageName = isSelected ? "xmark.circle" : "checkmark.circle"
         
-        let popoverContent = PopoverActionView(title: actionTitle, systemImage: actionImageName) { [weak self] in
+        let selectAction = PopoverMenuAction(title: actionTitle, systemImage: actionImageName) { [weak self] in
           guard let self = self else { return }
           Task { @MainActor in
             if isSelected {
@@ -443,24 +467,53 @@ struct MapLibreView: UIViewRepresentable {
           mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
         }
         
-        let hostingController = UIHostingController(rootView: popoverContent)
-        hostingController.preferredContentSize = CGSize(width: 200, height: 60)
-        hostingController.modalPresentationStyle = .popover
-        
-        if let popover = hostingController.popoverPresentationController {
-          popover.sourceView = mapView
-          popover.sourceRect = CGRect(x: point.x, y: point.y, width: 1, height: 1)
-          popover.delegate = self
-          popover.permittedArrowDirections = .any
-        }
-        
-        mapView.parentViewController?.present(hostingController, animated: true)
+        showPopover(actions: [selectAction], at: point, in: mapView)
         
       } else {
-        Task { @MainActor in
-          self.parent.waypointService?.setDestination(waypointID: nil)
+        let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+        var actions: [PopoverMenuAction] = []
+        
+        let createAction = PopoverMenuAction(title: String(localized: "Create Waypoint"), systemImage: "mappin.and.ellipse") { [weak self] in
+          guard let self = self else { return }
+          Task { @MainActor in
+            if let service = self.parent.waypointService {
+              let nextName = (try? await service.fetchNextDefaultName()) ?? "Waypoint"
+              let newWaypoint = Waypoint(name: nextName, coordinate: coordinate)
+              try? await service.saveWaypoint(newWaypoint)
+            }
+          }
+          mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
         }
+        actions.append(createAction)
+        
+        if self.parent.viewModel.goToWaypointID != nil {
+          let deselectAction = PopoverMenuAction(title: String(localized: "Deselect Target"), systemImage: "xmark.circle", isDestructive: true) { [weak self] in
+            Task { @MainActor in
+              self?.parent.waypointService?.setDestination(waypointID: nil)
+            }
+            mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
+          }
+          actions.append(deselectAction)
+        }
+        
+        showPopover(actions: actions, at: point, in: mapView)
       }
+    }
+    
+    private func showPopover(actions: [PopoverMenuAction], at point: CGPoint, in mapView: MLNMapView) {
+      let popoverContent = PopoverMenuView(actions: actions)
+      let hostingController = UIHostingController(rootView: popoverContent)
+      hostingController.preferredContentSize = CGSize(width: 250, height: CGFloat(actions.count * 50))
+      hostingController.modalPresentationStyle = .popover
+      
+      if let popover = hostingController.popoverPresentationController {
+        popover.sourceView = mapView
+        popover.sourceRect = CGRect(x: point.x, y: point.y, width: 1, height: 1)
+        popover.delegate = self
+        popover.permittedArrowDirections = .any
+      }
+      
+      mapView.parentViewController?.present(hostingController, animated: true)
     }
     
     func adaptivePresentationStyle(for controller: UIPresentationController) -> UIModalPresentationStyle {

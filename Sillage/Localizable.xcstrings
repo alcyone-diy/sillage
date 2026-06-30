@@ -109,6 +109,9 @@
     "Could not create the Charts directory." : {
 
     },
+    "Create Waypoint" : {
+
+    },
     "Deg" : {
 
     },
@@ -128,6 +131,9 @@
 
     },
     "Deselect" : {
+
+    },
+    "Deselect Target" : {
 
     },
     "Details" : {
