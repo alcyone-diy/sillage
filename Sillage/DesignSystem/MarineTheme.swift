@@ -19,6 +19,7 @@ struct MarineTheme {
     static let accent = Color.blue // Alias for primary, matching user request
     static let inactive = Color.gray
     static let warning = Color.yellow
+    static let cancelAction = Color.orange
     static let background = Color.black
     static let overlay = Color.black.opacity(0.3)
     static let primaryFaded = primary.opacity(0.4)
