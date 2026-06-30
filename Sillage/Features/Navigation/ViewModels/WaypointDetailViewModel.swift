@@ -157,4 +157,19 @@ public final class WaypointDetailViewModel {
       return false
     }
   }
+
+  public func delete() async -> Bool {
+    guard let id = editingWaypointID else { return false }
+    
+    isSaving = true
+    defer { isSaving = false }
+    
+    do {
+      try await waypointService.deleteWaypoint(id: id)
+      return true
+    } catch {
+      self.activeError = error
+      return false
+    }
+  }
 }

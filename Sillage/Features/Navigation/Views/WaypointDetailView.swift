@@ -94,15 +94,19 @@ struct WaypointDetailView: View {
       .scrollContentBackground(.hidden)
       .background(MarineTheme.Colors.panelBackground)
       
-      if !viewModel.isEditable, let waypointID = viewModel.editingWaypointID {
+      if let waypointID = viewModel.editingWaypointID {
         VStack(spacing: MarineTheme.Spacing.small) {
-          if viewModel.isGoTo {
+          if viewModel.isEditable {
             Button(action: {
-              onCancelNavigationRequested?()
+              Task {
+                if await viewModel.delete() {
+                  dismiss()
+                }
+              }
             }) {
               HStack {
-                Image(marineIcon: .cancelAction)
-                Text("Cancel Navigation")
+                Image(marineIcon: .delete)
+                Text("Delete Waypoint")
               }
               .font(.headline)
               .fontWeight(.semibold)
@@ -113,21 +117,39 @@ struct WaypointDetailView: View {
             }
             .buttonStyle(MarineButtonStyle())
           } else {
-            Button(action: {
-              onGoToRequested?(waypointID)
-            }) {
-              HStack {
-                Image(marineIcon: .waypoint)
-                Text("Go To")
+            if viewModel.isGoTo {
+              Button(action: {
+                onCancelNavigationRequested?()
+              }) {
+                HStack {
+                  Image(marineIcon: .cancelAction)
+                  Text("Cancel Navigation")
+                }
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(MarineTheme.Colors.onPrimary)
+                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+                .background(MarineTheme.Colors.destructive)
+                .cornerRadius(MarineTheme.Metrics.cornerRadius)
               }
-              .font(.headline)
-              .fontWeight(.semibold)
-              .foregroundColor(MarineTheme.Colors.onPrimary)
-              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-              .background(MarineTheme.Colors.primary)
-              .cornerRadius(MarineTheme.Metrics.cornerRadius)
+              .buttonStyle(MarineButtonStyle())
+            } else {
+              Button(action: {
+                onGoToRequested?(waypointID)
+              }) {
+                HStack {
+                  Image(marineIcon: .waypoint)
+                  Text("Go To")
+                }
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(MarineTheme.Colors.onPrimary)
+                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+                .background(MarineTheme.Colors.primary)
+                .cornerRadius(MarineTheme.Metrics.cornerRadius)
+              }
+              .buttonStyle(MarineButtonStyle())
             }
-            .buttonStyle(MarineButtonStyle())
           }
         }
         .padding(MarineTheme.Spacing.medium)
