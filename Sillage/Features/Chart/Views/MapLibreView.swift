@@ -13,6 +13,38 @@ import MapLibre
 import CoreLocation
 import OSLog
 
+struct PopoverActionView: View {
+  let title: String
+  let systemImage: String
+  let action: () -> Void
+  
+  var body: some View {
+    Button(action: action) {
+      HStack {
+        Text(title)
+        Spacer()
+        Image(systemName: systemImage)
+      }
+      .padding()
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+  }
+}
+
+extension UIView {
+  var parentViewController: UIViewController? {
+    var parentResponder: UIResponder? = self
+    while parentResponder != nil {
+      parentResponder = parentResponder?.next
+      if let viewController = parentResponder as? UIViewController {
+        return viewController
+      }
+    }
+    return nil
+  }
+}
+
 struct MapLibreView: UIViewRepresentable {
   
   @Environment(\.marineTheme) var marineTheme
@@ -166,9 +198,9 @@ struct MapLibreView: UIViewRepresentable {
     // Setup subscription for explicit user location centering via AsyncStream
     context.coordinator.setupSubscription(for: mapView)
     
-    // Setup long press gesture for waypoint selection
-    let longPressGesture = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
-    mapView.addGestureRecognizer(longPressGesture)
+    // Setup tap gesture for waypoint selection with a popover
+    let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+    mapView.addGestureRecognizer(tapGesture)
     
     return mapView
   }
@@ -359,7 +391,7 @@ struct MapLibreView: UIViewRepresentable {
   
   // MARK: - Coordinator
   
-  class Coordinator: NSObject, MLNMapViewDelegate {
+  class Coordinator: NSObject, MLNMapViewDelegate, UIPopoverPresentationControllerDelegate {
     var parent: MapLibreView
     private var streamTask: Task<Void, Never>?
     var lastChartSource: ChartSource?
@@ -385,29 +417,54 @@ struct MapLibreView: UIViewRepresentable {
       streamTask?.cancel()
     }
     
-    @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
-      guard sender.state == .began else { return }
+    @objc func handleTap(_ sender: UITapGestureRecognizer) {
+      guard sender.state == .ended else { return }
       guard let mapView = sender.view as? MLNMapView else { return }
       let point = sender.location(in: mapView)
       
-      // Expand touch area for better UX (Fitts's Law / Glove Mode)
       let touchRect = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
       let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: ["goto-waypoint-layer", "visible-waypoints-layer"])
       
       if let feature = features.first as? MLNPointFeature, let id = feature.attributes["id"] as? String {
-        Task { @MainActor in
-          if self.parent.viewModel.goToWaypointID == id {
-            self.parent.waypointService?.setDestination(waypointID: nil)
-          } else {
-            self.parent.waypointService?.setDestination(waypointID: id)
+        let isSelected = self.parent.viewModel.goToWaypointID == id
+        
+        let actionTitle = isSelected ? String(localized: "Deselect") : String(localized: "Select")
+        let actionImageName = isSelected ? "xmark.circle" : "checkmark.circle"
+        
+        let popoverContent = PopoverActionView(title: actionTitle, systemImage: actionImageName) { [weak self] in
+          guard let self = self else { return }
+          Task { @MainActor in
+            if isSelected {
+              self.parent.waypointService?.setDestination(waypointID: nil)
+            } else {
+              self.parent.waypointService?.setDestination(waypointID: id)
+            }
           }
+          mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
         }
+        
+        let hostingController = UIHostingController(rootView: popoverContent)
+        hostingController.preferredContentSize = CGSize(width: 200, height: 60)
+        hostingController.modalPresentationStyle = .popover
+        
+        if let popover = hostingController.popoverPresentationController {
+          popover.sourceView = mapView
+          popover.sourceRect = CGRect(x: point.x, y: point.y, width: 1, height: 1)
+          popover.delegate = self
+          popover.permittedArrowDirections = .any
+        }
+        
+        mapView.parentViewController?.present(hostingController, animated: true)
+        
       } else {
-        // Deselect if long pressed on empty space
         Task { @MainActor in
           self.parent.waypointService?.setDestination(waypointID: nil)
         }
       }
+    }
+    
+    func adaptivePresentationStyle(for controller: UIPresentationController) -> UIModalPresentationStyle {
+      return .none
     }
     
     func setupSubscription(for mapView: MLNMapView) {

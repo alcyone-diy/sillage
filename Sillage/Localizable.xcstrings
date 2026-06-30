@@ -127,6 +127,9 @@
     "Description (Optional)" : {
 
     },
+    "Deselect" : {
+
+    },
     "Details" : {
 
     },
@@ -368,6 +371,9 @@
 
     },
     "Segments" : {
+
+    },
+    "Select" : {
 
     },
     "Settings" : {
