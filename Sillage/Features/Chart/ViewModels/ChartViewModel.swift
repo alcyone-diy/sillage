@@ -234,7 +234,24 @@ class ChartViewModel {
     self.trackingMode = .free
     
     // 4. Émission de l'événement
-    let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
+    let event: CameraMoveEvent
+    if let boatCoordinate = lastKnownNavigationFix?.coordinate {
+      let minLat = min(coordinate.latitude, boatCoordinate.latitude)
+      let maxLat = max(coordinate.latitude, boatCoordinate.latitude)
+      let minLon = min(coordinate.longitude, boatCoordinate.longitude)
+      let maxLon = max(coordinate.longitude, boatCoordinate.longitude)
+      
+      let bounds = MLNCoordinateBounds(
+        sw: CLLocationCoordinate2D(latitude: minLat, longitude: minLon),
+        ne: CLLocationCoordinate2D(latitude: maxLat, longitude: maxLon)
+      )
+      
+      // Use padding to ensure points are not hidden behind UI panels
+      event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: 100, left: 100, bottom: 100, right: 100))
+    } else {
+      event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
+    }
+    
     for continuation in self.cameraMoveContinuations.values {
       continuation.yield(event)
     }
