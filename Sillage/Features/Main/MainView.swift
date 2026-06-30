@@ -19,6 +19,7 @@ struct ContentView: View {
   @Environment(ChartViewModel.self) var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
   @Environment(TrackRecordingService.self) private var trackRecordingService
+  @Environment(\.waypointService) private var waypointService
 
   @State private var localSheetPresented: Bool = false
 
@@ -159,6 +160,29 @@ struct ContentView: View {
       Button("OK", role: .cancel) { }
     } message: { error in
       Text(error.localizedDescription)
+    }
+    .sheet(item: Bindable(appViewModel).waypointDraft) { item in
+      if let waypointService {
+        NavigationStack {
+          let viewModel = WaypointDetailViewModel(
+            waypointService: waypointService,
+            defaultName: item.defaultName,
+            initialCoordinate: item.coordinate
+          )
+          WaypointDetailView(
+            viewModel: viewModel,
+            onGoToRequested: { waypointID in
+              appViewModel.waypointDraft = nil
+              waypointService.setDestination(waypointID: waypointID)
+              panelManagerViewModel.closePanel()
+            },
+            onCancelNavigationRequested: {
+              appViewModel.waypointDraft = nil
+              waypointService.setDestination(waypointID: nil)
+            }
+          )
+        }
+      }
     }
   }
 

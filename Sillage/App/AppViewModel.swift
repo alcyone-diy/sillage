@@ -11,6 +11,18 @@
 import Foundation
 import Observation
 import OSLog
+import CoreLocation
+
+public struct CoordinateWrapper: Identifiable {
+  public let id = UUID()
+  public let coordinate: CLLocationCoordinate2D
+  public let defaultName: String?
+  
+  public init(coordinate: CLLocationCoordinate2D, defaultName: String?) {
+    self.coordinate = coordinate
+    self.defaultName = defaultName
+  }
+}
 
 
 @Observable
@@ -21,6 +33,8 @@ final class AppViewModel {
 
   var importError: ChartImportError?
   var showImportError: Bool = false
+  
+  var waypointDraft: CoordinateWrapper?
 
 
   var isGloveModeEnabled: Bool {

@@ -104,6 +104,14 @@ public final class WaypointService {
     }
   }
 
+  public func generateDefaultName() async -> String {
+    do {
+      return try await fetchNextDefaultName()
+    } catch {
+      return "\(String(localized: "Waypoint")) \(currentWaypoints.count + 1)"
+    }
+  }
+
   public func deleteWaypoint(id: String) async throws {
     _ = try await databaseManager.write { db in
       let deleted = try WaypointRecord.deleteOne(db, key: id)

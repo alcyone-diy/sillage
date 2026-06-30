@@ -75,6 +75,7 @@ struct MapLibreView: UIViewRepresentable {
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(\.waypointService) private var waypointService
   @Environment(PanelManagerViewModel.self) private var panelManager
+  @Environment(AppViewModel.self) private var appViewModel
   var viewModel: ChartViewModel
   
   
@@ -483,14 +484,15 @@ struct MapLibreView: UIViewRepresentable {
         let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
         var actions: [PopoverMenuAction] = []
         
-        let createAction = PopoverMenuAction(title: String(localized: "Create Waypoint"), systemImage: MarineIcon.waypoint.rawValue) { [weak self] in
+        let createAction = PopoverMenuAction(title: String(localized: "Create Waypoint…"), systemImage: MarineIcon.waypoint.rawValue) { [weak self] in
           guard let self = self else { return }
           Task { @MainActor in
+            var defaultName: String? = nil
             if let service = self.parent.waypointService {
-              let nextName = (try? await service.fetchNextDefaultName()) ?? "Waypoint"
-              let newWaypoint = Waypoint(name: nextName, coordinate: coordinate)
-              try? await service.saveWaypoint(newWaypoint)
+              defaultName = await service.generateDefaultName()
             }
+            let draftCoord = CoordinateWrapper(coordinate: coordinate, defaultName: defaultName)
+            self.parent.appViewModel.waypointDraft = draftCoord
           }
           mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
         }
