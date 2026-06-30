@@ -41,7 +41,7 @@ struct SplashView: View {
           
         case .error(let error):
           VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(marineIcon: .warningFill)
               .font(.system(size: 40))
               .foregroundColor(.red)
             

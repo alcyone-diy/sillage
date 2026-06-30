@@ -101,7 +101,7 @@ struct WaypointDetailView: View {
               onCancelNavigationRequested?()
             }) {
               HStack {
-                Image(systemName: "xmark.circle.fill")
+                Image(marineIcon: .cancelAction)
                 Text("Cancel Navigation")
               }
               .font(.headline)
@@ -117,7 +117,7 @@ struct WaypointDetailView: View {
               onGoToRequested?(waypointID)
             }) {
               HStack {
-                Image(systemName: "mappin.circle.fill")
+                Image(marineIcon: .waypoint)
                 Text("Go To")
               }
               .font(.headline)
@@ -147,7 +147,7 @@ struct WaypointDetailView: View {
                 viewModel.revert()
               }
             } label: {
-              Image(systemName: "xmark")
+              Image(marineIcon: .close)
                 .padding(8)
                 .contentShape(Rectangle())
             }
@@ -164,7 +164,7 @@ struct WaypointDetailView: View {
                 }
               }
             } label: {
-              Image(systemName: "checkmark")
+              Image(marineIcon: .save)
                 .padding(8)
                 .contentShape(Rectangle())
             }

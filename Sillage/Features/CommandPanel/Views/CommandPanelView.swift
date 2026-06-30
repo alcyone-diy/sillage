@@ -35,13 +35,13 @@ struct CommandPanelView: View {
           HStack(spacing: MarineTheme.Spacing.medium) {
             MarineToggleButton(
               title: "Glove Mode",
-              systemImage: "hand.raised.fill",
+              icon: .gloveMode,
               isOn: $bindableAppViewModel.isGloveModeEnabled
             )
             
             MarineToggleButton(
               title: "Track",
-              systemImage: "record.circle",
+              icon: .record,
               isOn: Binding(
                 get: { activeTrackViewModel.isRecording },
                 set: { _ in activeTrackViewModel.toggleRecording() }
@@ -60,7 +60,7 @@ struct CommandPanelView: View {
             Label {
               Text("Anchor Alarm").foregroundStyle(.primary)
             } icon: {
-              Image(systemName: "location.viewfinder").foregroundStyle(.blue)
+              Image(marineIcon: .location).foregroundStyle(.blue)
             }
             .marineFont(.body)
             .marineListCell()
@@ -70,7 +70,7 @@ struct CommandPanelView: View {
             Label {
               Text("Baro Alarm").foregroundStyle(.primary)
             } icon: {
-              Image(systemName: "barometer").foregroundStyle(.blue)
+              Image(marineIcon: .instruments).foregroundStyle(.blue)
             }
             .marineFont(.body)
             .marineListCell()
@@ -82,7 +82,7 @@ struct CommandPanelView: View {
             Label {
               Text("Tracks").foregroundStyle(.primary)
             } icon: {
-              Image(systemName: "point.topleft.down.curvedto.point.bottomright.up").foregroundStyle(.blue)
+              Image(marineIcon: .track).foregroundStyle(.blue)
             }
             .marineFont(.body)
           }
@@ -92,7 +92,7 @@ struct CommandPanelView: View {
             Label {
               Text("Waypoints").foregroundStyle(.primary)
             } icon: {
-              Image(systemName: "mappin.circle.fill").foregroundStyle(.blue)
+              Image(marineIcon: .waypoint).foregroundStyle(.blue)
             }
             .marineFont(.body)
           }
@@ -102,7 +102,7 @@ struct CommandPanelView: View {
         // Zone 3: System
         Section(header: Text("System")) {
           NavigationLink(value: PanelManagerViewModel.CommandDestination.settings) {
-            Label("Settings", systemImage: "gearshape.fill")
+            Label("Settings", systemImage: MarineIcon.settings.rawValue)
               .marineFont(.body)
           }
           .marineListCell()
@@ -163,7 +163,7 @@ struct CommandPanelView: View {
           Button(action: {
             bindableViewModel.closePanel()
           }) {
-            Image(systemName: "xmark.circle.fill")
+            Image(marineIcon: .cancelAction)
               .foregroundStyle(.tertiary)
               .font(.title2)
           }

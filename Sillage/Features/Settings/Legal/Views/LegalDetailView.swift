@@ -27,7 +27,7 @@ struct LegalDetailView: View {
           .ignoresSafeArea(edges: .bottom)
       case .error(let errorMessage):
         VStack(spacing: 16) {
-          Image(systemName: "exclamationmark.triangle")
+          Image(marineIcon: .warning)
             .font(.largeTitle)
             .foregroundColor(.red)
           Text("Error loading document")

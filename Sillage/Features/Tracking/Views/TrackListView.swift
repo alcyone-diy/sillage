@@ -43,7 +43,7 @@ struct TrackListView: View {
               Button {
                 chartViewModel.clearSavedTrack()
               } label: {
-                Label("Hide", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                Label("Hide", systemImage: MarineIcon.track.rawValue)
               }
               .tint(.orange)
             } else {
@@ -64,7 +64,7 @@ struct TrackListView: View {
                   }
                 }
               } label: {
-                Label("Show", systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                Label("Show", systemImage: MarineIcon.track.rawValue)
               }
               .tint(.blue)
             }
@@ -74,7 +74,7 @@ struct TrackListView: View {
               Button {
                 sessionToDelete = session
               } label: {
-                Label("Delete", systemImage: "trash")
+                Label("Delete", systemImage: MarineIcon.delete.rawValue)
               }
               .tint(.red)
             }
