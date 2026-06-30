@@ -224,9 +224,10 @@ struct MapLibreView: UIViewRepresentable {
     // Setup subscription for explicit user location centering via AsyncStream
     context.coordinator.setupSubscription(for: mapView)
     
-    // Setup tap gesture for waypoint selection with a popover
-    let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-    mapView.addGestureRecognizer(tapGesture)
+    // Setup long press gesture for contextual menu / waypoint creation
+    let longPressGesture = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
+    longPressGesture.minimumPressDuration = 0.5
+    mapView.addGestureRecognizer(longPressGesture)
     
     return mapView
   }
@@ -443,8 +444,9 @@ struct MapLibreView: UIViewRepresentable {
       streamTask?.cancel()
     }
     
-    @objc func handleTap(_ sender: UITapGestureRecognizer) {
-      guard sender.state == .ended else { return }
+    @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
+      // Ne déclencher qu'au début du geste pour éviter les ouvertures multiples
+      guard sender.state == .began else { return }
       guard let mapView = sender.view as? MLNMapView else { return }
       let point = sender.location(in: mapView)
       
