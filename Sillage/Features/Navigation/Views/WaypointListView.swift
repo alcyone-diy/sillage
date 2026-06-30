@@ -52,7 +52,7 @@ struct WaypointListView: View {
                   } label: {
                     Label("Cancel", systemImage: MarineIcon.cancelAction.rawValue)
                   }
-                  .tint(.red)
+                  .tint(MarineTheme.Colors.cancelAction)
                 } else {
                   Button {
                     viewModel.setDestination(waypointID: waypoint.id)

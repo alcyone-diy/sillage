@@ -45,7 +45,7 @@ struct TrackListView: View {
               } label: {
                 Label("Hide", systemImage: MarineIcon.track.rawValue)
               }
-              .tint(.orange)
+              .tint(MarineTheme.Colors.cancelAction)
             } else {
               Button {
                 Task {

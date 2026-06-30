@@ -206,7 +206,7 @@ struct TrackDetailView: View {
             .fontWeight(.semibold)
             .foregroundColor(MarineTheme.Colors.onPrimary)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(isVisible ? MarineTheme.Colors.destructive : MarineTheme.Colors.primary)
+            .background(isVisible ? MarineTheme.Colors.cancelAction : MarineTheme.Colors.primary)
             .cornerRadius(MarineTheme.Metrics.cornerRadius)
           }
           .buttonStyle(MarineButtonStyle())

@@ -129,7 +129,7 @@ struct WaypointDetailView: View {
                 .fontWeight(.semibold)
                 .foregroundColor(MarineTheme.Colors.onPrimary)
                 .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-                .background(MarineTheme.Colors.destructive)
+                .background(MarineTheme.Colors.cancelAction)
                 .cornerRadius(MarineTheme.Metrics.cornerRadius)
               }
               .buttonStyle(MarineButtonStyle())
