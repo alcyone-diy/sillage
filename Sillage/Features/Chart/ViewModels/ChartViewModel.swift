@@ -223,7 +223,7 @@ class ChartViewModel {
       attributes["colorHex"] = colorHex
       attributes["color"] = UIColor(color)
     } else {
-      attributes["color"] = UIColor.systemOrange
+      attributes["color"] = UIColor(MarineTheme.Colors.primary)
     }
     feature.attributes = attributes
     
@@ -251,7 +251,7 @@ class ChartViewModel {
         attributes["colorHex"] = colorHex
         attributes["color"] = UIColor(color)
       } else {
-        attributes["color"] = UIColor.systemTeal
+        attributes["color"] = UIColor(MarineTheme.Colors.primary)
       }
       feature.attributes = attributes
       return feature
@@ -289,7 +289,7 @@ class ChartViewModel {
       attributes["colorHex"] = colorHex
       attributes["color"] = UIColor(color)
     } else {
-      attributes["color"] = UIColor.systemOrange
+      attributes["color"] = UIColor(MarineTheme.Colors.primary)
     }
     feature.attributes = attributes
     

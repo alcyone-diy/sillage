@@ -23,6 +23,8 @@ enum MarineIcon: String {
     case save = "checkmark"
     case close = "xmark"
     case delete = "trash"
+    case edit = "pencil"
+    case details = "info.circle"
     case share = "square.and.arrow.up"
     case menu = "line.3.horizontal"
     case record = "record.circle"
