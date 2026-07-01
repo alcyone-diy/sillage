@@ -482,7 +482,7 @@ struct MapLibreView: UIViewRepresentable {
           mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
         }
         
-        showPopover(actions: [selectAction, editAction], at: point, in: mapView)
+        showPopover(actions: [editAction, selectAction], at: point, in: mapView)
         
       } else {
         let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
