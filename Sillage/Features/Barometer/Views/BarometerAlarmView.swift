@@ -68,8 +68,19 @@ public struct BarometerAlarmView: View {
                             )
                             .foregroundStyle(alarmColor)
                         }
-                        // We do not include zero to ensure the wave fluctuations are highly visible
-                        .chartYScale(domain: .automatic(includesZero: false))
+                        // Ensure the vertical scale spans at least 1 hPa
+                        .chartYScale(domain: chartDomain)
+                        .chartYAxis {
+                            AxisMarks(position: .leading) { value in
+                                AxisGridLine()
+                                AxisTick()
+                                AxisValueLabel {
+                                    if let hpa = value.as(Double.self) {
+                                        Text(String(format: "%.1f", hpa))
+                                    }
+                                }
+                            }
+                        }
                         .frame(height: 150)
                     }
                 }
@@ -133,6 +144,27 @@ public struct BarometerAlarmView: View {
     }
     
     // MARK: - UI Logic
+    
+    /// Computes a Y-axis domain that spans at least 1 hPa to avoid exaggerating micro-fluctuations
+    private var chartDomain: ClosedRange<Double> {
+        let history = viewModel.history12h
+        guard let minReading = history.min(by: { $0.pressure.value < $1.pressure.value }),
+              let maxReading = history.max(by: { $0.pressure.value < $1.pressure.value }) else {
+            return 1010.0...1011.0
+        }
+        
+        let minVal = minReading.pressure.value
+        let maxVal = maxReading.pressure.value
+        let range = maxVal - minVal
+        
+        if range < 1.0 {
+            let center = (minVal + maxVal) / 2.0
+            return (center - 0.5)...(center + 0.5)
+        } else {
+            let padding = range * 0.1
+            return (minVal - padding)...(maxVal + padding)
+        }
+    }
     
     /// Computes the thematic color based on the strict weather alarm level.
     private var alarmColor: Color {
