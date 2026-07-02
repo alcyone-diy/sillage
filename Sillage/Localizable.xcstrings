@@ -19,6 +19,9 @@
     "'" : {
 
     },
+    "%@/3h" : {
+      "comment" : "Format for 3-hour barometric trend suffix"
+    },
     "%@°" : {
 
     },
