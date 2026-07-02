@@ -37,6 +37,11 @@ protocol PreferencesServiceProtocol {
 
   var goToWaypointID: String? { get set }
   var displayedTrackSessionID: String? { get set }
+
+  // MARK: - Barometer Settings
+  var isBaroAlarmEnabled: Bool { get set }
+  var baroAlarmSensitivity: BaroAlarmSensitivity { get set }
+  var barometerOffset: Measurement<UnitPressure> { get set }
 }
 
 @Observable
@@ -58,6 +63,9 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let activeTrackSessionIDKey = "activeTrackSessionID"
   @ObservationIgnored private let goToWaypointIDKey = "goToWaypointID"
   @ObservationIgnored private let displayedTrackSessionIDKey = "displayedTrackSessionID"
+  @ObservationIgnored private let isBaroAlarmEnabledKey = "isBaroAlarmEnabled"
+  @ObservationIgnored private let baroAlarmSensitivityKey = "baroAlarmSensitivity"
+  @ObservationIgnored private let barometerOffsetHPaKey = "barometerOffsetHPa"
 
   @ObservationIgnored private let defaults = UserDefaults.standard
 
@@ -131,6 +139,28 @@ class PreferencesService: PreferencesServiceProtocol {
     }
   }
 
+  var isBaroAlarmEnabled: Bool {
+    didSet { defaults.set(isBaroAlarmEnabled, forKey: isBaroAlarmEnabledKey) }
+  }
+
+  private var rawBaroAlarmSensitivity: String {
+    didSet { defaults.set(rawBaroAlarmSensitivity, forKey: baroAlarmSensitivityKey) }
+  }
+  
+  var baroAlarmSensitivity: BaroAlarmSensitivity {
+    get { BaroAlarmSensitivity(rawValue: rawBaroAlarmSensitivity) ?? .medium }
+    set { rawBaroAlarmSensitivity = newValue.rawValue }
+  }
+
+  private var rawBarometerOffsetHPa: Double {
+    didSet { defaults.set(rawBarometerOffsetHPa, forKey: barometerOffsetHPaKey) }
+  }
+
+  var barometerOffset: Measurement<UnitPressure> {
+    get { Measurement(value: rawBarometerOffsetHPa, unit: .hectopascals) }
+    set { rawBarometerOffsetHPa = newValue.converted(to: .hectopascals).value }
+  }
+
   init() {
     self.savedChartSource = defaults.string(forKey: chartSourceKey)
     self.savedGeoGarageLayerID = defaults.string(forKey: savedGeoGarageLayerIDKey)
@@ -148,6 +178,10 @@ class PreferencesService: PreferencesServiceProtocol {
     self.activeTrackSessionID = defaults.string(forKey: activeTrackSessionIDKey)
     self.goToWaypointID = defaults.string(forKey: goToWaypointIDKey)
     self.displayedTrackSessionID = defaults.string(forKey: displayedTrackSessionIDKey)
+    
+    self.isBaroAlarmEnabled = defaults.object(forKey: isBaroAlarmEnabledKey) as? Bool ?? true
+    self.rawBaroAlarmSensitivity = defaults.string(forKey: baroAlarmSensitivityKey) ?? BaroAlarmSensitivity.medium.rawValue
+    self.rawBarometerOffsetHPa = defaults.object(forKey: barometerOffsetHPaKey) as? Double ?? 0.0
   }
 
   func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double) {

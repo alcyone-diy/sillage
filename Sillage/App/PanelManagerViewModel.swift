@@ -20,7 +20,6 @@ public final class PanelManagerViewModel {
   public enum ActivePanel: Equatable {
     case none
     case command
-    case telemetry
   }
 
   /// Represents the UI destinations within the Command Panel.
@@ -30,6 +29,7 @@ public final class PanelManagerViewModel {
     case waypoints
     case sessionDetail(sessionID: TrackSession.ID)
     case waypointDetail(String)
+    case baroAlarm
   }
 
   /// The currently active panel visible to the user.

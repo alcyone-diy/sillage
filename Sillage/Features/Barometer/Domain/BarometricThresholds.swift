@@ -11,6 +11,9 @@
 import Foundation
 
 public extension Measurement where UnitType == UnitPressure {
+  /// Drop >= 2.0 hPa / 1h (High Sensitivity fast drop)
+  static let highFastDropThreshold = Measurement(value: -2.0, unit: UnitPressure.hectopascals)
+  
   /// Drop >= 1.5 hPa / 3h
   static let vigilanceThreshold = Measurement(value: -1.5, unit: UnitPressure.hectopascals)
   
