@@ -60,8 +60,13 @@ public class LocalNotificationService: NSObject, NotificationService, UNUserNoti
   // Ensures the notification banner and sound trigger even if the app is currently open and active on the screen.
   public func userNotificationCenter(
     _ center: UNUserNotificationCenter,
-    willPresent notification: UNNotification
-  ) async -> UNNotificationPresentationOptions {
-    return [.banner, .sound, .badge]
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    if #available(iOS 14.0, *) {
+      completionHandler([.banner, .sound, .badge])
+    } else {
+      completionHandler([.alert, .sound, .badge])
+    }
   }
 }
