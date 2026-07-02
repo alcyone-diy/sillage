@@ -39,9 +39,9 @@ public enum BaroAlarmSensitivity: String, CaseIterable, Identifiable {
     
     public var explanation: String {
         switch self {
-        case .low: return String(localized: "Triggers on drops ≥ 5.0 hPa/3h. Recommended offshore to avoid alarm fatigue.", comment: "Low sensitivity explanation")
-        case .medium: return String(localized: "Triggers on drops ≥ 3.0 hPa/3h. Standard setting for gale warnings.", comment: "Medium sensitivity explanation")
-        case .high: return String(localized: "Triggers on drops ≥ 1.5 hPa/3h or ≥ 2.0 hPa/1h. Ideal for squall detection.", comment: "High sensitivity explanation")
+        case .low: return String(localized: "Triggers on drops ≥ 5.0 hPa within 3h. Recommended offshore to avoid alarm fatigue.", comment: "Low sensitivity explanation")
+        case .medium: return String(localized: "Triggers on drops ≥ 3.0 hPa within 3h. Standard setting for gale warnings.", comment: "Medium sensitivity explanation")
+        case .high: return String(localized: "Triggers on drops ≥ 1.5 hPa within 3h or ≥ 2.0 hPa within 1h. Ideal for squall detection.", comment: "High sensitivity explanation")
         }
     }
 }
