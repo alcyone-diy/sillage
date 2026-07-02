@@ -352,6 +352,9 @@
     "No saved waypoints yet" : {
 
     },
+    "Note: The alarm only works in the background if you are recording a track or the anchor alarm is active." : {
+
+    },
     "OK" : {
 
     },

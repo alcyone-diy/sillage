@@ -94,6 +94,11 @@ public struct BarometerAlarmView: View {
                         Text(viewModel.sensitivity.explanation)
                             .font(.caption)
                             .foregroundColor(MarineTheme.Colors.textSecondary)
+                        
+                        Text("Note: The alarm only works in the background if you are recording a track or the anchor alarm is active.")
+                            .font(.caption)
+                            .foregroundColor(.primary)
+                            .padding(.top, 4)
                     }
                     .padding(.vertical, 4)
                 }
