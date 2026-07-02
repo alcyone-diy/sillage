@@ -21,6 +21,7 @@ struct CommandPanelView: View {
   @Environment(\.trackService) private var trackService
   @Environment(\.waypointService) private var waypointService
   @Environment(TrackRecordingService.self) private var trackRecordingService
+  @Environment(BarometerViewModel.self) private var barometerViewModel
   
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   
@@ -66,16 +67,15 @@ struct CommandPanelView: View {
             .marineFont(.body)
             .marineListCell()
           }.tint(.primary)
-          Button(action: {
-          }) {
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.baroAlarm) {
             Label {
               Text("Baro Alarm").foregroundStyle(.primary)
             } icon: {
               Image(marineIcon: .instruments).foregroundStyle(.blue)
             }
             .marineFont(.body)
-            .marineListCell()
-          }.tint(.primary)
+          }
+          .marineListCell()
         }
         
         Section(header: Text("Navigation")) {
@@ -144,6 +144,8 @@ struct CommandPanelView: View {
           }
         case .waypointDetail(let id):
           WaypointDetailContainer(waypointID: id)
+        case .baroAlarm:
+          BarometerAlarmView(viewModel: barometerViewModel)
         }
       }
       .handleTrackRecordingErrors()

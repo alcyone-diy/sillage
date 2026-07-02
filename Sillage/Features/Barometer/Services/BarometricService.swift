@@ -20,15 +20,15 @@ public final class BarometricService {
   // MARK: - State (Exposed)
   
   public private(set) var currentPressure: Measurement<UnitPressure>?
+  public private(set) var trend1Hour: Measurement<UnitPressure>?
   public private(set) var trend3Hours: Measurement<UnitPressure>?
   public private(set) var sensorState: SensorHealth = .idle
-  
-  /// Calibration offset applied to the raw sensor data.
-  public var offset: Measurement<UnitPressure> = Measurement(value: 0, unit: .hectopascals)
-  
+  public private(set) var activeAlarm: WeatherAlarmLevel?
+  public private(set) var lastHistoryUpdate: Date = .distantPast
   // MARK: - Dependencies
   
   private let historyStore: BarometricHistoryStore
+  private let preferencesService: PreferencesServiceProtocol
   private let altimeter: AltimeterProvider
   private let dateProvider: @Sendable () -> Date
   
@@ -51,17 +51,24 @@ public final class BarometricService {
   /// Tracks the last time data was saved to the store to throttle disk I/O
   private var lastSaveTimestamp: Date = .distantPast
   
-  public init(
+  init(
     historyStore: BarometricHistoryStore,
+    preferencesService: PreferencesServiceProtocol,
     altimeter: AltimeterProvider = CMAltimeter(),
     dateProvider: @escaping @Sendable () -> Date = { Date() }
   ) {
     self.historyStore = historyStore
+    self.preferencesService = preferencesService
     self.altimeter = altimeter
     self.dateProvider = dateProvider
   }
   
   // MARK: - Operations
+  
+  /// Retrieves the barometric history for the specified number of past hours.
+  public func getHistoryReadings(lastHours: Int) async -> [BarometricReading] {
+    return await historyStore.getReadings(for: lastHours)
+  }
   
   public func startUpdates() {
     guard sensorState == .idle || sensorState == .degraded else {
@@ -121,7 +128,8 @@ public final class BarometricService {
     
     // Convert to hectopascals immediately to establish a single base unit
     let pressureHPa = rawPressure.converted(to: .hectopascals)
-    let correctedPressure = pressureHPa + offset
+    let offsetMeasurement = preferencesService.barometerOffset
+    let correctedPressure = pressureHPa + offsetMeasurement
     
     // Add to micro-buffer
     microBuffer.append((timestamp: now, pressure: correctedPressure))
@@ -167,10 +175,58 @@ public final class BarometricService {
   
   private func updateTrend() async {
     // 3 hours = 10800 seconds
-    let duration: TimeInterval = 3 * 3600
-    let readings = await historyStore.getReadings(for: 3)
+    let duration3h: TimeInterval = 3 * 3600
+    let readings3h = await historyStore.getReadings(for: 3)
+    
+    // Atomically derive 1-hour readings from the 3-hour snapshot to prevent data races
+    let now = dateProvider()
+    let cutoff1h = now.addingTimeInterval(-3600)
+    let readings1h = readings3h.filter { $0.timestamp >= cutoff1h }
+    let duration1h: TimeInterval = 3600
     
     // Update the trend on the MainActor
-    self.trend3Hours = LinearRegressionCalculator.calculateTrend(from: readings, over: duration)
+    self.trend3Hours = LinearRegressionCalculator.calculateTrend(from: readings3h, over: duration3h)
+    self.trend1Hour = LinearRegressionCalculator.calculateTrend(from: readings1h, over: duration1h)
+    
+    self.evaluateAlarms()
+    self.lastHistoryUpdate = now
+  }
+  
+  private func evaluateAlarms() {
+    guard preferencesService.isBaroAlarmEnabled else {
+      activeAlarm = WeatherAlarmLevel.none
+      return
+    }
+    
+    let t1 = trend1Hour
+    let t3 = trend3Hours
+    
+    if t1 == nil && t3 == nil {
+      activeAlarm = nil
+      return
+    }
+    
+    switch preferencesService.baroAlarmSensitivity {
+    case .high:
+      if let t1 = t1, t1 <= .highFastDropThreshold {
+        activeAlarm = .squall
+      } else if let t3 = t3, t3 <= .vigilanceThreshold {
+        activeAlarm = .vigilance
+      } else {
+        activeAlarm = WeatherAlarmLevel.none
+      }
+    case .medium:
+      guard let t3 = t3 else {
+        activeAlarm = nil
+        return
+      }
+      activeAlarm = t3 <= .galeThreshold ? .gale : WeatherAlarmLevel.none
+    case .low:
+      guard let t3 = t3 else {
+        activeAlarm = nil
+        return
+      }
+      activeAlarm = t3 <= .stormThreshold ? .storm : WeatherAlarmLevel.none
+    }
   }
 }

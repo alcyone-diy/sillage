@@ -32,6 +32,7 @@ final class AppEnvironment {
     let chartViewModel: ChartViewModel
     let panelManagerViewModel: PanelManagerViewModel
     let activeTrackViewModel: ActiveTrackViewModel
+    let barometerViewModel: BarometerViewModel
   }
   
   public init(metadata: AppMetadata? = nil) {
@@ -60,6 +61,14 @@ final class AppEnvironment {
       let preferencesService = PreferencesService()
       
       let positioningService = CoreLocationPositioningService()
+      
+      let barometricHistoryStore = BarometricHistoryStore()
+      await barometricHistoryStore.load()
+      let barometricService = BarometricService(
+        historyStore: barometricHistoryStore,
+        preferencesService: preferencesService
+      )
+      barometricService.startUpdates()
       
       let trackRecordingService = TrackRecordingService(
         positioningService: positioningService,
@@ -99,6 +108,10 @@ final class AppEnvironment {
       )
       let panelManagerViewModel = PanelManagerViewModel()
       let activeTrackViewModel = ActiveTrackViewModel(trackRecordingService: trackRecordingService)
+      let barometerViewModel = BarometerViewModel(
+        service: barometricService,
+        preferencesService: preferencesService
+      )
 
       await trackRecordingService.attemptRecoveryIfNeeded()
       
@@ -122,7 +135,8 @@ final class AppEnvironment {
         appViewModel: appViewModel,
         chartViewModel: chartViewModel,
         panelManagerViewModel: panelManagerViewModel,
-        activeTrackViewModel: activeTrackViewModel
+        activeTrackViewModel: activeTrackViewModel,
+        barometerViewModel: barometerViewModel
       )
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")

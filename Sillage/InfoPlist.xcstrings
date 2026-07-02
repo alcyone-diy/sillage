@@ -53,6 +53,18 @@
           }
         }
       }
+    },
+    "NSMotionUsageDescription" : {
+      "comment" : "Privacy - Motion Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sillage requires access to the barometer to monitor for rapid pressure drops and trigger weather alarms."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

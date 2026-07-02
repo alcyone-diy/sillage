@@ -39,6 +39,13 @@ public struct LinearRegressionCalculator {
       return nil
     }
     
+    // Ensure the sample covers at least 80% of the target duration
+    // to prevent dangerous mathematical extrapolation on short datasets.
+    let requiredCoverage = duration * 0.8
+    guard timeSpan >= requiredCoverage else {
+      return nil
+    }
+    
     let n = Double(sortedReadings.count)
     let t0 = first.timestamp
     

@@ -191,9 +191,6 @@ struct ContentView: View {
     switch panelManagerViewModel.activePanel {
     case .command:
       CommandPanelView()
-    case .telemetry:
-      // Placeholder for telemetry
-      Text("Telemetry Panel")
     case .none:
       EmptyView()
     }

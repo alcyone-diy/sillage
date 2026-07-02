@@ -46,6 +46,9 @@
     "About" : {
 
     },
+    "Acquiring..." : {
+
+    },
     "Active Track" : {
 
     },
@@ -56,6 +59,9 @@
 
     },
     "Alcyone Sillage (MIT License)" : {
+
+    },
+    "Alert Level" : {
 
     },
     "Anchor Alarm" : {
@@ -77,6 +83,9 @@
 
     },
     "Baro Alarm" : {
+
+    },
+    "Barometer Alarm" : {
 
     },
     "BTW" : {
@@ -107,6 +116,9 @@
 
     },
     "Compiled" : {
+
+    },
+    "Configuration" : {
 
     },
     "Could not create the Charts directory." : {
@@ -199,6 +211,9 @@
     "Format: N/S Degrees Minutes." : {
 
     },
+    "Gale Warning" : {
+      "comment" : "Weather alarm"
+    },
     "General" : {
 
     },
@@ -230,6 +245,12 @@
 
     },
     "Hide" : {
+
+    },
+    "High" : {
+      "comment" : "High sensitivity"
+    },
+    "hPa" : {
 
     },
     "I Accept" : {
@@ -283,6 +304,9 @@
     "Login to GeoGarage" : {
 
     },
+    "Low" : {
+      "comment" : "Low sensitivity"
+    },
     "MapLibre GL Native (BSD 2-Clause License)" : {
 
     },
@@ -297,6 +321,9 @@
     },
     "Max Speed" : {
 
+    },
+    "Medium" : {
+      "comment" : "Medium sensitivity"
     },
     "Min" : {
 
@@ -355,7 +382,13 @@
     "Predictor Vector" : {
 
     },
+    "Pressure" : {
+
+    },
     "Quick Actions" : {
+
+    },
+    "Raw sensor: %@" : {
 
     },
     "Recording aborted. No GPS fix was obtained." : {
@@ -388,6 +421,9 @@
     "Select" : {
 
     },
+    "Sensor Offset" : {
+
+    },
     "Settings" : {
 
     },
@@ -403,8 +439,14 @@
     "SOG" : {
 
     },
+    "Squall Imminent" : {
+      "comment" : "Weather alarm"
+    },
     "Start Time" : {
 
+    },
+    "Storm Warning" : {
+      "comment" : "Weather alarm"
     },
     "swift-clocks" : {
 
@@ -415,9 +457,6 @@
     "System" : {
 
     },
-    "Telemetry Panel" : {
-
-    },
     "The provided URL is not a valid file." : {
 
     },
@@ -425,6 +464,9 @@
 
     },
     "This action cannot be undone." : {
+
+    },
+    "Time" : {
 
     },
     "Time Horizon" : {
@@ -451,6 +493,15 @@
     "Tracks" : {
 
     },
+    "Triggers on drops ≥ 1.5 hPa/3h or ≥ 2.0 hPa/1h. Ideal for squall detection." : {
+      "comment" : "High sensitivity explanation"
+    },
+    "Triggers on drops ≥ 3.0 hPa/3h. Standard setting for gale warnings." : {
+      "comment" : "Medium sensitivity explanation"
+    },
+    "Triggers on drops ≥ 5.0 hPa/3h. Recommended offshore to avoid alarm fatigue." : {
+      "comment" : "Low sensitivity explanation"
+    },
     "Unnamed Track" : {
 
     },
@@ -459,6 +510,9 @@
     },
     "Version" : {
 
+    },
+    "Vigilance" : {
+      "comment" : "Weather alarm"
     },
     "W" : {
       "comment" : "West cardinal point"
@@ -476,6 +530,9 @@
 
     },
     "Waypoints" : {
+
+    },
+    "Weather Alarms" : {
 
     },
     "xctest-dynamic-overlay" : {

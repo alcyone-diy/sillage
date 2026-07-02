@@ -16,7 +16,33 @@ import Observation
 public final class BarometerViewModel {
     
     // MARK: - Dependencies
-    private let service: BarometricService
+    public let service: BarometricService
+    private var preferencesService: PreferencesService
+    
+    // MARK: - Settings Bindings
+    public var isAlarmEnabled: Bool {
+        get { preferencesService.isBaroAlarmEnabled }
+        set { preferencesService.isBaroAlarmEnabled = newValue }
+    }
+    
+    public var sensitivity: BaroAlarmSensitivity {
+        get { preferencesService.baroAlarmSensitivity }
+        set { preferencesService.baroAlarmSensitivity = newValue }
+    }
+    
+    public var offsetValueForStepper: Double {
+        get { preferencesService.barometerOffset.converted(to: .hectopascals).value }
+        set { preferencesService.barometerOffset = Measurement(value: newValue, unit: .hectopascals) }
+    }
+    
+    /// Provides raw uncalibrated pressure for UI display
+    public var rawPressureFormatted: String? {
+        guard let current = service.currentPressure else { return nil }
+        // Subtract current offset via Measurement API to preserve type safety and precision
+        let offsetMeasurement = preferencesService.barometerOffset
+        let rawMeasurement = current - offsetMeasurement
+        return pressureFormatter.string(from: rawMeasurement)
+    }
     
     // MARK: - Private Formatters
     
@@ -41,8 +67,19 @@ public final class BarometerViewModel {
     }()
     
     // MARK: - Initialization
-    public init(service: BarometricService) {
+    init(service: BarometricService, preferencesService: PreferencesService) {
         self.service = service
+        self.preferencesService = preferencesService
+    }
+    
+    // MARK: - History State
+    
+    /// Holds the 12-hour barometric history for chart rendering.
+    public var history12h: [BarometricReading] = []
+    
+    /// Asynchronously refreshes the 12-hour history from the service.
+    public func refreshHistory() async {
+        history12h = await service.getHistoryReadings(lastHours: 12)
     }
     
     // MARK: - Presentation State (Computed)
@@ -67,17 +104,6 @@ public final class BarometerViewModel {
     /// Evaluates the 3-hour trend to return a mutually exclusive weather alarm level.
     /// Strictly returns nil if the trend buffer is insufficient to evaluate the weather state.
     public var alarmLevel: WeatherAlarmLevel? {
-        guard let trend = service.trend3Hours else { return nil }
-        
-        // Evaluate in descending order of severity
-        if trend <= .stormThreshold {
-            return .storm
-        } else if trend <= .galeThreshold {
-            return .gale
-        } else if trend <= .vigilanceThreshold {
-            return .vigilance
-        } else {
-            return .none
-        }
+        return service.activeAlarm
     }
 }
