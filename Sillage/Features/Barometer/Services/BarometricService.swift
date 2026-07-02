@@ -25,6 +25,9 @@ public final class BarometricService {
   public private(set) var sensorState: SensorHealth = .idle
   public private(set) var activeAlarm: WeatherAlarmLevel?
   public private(set) var lastHistoryUpdate: Date = .distantPast
+  
+  private var maxDrop1Hour: Measurement<UnitPressure>?
+  private var maxDrop3Hours: Measurement<UnitPressure>?
   // MARK: - Dependencies
   
   private let historyStore: BarometricHistoryStore
@@ -210,9 +213,13 @@ public final class BarometricService {
     let readings1h = readings3h.filter { $0.timestamp >= cutoff1h }
     let duration1h: TimeInterval = 3600
     
-    // Update the trend on the MainActor
+    // Update the visual trend on the MainActor
     self.trend3Hours = LinearRegressionCalculator.calculateTrend(from: readings3h, over: duration3h)
     self.trend1Hour = LinearRegressionCalculator.calculateTrend(from: readings1h, over: duration1h)
+    
+    // Calculate the absolute maximum drops for safety alarms
+    self.maxDrop3Hours = PressureDropCalculator.calculateMaxDrop(from: readings3h)
+    self.maxDrop1Hour = PressureDropCalculator.calculateMaxDrop(from: readings1h)
     
     self.evaluateAlarms()
     self.lastHistoryUpdate = now
@@ -225,35 +232,35 @@ public final class BarometricService {
       return
     }
     
-    let t1 = trend1Hour
-    let t3 = trend3Hours
+    let d1 = maxDrop1Hour
+    let d3 = maxDrop3Hours
     
-    if t1 == nil && t3 == nil {
+    if d1 == nil && d3 == nil {
       activeAlarm = nil
       return
     }
     
     switch preferencesService.baroAlarmSensitivity {
     case .high:
-      if let t1 = t1, t1 <= .highFastDropThreshold {
+      if let d1 = d1, d1 <= .highFastDropThreshold {
         activeAlarm = .squall
-      } else if let t3 = t3, t3 <= .vigilanceThreshold {
+      } else if let d3 = d3, d3 <= .vigilanceThreshold {
         activeAlarm = .vigilance
       } else {
         activeAlarm = WeatherAlarmLevel.none
       }
     case .medium:
-      guard let t3 = t3 else {
+      guard let d3 = d3 else {
         activeAlarm = nil
         return
       }
-      activeAlarm = t3 <= .galeThreshold ? .gale : WeatherAlarmLevel.none
+      activeAlarm = d3 <= .galeThreshold ? .gale : WeatherAlarmLevel.none
     case .low:
-      guard let t3 = t3 else {
+      guard let d3 = d3 else {
         activeAlarm = nil
         return
       }
-      activeAlarm = t3 <= .stormThreshold ? .storm : WeatherAlarmLevel.none
+      activeAlarm = d3 <= .stormThreshold ? .storm : WeatherAlarmLevel.none
     }
     
     if let newAlarm = activeAlarm, newAlarm != WeatherAlarmLevel.none, newAlarm != lastNotifiedAlarmLevel {

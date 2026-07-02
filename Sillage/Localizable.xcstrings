@@ -496,13 +496,13 @@
     "Tracks" : {
 
     },
-    "Triggers on drops ≥ 1.5 hPa/3h or ≥ 2.0 hPa/1h. Ideal for squall detection." : {
+    "Triggers on drops ≥ 1.5 hPa within 3h or ≥ 2.0 hPa within 1h. Ideal for squall detection." : {
       "comment" : "High sensitivity explanation"
     },
-    "Triggers on drops ≥ 3.0 hPa/3h. Standard setting for gale warnings." : {
+    "Triggers on drops ≥ 3.0 hPa within 3h. Standard setting for gale warnings." : {
       "comment" : "Medium sensitivity explanation"
     },
-    "Triggers on drops ≥ 5.0 hPa/3h. Recommended offshore to avoid alarm fatigue." : {
+    "Triggers on drops ≥ 5.0 hPa within 3h. Recommended offshore to avoid alarm fatigue." : {
       "comment" : "Low sensitivity explanation"
     },
     "Unnamed Track" : {
