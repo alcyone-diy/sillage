@@ -64,9 +64,13 @@ final class AppEnvironment {
       
       let barometricHistoryStore = BarometricHistoryStore()
       await barometricHistoryStore.load()
+      
+      let notificationService = LocalNotificationService()
+      
       let barometricService = BarometricService(
         historyStore: barometricHistoryStore,
-        preferencesService: preferencesService
+        preferencesService: preferencesService,
+        notificationService: notificationService
       )
       barometricService.startUpdates()
       

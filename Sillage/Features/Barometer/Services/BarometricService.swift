@@ -29,8 +29,11 @@ public final class BarometricService {
   
   private let historyStore: BarometricHistoryStore
   private let preferencesService: PreferencesServiceProtocol
+  private let notificationService: NotificationService
   private let altimeter: AltimeterProvider
   private let dateProvider: @Sendable () -> Date
+  
+  private var lastNotifiedAlarmLevel: WeatherAlarmLevel?
   
   // MARK: - Internal State
   
@@ -54,13 +57,36 @@ public final class BarometricService {
   init(
     historyStore: BarometricHistoryStore,
     preferencesService: PreferencesServiceProtocol,
+    notificationService: NotificationService,
     altimeter: AltimeterProvider = CMAltimeter(),
     dateProvider: @escaping @Sendable () -> Date = { Date() }
   ) {
     self.historyStore = historyStore
     self.preferencesService = preferencesService
+    self.notificationService = notificationService
     self.altimeter = altimeter
     self.dateProvider = dateProvider
+    
+    observeAlarmToggle()
+  }
+  
+  private func observeAlarmToggle() {
+    // Request permission immediately if the alarm is already ON at launch
+    if preferencesService.isBaroAlarmEnabled {
+       Task { @MainActor in
+           _ = try? await notificationService.requestAuthorization()
+       }
+    }
+    
+    withObservationTracking {
+      _ = preferencesService.isBaroAlarmEnabled
+    } onChange: {
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        // The recursive call will handle the initial check again when re-arming
+        self.observeAlarmToggle()
+      }
+    }
   }
   
   // MARK: - Operations
@@ -195,6 +221,7 @@ public final class BarometricService {
   private func evaluateAlarms() {
     guard preferencesService.isBaroAlarmEnabled else {
       activeAlarm = WeatherAlarmLevel.none
+      lastNotifiedAlarmLevel = nil
       return
     }
     
@@ -227,6 +254,20 @@ public final class BarometricService {
         return
       }
       activeAlarm = t3 <= .stormThreshold ? .storm : WeatherAlarmLevel.none
+    }
+    
+    if let newAlarm = activeAlarm, newAlarm != WeatherAlarmLevel.none, newAlarm != lastNotifiedAlarmLevel {
+      lastNotifiedAlarmLevel = newAlarm
+      
+      let title = "Weather Alarm: \(newAlarm.localizedName)"
+      let body = "A rapid pressure drop has been detected. Prepare for worsening conditions."
+      let identifier = "sillage.barometer.\(String(describing: newAlarm))"
+      
+      Task {
+        await notificationService.sendNotification(title: title, body: body, identifier: identifier)
+      }
+    } else if activeAlarm == WeatherAlarmLevel.none {
+      lastNotifiedAlarmLevel = WeatherAlarmLevel.none
     }
   }
 }
