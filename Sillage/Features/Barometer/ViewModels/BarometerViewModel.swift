@@ -74,8 +74,8 @@ public final class BarometerViewModel {
     
     // MARK: - History State
     
-    /// Holds the 12-hour barometric history for chart rendering.
-    public var history12h: [BarometricReading] = []
+    /// Holds the 24-hour barometric history for chart rendering.
+    public var history24h: [BarometricReading] = []
     
     /// Wrapper for graph data to properly break the line across missing data gaps.
     public struct ChartDataPoint: Identifiable, Sendable {
@@ -86,9 +86,9 @@ public final class BarometerViewModel {
     
     public var chartData: [ChartDataPoint] = []
     
-    /// Asynchronously refreshes the 12-hour history from the service.
+    /// Asynchronously refreshes the 24-hour history from the service.
     public func refreshHistory() async {
-        let readings = await service.getHistoryReadings(lastHours: 12)
+        let readings = await service.getHistoryReadings(lastHours: 24)
         
         var newChartData: [ChartDataPoint] = []
         var currentSegment = 0
@@ -105,7 +105,7 @@ public final class BarometerViewModel {
             lastTimestamp = reading.timestamp
         }
         
-        self.history12h = readings
+        self.history24h = readings
         self.chartData = newChartData
     }
     
