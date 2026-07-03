@@ -263,7 +263,7 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
       } else {
 #if DEBUG
         // Debug value to understand why the cog is not updated.
-        finalCourseOverGround = Measurement(value: 1, unit: .radians)
+        finalCourseOverGround = Measurement(value: 1, unit: .gradians)
 #else
         // Fallback to the last known good course if GPS briefly loses course accuracy while moving
         finalCourseOverGround = lastSmoothedCourseOverGround
@@ -272,7 +272,7 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     } else {
 #if DEBUG
       // Debug value to understand why the cog is not updated.
-      finalCourseOverGround = Measurement(value: 2, unit: .radians)
+      finalCourseOverGround = Measurement(value: 2, unit: .gradians)
 #endif
     }
     
