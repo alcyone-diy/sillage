@@ -158,9 +158,10 @@ public struct BarometerAlarmView: View {
         let maxVal = maxReading.pressure.value
         let range = maxVal - minVal
         
-        if range < 1.0 {
+        // Ensure a minimum 5 hPa span so normal diurnal tides (2-3 hPa) fit without exaggerating small drops.
+        if range < 5.0 {
             let center = (minVal + maxVal) / 2.0
-            return (center - 0.5)...(center + 0.5)
+            return (center - 2.5)...(center + 2.5)
         } else {
             let padding = range * 0.1
             return (minVal - padding)...(maxVal + padding)
