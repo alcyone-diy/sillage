@@ -59,7 +59,7 @@ public struct BarometerAlarmView: View {
                         }
                     }
                     
-                    // MARK: - 12h History Chart
+                    // MARK: - 24h History Chart
                     if !viewModel.chartData.isEmpty {
                         Chart(viewModel.chartData) { dataPoint in
                             LineMark(
@@ -148,7 +148,7 @@ public struct BarometerAlarmView: View {
     
     /// Computes a Y-axis domain that spans at least 1 hPa to avoid exaggerating micro-fluctuations
     private var chartDomain: ClosedRange<Double> {
-        let history = viewModel.history12h
+        let history = viewModel.history24h
         guard let minReading = history.min(by: { $0.pressure.value < $1.pressure.value }),
               let maxReading = history.max(by: { $0.pressure.value < $1.pressure.value }) else {
             return 1010.0...1011.0
