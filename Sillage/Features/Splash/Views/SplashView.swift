@@ -20,11 +20,12 @@ struct SplashView: View {
   }
   var body: some View {
     ZStack {
-      Color.black.ignoresSafeArea()
+      Color(UIColor.systemBackground).ignoresSafeArea()
       
       VStack(spacing: 32) {
         Text("ALCYONE SILLAGE")
           .marineFont(.largeTitle)
+          .fontWeight(.black)
           .foregroundColor(.accentColor)
         
         switch state {
@@ -34,9 +35,9 @@ struct SplashView: View {
               .controlSize(.large)
               .tint(.accentColor)
             
-            Text("Initializing Systems...")
+            Text("Initializing Systems…")
               .marineFont(.body)
-              .foregroundColor(.secondary)
+              .foregroundColor(.primary)
           }
           
         case .error(let error):
@@ -51,7 +52,7 @@ struct SplashView: View {
             
             Text(error.localizedDescription)
               .marineFont(.body)
-              .foregroundColor(.white)
+              .foregroundColor(.primary)
               .multilineTextAlignment(.center)
               .padding(.horizontal)
             
