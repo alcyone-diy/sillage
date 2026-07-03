@@ -269,11 +269,6 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
         finalCourseOverGround = lastSmoothedCourseOverGround
 #endif
       }
-    } else {
-#if DEBUG
-      // Debug value to understand why the cog is not updated.
-      finalCourseOverGround = Measurement(value: 2, unit: .gradians)
-#endif
     }
     
     var speedOverGround: Measurement<UnitSpeed>?
