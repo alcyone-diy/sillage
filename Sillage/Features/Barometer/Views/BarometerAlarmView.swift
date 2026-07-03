@@ -23,14 +23,10 @@ public struct BarometerAlarmView: View {
     public var body: some View {
         Form {
             // MARK: - Vital Information (Socle)
-            Section {
+            Section(header: Text("Pressure")) {
                 VStack(spacing: MarineTheme.Spacing.medium) {
                     HStack {
                         VStack(alignment: .leading) {
-                            Text("Pressure")
-                                .marineFont(.instrumentLabel)
-                                .foregroundColor(MarineTheme.Colors.textSecondary)
-                            
                             if let pressure = viewModel.formattedPressure {
                                 Text(pressure)
                                     .marineFont(.instrumentData)
