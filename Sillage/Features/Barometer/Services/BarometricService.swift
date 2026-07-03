@@ -150,9 +150,6 @@ public final class BarometricService {
   // MARK: - Data Processing
   
   private func processRawPressure(_ rawPressure: Measurement<UnitPressure>) {
-    // Trace every hardware wake-up as requested
-    Logger.barometer.debug("Hardware wake-up: received raw pressure \(rawPressure.value, privacy: .public) kPa")
-    
     let now = dateProvider()
     
     // Convert to hectopascals immediately to establish a single base unit
