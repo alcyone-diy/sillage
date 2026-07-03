@@ -14,6 +14,7 @@ import OSLog
 
 @main
 struct SillageApp: App {
+  @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
   @Environment(\.scenePhase) private var scenePhase
   @State private var environment = AppEnvironment()
   

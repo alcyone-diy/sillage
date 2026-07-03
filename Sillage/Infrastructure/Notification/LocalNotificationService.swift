@@ -13,12 +13,9 @@ import UserNotifications
 import OSLog
 
 /// Concrete implementation of NotificationService using iOS local notifications.
-public class LocalNotificationService: NSObject, NotificationService, UNUserNotificationCenterDelegate {
+public struct LocalNotificationService: NotificationService {
   
-  public override init() {
-    super.init()
-    UNUserNotificationCenter.current().delegate = self
-  }
+  public init() {}
   
   public func requestAuthorization() async throws -> Bool {
     let center = UNUserNotificationCenter.current()
@@ -43,7 +40,7 @@ public class LocalNotificationService: NSObject, NotificationService, UNUserNoti
     let content = UNMutableNotificationContent()
     content.title = title
     content.body = body
-    content.sound = UNNotificationSound.defaultCritical // Try to use critical sound, fallbacks to default
+    content.sound = UNNotificationSound.default
     
     let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
     
@@ -52,21 +49,6 @@ public class LocalNotificationService: NSObject, NotificationService, UNUserNoti
       Logger.system.info("Successfully scheduled local notification: \(identifier)")
     } catch {
       Logger.system.error("Failed to schedule local notification \(identifier): \(error.localizedDescription)")
-    }
-  }
-  
-  // MARK: - UNUserNotificationCenterDelegate
-  
-  // Ensures the notification banner and sound trigger even if the app is currently open and active on the screen.
-  public func userNotificationCenter(
-    _ center: UNUserNotificationCenter,
-    willPresent notification: UNNotification,
-    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-  ) {
-    if #available(iOS 14.0, *) {
-      completionHandler([.banner, .sound, .badge])
-    } else {
-      completionHandler([.alert, .sound, .badge])
     }
   }
 }
