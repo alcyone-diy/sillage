@@ -77,9 +77,36 @@ public final class BarometerViewModel {
     /// Holds the 12-hour barometric history for chart rendering.
     public var history12h: [BarometricReading] = []
     
+    /// Wrapper for graph data to properly break the line across missing data gaps.
+    public struct ChartDataPoint: Identifiable, Sendable {
+        public let id = UUID()
+        public let reading: BarometricReading
+        public let segmentId: Int
+    }
+    
+    public var chartData: [ChartDataPoint] = []
+    
     /// Asynchronously refreshes the 12-hour history from the service.
     public func refreshHistory() async {
-        history12h = await service.getHistoryReadings(lastHours: 12)
+        let readings = await service.getHistoryReadings(lastHours: 12)
+        
+        var newChartData: [ChartDataPoint] = []
+        var currentSegment = 0
+        var lastTimestamp: Date?
+        
+        // Segregate data into disconnected lines if gaps > 5 minutes are found
+        for reading in readings.sorted(by: { $0.timestamp < $1.timestamp }) {
+            if let last = lastTimestamp {
+                if reading.timestamp.timeIntervalSince(last) > 300 {
+                    currentSegment += 1
+                }
+            }
+            newChartData.append(ChartDataPoint(reading: reading, segmentId: currentSegment))
+            lastTimestamp = reading.timestamp
+        }
+        
+        self.history12h = readings
+        self.chartData = newChartData
     }
     
     // MARK: - Presentation State (Computed)

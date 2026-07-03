@@ -60,11 +60,12 @@ public struct BarometerAlarmView: View {
                     }
                     
                     // MARK: - 12h History Chart
-                    if !viewModel.history12h.isEmpty {
-                        Chart(viewModel.history12h, id: \.timestamp) { reading in
+                    if !viewModel.chartData.isEmpty {
+                        Chart(viewModel.chartData) { dataPoint in
                             LineMark(
-                                x: .value("Time", reading.timestamp),
-                                y: .value("hPa", reading.pressure.value)
+                                x: .value("Time", dataPoint.reading.timestamp),
+                                y: .value("hPa", dataPoint.reading.pressure.value),
+                                series: .value("Segment", dataPoint.segmentId)
                             )
                             .foregroundStyle(alarmColor)
                         }
