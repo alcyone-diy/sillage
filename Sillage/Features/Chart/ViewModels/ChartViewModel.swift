@@ -21,13 +21,6 @@ enum CameraMoveEvent {
   case fitBounds(bounds: MLNCoordinateBounds, padding: UIEdgeInsets)
 }
 
-/// Defines how the chart camera should behave relative to the user's location and orientation.
-enum ChartTrackingMode {
-  case free
-  case northUp
-  case courseUp
-}
-
 /// The central state manager for the chart interface.
 /// It handles location updates, chart source switching, and coordinates camera movements.
 @Observable
@@ -571,16 +564,23 @@ class ChartViewModel {
   
   /// Called when the user manually pans or zooms the chart, breaking any active tracking lock.
   func chartInteractedByUser() {
+    guard trackingMode != .free else { return }
+    
+    preferencesService.savedTrackingMode = trackingMode
     trackingMode = .free
   }
   
-  /// Cycles through available camera tracking modes (Free -> North Up -> Course Up).
+  /// Cycles through available camera tracking modes (Free -> North Up <-> Course Up).
   func toggleTrackingMode() {
     switch trackingMode {
-    case .free, .courseUp:
-      trackingMode = .northUp
+    case .free:
+      trackingMode = preferencesService.savedTrackingMode
     case .northUp:
       trackingMode = .courseUp
+      preferencesService.savedTrackingMode = .courseUp
+    case .courseUp:
+      trackingMode = .northUp
+      preferencesService.savedTrackingMode = .northUp
     }
     
     if trackingMode != .free, let navigationFix = lastKnownNavigationFix {
