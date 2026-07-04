@@ -10,6 +10,9 @@
     "--" : {
 
     },
+    "-- m" : {
+
+    },
     "--:--:--" : {
 
     },
@@ -70,6 +73,9 @@
     "Anchor Alarm" : {
 
     },
+    "Anchor Dropped" : {
+
+    },
     "App Information" : {
 
     },
@@ -77,6 +83,12 @@
 
     },
     "Are you sure you want to delete this waypoint? This action cannot be undone." : {
+
+    },
+    "Arm Alarm" : {
+
+    },
+    "ARMED" : {
 
     },
     "Authentication failed. Please check your network connection or credentials." : {
@@ -98,6 +110,9 @@
 
     },
     "Cancel" : {
+
+    },
+    "CANCEL" : {
 
     },
     "Cancel Navigation" : {
@@ -161,6 +176,12 @@
 
     },
     "Distance" : {
+
+    },
+    "DRAGGING!" : {
+
+    },
+    "Drop Anchor" : {
 
     },
     "Duration" : {
@@ -239,6 +260,9 @@
 
     },
     "Go To" : {
+
+    },
+    "GPS signal too weak (Accuracy: %lldm > 20m)." : {
 
     },
     "GRDB" : {
@@ -349,6 +373,9 @@
     "No active recording to stop." : {
 
     },
+    "No GPS fix available." : {
+
+    },
     "No saved tracks yet" : {
 
     },
@@ -394,6 +421,9 @@
     "Quick Actions" : {
 
     },
+    "Radius" : {
+
+    },
     "Raw sensor: %@" : {
 
     },
@@ -436,6 +466,9 @@
     "Settings" : {
 
     },
+    "Setup Anchor" : {
+
+    },
     "Show" : {
 
     },
@@ -443,6 +476,9 @@
 
     },
     "Show Time Ticks" : {
+
+    },
+    "SLIDE TO DISARM" : {
 
     },
     "SOG" : {

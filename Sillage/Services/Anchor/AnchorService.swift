@@ -24,6 +24,10 @@ final class AnchorService {
   private(set) var activeWatch: AnchorWatch?
   private(set) var status: AnchorStatus = .inactive
   
+  private(set) var latestFix: NavigationFix?
+  private(set) var currentDistance: Measurement<UnitLength>?
+  private(set) var gpsAccuracy: Measurement<UnitLength>?
+  
   private var backgroundToken: (any BackgroundLocationToken)?
   
   private final class TaskCancellable: @unchecked Sendable {
@@ -31,6 +35,30 @@ final class AnchorService {
     deinit { task?.cancel() }
   }
   private let locationUpdateTask = TaskCancellable()
+  
+  // MARK: - State Stream
+  
+  private var updateContinuations: [UUID: AsyncStream<Void>.Continuation] = [:]
+  
+  var stateUpdates: AsyncStream<Void> {
+    let (stream, continuation) = AsyncStream.makeStream(of: Void.self)
+    let id = UUID()
+    updateContinuations[id] = continuation
+    
+    continuation.onTermination = { @Sendable [weak self] _ in
+      Task { @MainActor [weak self] in
+        self?.updateContinuations.removeValue(forKey: id)
+      }
+    }
+    
+    return stream
+  }
+  
+  private func notifyStateChange() {
+    for continuation in updateContinuations.values {
+      continuation.yield(())
+    }
+  }
   
   init(
     positioningService: PositioningService,
@@ -48,6 +76,8 @@ final class AnchorService {
     if self.status != .inactive {
       resumeWatch()
     }
+    
+    startListeningToGPS()
   }
   
   func arm(coordinate: CLLocationCoordinate2D, radius: Measurement<UnitLength>) {
@@ -56,9 +86,13 @@ final class AnchorService {
     let watch = AnchorWatch(coordinate: coordinate, radius: radius)
     self.activeWatch = watch
     self.status = .armed
-    
     persistState()
-    startObservingLocation()
+    
+    if backgroundToken == nil {
+      backgroundToken = positioningService.requestBackgroundLocation()
+    }
+    
+    notifyStateChange()
   }
   
   func disarm() {
@@ -66,14 +100,19 @@ final class AnchorService {
     
     self.activeWatch = nil
     self.status = .inactive
-    
     persistState()
-    stopObservingLocation()
+    self.currentDistance = nil
+    
+    backgroundToken?.invalidate()
+    backgroundToken = nil
+    
+    notifyStateChange()
   }
-  
   private func resumeWatch() {
     Logger.anchor.info("⚓️ Resuming anchor watch from persisted state.")
-    startObservingLocation()
+    if backgroundToken == nil {
+      backgroundToken = positioningService.requestBackgroundLocation()
+    }
   }
   
   private func persistState() {
@@ -81,12 +120,7 @@ final class AnchorService {
     preferencesService.savedAnchorStatus = status
   }
   
-  private func startObservingLocation() {
-    // Dynamically request background location token
-    if backgroundToken == nil {
-      backgroundToken = positioningService.requestBackgroundLocation()
-    }
-    
+  private func startListeningToGPS() {
     locationUpdateTask.task?.cancel()
     locationUpdateTask.task = Task { [weak self] in
       guard let positioningService = self?.positioningService else { return }
@@ -98,15 +132,10 @@ final class AnchorService {
     }
   }
   
-  private func stopObservingLocation() {
-    locationUpdateTask.task?.cancel()
-    locationUpdateTask.task = nil
-    
-    backgroundToken?.invalidate()
-    backgroundToken = nil
-  }
-  
   private func processLocationFix(_ fix: NavigationFix) {
+    self.latestFix = fix
+    self.gpsAccuracy = fix.horizontalAccuracy
+    
     guard let watch = activeWatch, status != .inactive else { return }
     
     let anchorLocation = CLLocation(latitude: watch.coordinate.latitude, longitude: watch.coordinate.longitude)
@@ -114,6 +143,8 @@ final class AnchorService {
     
     let distanceInMeters = fixLocation.distance(from: anchorLocation)
     let radiusInMeters = watch.radius.converted(to: .meters).value
+    
+    self.currentDistance = Measurement(value: distanceInMeters, unit: .meters)
     
     // Strict Anti-False-Positive Filter:
     // Only trust the GPS if its horizontal accuracy is strictly positive and less than or equal to half the configured radius.
@@ -136,6 +167,8 @@ final class AnchorService {
         persistState()
       }
     }
+    
+    notifyStateChange()
   }
   
   private func triggerAlarm(distance: Double, radius: Double) {
@@ -152,6 +185,8 @@ final class AnchorService {
         identifier: "AnchorDraggingAlarm"
       )
     }
+    
+    notifyStateChange()
   }
   
 }
