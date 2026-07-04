@@ -80,6 +80,7 @@ struct SettingsView: View {
 #endif
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+    .marineListBackground()
     .navigationTitle("Settings")
     .navigationBarTitleDisplayMode(.inline)
   }

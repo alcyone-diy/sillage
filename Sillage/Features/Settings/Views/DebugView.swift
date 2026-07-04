@@ -70,6 +70,7 @@ struct DebugView: View {
       }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+    .marineListBackground()
     .navigationTitle("Debug")
     .navigationBarTitleDisplayMode(.inline)
   }

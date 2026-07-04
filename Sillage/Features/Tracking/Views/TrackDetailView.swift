@@ -164,8 +164,7 @@ struct TrackDetailView: View {
         }
       }
       .listStyle(.insetGrouped)
-      .scrollContentBackground(.hidden)
-      .background(MarineTheme.Colors.panelBackground)
+      .marineListBackground()
       .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
       
       if !viewModel.isEditing {

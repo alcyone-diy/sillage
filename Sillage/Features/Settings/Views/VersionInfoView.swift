@@ -61,5 +61,6 @@ struct VersionInfoView: View {
     }
     .navigationTitle("Version")
     .navigationBarTitleDisplayMode(.inline)
+    .marineListBackground()
   }
 }

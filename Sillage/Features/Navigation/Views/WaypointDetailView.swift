@@ -91,8 +91,7 @@ struct WaypointDetailView: View {
         }
         .disabled(!viewModel.isEditable)
       }
-      .scrollContentBackground(.hidden)
-      .background(MarineTheme.Colors.panelBackground)
+      .marineListBackground()
       
       if let waypointID = viewModel.editingWaypointID {
         VStack(spacing: MarineTheme.Spacing.small) {

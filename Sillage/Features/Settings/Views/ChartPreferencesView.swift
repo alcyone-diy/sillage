@@ -168,6 +168,7 @@ struct ChartPreferencesView: View {
       }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+    .marineListBackground()
     .navigationTitle("Chart Preferences")
     .navigationBarTitleDisplayMode(.inline)
     

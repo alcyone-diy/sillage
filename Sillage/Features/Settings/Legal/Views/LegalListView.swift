@@ -34,6 +34,7 @@ struct LegalListView: View {
         Text("Third-Party Licenses")
       }
       .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+      .marineListBackground()
       .navigationTitle("Legal & Licenses")
       .navigationBarTitleDisplayMode(.inline)
     }
