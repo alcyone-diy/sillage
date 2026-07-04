@@ -20,6 +20,7 @@ protocol PreferencesServiceProtocol {
   var savedLongitude: Double? { get set }
   var savedZoom: Double? { get set }
   var savedDirection: Double? { get set }
+  var savedTrackingMode: ChartTrackingMode { get set }
   var gloveModeEnabled: Bool { get set }
   var hasAcceptedDisclaimer: Bool { get set }
   var isOpenSeaMapOverlayEnabled: Bool { get set }
@@ -53,6 +54,7 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let savedLongitudeKey = "savedLongitude"
   @ObservationIgnored private let savedZoomKey = "savedZoom"
   @ObservationIgnored private let savedDirectionKey = "savedDirection"
+  @ObservationIgnored private let savedTrackingModeKey = "savedTrackingMode"
   @ObservationIgnored private let gloveModeEnabledKey = "gloveModeEnabled"
   @ObservationIgnored private let hasAcceptedDisclaimerKey = "hasAcceptedDisclaimer"
   @ObservationIgnored private let isOpenSeaMapOverlayEnabledKey = "isOpenSeaMapOverlayEnabled"
@@ -91,6 +93,10 @@ class PreferencesService: PreferencesServiceProtocol {
 
   var savedDirection: Double? {
     didSet { defaults.set(savedDirection, forKey: savedDirectionKey) }
+  }
+
+  var savedTrackingMode: ChartTrackingMode = .northUp {
+    didSet { defaults.set(savedTrackingMode.rawValue, forKey: savedTrackingModeKey) }
   }
 
   var gloveModeEnabled: Bool {
@@ -168,6 +174,9 @@ class PreferencesService: PreferencesServiceProtocol {
     self.savedLongitude = defaults.object(forKey: savedLongitudeKey) as? Double
     self.savedZoom = defaults.object(forKey: savedZoomKey) as? Double
     self.savedDirection = defaults.object(forKey: savedDirectionKey) as? Double
+    if let rawTrackingMode = defaults.string(forKey: savedTrackingModeKey), let mode = ChartTrackingMode(rawValue: rawTrackingMode) {
+      self.savedTrackingMode = mode
+    }
     self.gloveModeEnabled = defaults.bool(forKey: gloveModeEnabledKey)
     self.hasAcceptedDisclaimer = defaults.bool(forKey: hasAcceptedDisclaimerKey)
     self.isOpenSeaMapOverlayEnabled = defaults.bool(forKey: isOpenSeaMapOverlayEnabledKey)
