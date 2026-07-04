@@ -133,6 +133,7 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
+      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -159,6 +160,7 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
+      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -184,6 +186,7 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
+      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -209,6 +212,7 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
+      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -231,6 +235,7 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
+      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -250,6 +255,7 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
+      courseState: .invalid,
       timestamp: Date()
     )
     

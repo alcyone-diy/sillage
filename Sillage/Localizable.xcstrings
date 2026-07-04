@@ -34,6 +34,9 @@
     "°" : {
 
     },
+    "± %@" : {
+
+    },
     "⚓️ DRAGGING ANCHOR!" : {
 
     },
@@ -53,6 +56,9 @@
 
     },
     "About" : {
+
+    },
+    "Accuracy" : {
 
     },
     "Acquiring..." : {
@@ -133,6 +139,9 @@
     "COG" : {
 
     },
+    "COG State" : {
+
+    },
     "Color" : {
 
     },
@@ -148,7 +157,13 @@
     "Could not create the Charts directory." : {
 
     },
+    "Course Over Ground (COG)" : {
+
+    },
     "Create Waypoint…" : {
+
+    },
+    "Debug" : {
 
     },
     "Deg" : {
@@ -277,7 +292,13 @@
     "Go To" : {
 
     },
+    "GPS Information" : {
+
+    },
     "GPS signal too weak (Accuracy: %lldm > 20m)." : {
+
+    },
+    "GPS State" : {
 
     },
     "GRDB" : {
@@ -428,6 +449,9 @@
 
     },
     "Points" : {
+
+    },
+    "Position" : {
 
     },
     "Predictor Vector" : {

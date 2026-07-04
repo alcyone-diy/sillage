@@ -68,6 +68,16 @@ struct SettingsView: View {
         }
         .marineListCell()
       }
+      
+#if DEBUG
+      Section(header: Text("Debug")) {
+        NavigationLink(destination: DebugView()) {
+          Label("Debug Menu", systemImage: "ladybug")
+            .marineFont(.body)
+        }
+        .marineListCell()
+      }
+#endif
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .navigationTitle("Settings")

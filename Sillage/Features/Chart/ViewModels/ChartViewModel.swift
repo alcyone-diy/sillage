@@ -61,8 +61,10 @@ class ChartViewModel {
   // MARK: - Navigation & Telemetry
   
   var currentCoordinate: CLLocationCoordinate2D? = nil
+  var horizontalAccuracy: Measurement<UnitLength>? = nil
   var speedOverGround: Measurement<UnitSpeed>? = nil
   var courseOverGround: Measurement<UnitAngle>? = nil
+  var courseState: NavigationFix.CourseState? = nil
   var bearingToWaypoint: Measurement<UnitAngle>? = nil
   
   // MARK: - Chart Features (Annotations)
@@ -82,7 +84,14 @@ class ChartViewModel {
       preferencesService.displayedTrackSessionID = displayedTrackSessionID
     }
   }
-  var isDataStale: Bool = true
+  
+  public enum GPSState: String, Sendable, Equatable {
+    case waiting
+    case active
+    case stale
+    case lost
+  }
+  var gpsState: GPSState = .waiting
   
   // MARK: - Private Services & Tasks
   
@@ -482,17 +491,22 @@ class ChartViewModel {
     
     lastKnownNavigationFix = navigationFix
     
-    // Reset the stale data timer. If no new navigationFix is received within 5 seconds, UI will indicate stale data.
-    self.isDataStale = false
+    // Reset the stale data timer.
+    self.gpsState = .active
     self.staleDataTask?.cancel()
     self.staleDataTask = TaskCancellable(Task { @MainActor [weak self] in
       try? await Task.sleep(nanoseconds: 5_000_000_000)
       guard !Task.isCancelled else { return }
-      self?.isDataStale = true
+      self?.gpsState = .stale
+      
+      try? await Task.sleep(nanoseconds: 10_000_000_000)
+      guard !Task.isCancelled else { return }
+      self?.gpsState = .lost
     })
     
     // Update current coordinate
     currentCoordinate = navigationFix.coordinate
+    horizontalAccuracy = navigationFix.horizontalAccuracy
     updateBearingToWaypoint()
     updateBearingLine()
     
@@ -501,6 +515,7 @@ class ChartViewModel {
     
     // Update COG
     courseOverGround = navigationFix.courseOverGround
+    courseState = navigationFix.courseState
     
     // Generate Chart Annotations
     let feature = MLNPointFeature()

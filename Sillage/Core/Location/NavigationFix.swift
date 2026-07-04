@@ -22,8 +22,38 @@ public struct NavigationFix: Sendable, Equatable {
   // speedOverGround and speedOverGroundAccuracy both valid or none.
   public let speedOverGround: Measurement<UnitSpeed>?
   public let speedOverGroundAccuracy: Measurement<UnitSpeed>?
+  
+  public enum CourseState: Sendable, Equatable {
+    case active
+    case stopped
+    case invalid
+  }
+  
+  // Indicates the state of the course over ground
+  public let courseState: CourseState
+  
   // Always valid.
   public let timestamp: Date
+  
+  public init(
+    coordinate: CLLocationCoordinate2D,
+    horizontalAccuracy: Measurement<UnitLength>,
+    courseOverGround: Measurement<UnitAngle>?,
+    courseOverGroundAccuracy: Measurement<UnitAngle>?,
+    speedOverGround: Measurement<UnitSpeed>?,
+    speedOverGroundAccuracy: Measurement<UnitSpeed>?,
+    courseState: CourseState,
+    timestamp: Date
+  ) {
+    self.coordinate = coordinate
+    self.horizontalAccuracy = horizontalAccuracy
+    self.courseOverGround = courseOverGround
+    self.courseOverGroundAccuracy = courseOverGroundAccuracy
+    self.speedOverGround = speedOverGround
+    self.speedOverGroundAccuracy = speedOverGroundAccuracy
+    self.courseState = courseState
+    self.timestamp = timestamp
+  }
   
   /// Calculates the geodetic distance using the WGS 84 reference ellipsoid.
   /// Note: Instantiating CLLocation is necessary here to leverage Apple's highly accurate

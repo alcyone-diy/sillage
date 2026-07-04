@@ -285,6 +285,7 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
       courseOverGroundAccuracy: (latestLocation.courseAccuracy >= 0) ? Measurement(value: latestLocation.courseAccuracy, unit: .degrees) : nil,
       speedOverGround: speedOverGround,
       speedOverGroundAccuracy: speedOverGroundAccuracy,
+      courseState: finalCourseOverGround != nil ? (movementState == .stopped ? .stopped : .active) : .invalid,
       timestamp: latestLocation.timestamp
     )
     
