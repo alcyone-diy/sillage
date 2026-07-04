@@ -35,6 +35,7 @@ struct SillageApp: App {
             .environment(container.panelManagerViewModel)
             .environment(container.activeTrackViewModel)
             .environment(container.barometerViewModel)
+            .environment(container.anchorViewModel)
             .environment(container.trackRecordingService)
             .environment(\.trackService, container.trackService)
             .environment(\.waypointService, container.waypointService)

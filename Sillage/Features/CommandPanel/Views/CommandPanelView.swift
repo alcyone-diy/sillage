@@ -57,16 +57,15 @@ struct CommandPanelView: View {
         
         // Zone 2: Safety
         Section(header: Text("Safety")) {
-          Button(action: {
-          }) {
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.anchorAlarm) {
             Label {
               Text("Anchor Alarm").foregroundStyle(.primary)
             } icon: {
               Image(marineIcon: .location).foregroundStyle(.blue)
             }
             .marineFont(.body)
-            .marineListCell()
-          }.tint(.primary)
+          }
+          .marineListCell()
           NavigationLink(value: PanelManagerViewModel.CommandDestination.baroAlarm) {
             Label {
               Text("Baro Alarm").foregroundStyle(.primary)
@@ -146,6 +145,8 @@ struct CommandPanelView: View {
           WaypointDetailContainer(waypointID: id)
         case .baroAlarm:
           BarometerAlarmView(viewModel: barometerViewModel)
+        case .anchorAlarm:
+          AnchorAlarmView()
         }
       }
       .handleTrackRecordingErrors()

@@ -34,6 +34,7 @@ final class AppEnvironment {
     let panelManagerViewModel: PanelManagerViewModel
     let activeTrackViewModel: ActiveTrackViewModel
     let barometerViewModel: BarometerViewModel
+    let anchorViewModel: AnchorViewModel
   }
   
   public init(metadata: AppMetadata? = nil) {
@@ -123,6 +124,7 @@ final class AppEnvironment {
         service: barometricService,
         preferencesService: preferencesService
       )
+      let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
       await trackRecordingService.attemptRecoveryIfNeeded()
       
@@ -148,7 +150,8 @@ final class AppEnvironment {
         chartViewModel: chartViewModel,
         panelManagerViewModel: panelManagerViewModel,
         activeTrackViewModel: activeTrackViewModel,
-        barometerViewModel: barometerViewModel
+        barometerViewModel: barometerViewModel,
+        anchorViewModel: anchorViewModel
       )
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")

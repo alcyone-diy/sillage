@@ -30,6 +30,7 @@ public final class PanelManagerViewModel {
     case sessionDetail(sessionID: TrackSession.ID)
     case waypointDetail(String)
     case baroAlarm
+    case anchorAlarm
   }
 
   /// The currently active panel visible to the user.
