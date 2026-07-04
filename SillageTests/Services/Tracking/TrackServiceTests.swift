@@ -49,6 +49,7 @@ struct TrackServiceTests {
     var savedLongitude: Double?
     var savedZoom: Double?
     var savedDirection: Double?
+    var savedTrackingMode: ChartTrackingMode = .northUp
     var gloveModeEnabled: Bool = false
     var hasAcceptedDisclaimer: Bool = false
     var isOpenSeaMapOverlayEnabled: Bool = false
@@ -69,6 +70,13 @@ struct TrackServiceTests {
     
     var goToWaypointID: String?
     var displayedTrackSessionID: String?
+    
+    var isBaroAlarmEnabled: Bool = false
+    var baroAlarmSensitivity: BaroAlarmSensitivity = .medium
+    var barometerOffset: Measurement<UnitPressure> = Measurement(value: 0, unit: .hectopascals)
+    
+    var savedAnchorWatch: AnchorWatch?
+    var savedAnchorStatus: AnchorStatus = .inactive
   }
   
   // MARK: - Helpers
