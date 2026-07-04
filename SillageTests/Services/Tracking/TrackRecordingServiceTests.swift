@@ -118,6 +118,7 @@ struct TrackRecordingServiceTests {
       courseOverGroundAccuracy: nil,
       speedOverGround: Measurement(value: speed, unit: .metersPerSecond),
       speedOverGroundAccuracy: nil,
+      courseState: .invalid,
       timestamp: timestamp
     )
   }

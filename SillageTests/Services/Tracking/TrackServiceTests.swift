@@ -231,6 +231,7 @@ struct TrackServiceTests {
       courseOverGroundAccuracy: nil,
       speedOverGround: Measurement(value: 5.0, unit: .metersPerSecond),
       speedOverGroundAccuracy: nil,
+      courseState: .invalid,
       timestamp: Date()
     )
     mockPositioning.emit(fix: fix)

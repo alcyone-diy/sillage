@@ -280,7 +280,13 @@ struct MapLibreView: UIViewRepresentable {
     let bearingLineFeature = viewModel.bearingLineFeature
     let anchorPointFeature = viewModel.anchorPointFeature
     let anchorRadiusFeature = viewModel.anchorRadiusFeature
-    let isDataStale = viewModel.isDataStale
+    let isDataStale: Bool
+    switch viewModel.gpsState {
+    case .stale, .lost:
+      isDataStale = true
+    case .waiting, .active:
+      isDataStale = false
+    }
     let currentSource = viewModel.currentChartSource
     let isOpenSeaMapOverlayEnabled = viewModel.isOpenSeaMapOverlayEnabled
     let trackingMode = viewModel.trackingMode
@@ -676,8 +682,15 @@ struct MapLibreView: UIViewRepresentable {
         lastAnchorPointFeature = parent.viewModel.anchorPointFeature
       }
       if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
-        layer.iconOpacity = NSExpression(forConstantValue: parent.viewModel.isDataStale ? 0.4 : 1.0)
-        lastDataStale = parent.viewModel.isDataStale
+        let isStale: Bool
+        switch parent.viewModel.gpsState {
+        case .stale, .lost:
+          isStale = true
+        case .waiting, .active:
+          isStale = false
+        }
+        layer.iconOpacity = NSExpression(forConstantValue: isStale ? 0.4 : 1.0)
+        lastDataStale = isStale
       }
       
       // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
