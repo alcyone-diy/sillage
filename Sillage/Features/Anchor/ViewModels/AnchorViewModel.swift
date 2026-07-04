@@ -13,6 +13,12 @@ import CoreLocation
 import Observation
 import OSLog
 
+public enum AnchorState: Equatable {
+  case setup
+  case dropped
+  case armed(isDragging: Bool)
+}
+
 @Observable
 @MainActor
 final class AnchorViewModel {
@@ -32,20 +38,29 @@ final class AnchorViewModel {
   
   var isSetupModeActive: Bool = false
   
-  var isAnchorDropped: Bool {
-    anchorCoordinate != nil
+  var isGPSAccuracyDegraded: Bool {
+    guard let accuracy = gpsAccuracy?.converted(to: .meters).value else { return false }
+    return accuracy > 15.0
+  }
+  
+  var state: AnchorState {
+    switch status {
+    case .armed:
+      return .armed(isDragging: false)
+    case .dragging:
+      return .armed(isDragging: true)
+    case .dropped:
+      return .dropped
+    case .inactive:
+      return .setup
+    }
   }
   
   // MARK: - Internal State
   
   private(set) var anchorCoordinate: CLLocationCoordinate2D?
-  
-  private final class TaskCancellable: @unchecked Sendable {
-    var task: Task<Void, Never>?
-    deinit { task?.cancel() }
-  }
-  private let stateUpdateTask = TaskCancellable()
-  
+  @ObservationIgnored
+  nonisolated(unsafe) private var stateUpdateTask: Task<Void, Never>?
   // MARK: - Initialization
   
   init(anchorService: AnchorService) {
@@ -55,7 +70,7 @@ final class AnchorViewModel {
       self.configuredRadius = watch.radius
       self.anchorCoordinate = watch.coordinate
     } else {
-      self.configuredRadius = Measurement(value: 25.0, unit: .meters)
+      self.configuredRadius = anchorService.defaultRadius
     }
     
     syncState()
@@ -63,8 +78,8 @@ final class AnchorViewModel {
   }
   
   private func startObservingService() {
-    stateUpdateTask.task?.cancel()
-    stateUpdateTask.task = Task { [weak self] in
+    stateUpdateTask?.cancel()
+    stateUpdateTask = Task { [weak self] in
       guard let anchorService = self?.anchorService else { return }
       for await _ in anchorService.stateUpdates {
         guard !Task.isCancelled else { break }
@@ -78,6 +93,12 @@ final class AnchorViewModel {
     self.sog = anchorService.latestFix?.speedOverGround
     self.gpsAccuracy = anchorService.gpsAccuracy
     self.status = anchorService.status
+    
+    if let watch = anchorService.activeWatch {
+      self.anchorCoordinate = watch.coordinate
+    } else {
+      self.anchorCoordinate = nil
+    }
     
     self.isAlertSilenced = anchorService.isMuted
   }
@@ -93,13 +114,14 @@ final class AnchorViewModel {
     
     let accuracy = fix.horizontalAccuracy.converted(to: .meters).value
     if accuracy > 20.0 {
-      self.anchorDropError = String(localized: "GPS signal too weak (Accuracy: \(Int(accuracy))m > 20m).")
-      Logger.anchor.warning("Refused to drop anchor: poor accuracy (\(accuracy)m).")
-      return
+      self.anchorDropError = String(localized: "Poor GPS accuracy: \(Int(accuracy))m")
+      Logger.anchor.warning("Poor GPS accuracy (\(accuracy)m) when dropping anchor.")
+    } else {
+      self.anchorDropError = nil
     }
     
-    self.anchorDropError = nil
     self.anchorCoordinate = fix.coordinate
+    anchorService.drop(coordinate: fix.coordinate, radius: configuredRadius)
     Logger.anchor.info("Anchor dropped at current location. Ready to arm.")
   }
   
@@ -107,11 +129,12 @@ final class AnchorViewModel {
     Logger.anchor.info("Canceling anchor drop before arming.")
     self.anchorCoordinate = nil
     self.anchorDropError = nil
+    anchorService.clear()
   }
   
   func incrementRadius() {
     let currentVal = configuredRadius.converted(to: .meters).value
-    let newVal = min(currentVal + 5.0, 200.0)
+    let newVal = min(currentVal + 5.0, 500.0)
     updateRadius(to: newVal)
   }
   
@@ -124,12 +147,10 @@ final class AnchorViewModel {
   private func updateRadius(to valueInMeters: Double) {
     let newRadius = Measurement(value: valueInMeters, unit: UnitLength.meters)
     self.configuredRadius = newRadius
+    anchorService.defaultRadius = newRadius
     
-    // If the alarm is already armed, apply the new radius to the active watch
     if anchorService.status != .inactive {
-      if let coord = anchorService.activeWatch?.coordinate {
-        anchorService.arm(coordinate: coord, radius: newRadius)
-      }
+      anchorService.update(radius: newRadius)
     }
   }
   
@@ -145,11 +166,14 @@ final class AnchorViewModel {
   func disarmAlarm() {
     Logger.anchor.info("Disarming anchor alarm from ViewModel.")
     anchorService.disarm()
-    self.anchorCoordinate = nil
   }
   
   func silenceAlert() {
     Logger.anchor.info("Silencing anchor alert from ViewModel.")
     anchorService.silenceAlarm()
+  }
+  
+  deinit {
+    stateUpdateTask?.cancel()
   }
 }

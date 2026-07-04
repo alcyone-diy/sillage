@@ -47,6 +47,7 @@ protocol PreferencesServiceProtocol {
   // MARK: - Anchor Watch Settings
   var savedAnchorWatch: AnchorWatch? { get set }
   var savedAnchorStatus: AnchorStatus { get set }
+  var savedAnchorRadius: Measurement<UnitLength> { get set }
 }
 
 @Observable
@@ -75,6 +76,7 @@ class PreferencesService: PreferencesServiceProtocol {
   
   @ObservationIgnored private let savedAnchorWatchDataKey = "savedAnchorWatchData"
   @ObservationIgnored private let savedAnchorStatusKey = "savedAnchorStatus"
+  @ObservationIgnored private let savedAnchorRadiusMetersKey = "savedAnchorRadiusMeters"
 
   @ObservationIgnored private let defaults = UserDefaults.standard
 
@@ -197,6 +199,15 @@ class PreferencesService: PreferencesServiceProtocol {
     get { AnchorStatus(rawValue: rawAnchorStatus) ?? .inactive }
     set { rawAnchorStatus = newValue.rawValue }
   }
+  
+  private var rawAnchorRadiusMeters: Double {
+    didSet { defaults.set(rawAnchorRadiusMeters, forKey: savedAnchorRadiusMetersKey) }
+  }
+  
+  var savedAnchorRadius: Measurement<UnitLength> {
+    get { Measurement(value: rawAnchorRadiusMeters, unit: .meters) }
+    set { rawAnchorRadiusMeters = newValue.converted(to: .meters).value }
+  }
 
   init() {
     self.savedChartSource = defaults.string(forKey: chartSourceKey)
@@ -224,6 +235,7 @@ class PreferencesService: PreferencesServiceProtocol {
     self.rawBarometerOffsetHPa = defaults.object(forKey: barometerOffsetHPaKey) as? Double ?? 0.0
     
     self.rawAnchorStatus = defaults.string(forKey: savedAnchorStatusKey) ?? AnchorStatus.inactive.rawValue
+    self.rawAnchorRadiusMeters = defaults.object(forKey: savedAnchorRadiusMetersKey) as? Double ?? 25.0
   }
 
   func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double) {

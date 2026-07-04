@@ -25,6 +25,11 @@ final class AnchorService {
   private(set) var status: AnchorStatus = .inactive
   private(set) var isMuted: Bool = false
   
+  var defaultRadius: Measurement<UnitLength> {
+    get { preferencesService.savedAnchorRadius }
+    set { preferencesService.savedAnchorRadius = newValue }
+  }
+  
   private(set) var latestFix: NavigationFix?
   private(set) var currentDistance: Measurement<UnitLength>?
   private(set) var gpsAccuracy: Measurement<UnitLength>?
@@ -81,6 +86,28 @@ final class AnchorService {
     startListeningToGPS()
   }
   
+  func drop(coordinate: CLLocationCoordinate2D, radius: Measurement<UnitLength>) {
+    Logger.anchor.info("⚓️ Dropping anchor at \(coordinate.latitude), \(coordinate.longitude)")
+    self.activeWatch = AnchorWatch(coordinate: coordinate, radius: radius)
+    self.status = .dropped
+    self.isMuted = false
+    persistState()
+    
+    if backgroundToken == nil {
+      backgroundToken = positioningService.requestBackgroundLocation()
+    }
+    
+    notifyStateChange()
+  }
+  
+  func update(radius: Measurement<UnitLength>) {
+    guard let watch = activeWatch else { return }
+    Logger.anchor.info("⚓️ Updating anchor radius to \(radius.value) \(radius.unit.symbol)")
+    self.activeWatch = AnchorWatch(coordinate: watch.coordinate, radius: radius)
+    persistState()
+    notifyStateChange()
+  }
+
   func arm(coordinate: CLLocationCoordinate2D, radius: Measurement<UnitLength>) {
     Logger.anchor.info("⚓️ Arming anchor watch. Radius: \(radius.value) \(radius.unit.symbol)")
     
@@ -106,7 +133,19 @@ final class AnchorService {
   }
   
   func disarm() {
-    Logger.anchor.info("⚓️ Disarming anchor watch.")
+    Logger.anchor.info("⚓️ Disarming anchor watch (reverting to dropped state).")
+    
+    self.status = .dropped
+    self.isMuted = false
+    persistState()
+    
+    notificationService.clearDeliveredNotifications()
+    
+    notifyStateChange()
+  }
+  
+  func clear() {
+    Logger.anchor.info("⚓️ Clearing anchor watch completely.")
     
     self.activeWatch = nil
     self.status = .inactive
@@ -178,7 +217,7 @@ final class AnchorService {
     }
     
     if distanceInMeters > radiusInMeters {
-      if status != .dragging {
+      if status == .armed {
         triggerAlarm(distance: distanceInMeters, radius: radiusInMeters)
       }
     } else {

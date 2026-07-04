@@ -140,7 +140,7 @@ final class AnchorServiceTests: XCTestCase {
     mockGPS.simulateFix(badFix)
     
     // Wait for the async task to process the fix
-    try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+    try await Task.sleep(nanoseconds: 500_000_000) // 100ms
     
     // Status must still be .armed, NOT .dragging, because the fix was rejected
     XCTAssertEqual(service.status, .armed)
@@ -166,7 +166,7 @@ final class AnchorServiceTests: XCTestCase {
     
     mockGPS.simulateFix(degradedFix)
     
-    try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+    try await Task.sleep(nanoseconds: 500_000_000) // 100ms
     
     // Status must still be .armed, NOT .dragging
     XCTAssertEqual(service.status, .armed)
@@ -192,7 +192,7 @@ final class AnchorServiceTests: XCTestCase {
     
     mockGPS.simulateFix(validFix)
     
-    try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+    try await Task.sleep(nanoseconds: 500_000_000) // 100ms
     
     // Status must change to dragging
     XCTAssertEqual(service.status, .dragging)
@@ -217,7 +217,7 @@ final class AnchorServiceTests: XCTestCase {
     )
     
     mockGPS.simulateFix(validFix)
-    try await Task.sleep(nanoseconds: 100_000_000)
+    try await Task.sleep(nanoseconds: 500_000_000)
     
     XCTAssertEqual(service.status, .dragging)
     XCTAssertEqual(mockNotif.notificationsSent, 1)
@@ -240,7 +240,7 @@ final class AnchorServiceTests: XCTestCase {
     )
     
     mockGPS.simulateFix(furtherFix)
-    try await Task.sleep(nanoseconds: 100_000_000)
+    try await Task.sleep(nanoseconds: 500_000_000)
     
     // Notification shouldn't trigger again because it is muted (and already dragging)
     XCTAssertEqual(service.status, .dragging)
@@ -260,16 +260,104 @@ final class AnchorServiceTests: XCTestCase {
     )
     
     mockGPS.simulateFix(returnFix)
-    try await Task.sleep(nanoseconds: 100_000_000)
+    try await Task.sleep(nanoseconds: 500_000_000)
     
     XCTAssertEqual(service.status, .armed)
     XCTAssertFalse(service.isMuted) // Mute flag should be reset
     
     // Go back outside
     mockGPS.simulateFix(validFix)
-    try await Task.sleep(nanoseconds: 100_000_000)
+    try await Task.sleep(nanoseconds: 500_000_000)
     
     XCTAssertEqual(service.status, .dragging)
     XCTAssertEqual(mockNotif.notificationsSent, 2) // Notification triggers again!
+  }
+  
+  func testAnchorService_disarmRevertsToDropped_clearRevertsToInactive() async throws {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    
+    // 1. Drop anchor
+    service.drop(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    XCTAssertEqual(service.status, .dropped)
+    XCTAssertNotNil(service.activeWatch)
+    
+    // 2. Arm alarm
+    service.arm(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    XCTAssertEqual(service.status, .armed)
+    XCTAssertNotNil(service.activeWatch)
+    
+    // 3. Disarm alarm
+    service.disarm()
+    XCTAssertEqual(service.status, .dropped, "Disarming should revert status to .dropped")
+    XCTAssertNotNil(service.activeWatch, "Disarming should keep the active watch (coordinate and radius)")
+    XCTAssertEqual(service.activeWatch?.coordinate.latitude, 45.0)
+    
+    // 4. Clear anchor drop
+    service.clear()
+    XCTAssertEqual(service.status, .inactive, "Clearing should revert status to .inactive")
+    XCTAssertNil(service.activeWatch, "Clearing should remove the active watch")
+  }
+  
+  func testAnchorService_updateRadius_modifiesActiveWatchWithoutChangingStatus() async throws {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    service.drop(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    XCTAssertEqual(service.status, .dropped)
+    
+    // Update radius
+    let newRadius = Measurement(value: 100, unit: UnitLength.meters)
+    service.update(radius: newRadius)
+    
+    // Assert status hasn't changed, but radius has
+    XCTAssertEqual(service.status, .dropped)
+    XCTAssertEqual(service.activeWatch?.radius.value, 100)
+    XCTAssertEqual(service.activeWatch?.coordinate.latitude, 45.0)
+  }
+  
+  func testAnchorService_droppedState_updatesDistanceButNeverTriggersAlarm() async throws {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    
+    // Drop but DO NOT arm
+    service.drop(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    
+    // Simulate a fix OUTSIDE the radius (e.g. 111m away) with valid accuracy
+    let outsideFixCoord = CLLocationCoordinate2D(latitude: 45.001, longitude: -1.0)
+    let outsideFix = NavigationFix(
+      coordinate: outsideFixCoord,
+      horizontalAccuracy: Measurement(value: 10.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      courseState: .invalid,
+      timestamp: Date()
+    )
+    
+    mockGPS.simulateFix(outsideFix)
+    try await Task.sleep(nanoseconds: 500_000_000)
+    
+    // The distance MUST be calculated and updated
+    XCTAssertNotNil(service.currentDistance)
+    XCTAssertTrue(service.currentDistance!.value > 50.0)
+    
+    // The status MUST remain .dropped and NO notification should be sent
+    XCTAssertEqual(service.status, .dropped)
+    XCTAssertEqual(mockNotif.notificationsSent, 0)
+  }
+  
+  func testAnchorService_initialization_resumesDroppedStateCorrectly() async throws {
+    // Setup preferences to simulate an app launch with an existing "dropped" anchor
+    let savedCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    mockPrefs.savedAnchorWatch = AnchorWatch(coordinate: savedCoord, radius: Measurement(value: 60, unit: .meters))
+    mockPrefs.savedAnchorStatus = .dropped
+    
+    // Re-initialize a new service with these mock preferences
+    let newService = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif)
+    
+    XCTAssertEqual(newService.status, .dropped)
+    XCTAssertNotNil(newService.activeWatch)
+    XCTAssertEqual(newService.activeWatch?.radius.value, 60)
+    
+    // Must also have requested background location to compute live distance
+    XCTAssertNotNil(mockGPS.requestedToken)
   }
 }

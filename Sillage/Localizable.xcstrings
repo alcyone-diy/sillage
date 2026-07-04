@@ -67,6 +67,9 @@
     "Active Track" : {
 
     },
+    "Alarm Armed" : {
+
+    },
     "Alcyone Sillage" : {
 
     },
@@ -88,6 +91,9 @@
     "Anchor Dropped" : {
 
     },
+    "Anchor:" : {
+
+    },
     "App Information" : {
 
     },
@@ -98,9 +104,6 @@
 
     },
     "Arm Alarm" : {
-
-    },
-    "ARMED" : {
 
     },
     "Authentication failed. Please check your network connection or credentials." : {
@@ -122,9 +125,6 @@
 
     },
     "Cancel" : {
-
-    },
-    "CANCEL" : {
 
     },
     "Cancel Navigation" : {
@@ -205,10 +205,10 @@
     "DISTANCE" : {
 
     },
-    "DRAGGING ANCHOR" : {
+    "DRAGGING ALERT" : {
 
     },
-    "DRAGGING!" : {
+    "DRAGGING ANCHOR" : {
 
     },
     "Drop Anchor" : {
@@ -293,9 +293,6 @@
 
     },
     "GPS Information" : {
-
-    },
-    "GPS signal too weak (Accuracy: %lldm > 20m)." : {
 
     },
     "GPS State" : {
@@ -451,6 +448,9 @@
     "Points" : {
 
     },
+    "Poor GPS accuracy: %lldm" : {
+
+    },
     "Position" : {
 
     },
@@ -508,7 +508,7 @@
     "Settings" : {
 
     },
-    "Setup Anchor" : {
+    "Setup" : {
 
     },
     "Show" : {
@@ -521,6 +521,9 @@
 
     },
     "SILENCE ALERT" : {
+
+    },
+    "SLIDE TO CANCEL" : {
 
     },
     "SLIDE TO DISARM" : {
