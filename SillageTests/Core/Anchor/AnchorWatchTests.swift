@@ -12,6 +12,7 @@ import XCTest
 import CoreLocation
 @testable import Sillage
 
+@MainActor
 final class AnchorWatchTests: XCTestCase {
   
   func testAnchorWatchSerialization_withValidData() throws {
