@@ -75,6 +75,8 @@ class ChartViewModel {
   var visibleWaypointFeatures: MLNShapeCollectionFeature?
   var bearingLineFeature: MLNPolylineFeature?
   var goToWaypointID: String?
+  var anchorPointFeature: MLNPointFeature?
+  var anchorRadiusFeature: MLNPolygonFeature?
   var displayedTrackSessionID: String? {
     didSet {
       preferencesService.displayedTrackSessionID = displayedTrackSessionID
@@ -90,6 +92,8 @@ class ChartViewModel {
   private var preferencesService: PreferencesServiceProtocol
   private let authService: GeoGarageAuthServiceProtocol
   private let waypointService: WaypointService?
+  private let anchorService: AnchorService
+  private let anchorViewModel: AnchorViewModel
   
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
   /// when the ViewModel is deallocated, adhering to Swift 6 strict concurrency rules
@@ -99,6 +103,7 @@ class ChartViewModel {
   private var observationTask: TaskCancellable?
   private var waypointSelectionTask: TaskCancellable?
   private var waypointsObservationTask: TaskCancellable?
+  private var anchorObservationTask: TaskCancellable?
   
   // MARK: - Camera Multicast Stream
   
@@ -130,17 +135,22 @@ class ChartViewModel {
     positioningService: PositioningService,
     preferencesService: PreferencesServiceProtocol,
     authService: GeoGarageAuthServiceProtocol,
+    anchorService: AnchorService,
+    anchorViewModel: AnchorViewModel,
     waypointService: WaypointService? = nil
   ) {
     self.positioningService = positioningService
     self.preferencesService = preferencesService
     self.authService = authService
+    self.anchorService = anchorService
+    self.anchorViewModel = anchorViewModel
     self.waypointService = waypointService
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
     
     loadSavedChartSource()
     setupPositioningService()
     setupWaypointService()
+    setupAnchorService()
     silentlyFetchGeoGarageLayers()
     startObservingLocalCharts()
     observePreferences()
@@ -349,6 +359,90 @@ class ChartViewModel {
     }
   }
   
+  // MARK: - Anchor Observation
+  
+  private func setupAnchorService() {
+    anchorObservationTask = TaskCancellable(Task { [weak self] in
+      // Process initial state safely without persistent strong capture
+      await MainActor.run { self?.handleAnchorStateChange() }
+      
+      guard let stateUpdates = self?.anchorService.stateUpdates else { return }
+      
+      for await _ in stateUpdates {
+        guard !Task.isCancelled else { break }
+        await MainActor.run { [weak self] in
+          self?.handleAnchorStateChange()
+        }
+      }
+    })
+    
+    func observeSetupMode() {
+      withObservationTracking {
+        _ = anchorViewModel.isSetupModeActive
+        _ = anchorViewModel.configuredRadius
+        _ = anchorViewModel.anchorCoordinate
+      } onChange: { [weak self] in
+        Task { @MainActor [weak self] in
+          guard let self = self else { return }
+          self.handleAnchorStateChange()
+          observeSetupMode()
+        }
+      }
+    }
+    observeSetupMode()
+  }
+  
+  private func handleAnchorStateChange() {
+    let status = anchorService.status
+    
+    if status == .inactive {
+      let isDropped = anchorViewModel.anchorCoordinate != nil
+      if anchorViewModel.isSetupModeActive || isDropped {
+        if let coord = anchorViewModel.anchorCoordinate ?? currentCoordinate ?? lastKnownNavigationFix?.coordinate {
+          // Setup Preview Point
+          let pointFeature = MLNPointFeature()
+          pointFeature.coordinate = coord
+          pointFeature.attributes = ["color": UIColor(MarineTheme.Colors.anchorPoint).withAlphaComponent(isDropped ? 1.0 : 0.5)]
+          self.anchorPointFeature = pointFeature
+          
+          // Setup Preview Radius Polygon
+          if let polygonCoords = coord.circularPolygon(radius: anchorViewModel.configuredRadius) {
+            var coords = polygonCoords
+            let polygonFeature = MLNPolygonFeature(coordinates: &coords, count: UInt(coords.count))
+            polygonFeature.attributes = ["fillColor": UIColor(MarineTheme.Colors.anchorPoint), "opacity": 0.15]
+            self.anchorRadiusFeature = polygonFeature
+          }
+        } else {
+          anchorPointFeature = nil
+          anchorRadiusFeature = nil
+        }
+      } else {
+        anchorPointFeature = nil
+        anchorRadiusFeature = nil
+      }
+      return
+    }
+    
+    guard let watch = anchorService.activeWatch else { return }
+    
+    // Setup Point
+    let pointFeature = MLNPointFeature()
+    pointFeature.coordinate = watch.coordinate
+    // Using MarineTheme for the anchor point
+    pointFeature.attributes = ["color": UIColor(MarineTheme.Colors.anchorPoint)]
+    self.anchorPointFeature = pointFeature
+    
+    // Setup Radius Polygon
+    if let polygonCoords = watch.coordinate.circularPolygon(radius: watch.radius) {
+      var coords = polygonCoords
+      let polygonFeature = MLNPolygonFeature(coordinates: &coords, count: UInt(coords.count))
+      
+      let baseColor = (status == .dragging) ? UIColor(MarineTheme.Colors.anchorDragging) : UIColor(MarineTheme.Colors.anchorArmed)
+      polygonFeature.attributes = ["fillColor": baseColor, "opacity": 0.3]
+      self.anchorRadiusFeature = polygonFeature
+    }
+  }
+  
   // MARK: - Location Handling
   
   /// Subscribes to the positioning service stream, applying a 1-second throttle to UI updates to prevent overloading.
@@ -432,6 +526,11 @@ class ChartViewModel {
         continuation.yield(event)
       }
     }
+    
+    // Update Anchor preview if in setup mode
+    if anchorViewModel.isSetupModeActive {
+      handleAnchorStateChange()
+    }
   }
   
   /// Generates a single, time-based predictive vector with optional point features serving as time ticks.
@@ -501,11 +600,12 @@ class ChartViewModel {
   
   /// Generates a circle polygon around the user's location indicating GPS horizontal accuracy.
   private func generateAccuracyFeature(for navigationFix: NavigationFix) -> MLNPolygonFeature? {
-    let accuracyMeasurement = navigationFix.horizontalAccuracy
-    guard var accuracyCoords = navigationFix.coordinate.accuracyPolygon(radius: accuracyMeasurement) else {
+    let accuracy = navigationFix.horizontalAccuracy.converted(to: .meters).value
+    // Generate a circular polygon feature for the GPS accuracy to map correctly visually
+    let accuracyMeasurement = Measurement(value: accuracy, unit: UnitLength.meters)
+    guard var accuracyCoords = navigationFix.coordinate.circularPolygon(radius: accuracyMeasurement) else {
       return nil
     }
-    
     return MLNPolygonFeature(coordinates: &accuracyCoords, count: UInt(accuracyCoords.count))
   }
   

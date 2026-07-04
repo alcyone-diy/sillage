@@ -23,6 +23,7 @@ final class AnchorService {
   
   private(set) var activeWatch: AnchorWatch?
   private(set) var status: AnchorStatus = .inactive
+  private(set) var isMuted: Bool = false
   
   private(set) var latestFix: NavigationFix?
   private(set) var currentDistance: Measurement<UnitLength>?
@@ -86,7 +87,16 @@ final class AnchorService {
     let watch = AnchorWatch(coordinate: coordinate, radius: radius)
     self.activeWatch = watch
     self.status = .armed
+    self.isMuted = false
     persistState()
+    
+    Task {
+      do {
+        try await notificationService.requestCriticalAuthorization()
+      } catch {
+        Logger.anchor.error("Failed to request critical notification authorization: \(error)")
+      }
+    }
     
     if backgroundToken == nil {
       backgroundToken = positioningService.requestBackgroundLocation()
@@ -100,14 +110,25 @@ final class AnchorService {
     
     self.activeWatch = nil
     self.status = .inactive
+    self.isMuted = false
     persistState()
     self.currentDistance = nil
+    
+    notificationService.clearDeliveredNotifications()
     
     backgroundToken?.invalidate()
     backgroundToken = nil
     
     notifyStateChange()
   }
+  
+  func silenceAlarm() {
+    Logger.anchor.info("⚓️ Silencing anchor alarm notifications.")
+    isMuted = true
+    notificationService.clearDeliveredNotifications()
+    notifyStateChange()
+  }
+  
   private func resumeWatch() {
     Logger.anchor.info("⚓️ Resuming anchor watch from persisted state.")
     if backgroundToken == nil {
@@ -164,6 +185,7 @@ final class AnchorService {
       if status == .dragging {
         Logger.anchor.info("⚓️ Vessel returned within anchor radius.")
         status = .armed
+        isMuted = false
         persistState()
       }
     }
@@ -177,13 +199,15 @@ final class AnchorService {
     status = .dragging
     persistState()
     
-    Task { [weak self] in
-      guard let self = self else { return }
-      await self.notificationService.sendNotification(
-        title: String(localized: "⚓️ Anchor Dragging"),
-        body: String(localized: "Vessel is out of the safe zone (\(Int(distance))m)."),
-        identifier: "AnchorDraggingAlarm"
-      )
+    if !isMuted {
+      Task { [weak self] in
+        guard let self = self else { return }
+        await self.notificationService.sendCriticalNotification(
+          title: String(localized: "⚓️ DRAGGING ANCHOR!"),
+          body: String(localized: "Vessel is out of the safe zone (\(Int(distance))m)."),
+          identifier: "AnchorDraggingAlarm"
+        )
+      }
     }
     
     notifyStateChange()

@@ -20,6 +20,7 @@ struct ContentView: View {
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(\.waypointService) private var waypointService
+  @Environment(AnchorViewModel.self) private var anchorViewModel
 
   @State private var localSheetPresented: Bool = false
 
@@ -183,6 +184,16 @@ struct ContentView: View {
           )
         }
       }
+    }
+    .fullScreenCover(
+      isPresented: Binding(
+        get: { anchorViewModel.status == .dragging },
+        set: { _ in }
+      )
+    ) {
+      AnchorAlertView()
+        .environment(anchorViewModel)
+        .environment(\.marineTheme, appViewModel.marineTheme)
     }
   }
 

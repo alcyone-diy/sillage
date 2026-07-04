@@ -28,10 +28,13 @@
     "%@°" : {
 
     },
+    "%lldm" : {
+
+    },
     "°" : {
 
     },
-    "⚓️ Anchor Dragging" : {
+    "⚓️ DRAGGING ANCHOR!" : {
 
     },
     "1 hr" : {
@@ -68,6 +71,9 @@
 
     },
     "Alert Level" : {
+
+    },
+    "ALERT SILENCED" : {
 
     },
     "Anchor Alarm" : {
@@ -175,7 +181,16 @@
     "Details" : {
 
     },
+    "DISARM ANCHOR" : {
+
+    },
     "Distance" : {
+
+    },
+    "DISTANCE" : {
+
+    },
+    "DRAGGING ANCHOR" : {
 
     },
     "DRAGGING!" : {
@@ -311,6 +326,9 @@
 
     },
     "Length" : {
+
+    },
+    "LIMIT" : {
 
     },
     "Loading marine charts…" : {
@@ -476,6 +494,9 @@
 
     },
     "Show Time Ticks" : {
+
+    },
+    "SILENCE ALERT" : {
 
     },
     "SLIDE TO DISARM" : {

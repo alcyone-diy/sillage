@@ -99,6 +99,10 @@ struct MapLibreView: UIViewRepresentable {
     let visibleWaypointsLayerID = "visible-waypoints-layer"
     let bearingLineSourceID = "bearing-line-source"
     let bearingLineLayerID = "bearing-line-layer"
+    let anchorRadiusSourceID = "anchor-radius-source"
+    let anchorRadiusLayerID = "anchor-radius-layer"
+    let anchorPointSourceID = "anchor-point-source"
+    let anchorPointLayerID = "anchor-point-layer"
     
     if style.source(withIdentifier: vesselSourceID) == nil {
       // Create GPS Accuracy Source and Layers first so they are beneath the heading vector and vessel
@@ -187,6 +191,32 @@ struct MapLibreView: UIViewRepresentable {
       vesselLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
       vesselLayer.iconOpacity = NSExpression(forConstantValue: 1.0)
       style.addLayer(vesselLayer)
+      
+      // Create Anchor Layers (below vessel but above GPS accuracy/tracks)
+      let anchorRadiusSource = MLNShapeSource(identifier: anchorRadiusSourceID, shape: nil, options: nil)
+      style.addSource(anchorRadiusSource)
+      
+      let anchorRadiusLayer = MLNFillStyleLayer(identifier: anchorRadiusLayerID, source: anchorRadiusSource)
+      anchorRadiusLayer.fillColor = NSExpression(forKeyPath: "fillColor")
+      anchorRadiusLayer.fillOpacity = NSExpression(forKeyPath: "opacity")
+      style.insertLayer(anchorRadiusLayer, below: vesselLayer)
+      
+      let anchorRadiusStrokeLayer = MLNLineStyleLayer(identifier: "anchor-radius-stroke-layer", source: anchorRadiusSource)
+      anchorRadiusStrokeLayer.lineColor = NSExpression(forKeyPath: "fillColor")
+      anchorRadiusStrokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
+      anchorRadiusStrokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
+      style.insertLayer(anchorRadiusStrokeLayer, above: anchorRadiusLayer)
+      
+      let anchorPointSource = MLNShapeSource(identifier: anchorPointSourceID, shape: nil, options: nil)
+      style.addSource(anchorPointSource)
+      
+      let anchorPointLayer = MLNSymbolStyleLayer(identifier: anchorPointLayerID, source: anchorPointSource)
+      anchorPointLayer.iconImageName = NSExpression(forConstantValue: "anchor-icon")
+      anchorPointLayer.iconColor = NSExpression(forKeyPath: "color")
+      anchorPointLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
+      anchorPointLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
+      anchorPointLayer.iconScale = NSExpression(forConstantValue: 1.0)
+      style.insertLayer(anchorPointLayer, above: anchorRadiusStrokeLayer)
     }
   }
   
@@ -248,6 +278,8 @@ struct MapLibreView: UIViewRepresentable {
     let visibleWaypointFeatures = viewModel.visibleWaypointFeatures
     let goToWaypointFeature = viewModel.goToWaypointFeature
     let bearingLineFeature = viewModel.bearingLineFeature
+    let anchorPointFeature = viewModel.anchorPointFeature
+    let anchorRadiusFeature = viewModel.anchorRadiusFeature
     let isDataStale = viewModel.isDataStale
     let currentSource = viewModel.currentChartSource
     let isOpenSeaMapOverlayEnabled = viewModel.isOpenSeaMapOverlayEnabled
@@ -321,6 +353,22 @@ struct MapLibreView: UIViewRepresentable {
         if let source = style.source(withIdentifier: "bearing-line-source") as? MLNShapeSource {
           source.shape = bearingLineFeature
           context.coordinator.lastBearingLineFeature = bearingLineFeature
+        }
+      }
+      
+      // Anchor Radius update
+      if anchorRadiusFeature !== context.coordinator.lastAnchorRadiusFeature {
+        if let source = style.source(withIdentifier: "anchor-radius-source") as? MLNShapeSource {
+          source.shape = anchorRadiusFeature
+          context.coordinator.lastAnchorRadiusFeature = anchorRadiusFeature
+        }
+      }
+      
+      // Anchor Point update
+      if anchorPointFeature !== context.coordinator.lastAnchorPointFeature {
+        if let source = style.source(withIdentifier: "anchor-point-source") as? MLNShapeSource {
+          source.shape = anchorPointFeature
+          context.coordinator.lastAnchorPointFeature = anchorPointFeature
         }
       }
       
@@ -433,6 +481,8 @@ struct MapLibreView: UIViewRepresentable {
     var lastVisibleWaypointFeatures: MLNShape?
     var lastGoToWaypointFeature: MLNShape?
     var lastBearingLineFeature: MLNShape?
+    var lastAnchorPointFeature: MLNShape?
+    var lastAnchorRadiusFeature: MLNShape?
     
     var lastActiveTrackCount: Int?
     var lastActiveTrackTimestamp: Date?
@@ -570,6 +620,12 @@ struct MapLibreView: UIViewRepresentable {
         style.setImage(image, forName: "vessel-cursor")
       }
       
+      // Add anchor icon
+      let anchorConfig = UIImage.SymbolConfiguration(weight: .heavy)
+      if let anchorImage = UIImage(systemName: "anchor", withConfiguration: anchorConfig)?.withRenderingMode(.alwaysTemplate) {
+        style.setImage(anchorImage, forName: "anchor-icon")
+      }
+      
       if let currentSource = parent.viewModel.currentChartSource {
         updateChartSource(currentSource, style: style, mapView: mapView)
       }
@@ -610,6 +666,14 @@ struct MapLibreView: UIViewRepresentable {
       if let source = style.source(withIdentifier: "bearing-line-source") as? MLNShapeSource {
         source.shape = parent.viewModel.bearingLineFeature
         lastBearingLineFeature = parent.viewModel.bearingLineFeature
+      }
+      if let source = style.source(withIdentifier: "anchor-radius-source") as? MLNShapeSource {
+        source.shape = parent.viewModel.anchorRadiusFeature
+        lastAnchorRadiusFeature = parent.viewModel.anchorRadiusFeature
+      }
+      if let source = style.source(withIdentifier: "anchor-point-source") as? MLNShapeSource {
+        source.shape = parent.viewModel.anchorPointFeature
+        lastAnchorPointFeature = parent.viewModel.anchorPointFeature
       }
       if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
         layer.iconOpacity = NSExpression(forConstantValue: parent.viewModel.isDataStale ? 0.4 : 1.0)
