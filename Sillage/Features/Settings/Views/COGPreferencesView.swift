@@ -47,5 +47,6 @@ struct COGPreferencesView: View {
     .navigationTitle("Predictor Vector")
     .navigationBarTitleDisplayMode(.inline)
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+    .marineListBackground()
   }
 }

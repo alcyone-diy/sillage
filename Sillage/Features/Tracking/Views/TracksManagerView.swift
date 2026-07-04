@@ -22,8 +22,7 @@ struct TracksManagerView: View {
       TrackListView()
     }
     .listStyle(.insetGrouped)
-    .scrollContentBackground(.hidden)
-    .background(MarineTheme.Colors.panelBackground)
+    .marineListBackground()
     .handleTrackRecordingErrors()
     .navigationTitle("Track Manager")
     .navigationBarTitleDisplayMode(.inline)

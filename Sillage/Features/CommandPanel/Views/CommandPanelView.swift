@@ -110,8 +110,7 @@ struct CommandPanelView: View {
       }
       .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
       .listStyle(.insetGrouped)
-      .scrollContentBackground(.hidden)
-      .background(MarineTheme.Colors.panelBackground)
+      .marineListBackground()
       .navigationTitle("Command Panel")
       .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(for: PanelManagerViewModel.CommandDestination.self) { destination in

@@ -130,8 +130,7 @@ public struct BarometerAlarmView: View {
             }
             .listRowBackground(MarineTheme.Colors.surfaceBackground)
         }
-        .scrollContentBackground(.hidden)
-        .background(MarineTheme.Colors.panelBackground)
+        .marineListBackground()
         .navigationTitle("Barometer Alarm")
         .task(id: viewModel.service.lastHistoryUpdate) {
             // Automatically re-evaluates and refreshes the history chart 

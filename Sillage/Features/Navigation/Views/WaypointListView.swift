@@ -72,8 +72,7 @@ struct WaypointListView: View {
       }
     }
     .listStyle(.insetGrouped)
-    .scrollContentBackground(.hidden)
-    .background(MarineTheme.Colors.panelBackground)
+    .marineListBackground()
     .navigationTitle("Waypoints")
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
