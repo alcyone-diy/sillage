@@ -95,8 +95,15 @@ final class MockNotificationService: NotificationService {
   func sendNotification(title: String, body: String, identifier: String) async {
     notificationsSent += 1
   }
+  
+  func requestCriticalAuthorization() async throws -> Bool { return true }
+  
+  func sendCriticalNotification(title: String, body: String, identifier: String) async {
+    notificationsSent += 1
+  }
+  
+  func clearDeliveredNotifications() {}
 }
-
 @MainActor
 final class AnchorServiceTests: XCTestCase {
   
@@ -187,5 +194,76 @@ final class AnchorServiceTests: XCTestCase {
     // Status must change to dragging
     XCTAssertEqual(service.status, .dragging)
     XCTAssertEqual(mockNotif.notificationsSent, 1)
+  }
+  
+  func testAnchorService_silenceAlarm_preventsNotifications_and_resetsOnReturn() async throws {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    service.arm(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    
+    // Simulate valid fix outside radius
+    let validFixCoord = CLLocationCoordinate2D(latitude: 45.001, longitude: -1.0) // ~111m away
+    let validFix = NavigationFix(
+      coordinate: validFixCoord,
+      horizontalAccuracy: Measurement(value: 10.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    
+    mockGPS.simulateFix(validFix)
+    try await Task.sleep(nanoseconds: 100_000_000)
+    
+    XCTAssertEqual(service.status, .dragging)
+    XCTAssertEqual(mockNotif.notificationsSent, 1)
+    
+    // Silence the alarm
+    service.silenceAlarm()
+    XCTAssertTrue(service.isMuted)
+    
+    // Simulate another fix outside the radius
+    let furtherFixCoord = CLLocationCoordinate2D(latitude: 45.002, longitude: -1.0)
+    let furtherFix = NavigationFix(
+      coordinate: furtherFixCoord,
+      horizontalAccuracy: Measurement(value: 10.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    
+    mockGPS.simulateFix(furtherFix)
+    try await Task.sleep(nanoseconds: 100_000_000)
+    
+    // Notification shouldn't trigger again because it is muted (and already dragging)
+    XCTAssertEqual(service.status, .dragging)
+    XCTAssertEqual(mockNotif.notificationsSent, 1)
+    
+    // Return inside radius
+    let returnFixCoord = CLLocationCoordinate2D(latitude: 45.0001, longitude: -1.0) // ~11m away
+    let returnFix = NavigationFix(
+      coordinate: returnFixCoord,
+      horizontalAccuracy: Measurement(value: 10.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    
+    mockGPS.simulateFix(returnFix)
+    try await Task.sleep(nanoseconds: 100_000_000)
+    
+    XCTAssertEqual(service.status, .armed)
+    XCTAssertFalse(service.isMuted) // Mute flag should be reset
+    
+    // Go back outside
+    mockGPS.simulateFix(validFix)
+    try await Task.sleep(nanoseconds: 100_000_000)
+    
+    XCTAssertEqual(service.status, .dragging)
+    XCTAssertEqual(mockNotif.notificationsSent, 2) // Notification triggers again!
   }
 }

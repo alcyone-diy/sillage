@@ -22,8 +22,10 @@ final class AnchorViewModel {
   // MARK: - UI Properties
   
   private(set) var currentDistance: Measurement<UnitLength>?
+  private(set) var sog: Measurement<UnitSpeed>?
   private(set) var gpsAccuracy: Measurement<UnitLength>?
   private(set) var status: AnchorStatus = .inactive
+  private(set) var isAlertSilenced: Bool = false
   
   private(set) var configuredRadius: Measurement<UnitLength>
   private(set) var anchorDropError: String?
@@ -73,8 +75,11 @@ final class AnchorViewModel {
   
   private func syncState() {
     self.currentDistance = anchorService.currentDistance
+    self.sog = anchorService.latestFix?.speedOverGround
     self.gpsAccuracy = anchorService.gpsAccuracy
     self.status = anchorService.status
+    
+    self.isAlertSilenced = anchorService.isMuted
   }
   
   // MARK: - User Intents
@@ -141,5 +146,10 @@ final class AnchorViewModel {
     Logger.anchor.info("Disarming anchor alarm from ViewModel.")
     anchorService.disarm()
     self.anchorCoordinate = nil
+  }
+  
+  func silenceAlert() {
+    Logger.anchor.info("Silencing anchor alert from ViewModel.")
+    anchorService.silenceAlarm()
   }
 }

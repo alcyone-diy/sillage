@@ -51,4 +51,44 @@ public struct LocalNotificationService: NotificationService {
       Logger.system.error("Failed to schedule local notification \(identifier): \(error.localizedDescription)")
     }
   }
+  
+  public func requestCriticalAuthorization() async throws -> Bool {
+    let center = UNUserNotificationCenter.current()
+    let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge, .criticalAlert])
+    if granted {
+      Logger.system.info("User granted critical notification permissions.")
+    } else {
+      Logger.system.warning("User denied critical notification permissions.")
+    }
+    return granted
+  }
+  
+  public func sendCriticalNotification(title: String, body: String, identifier: String) async {
+    let center = UNUserNotificationCenter.current()
+    let settings = await center.notificationSettings()
+    
+    guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+      Logger.system.debug("Cannot send critical notification '\(identifier)': not authorized.")
+      return
+    }
+    
+    let content = UNMutableNotificationContent()
+    content.title = title
+    content.body = body
+    content.sound = UNNotificationSound.defaultCritical
+    
+    let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+    
+    do {
+      try await center.add(request)
+      Logger.system.info("Successfully scheduled critical notification: \(identifier)")
+    } catch {
+      Logger.system.error("Failed to schedule critical notification \(identifier): \(error.localizedDescription)")
+    }
+  }
+  
+  public func clearDeliveredNotifications() {
+    UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+    Logger.system.info("Cleared delivered notifications.")
+  }
 }

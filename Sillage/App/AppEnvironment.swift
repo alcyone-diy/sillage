@@ -110,12 +110,16 @@ final class AppEnvironment {
         notificationService: notificationService
       )
       
+      let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+      
       // d. ViewModels instantiation (injecting the ready Services)
       let appViewModel = AppViewModel(preferencesService: preferencesService)
       let chartViewModel = ChartViewModel(
         positioningService: positioningService,
         preferencesService: preferencesService,
         authService: geoGarageAuthService,
+        anchorService: anchorService,
+        anchorViewModel: anchorViewModel,
         waypointService: waypointService
       )
       let panelManagerViewModel = PanelManagerViewModel()
@@ -124,7 +128,7 @@ final class AppEnvironment {
         service: barometricService,
         preferencesService: preferencesService
       )
-      let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+
 
       await trackRecordingService.attemptRecoveryIfNeeded()
       

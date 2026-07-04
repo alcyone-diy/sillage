@@ -44,6 +44,11 @@ struct MarineTheme {
       traitCollection.userInterfaceStyle == .dark ? .systemYellow : .darkGray
     }) // Amber for dark mode, dark gray for light mode
     static let vectorTick = Color.black
+    
+    // Anchor & Safety
+    static let anchorArmed = Color(UIColor.systemGreen) // Will be adapted for night mode later
+    static let anchorDragging = Color(UIColor.systemRed)
+    static let anchorPoint = Color(UIColor.systemBlue)
   }
 
 
