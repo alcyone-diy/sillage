@@ -32,7 +32,7 @@ public struct CoordinateFormatStyle: FormatStyle {
     let intDegrees = Int(absDegrees)
     let minutes = (absDegrees - Double(intDegrees)) * 60.0
 
-    return String(format: "%02d°%06.3f' %@", intDegrees, minutes, direction)
+    return String(format: "%02d° %06.3f' %@", intDegrees, minutes, direction)
   }
 }
 

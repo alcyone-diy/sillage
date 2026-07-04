@@ -197,12 +197,12 @@ struct MapLibreView: UIViewRepresentable {
       style.addSource(anchorRadiusSource)
       
       let anchorRadiusLayer = MLNFillStyleLayer(identifier: anchorRadiusLayerID, source: anchorRadiusSource)
-      anchorRadiusLayer.fillColor = NSExpression(forKeyPath: "fillColor")
-      anchorRadiusLayer.fillOpacity = NSExpression(forKeyPath: "opacity")
+      anchorRadiusLayer.fillColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.anchorDropped))
+      anchorRadiusLayer.fillOpacity = NSExpression(forConstantValue: 0.15)
       style.insertLayer(anchorRadiusLayer, below: vesselLayer)
       
       let anchorRadiusStrokeLayer = MLNLineStyleLayer(identifier: "anchor-radius-stroke-layer", source: anchorRadiusSource)
-      anchorRadiusStrokeLayer.lineColor = NSExpression(forKeyPath: "fillColor")
+      anchorRadiusStrokeLayer.lineColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.anchorDropped))
       anchorRadiusStrokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
       anchorRadiusStrokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
       style.insertLayer(anchorRadiusStrokeLayer, above: anchorRadiusLayer)
@@ -212,7 +212,7 @@ struct MapLibreView: UIViewRepresentable {
       
       let anchorPointLayer = MLNSymbolStyleLayer(identifier: anchorPointLayerID, source: anchorPointSource)
       anchorPointLayer.iconImageName = NSExpression(forConstantValue: "anchor-icon")
-      anchorPointLayer.iconColor = NSExpression(forKeyPath: "color")
+      anchorPointLayer.iconColor = NSExpression(forConstantValue: UIColor(MarineTheme.Colors.anchorDropped))
       anchorPointLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
       anchorPointLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
       anchorPointLayer.iconScale = NSExpression(forConstantValue: 1.0)
@@ -370,11 +370,27 @@ struct MapLibreView: UIViewRepresentable {
         }
       }
       
+      if let anchorRadiusColor = viewModel.anchorRadiusColor, let anchorRadiusOpacity = viewModel.anchorRadiusOpacity {
+        if let layer = style.layer(withIdentifier: "anchor-radius-layer") as? MLNFillStyleLayer {
+          layer.fillColor = NSExpression(forConstantValue: anchorRadiusColor)
+          layer.fillOpacity = NSExpression(forConstantValue: anchorRadiusOpacity)
+        }
+        if let strokeLayer = style.layer(withIdentifier: "anchor-radius-stroke-layer") as? MLNLineStyleLayer {
+          strokeLayer.lineColor = NSExpression(forConstantValue: anchorRadiusColor)
+        }
+      }
+      
       // Anchor Point update
       if anchorPointFeature !== context.coordinator.lastAnchorPointFeature {
         if let source = style.source(withIdentifier: "anchor-point-source") as? MLNShapeSource {
           source.shape = anchorPointFeature
           context.coordinator.lastAnchorPointFeature = anchorPointFeature
+        }
+      }
+      
+      if let anchorDroppedColor = viewModel.anchorDroppedColor {
+        if let layer = style.layer(withIdentifier: "anchor-point-layer") as? MLNSymbolStyleLayer {
+          layer.iconColor = NSExpression(forConstantValue: anchorDroppedColor)
         }
       }
       

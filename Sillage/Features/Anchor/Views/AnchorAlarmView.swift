@@ -9,13 +9,14 @@
 //
 
 import SwiftUI
+import OSLog
 
 public struct AnchorAlarmView: View {
   @Environment(AnchorViewModel.self) private var viewModel
   
   @Environment(\.marineTheme) private var marineTheme
   
-  private let distanceFormatter: MeasurementFormatter = {
+  private static let distanceFormatter: MeasurementFormatter = {
     let formatter = MeasurementFormatter()
     formatter.unitOptions = .providedUnit
     formatter.numberFormatter.maximumFractionDigits = 0
@@ -24,24 +25,51 @@ public struct AnchorAlarmView: View {
   
   public init() {}
   
+  private var isArmed: Bool {
+    if case .armed = viewModel.state { return true }
+    return false
+  }
+  
+  private var isDragging: Bool {
+    if case .armed(let dragging) = viewModel.state { return dragging }
+    return false
+  }
+  
+  private var statusText: LocalizedStringKey {
+    switch viewModel.state {
+    case .setup: return "Setup"
+    case .dropped: return "Anchor Dropped"
+    case .armed(let dragging): return dragging ? "DRAGGING ALERT" : "Alarm Armed"
+    }
+  }
+  
+  private var statusColor: Color {
+    switch viewModel.state {
+    case .setup: return MarineTheme.Colors.textSecondary
+    case .dropped: return MarineTheme.Colors.primary
+    case .armed(let dragging): return dragging ? MarineTheme.Colors.destructive : MarineTheme.Colors.vectorHDG
+    }
+  }
+  
   public var body: some View {
     Form {
       Section {
-        VStack(spacing: 24) {
-          if viewModel.status == .inactive {
-            setupStateView
-          } else {
-            armedStateView
-          }
+        VStack(spacing: MarineTheme.Spacing.large) {
+          headerSection
+          
+          bodySection
+          
+          Divider()
+            .background(MarineTheme.Colors.surfaceBackground)
+          
+          footerSection
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, MarineTheme.Spacing.small)
       }
       .listRowBackground(MarineTheme.Colors.surfaceBackground)
     }
-    .background(MarineTheme.Colors.panelBackground.opacity(0.95))
-    .cornerRadius(MarineTheme.Metrics.cornerRadius)
+    .marineListBackground()
     .navigationTitle("Anchor Alarm")
-    .navigationBarTitleDisplayMode(.inline)
     .onAppear {
       viewModel.isSetupModeActive = true
     }
@@ -50,51 +78,132 @@ public struct AnchorAlarmView: View {
     }
   }
   
-  // MARK: - Setup State
+  // MARK: - 1. HEADER (Status & Alerts)
   @ViewBuilder
-  private var setupStateView: some View {
+  private var headerSection: some View {
+    VStack(spacing: MarineTheme.Spacing.small) {
+      Text(statusText)
+        .font(.headline)
+        .foregroundColor(statusColor)
+        .frame(maxWidth: .infinity, alignment: .center)
+      
+      if viewModel.isGPSAccuracyDegraded, let accuracy = viewModel.gpsAccuracy?.converted(to: .meters).value {
+        HStack(spacing: 4) {
+          Image(systemName: "exclamationmark.triangle.fill")
+          Text(String(format: "GPS: %.0fm", accuracy))
+        }
+        .font(.caption.bold())
+        .foregroundColor(MarineTheme.Colors.warning)
+        .padding(MarineTheme.Spacing.small)
+        .background(MarineTheme.Colors.warning.opacity(0.2))
+        .cornerRadius(MarineTheme.Metrics.cornerRadius)
+      } else if let error = viewModel.anchorDropError {
+        HStack(spacing: 6) {
+          Image(systemName: "exclamationmark.triangle.fill")
+          Text(error)
+            .font(.subheadline.bold())
+        }
+        .foregroundColor(MarineTheme.Colors.destructive)
+        .padding(MarineTheme.Spacing.small)
+        .background(MarineTheme.Colors.destructiveBackground)
+        .cornerRadius(MarineTheme.Metrics.cornerRadius)
+      }
+    }
+  }
+  
+  // MARK: - 2. BODY (Telemetry)
+  @ViewBuilder
+  private var bodySection: some View {
     VStack(spacing: MarineTheme.Spacing.large) {
-      if viewModel.isAnchorDropped {
-        Text("Anchor Dropped")
-          .font(.headline)
+      // Coordinates line
+      HStack {
+        Text("Anchor:")
+          .font(.subheadline)
           .foregroundColor(MarineTheme.Colors.textSecondary)
-      } else {
-        Text("Setup Anchor")
-          .font(.headline)
-          .foregroundColor(MarineTheme.Colors.textSecondary)
+        Spacer()
+        if let coord = viewModel.anchorCoordinate {
+          Text(coord.formatted(.marineCoordinate))
+            .font(.system(.subheadline, design: .monospaced).bold())
+            .foregroundColor(MarineTheme.Colors.textSecondary)
+        } else {
+          Text("--")
+            .font(.system(.subheadline, design: .monospaced).bold())
+            .foregroundColor(MarineTheme.Colors.textSecondary)
+        }
       }
       
-      HStack(spacing: MarineTheme.Spacing.large) {
-        Button(action: { viewModel.decrementRadius() }) {
-          Image(systemName: "minus")
-            .font(.title)
-            .frame(width: marineTheme.minTouchTarget, height: marineTheme.minTouchTarget)
-            .background(MarineTheme.Colors.disabledBackground)
+      // Distance vs Radius
+      HStack(alignment: .top) {
+        // Left: Distance
+        VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+          Text("Distance")
+            .font(.subheadline)
             .foregroundColor(MarineTheme.Colors.textSecondary)
-            .cornerRadius(MarineTheme.Metrics.cornerRadius)
+          
+          if let dist = viewModel.currentDistance {
+            Text(Self.distanceFormatter.string(from: dist.converted(to: .meters)))
+              .font(.system(.title, design: .default).monospacedDigit().bold())
+              .foregroundColor(isDragging ? MarineTheme.Colors.destructive : MarineTheme.Colors.primary)
+              .frame(height: marineTheme.minTouchTarget)
+          } else {
+            Text("-- m")
+              .font(.system(.title, design: .default).monospacedDigit().bold())
+              .foregroundColor(MarineTheme.Colors.primary)
+              .frame(height: marineTheme.minTouchTarget)
+          }
         }
-        .buttonStyle(MarineButtonStyle())
         
-        VStack {
-          Text(distanceFormatter.string(from: viewModel.configuredRadius.converted(to: .meters)))
-            .font(.system(size: 48, weight: .bold, design: .monospaced))
-            .foregroundColor(MarineTheme.Colors.textSecondary)
-        }
-        .frame(minWidth: 100)
+        Spacer()
         
-        Button(action: { viewModel.incrementRadius() }) {
-          Image(systemName: "plus")
-            .font(.title)
-            .frame(width: marineTheme.minTouchTarget, height: marineTheme.minTouchTarget)
-            .background(MarineTheme.Colors.disabledBackground)
+        // Right: Radius (Stepper inline)
+        VStack(alignment: .trailing, spacing: MarineTheme.Spacing.small) {
+          Text("Radius")
+            .font(.subheadline)
             .foregroundColor(MarineTheme.Colors.textSecondary)
-            .cornerRadius(MarineTheme.Metrics.cornerRadius)
+          
+          HStack(spacing: MarineTheme.Spacing.small) {
+            Button(action: { viewModel.decrementRadius() }) {
+              Image(systemName: "minus")
+                .font(.title3.bold())
+                .frame(width: marineTheme.minTouchTarget, height: marineTheme.minTouchTarget)
+                .background(MarineTheme.Colors.disabledBackground)
+                .foregroundColor(MarineTheme.Colors.textSecondary)
+                .cornerRadius(MarineTheme.Metrics.cornerRadius)
+            }
+            .buttonStyle(MarineButtonStyle())
+            .opacity(isArmed ? 0.3 : 1.0)
+            .disabled(isArmed)
+            
+            Text(Self.distanceFormatter.string(from: viewModel.configuredRadius.converted(to: .meters)))
+              .font(.system(.title, design: .default).monospacedDigit().bold())
+              .foregroundColor(MarineTheme.Colors.textSecondary)
+              .frame(width: 90, alignment: .center)
+              
+            Button(action: { viewModel.incrementRadius() }) {
+              Image(systemName: "plus")
+                .font(.title3.bold())
+                .frame(width: marineTheme.minTouchTarget, height: marineTheme.minTouchTarget)
+                .background(MarineTheme.Colors.disabledBackground)
+                .foregroundColor(MarineTheme.Colors.textSecondary)
+                .cornerRadius(MarineTheme.Metrics.cornerRadius)
+            }
+            .buttonStyle(MarineButtonStyle())
+            .opacity(isArmed ? 0.3 : 1.0)
+            .disabled(isArmed)
+          }
         }
-        .buttonStyle(MarineButtonStyle())
       }
-      
-      if !viewModel.isAnchorDropped {
+    }
+  }
+  
+  // MARK: - 3. FOOTER (Actions)
+  @ViewBuilder
+  private var footerSection: some View {
+    VStack(spacing: MarineTheme.Spacing.large) {
+      switch viewModel.state {
+      case .setup:
         Button(action: {
+          Logger.anchor.info("User requested to drop anchor")
           viewModel.dropAnchor()
         }) {
           Label("Drop Anchor", systemImage: "water.waves.and.arrow.down")
@@ -102,107 +211,52 @@ public struct AnchorAlarmView: View {
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
             .background(MarineTheme.Colors.primary)
             .foregroundColor(MarineTheme.Colors.onPrimary)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
         }
         .buttonStyle(MarineButtonStyle())
         
-        if let error = viewModel.anchorDropError {
-          HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-            Text(error)
-              .font(.subheadline.bold())
-          }
-          .foregroundColor(MarineTheme.Colors.destructive)
-          .padding()
-          .background(MarineTheme.Colors.destructiveBackground)
-          .cornerRadius(MarineTheme.Metrics.cornerRadius)
-        }
-      } else {
+      case .dropped:
         Button(action: {
+          Logger.anchor.info("User requested to arm alarm")
           viewModel.armAlarm()
         }) {
           Label("Arm Alarm", systemImage: "bell.fill")
-            .font(.headline)
+            .font(.title3.bold())
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
             .background(MarineTheme.Colors.vectorHDG)
             .foregroundColor(MarineTheme.Colors.onPrimary)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
         }
         .buttonStyle(MarineButtonStyle())
         
-        Button(action: {
-          viewModel.cancelDrop()
-        }) {
-          Text("CANCEL")
-            .font(.headline)
-            .foregroundColor(MarineTheme.Colors.cancelAction)
-        }
-        .padding(.top, MarineTheme.Spacing.small)
-      }
-    }
-  }
-  
-  // MARK: - Armed State
-  @ViewBuilder
-  private var armedStateView: some View {
-    VStack(spacing: MarineTheme.Spacing.large) {
-      HStack {
-        Text(viewModel.status == .dragging ? "DRAGGING!" : "ARMED")
-          .font(.headline)
-          .foregroundColor(viewModel.status == .dragging ? MarineTheme.Colors.destructive : MarineTheme.Colors.vectorHDG)
-        
-        Spacer()
-        
-        if let accuracy = viewModel.gpsAccuracy?.converted(to: .meters).value {
-          if accuracy > 15 {
-            HStack(spacing: 4) {
-              Image(systemName: "exclamationmark.triangle.fill")
-              Text(String(format: "GPS: %.0fm", accuracy))
-            }
-            .font(.caption.bold())
-            .foregroundColor(MarineTheme.Colors.warning)
-            .padding(6)
-            .background(MarineTheme.Colors.warning.opacity(0.2))
-            .cornerRadius(6)
+        SlideActionButton(
+          trackColor: MarineTheme.Colors.disabledBackground,
+          thumbColor: MarineTheme.Colors.textSecondary,
+          textColor: MarineTheme.Colors.textSecondary,
+          title: "SLIDE TO CANCEL",
+          action: {
+            Logger.anchor.info("User requested to cancel drop")
+            viewModel.cancelDrop()
           }
-        }
+        )
+        
+      case .armed:
+        SlideActionButton(isDragging: isDragging, title: "SLIDE TO DISARM", action: {
+          Logger.anchor.info("User requested to disarm alarm")
+          viewModel.disarmAlarm()
+        })
       }
-      
-      HStack {
-        VStack(alignment: .leading) {
-          Text("Distance")
-            .font(.subheadline)
-            .foregroundColor(MarineTheme.Colors.textSecondary)
-          if let dist = viewModel.currentDistance {
-            Text(distanceFormatter.string(from: dist.converted(to: .meters)))
-              .font(.system(size: 32, weight: .bold, design: .monospaced))
-              .foregroundColor(viewModel.status == .dragging ? MarineTheme.Colors.destructive : MarineTheme.Colors.primary)
-          } else {
-            Text("-- m")
-              .font(.system(size: 32, weight: .bold, design: .monospaced))
-              .foregroundColor(MarineTheme.Colors.primary)
-          }
-        }
-        Spacer()
-        VStack(alignment: .trailing) {
-          Text("Radius")
-            .font(.subheadline)
-            .foregroundColor(MarineTheme.Colors.textSecondary)
-          Text(distanceFormatter.string(from: viewModel.configuredRadius.converted(to: .meters)))
-            .font(.system(size: 32, weight: .regular, design: .monospaced))
-            .foregroundColor(MarineTheme.Colors.textSecondary)
-        }
-      }
-      
-      SlideToDisarmButton(action: {
-        viewModel.disarmAlarm()
-      })
     }
   }
 }
 
-// MARK: - Slide to Disarm Component
-fileprivate struct SlideToDisarmButton: View {
+// MARK: - Slide Action Component
+fileprivate struct SlideActionButton: View {
+  var isDragging: Bool = false
+  var trackColor: Color = MarineTheme.Colors.destructiveBackground
+  var thumbColor: Color = MarineTheme.Colors.destructive
+  var textColor: Color = MarineTheme.Colors.destructive
+  let title: LocalizedStringKey
   let action: () -> Void
   
   @State private var offset: CGFloat = 0.0
@@ -216,20 +270,20 @@ fileprivate struct SlideToDisarmButton: View {
       ZStack(alignment: .leading) {
         // Track background
         Rectangle()
-          .fill(MarineTheme.Colors.destructiveBackground)
+          .fill(trackColor)
           .cornerRadius(MarineTheme.Metrics.cornerRadius)
         
         // Instructional Text
-        Text("SLIDE TO DISARM")
+        Text(title)
           .font(.title3.bold())
-          .foregroundColor(MarineTheme.Colors.destructive)
+          .foregroundColor(textColor)
           .frame(maxWidth: .infinity)
           .opacity(maxOffset > 0 ? 1.0 - Double(offset / maxOffset) : 1.0)
         
         // Draggable Thumb
         ZStack {
           Rectangle()
-            .fill(MarineTheme.Colors.destructive)
+            .fill(thumbColor)
             .cornerRadius(MarineTheme.Metrics.cornerRadius)
             .frame(width: thumbSize, height: thumbSize)
           
@@ -239,13 +293,13 @@ fileprivate struct SlideToDisarmButton: View {
         }
         .offset(x: offset)
         .gesture(
-          DragGesture(minimumDistance: 0)
+          DragGesture(minimumDistance: 30)
             .onChanged { value in
               let newOffset = value.translation.width
               offset = min(max(newOffset, 0), maxOffset)
             }
             .onEnded { value in
-              if offset >= maxOffset - 15 {
+              if offset >= maxOffset * 0.9 {
                 action()
                 withAnimation(.spring()) { offset = 0 }
               } else {
@@ -258,5 +312,12 @@ fileprivate struct SlideToDisarmButton: View {
       }
     }
     .frame(height: marineTheme.minTouchTarget)
+    .phaseAnimator(isDragging ? [false, true] : [false]) { content, phase in
+      content
+        .scaleEffect(phase ? 1.02 : 1.0)
+        .opacity(phase ? 0.8 : 1.0)
+    } animation: { _ in
+      .easeInOut(duration: 0.6)
+    }
   }
 }

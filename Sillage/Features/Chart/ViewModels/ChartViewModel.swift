@@ -78,7 +78,10 @@ class ChartViewModel {
   var bearingLineFeature: MLNPolylineFeature?
   var goToWaypointID: String?
   var anchorPointFeature: MLNPointFeature?
+  var anchorDroppedColor: UIColor?
   var anchorRadiusFeature: MLNPolygonFeature?
+  var anchorRadiusColor: UIColor?
+  var anchorRadiusOpacity: Double?
   var displayedTrackSessionID: String? {
     didSet {
       preferencesService.displayedTrackSessionID = displayedTrackSessionID
@@ -405,22 +408,14 @@ class ChartViewModel {
     let status = anchorService.status
     
     if status == .inactive {
-      let isDropped = anchorViewModel.anchorCoordinate != nil
-      if anchorViewModel.isSetupModeActive || isDropped {
-        if let coord = anchorViewModel.anchorCoordinate ?? currentCoordinate ?? lastKnownNavigationFix?.coordinate {
+      if anchorViewModel.isSetupModeActive {
+        if let coord = currentCoordinate ?? lastKnownNavigationFix?.coordinate {
           // Setup Preview Point
           let pointFeature = MLNPointFeature()
           pointFeature.coordinate = coord
-          pointFeature.attributes = ["color": UIColor(MarineTheme.Colors.anchorPoint).withAlphaComponent(isDropped ? 1.0 : 0.5)]
           self.anchorPointFeature = pointFeature
-          
-          // Setup Preview Radius Polygon
-          if let polygonCoords = coord.circularPolygon(radius: anchorViewModel.configuredRadius) {
-            var coords = polygonCoords
-            let polygonFeature = MLNPolygonFeature(coordinates: &coords, count: UInt(coords.count))
-            polygonFeature.attributes = ["fillColor": UIColor(MarineTheme.Colors.anchorPoint), "opacity": 0.15]
-            self.anchorRadiusFeature = polygonFeature
-          }
+          self.anchorDroppedColor = UIColor(MarineTheme.Colors.anchorDropped).withAlphaComponent(0.5)
+          self.anchorRadiusFeature = nil
         } else {
           anchorPointFeature = nil
           anchorRadiusFeature = nil
@@ -437,18 +432,28 @@ class ChartViewModel {
     // Setup Point
     let pointFeature = MLNPointFeature()
     pointFeature.coordinate = watch.coordinate
-    // Using MarineTheme for the anchor point
-    pointFeature.attributes = ["color": UIColor(MarineTheme.Colors.anchorPoint)]
     self.anchorPointFeature = pointFeature
+    self.anchorDroppedColor = UIColor(MarineTheme.Colors.anchorDropped)
     
     // Setup Radius Polygon
     if let polygonCoords = watch.coordinate.circularPolygon(radius: watch.radius) {
       var coords = polygonCoords
       let polygonFeature = MLNPolygonFeature(coordinates: &coords, count: UInt(coords.count))
-      
-      let baseColor = (status == .dragging) ? UIColor(MarineTheme.Colors.anchorDragging) : UIColor(MarineTheme.Colors.anchorArmed)
-      polygonFeature.attributes = ["fillColor": baseColor, "opacity": 0.3]
       self.anchorRadiusFeature = polygonFeature
+      
+      switch status {
+      case .dropped:
+        self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorDropped)
+        self.anchorRadiusOpacity = 0.10
+      case .armed:
+        self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorArmed)
+        self.anchorRadiusOpacity = 0.10
+      case .dragging:
+        self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorDragging)
+        self.anchorRadiusOpacity = 0.25
+      case .inactive:
+        break
+      }
     }
   }
   
