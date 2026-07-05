@@ -490,7 +490,7 @@ class ChartViewModel {
       }
     })
     
-    positioningService.requestAuthorization()
+    // Authorization is now handled Just-In-Time by PermissionService
   }
   
   /// Processes a new GPS fix, updating telemetry measurements, chart features, and camera position if tracking is enabled.

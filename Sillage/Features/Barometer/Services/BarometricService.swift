@@ -33,6 +33,7 @@ public final class BarometricService {
   private let historyStore: BarometricHistoryStore
   private let preferencesService: PreferencesServiceProtocol
   private let notificationService: NotificationService
+  private let permissionService: PermissionServiceProtocol
   private let altimeter: AltimeterProvider
   private let dateProvider: @Sendable () -> Date
   
@@ -61,12 +62,14 @@ public final class BarometricService {
     historyStore: BarometricHistoryStore,
     preferencesService: PreferencesServiceProtocol,
     notificationService: NotificationService,
+    permissionService: PermissionServiceProtocol,
     altimeter: AltimeterProvider = CMAltimeter(),
     dateProvider: @escaping @Sendable () -> Date = { Date() }
   ) {
     self.historyStore = historyStore
     self.preferencesService = preferencesService
     self.notificationService = notificationService
+    self.permissionService = permissionService
     self.altimeter = altimeter
     self.dateProvider = dateProvider
     
@@ -77,7 +80,7 @@ public final class BarometricService {
     // Request permission immediately if the alarm is already ON at launch
     if preferencesService.isBaroAlarmEnabled {
        Task { @MainActor in
-           _ = try? await notificationService.requestAuthorization()
+           _ = await permissionService.requestNotificationAuthorization()
        }
     }
     

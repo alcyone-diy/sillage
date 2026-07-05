@@ -108,6 +108,33 @@ final class MockNotificationService: NotificationService {
   
   func clearDeliveredNotifications() {}
 }
+
+@MainActor
+final class MockPermissionService: PermissionServiceProtocol {
+    var locationStatus: PermissionStatus = .unknown
+    var notificationStatus: PermissionStatus = .unknown
+    var motionStatus: PermissionStatus = .unknown
+    
+    var requestLocationAuthorizationCalled = false
+    func requestLocationAuthorization() async {
+        requestLocationAuthorizationCalled = true
+    }
+    
+    var requestNotificationAuthorizationResult = true
+    func requestNotificationAuthorization() async -> Bool {
+        return requestNotificationAuthorizationResult
+    }
+    
+    var requestCriticalNotificationAuthorizationResult = true
+    func requestCriticalNotificationAuthorization() async -> Bool {
+        return requestCriticalNotificationAuthorizationResult
+    }
+    
+    var openSystemSettingsCalled = false
+    func openSystemSettings() {
+        openSystemSettingsCalled = true
+    }
+}
 @MainActor
 final class AnchorServiceTests: XCTestCase {
   
@@ -115,13 +142,15 @@ final class AnchorServiceTests: XCTestCase {
   var mockGPS: MockPositioningService!
   var mockPrefs: MockPreferencesService!
   var mockNotif: MockNotificationService!
+  var mockPermission: MockPermissionService!
   
   override func setUp() {
     super.setUp()
     mockGPS = MockPositioningService()
     mockPrefs = MockPreferencesService()
     mockNotif = MockNotificationService()
-    service = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif)
+    mockPermission = MockPermissionService()
+    service = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif, permissionService: mockPermission)
   }
   
   func testAnchorService_rejectsInvalidAccuracy_MinusOne() async throws {
@@ -355,7 +384,7 @@ final class AnchorServiceTests: XCTestCase {
     mockPrefs.savedAnchorStatus = .dropped
     
     // Re-initialize a new service with these mock preferences
-    let newService = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif)
+    let newService = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif, permissionService: mockPermission)
     
     XCTAssertEqual(newService.status, .dropped)
     XCTAssertNotNil(newService.activeWatch)

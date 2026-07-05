@@ -20,6 +20,7 @@ final class AnchorService {
   private let positioningService: PositioningService
   private var preferencesService: PreferencesServiceProtocol
   private let notificationService: NotificationService
+  private let permissionService: PermissionServiceProtocol
   
   private(set) var activeWatch: AnchorWatch?
   private(set) var status: AnchorStatus = .inactive
@@ -69,11 +70,13 @@ final class AnchorService {
   init(
     positioningService: PositioningService,
     preferencesService: PreferencesServiceProtocol,
-    notificationService: NotificationService
+    notificationService: NotificationService,
+    permissionService: PermissionServiceProtocol
   ) {
     self.positioningService = positioningService
     self.preferencesService = preferencesService
     self.notificationService = notificationService
+    self.permissionService = permissionService
     
     // Resume from persistent state
     self.activeWatch = preferencesService.savedAnchorWatch
@@ -119,11 +122,7 @@ final class AnchorService {
     persistState()
     
     Task {
-      do {
-        try await notificationService.requestCriticalAuthorization()
-      } catch {
-        Logger.anchor.error("Failed to request critical notification authorization: \(error)")
-      }
+      _ = await permissionService.requestCriticalNotificationAuthorization()
     }
     
     if backgroundToken == nil {
