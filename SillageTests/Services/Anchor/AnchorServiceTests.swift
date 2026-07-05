@@ -40,6 +40,9 @@ final class MockPositioningService: PositioningService {
   func startUpdatingLocation() {}
   func stopUpdatingLocation() {}
   
+  func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {}
+  func removeDistanceFilter(for identifier: String) {}
+  
   var requestedToken: MockBackgroundLocationToken?
   func requestBackgroundLocation() -> any BackgroundLocationToken {
     let token = MockBackgroundLocationToken()

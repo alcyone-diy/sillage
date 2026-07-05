@@ -110,6 +110,7 @@ public final class TrackRecordingService {
     
     let service = self.positioningService
     self.backgroundLocationToken = service.requestBackgroundLocation()
+    service.requestDistanceFilter(Measurement(value: 5, unit: .meters), for: "TrackRecording")
     
     startFlushTimer()
     
@@ -134,9 +135,12 @@ public final class TrackRecordingService {
     }
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
+    backgroundLocationToken?.invalidate()
     backgroundLocationToken = nil
     flushTask?.cancel()
     flushTask = nil
+    
+    positioningService.removeDistanceFilter(for: "TrackRecording")
     
     if let lastNavigationFix = telemetry.stop() {
       self.saveNavigationFix(lastNavigationFix)
@@ -188,9 +192,12 @@ public final class TrackRecordingService {
     telemetry.pause()
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
+    backgroundLocationToken?.invalidate()
     backgroundLocationToken = nil
     flushTask?.cancel()
     flushTask = nil
+    
+    positioningService.removeDistanceFilter(for: "TrackRecording")
     
     persistenceWriter?.flushAsync(telemetryUpdate: buildTelemetryUpdate())
     unflushedPointCount = 0
@@ -210,6 +217,7 @@ public final class TrackRecordingService {
     telemetry.resume()
     let service = self.positioningService
     self.backgroundLocationToken = service.requestBackgroundLocation()
+    service.requestDistanceFilter(Measurement(value: 5, unit: .meters), for: "TrackRecording")
     
     startFlushTimer()
     
@@ -322,6 +330,7 @@ public final class TrackRecordingService {
     // 4. Start the engine (No 'await' beyond this point to avoid race conditions)
     let service = positioningService
     backgroundLocationToken = service.requestBackgroundLocation()
+    service.requestDistanceFilter(Measurement(value: 5, unit: .meters), for: "TrackRecording")
     startFlushTimer()
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
       for await navigationFix in service.locationUpdates {

@@ -96,6 +96,7 @@ final class AnchorService {
     if backgroundToken == nil {
       backgroundToken = positioningService.requestBackgroundLocation()
     }
+    positioningService.requestDistanceFilter(Measurement(value: 1, unit: .meters), for: "AnchorWatch")
     
     notifyStateChange()
   }
@@ -128,6 +129,7 @@ final class AnchorService {
     if backgroundToken == nil {
       backgroundToken = positioningService.requestBackgroundLocation()
     }
+    positioningService.requestDistanceFilter(Measurement(value: 1, unit: .meters), for: "AnchorWatch")
     
     notifyStateChange()
   }
@@ -157,6 +159,7 @@ final class AnchorService {
     
     backgroundToken?.invalidate()
     backgroundToken = nil
+    positioningService.removeDistanceFilter(for: "AnchorWatch")
     
     notifyStateChange()
   }
@@ -173,6 +176,7 @@ final class AnchorService {
     if backgroundToken == nil {
       backgroundToken = positioningService.requestBackgroundLocation()
     }
+    positioningService.requestDistanceFilter(Measurement(value: 1, unit: .meters), for: "AnchorWatch")
   }
   
   private func persistState() {

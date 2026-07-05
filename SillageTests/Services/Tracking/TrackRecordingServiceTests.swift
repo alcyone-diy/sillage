@@ -46,6 +46,9 @@ struct TrackRecordingServiceTests {
       stopUpdatingLocationCallCount += 1
     }
     
+    func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {}
+    func removeDistanceFilter(for identifier: String) {}
+    
     var requestBackgroundLocationCallCount = 0
     var lastToken: MockBackgroundLocationToken?
     func requestBackgroundLocation() -> any BackgroundLocationToken {
