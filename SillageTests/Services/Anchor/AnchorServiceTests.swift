@@ -84,6 +84,7 @@ final class MockPreferencesService: PreferencesServiceProtocol {
   
   var savedAnchorWatch: AnchorWatch?
   var savedAnchorStatus: AnchorStatus = .inactive
+  var savedAnchorRadius: Measurement<UnitLength> = Measurement(value: 25.0, unit: .meters)
 }
 
 @MainActor

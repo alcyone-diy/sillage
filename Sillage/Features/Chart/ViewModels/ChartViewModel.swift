@@ -82,6 +82,8 @@ class ChartViewModel {
   var anchorRadiusFeature: MLNPolygonFeature?
   var anchorRadiusColor: UIColor?
   var anchorRadiusOpacity: Double?
+  var anchorRadiusDashPattern: [NSNumber]?
+  var anchorRadiusLineWidth: Double?
   var displayedTrackSessionID: String? {
     didSet {
       preferencesService.displayedTrackSessionID = displayedTrackSessionID
@@ -444,13 +446,19 @@ class ChartViewModel {
       switch status {
       case .dropped:
         self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorDropped)
-        self.anchorRadiusOpacity = 0.10
+        self.anchorRadiusOpacity = 0.0
+        self.anchorRadiusDashPattern = [4.0, 4.0]
+        self.anchorRadiusLineWidth = 3.0
       case .armed:
         self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorArmed)
         self.anchorRadiusOpacity = 0.10
+        self.anchorRadiusDashPattern = nil
+        self.anchorRadiusLineWidth = 1.5
       case .dragging:
         self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorDragging)
         self.anchorRadiusOpacity = 0.25
+        self.anchorRadiusDashPattern = nil
+        self.anchorRadiusLineWidth = 1.5
       case .inactive:
         break
       }

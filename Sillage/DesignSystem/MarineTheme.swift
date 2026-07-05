@@ -48,7 +48,7 @@ struct MarineTheme {
     // Anchor & Safety
     static let anchorArmed = Color(UIColor.systemGreen) // Will be adapted for night mode later
     static let anchorDragging = Color(UIColor.systemRed)
-    static let anchorDropped = Color(UIColor.systemBlue)
+    static let anchorDropped = Color(red: 0.0, green: 1.0, blue: 1.0) // Cyan #00FFFF
   }
 
 

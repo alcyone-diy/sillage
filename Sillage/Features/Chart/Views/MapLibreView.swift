@@ -377,6 +377,14 @@ struct MapLibreView: UIViewRepresentable {
         }
         if let strokeLayer = style.layer(withIdentifier: "anchor-radius-stroke-layer") as? MLNLineStyleLayer {
           strokeLayer.lineColor = NSExpression(forConstantValue: anchorRadiusColor)
+          if let dashPattern = viewModel.anchorRadiusDashPattern {
+            strokeLayer.lineDashPattern = NSExpression(forConstantValue: dashPattern)
+          } else {
+            strokeLayer.lineDashPattern = nil
+          }
+          if let width = viewModel.anchorRadiusLineWidth {
+            strokeLayer.lineWidth = NSExpression(forConstantValue: width)
+          }
         }
       }
       
