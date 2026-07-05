@@ -230,7 +230,7 @@ class PreferencesService: PreferencesServiceProtocol {
     self.goToWaypointID = defaults.string(forKey: goToWaypointIDKey)
     self.displayedTrackSessionID = defaults.string(forKey: displayedTrackSessionIDKey)
     
-    self.isBaroAlarmEnabled = defaults.object(forKey: isBaroAlarmEnabledKey) as? Bool ?? true
+    self.isBaroAlarmEnabled = defaults.object(forKey: isBaroAlarmEnabledKey) as? Bool ?? false
     self.rawBaroAlarmSensitivity = defaults.string(forKey: baroAlarmSensitivityKey) ?? BaroAlarmSensitivity.medium.rawValue
     self.rawBarometerOffsetHPa = defaults.object(forKey: barometerOffsetHPaKey) as? Double ?? 0.0
     
