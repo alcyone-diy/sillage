@@ -40,6 +40,7 @@ struct SillageApp: App {
             .environment(\.trackService, container.trackService)
             .environment(\.waypointService, container.waypointService)
             .environment(container.preferencesService)
+            .environment(container.permissionService)
         }
       }
       .environment(environment)

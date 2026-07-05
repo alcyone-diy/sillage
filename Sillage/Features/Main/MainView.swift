@@ -21,7 +21,7 @@ struct ContentView: View {
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(\.waypointService) private var waypointService
   @Environment(AnchorViewModel.self) private var anchorViewModel
-
+  
   @State private var localSheetPresented: Bool = false
 
   var body: some View {
@@ -74,6 +74,9 @@ struct ContentView: View {
                 .foregroundColor(.white)
             }
             .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: chartViewModel.trackingMode)))
+            .requiresLocationPermission {
+              chartViewModel.toggleTrackingMode()
+            }
             .padding()
             .padding(.bottom, 30) // Clears bottom safe area
 
@@ -153,7 +156,7 @@ struct ContentView: View {
             .presentationBackground(.clear)
         }
       }
-    }
+      } // End of Main ZStack
     .alert(
       isPresented: Bindable(appViewModel).showImportError,
       error: appViewModel.importError

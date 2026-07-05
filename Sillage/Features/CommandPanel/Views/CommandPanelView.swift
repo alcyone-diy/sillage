@@ -50,6 +50,11 @@ struct CommandPanelView: View {
               )
             )
             .disabled(activeTrackViewModel.isSaving)
+            .requiresLocationPermission {
+                if !activeTrackViewModel.isRecording {
+                    activeTrackViewModel.toggleRecording()
+                }
+            }
           }
           .listRowBackground(Color.clear)
           .listRowInsets(EdgeInsets())
@@ -66,6 +71,7 @@ struct CommandPanelView: View {
             .marineFont(.body)
           }
           .marineListCell()
+          .requiresLocationPermission()
           NavigationLink(value: PanelManagerViewModel.CommandDestination.baroAlarm) {
             Label {
               Text("Baro Alarm").foregroundStyle(.primary)

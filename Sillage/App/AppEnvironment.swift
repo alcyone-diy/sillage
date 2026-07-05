@@ -35,6 +35,7 @@ final class AppEnvironment {
     let activeTrackViewModel: ActiveTrackViewModel
     let barometerViewModel: BarometerViewModel
     let anchorViewModel: AnchorViewModel
+    let permissionService: PermissionService
   }
   
   public init(metadata: AppMetadata? = nil) {
@@ -69,10 +70,16 @@ final class AppEnvironment {
       
       let notificationService = LocalNotificationService()
       
+      let permissionService = PermissionService(
+        positioningService: positioningService,
+        notificationService: notificationService
+      )
+      
       let barometricService = BarometricService(
         historyStore: barometricHistoryStore,
         preferencesService: preferencesService,
-        notificationService: notificationService
+        notificationService: notificationService,
+        permissionService: permissionService
       )
       barometricService.startUpdates()
       
@@ -107,7 +114,8 @@ final class AppEnvironment {
       let anchorService = AnchorService(
         positioningService: positioningService,
         preferencesService: preferencesService,
-        notificationService: notificationService
+        notificationService: notificationService,
+        permissionService: permissionService
       )
       
       let anchorViewModel = AnchorViewModel(anchorService: anchorService)
@@ -155,7 +163,8 @@ final class AppEnvironment {
         panelManagerViewModel: panelManagerViewModel,
         activeTrackViewModel: activeTrackViewModel,
         barometerViewModel: barometerViewModel,
-        anchorViewModel: anchorViewModel
+        anchorViewModel: anchorViewModel,
+        permissionService: permissionService
       )
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")

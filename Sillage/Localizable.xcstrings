@@ -79,10 +79,16 @@
     "Alcyone Sillage (MIT License)" : {
 
     },
+    "Alcyone Sillage needs your location to display your vessel on the marine chart, record your track, and enable the anchor alarm." : {
+
+    },
     "Alert Level" : {
 
     },
     "ALERT SILENCED" : {
+
+    },
+    "Allow Location" : {
 
     },
     "Anchor Alarm" : {
@@ -361,6 +367,9 @@
     "Location" : {
 
     },
+    "Location Access" : {
+
+    },
     "Log In" : {
 
     },
@@ -427,6 +436,9 @@
     "Online Charts (Internet Required)" : {
 
     },
+    "Open Settings" : {
+
+    },
     "OpenSeaMap" : {
 
     },
@@ -440,6 +452,9 @@
 
     },
     "Password" : {
+
+    },
+    "Permission Required" : {
 
     },
     "Please enter a valid username." : {
@@ -609,6 +624,9 @@
     },
     "Vigilance" : {
       "comment" : "Weather alarm"
+    },
+    "You can change this at any time in the Settings app." : {
+
     },
     "W" : {
       "comment" : "West cardinal point"
