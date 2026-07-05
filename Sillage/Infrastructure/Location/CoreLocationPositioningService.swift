@@ -80,15 +80,37 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   private let cutOffSpeed: CLLocationSpeed = Measurement(value: 0.8, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
   private let resumeSpeed: CLLocationSpeed = Measurement(value: 1.5, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
   
+  private let rawLocationContinuation: AsyncStream<[CLLocation]>.Continuation
+  
+  private final class TaskCancellable: @unchecked Sendable {
+    var task: Task<Void, Never>?
+    deinit { task?.cancel() }
+  }
+  private let locationFunnelTask = TaskCancellable()
+  
+  private var requestedFilters: [String: Double] = [:]
+  
   override init() {
+    let (stream, continuation) = AsyncStream.makeStream(of: [CLLocation].self)
+    self.rawLocationContinuation = continuation
+    
     self.locationManager = CLLocationManager()
     super.init()
+    
+    self.locationFunnelTask.task = Task { @MainActor [weak self] in
+      for await locations in stream {
+        guard let self = self else { break }
+        for location in locations {
+          self.processLocation(location)
+        }
+      }
+    }
     
     self.locationManager.delegate = self
     
     // Prioritize accuracy over battery for a marine environment.
     self.locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
-    self.locationManager.distanceFilter = kCLDistanceFilterNone
+    self.locationManager.distanceFilter = 10.0 // Default 10 meters, will be updated by Domain layer
     
     // Marine Activity Type: Crucial to prevent iOS from aggressively snapping
     // coordinates to the nearest coastal road (automotive algorithm).
@@ -164,38 +186,52 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     }
   }
   
+  func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {
+    let meters = distance.converted(to: .meters).value
+    guard meters > 0 else {
+      Logger.telemetry.warning("Invalid distance filter requested by \(identifier, privacy: .public): \(meters)m. Must be > 0.")
+      return
+    }
+    requestedFilters[identifier] = meters
+    recalculateDistanceFilter()
+  }
+  
+  func removeDistanceFilter(for identifier: String) {
+    requestedFilters.removeValue(forKey: identifier)
+    recalculateDistanceFilter()
+  }
+  
+  private func recalculateDistanceFilter() {
+    let fallbackFilter = 50.0
+    
+    var minFilter = fallbackFilter
+    var commandingService = "Default (Standby)"
+    
+    if let minEntry = requestedFilters.min(by: { $0.value < $1.value }) {
+      minFilter = minEntry.value
+      commandingService = minEntry.key
+    }
+    
+    if locationManager.distanceFilter != minFilter {
+      locationManager.distanceFilter = minFilter
+      Logger.telemetry.info("Distance filter updated to \(minFilter, privacy: .public)m by \(commandingService, privacy: .public).")
+    }
+  }
+  
   func requestAuthorization() {
     locationManager.requestWhenInUseAuthorization()
   }
   
-  private var locationUpdateTask: Task<Void, Never>?
-  
   func startUpdatingLocation() {
-    locationUpdateTask?.cancel()
-    locationUpdateTask = Task { @MainActor [weak self] in
-      do {
-        let updates = CLLocationUpdate.liveUpdates(.otherNavigation)
-        for try await update in updates {
-          guard let self = self else { return }
-          if let location = update.location {
-            self.processLocation(location)
-          }
-        }
-      } catch {
-        Logger.telemetry.error("CoreLocationPositioningService failed with error: \(error.localizedDescription, privacy: .public)")
-      }
-    }
+    locationManager.startUpdatingLocation()
   }
   
   func stopUpdatingLocation() {
-    locationUpdateTask?.cancel()
-    locationUpdateTask = nil
+    locationManager.stopUpdatingLocation()
   }
   
   // MARK: - CLLocationManagerDelegate
   
-  // Delegate methods are nonisolated to satisfy Objective-C interoperability.
-  // We explicitly hop to the @MainActor to update our state.
   nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
     Task { @MainActor in
       for continuation in authContinuations.values {
@@ -209,6 +245,11 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
         stopUpdatingLocation()
       }
     }
+  }
+  
+  nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    // Funnel through an AsyncStream to guarantee sequential, deterministic processing on the MainActor
+    rawLocationContinuation.yield(locations)
   }
   
   private func processLocation(_ latestLocation: CLLocation) {

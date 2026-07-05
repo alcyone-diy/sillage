@@ -20,4 +20,7 @@ protocol PositioningService {
   func stopUpdatingLocation()
   
   func requestBackgroundLocation() -> any BackgroundLocationToken
+  
+  func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String)
+  func removeDistanceFilter(for identifier: String)
 }

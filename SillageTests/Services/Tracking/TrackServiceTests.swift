@@ -36,6 +36,9 @@ struct TrackServiceTests {
       return MockBackgroundLocationToken()
     }
     
+    func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {}
+    func removeDistanceFilter(for identifier: String) {}
+    
     func emit(fix: NavigationFix) {
       locationContinuation.yield(fix)
     }
