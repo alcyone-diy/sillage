@@ -13,7 +13,7 @@ import SwiftUI
 struct RequiresLocationPermissionModifier: ViewModifier {
     @Environment(PermissionService.self) private var permissionService
     @State private var showPrompt = false
-    var action: (() -> Void)?
+    var action: (@MainActor @Sendable () -> Void)?
 
     func body(content: Content) -> some View {
         content
@@ -44,7 +44,7 @@ public extension View {
     /// Protects an action behind a location permission check.
     /// If location is not authorized, it presents a permission workflow instead of executing the action.
     /// Once authorized, it automatically executes the action.
-    func requiresLocationPermission(action: (() -> Void)? = nil) -> some View {
+    func requiresLocationPermission(action: (@MainActor @Sendable () -> Void)? = nil) -> some View {
         self.modifier(RequiresLocationPermissionModifier(action: action))
     }
 }
