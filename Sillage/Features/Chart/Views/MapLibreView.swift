@@ -18,14 +18,12 @@ struct PopoverMenuAction: Identifiable {
   let title: String
   let systemImage: String
   let isDestructive: Bool
-  let isCancelAction: Bool
   let action: () -> Void
   
-  init(title: String, systemImage: String, isDestructive: Bool = false, isCancelAction: Bool = false, action: @escaping () -> Void) {
+  init(title: String, systemImage: String, isDestructive: Bool = false, action: @escaping () -> Void) {
     self.title = title
     self.systemImage = systemImage
     self.isDestructive = isDestructive
-    self.isCancelAction = isCancelAction
     self.action = action
   }
 }
@@ -39,10 +37,10 @@ struct PopoverMenuView: View {
         Button(action: action.action) {
           HStack {
             Text(action.title)
-              .foregroundColor(action.isDestructive ? .red : (action.isCancelAction ? MarineTheme.Colors.cancelAction : .primary))
+              .foregroundColor(action.isDestructive ? .red : .primary)
             Spacer()
             Image(systemName: action.systemImage)
-              .foregroundColor(action.isDestructive ? .red : (action.isCancelAction ? MarineTheme.Colors.cancelAction : .primary))
+              .foregroundColor(action.isDestructive ? .red : .primary)
           }
           .padding()
           .frame(height: 50)
@@ -541,7 +539,7 @@ struct MapLibreView: UIViewRepresentable {
         let actionTitle = isSelected ? String(localized: "Deselect") : String(localized: "Select")
         let actionImageName = isSelected ? MarineIcon.deselect.rawValue : MarineIcon.select.rawValue
         
-        let selectAction = PopoverMenuAction(title: actionTitle, systemImage: actionImageName, isCancelAction: isSelected) { [weak self] in
+        let selectAction = PopoverMenuAction(title: actionTitle, systemImage: actionImageName) { [weak self] in
           guard let self = self else { return }
           Task { @MainActor in
             if isSelected {
@@ -583,7 +581,7 @@ struct MapLibreView: UIViewRepresentable {
         actions.append(createAction)
         
         if self.parent.viewModel.goToWaypointID != nil {
-          let deselectAction = PopoverMenuAction(title: String(localized: "Deselect Target"), systemImage: MarineIcon.deselect.rawValue, isCancelAction: true) { [weak self] in
+          let deselectAction = PopoverMenuAction(title: String(localized: "Deselect Target"), systemImage: MarineIcon.deselect.rawValue) { [weak self] in
             Task { @MainActor in
               self?.parent.waypointService?.setDestination(waypointID: nil)
             }
