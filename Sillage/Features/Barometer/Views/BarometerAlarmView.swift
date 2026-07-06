@@ -132,6 +132,9 @@ public struct BarometerAlarmView: View {
         }
         .marineListBackground()
         .navigationTitle("Barometer Alarm")
+        .onAppear {
+            viewModel.startUpdates()
+        }
         .task(id: viewModel.service.lastHistoryUpdate) {
             // Automatically re-evaluates and refreshes the history chart 
             // the exact moment the service commits a new point to the database.

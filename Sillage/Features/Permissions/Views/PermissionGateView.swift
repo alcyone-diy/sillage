@@ -15,48 +15,58 @@ enum PermissionIcon {
     case marine(MarineIcon)
 }
 
-enum PermissionGateType {
+enum PermissionGateType: Identifiable {
     case location
+    case motion
+    
+    var id: Self { self }
     
     var icon: PermissionIcon {
         switch self {
         case .location: return .system("location.circle.fill")
+        case .motion: return .marine(.instruments)
         }
     }
     
     var title: LocalizedStringKey {
         switch self {
         case .location: return "Location Access"
+        case .motion: return "Barometer Access"
         }
     }
     
     var description: LocalizedStringKey {
         switch self {
         case .location: return "Alcyone Sillage needs your location to display your vessel on the marine chart, record your track, and enable the anchor alarm."
+        case .motion: return "Alcyone Sillage needs 'Motion & Fitness' access to read your device's internal altimeter, enabling the weather alarm feature."
         }
     }
     
     var buttonTitle: LocalizedStringKey {
         switch self {
         case .location: return "Allow Location"
+        case .motion: return "Allow Access"
         }
     }
     
     var deniedMessage: LocalizedStringKey {
         switch self {
         case .location: return "Alcyone Sillage requires location access to use this feature."
+        case .motion: return "Alcyone Sillage requires motion and fitness access to read the barometer."
         }
     }
     
     func currentStatus(in service: PermissionService) -> PermissionStatus {
         switch self {
         case .location: return service.locationStatus
+        case .motion: return service.motionStatus
         }
     }
     
     func requestAuthorization(in service: PermissionService) async {
         switch self {
         case .location: await service.requestLocationAuthorization()
+        case .motion: await service.requestMotionAuthorization()
         }
     }
 }

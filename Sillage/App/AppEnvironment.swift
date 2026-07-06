@@ -81,7 +81,9 @@ final class AppEnvironment {
         notificationService: notificationService,
         permissionService: permissionService
       )
-      barometricService.startUpdates()
+      if permissionService.motionStatus != .notDetermined {
+          barometricService.startUpdates()
+      }
       
       let trackRecordingService = TrackRecordingService(
         positioningService: positioningService,

@@ -79,16 +79,25 @@
     "Alcyone Sillage (MIT License)" : {
 
     },
+    "Alcyone Sillage needs 'Motion & Fitness' access to read your device's internal altimeter, enabling the weather alarm feature." : {
+
+    },
     "Alcyone Sillage needs your location to display your vessel on the marine chart, record your track, and enable the anchor alarm." : {
 
     },
     "Alcyone Sillage requires location access to use this feature." : {
 
     },
+    "Alcyone Sillage requires motion and fitness access to read the barometer." : {
+
+    },
     "Alert Level" : {
 
     },
     "ALERT SILENCED" : {
+
+    },
+    "Allow Access" : {
 
     },
     "Allow Location" : {
@@ -122,6 +131,9 @@
 
     },
     "Baro Alarm" : {
+
+    },
+    "Barometer Access" : {
 
     },
     "Barometer Alarm" : {
@@ -628,9 +640,6 @@
     "Vigilance" : {
       "comment" : "Weather alarm"
     },
-    "You can change this at any time in the Settings app." : {
-
-    },
     "W" : {
       "comment" : "West cardinal point"
     },
@@ -653,6 +662,9 @@
 
     },
     "xctest-dynamic-overlay" : {
+
+    },
+    "You can change this at any time in the Settings app." : {
 
     },
     "Your session has expired. Please log in again." : {

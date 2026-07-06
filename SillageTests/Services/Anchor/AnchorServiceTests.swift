@@ -134,6 +134,11 @@ final class MockPermissionService: PermissionServiceProtocol {
     func openSystemSettings() {
         openSystemSettingsCalled = true
     }
+    
+    var requestMotionAuthorizationCalled = false
+    func requestMotionAuthorization() async {
+        requestMotionAuthorizationCalled = true
+    }
 }
 @MainActor
 final class AnchorServiceTests: XCTestCase {

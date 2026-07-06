@@ -21,8 +21,11 @@ struct ContentView: View {
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(\.waypointService) private var waypointService
   @Environment(AnchorViewModel.self) private var anchorViewModel
+  @Environment(PermissionService.self) private var permissionService
   
   @State private var localSheetPresented: Bool = false
+  @State private var permissionGateType: PermissionGateType? = nil
+  @State private var pendingToggleTracking: Bool = false
 
   var body: some View {
     GeometryReader { geo in
@@ -67,16 +70,18 @@ struct ContentView: View {
           HStack {
             // Recenter Button
             Button(action: {
-              chartViewModel.toggleTrackingMode()
+              if permissionService.locationStatus == .authorized {
+                chartViewModel.toggleTrackingMode()
+              } else {
+                pendingToggleTracking = true
+                permissionGateType = .location
+              }
             }) {
               Image(marineIcon: trackingIconName(for: chartViewModel.trackingMode))
                 .marineFont(.title3)
                 .foregroundColor(.white)
             }
             .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: chartViewModel.trackingMode)))
-            .requiresLocationPermission {
-              chartViewModel.toggleTrackingMode()
-            }
             .padding()
             .padding(.bottom, 30) // Clears bottom safe area
 
@@ -164,6 +169,19 @@ struct ContentView: View {
       Button("OK", role: .cancel) { }
     } message: { error in
       Text(error.localizedDescription)
+    }
+    .sheet(item: $permissionGateType) { gateType in
+      PermissionGateView(type: gateType)
+        .presentationDetents([.medium, .large])
+    }
+    .onChange(of: permissionService.locationStatus) { _, status in
+      if status == .authorized {
+        if pendingToggleTracking {
+          chartViewModel.toggleTrackingMode()
+          pendingToggleTracking = false
+          permissionGateType = nil
+        }
+      }
     }
     .sheet(item: Bindable(appViewModel).waypointDraft) { item in
       if let waypointService {
