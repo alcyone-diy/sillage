@@ -30,6 +30,8 @@ public final class ActiveTrackViewModel {
     self.permissionService = permissionService
   }
   
+  private var pendingAction: (@MainActor () -> Void)? = nil
+  
   public var isRecording: Bool {
     switch trackRecordingService.state {
     case .recording, .paused, .waitingForFix: return true
@@ -45,6 +47,9 @@ public final class ActiveTrackViewModel {
         toggleRecording()
         return nil
       } else {
+        self.pendingAction = { [weak self] in
+          self?.toggleRecording()
+        }
         return gateType
       }
     } else {
@@ -53,6 +58,11 @@ public final class ActiveTrackViewModel {
       }
       return nil
     }
+  }
+  
+  func finalizePendingLocationAction() {
+    pendingAction?()
+    pendingAction = nil
   }
   
   public var isSaving: Bool {
