@@ -13,6 +13,7 @@ import Observation
 import OSLog
 import UniformTypeIdentifiers
 import CoreTransferable
+import GRDB
 
 @MainActor
 @Observable
