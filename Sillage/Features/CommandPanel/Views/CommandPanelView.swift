@@ -98,6 +98,7 @@ struct CommandPanelView: View {
                 .foregroundColor(Color(uiColor: .tertiaryLabel))
             }
           }
+          .tint(.primary)
           .marineListCell()
           
           Button {
@@ -124,6 +125,7 @@ struct CommandPanelView: View {
                 .foregroundColor(Color(uiColor: .tertiaryLabel))
             }
           }
+          .tint(.primary)
           .marineListCell()
         }
         
