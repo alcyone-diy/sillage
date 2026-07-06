@@ -67,6 +67,19 @@ struct SettingsView: View {
           }
         }
         .marineListCell()
+        
+        Link(destination: AppConstants.appURL) {
+          HStack {
+            Label("Website", systemImage: "globe")
+              .marineFont(.body)
+            Spacer()
+            Image(systemName: "arrow.up.right")
+              .marineFont(.body)
+              .foregroundStyle(.secondary)
+          }
+        }
+        .tint(.primary)
+        .marineListCell()
       }
       
 #if DEBUG
