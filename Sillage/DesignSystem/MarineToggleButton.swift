@@ -27,7 +27,13 @@ struct MarineToggleButton: View {
     }
     .frame(maxWidth: .infinity, minHeight: marineTheme.metrics.touchTarget)
     .foregroundColor(isOn ? MarineTheme.Colors.textOnActive : MarineTheme.Colors.textSecondary)
-    .background(isOn ? MarineTheme.Colors.activeToggle : MarineTheme.Colors.secondarySurface)
+    .background {
+      if isOn {
+        MarineTheme.Colors.activeToggle
+      } else {
+        CellBackgroundView()
+      }
+    }
     .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
     .contentShape(Rectangle())
     .scaleEffect(isOn ? 1.02 : 1.0)
