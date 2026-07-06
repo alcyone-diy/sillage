@@ -69,9 +69,13 @@ struct ContentView: View {
           HStack {
             // Recenter Button
             Button(action: {
-              if let gate = panelManagerViewModel.executeOrRequestPermission(type: .location(trigger: .mapTracking), status: permissionService.locationStatus, action: { [weak chartViewModel] in
-                  chartViewModel?.toggleTrackingMode()
-              }) {
+              if let gate = panelManagerViewModel.executeOrRequestPermission(
+                  type: .location(trigger: .mapTracking),
+                  in: permissionService,
+                  action: { [weak chartViewModel] in
+                      chartViewModel?.toggleTrackingMode()
+                  }
+              ) {
                   permissionGateType = gate
               }
             }) {
