@@ -58,6 +58,9 @@ final class AnchorViewModel {
   
   // MARK: - Internal State
   
+  var permissionGateType: PermissionGateType? = nil
+  private var pendingAction: (@MainActor () -> Void)? = nil
+  
   private(set) var anchorCoordinate: CLLocationCoordinate2D?
   @ObservationIgnored
   nonisolated(unsafe) private var stateUpdateTask: Task<Void, Never>?
@@ -161,6 +164,21 @@ final class AnchorViewModel {
     }
     Logger.anchor.info("Arming anchor alarm from ViewModel.")
     anchorService.arm(coordinate: coord, radius: configuredRadius)
+  }
+  
+  func requestArmAlarm(in service: PermissionService) {
+    let status = service.notificationStatus
+    if status == .authorized {
+      self.armAlarm()
+    } else {
+      self.pendingAction = { [weak self] in self?.armAlarm() }
+      self.permissionGateType = .notification(trigger: .anchorAlarm)
+    }
+  }
+  
+  func finalizePendingAction() {
+    pendingAction?()
+    pendingAction = nil
   }
   
   func disarmAlarm() {

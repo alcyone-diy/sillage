@@ -94,19 +94,15 @@ final class MockPreferencesService: PreferencesServiceProtocol {
 final class MockNotificationService: NotificationService {
   var notificationsSent = 0
   
-  func requestAuthorization() async throws -> Bool { return true }
-  
   func sendNotification(title: String, body: String, identifier: String) async {
     notificationsSent += 1
   }
-  
-  func requestCriticalAuthorization() async throws -> Bool { return true }
   
   func sendCriticalNotification(title: String, body: String, identifier: String) async {
     notificationsSent += 1
   }
   
-  func clearDeliveredNotifications() {}
+  func clearAllNotifications() {}
 }
 
 @MainActor

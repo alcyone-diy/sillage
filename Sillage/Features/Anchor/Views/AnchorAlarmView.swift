@@ -15,6 +15,8 @@ public struct AnchorAlarmView: View {
   @Environment(AnchorViewModel.self) private var viewModel
   
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(PermissionService.self) private var permissionService
+
   
   private static let distanceFormatter: MeasurementFormatter = {
     let formatter = MeasurementFormatter()
@@ -52,6 +54,8 @@ public struct AnchorAlarmView: View {
   }
   
   public var body: some View {
+    @Bindable var viewModel = viewModel
+    
     Form {
       Section {
         VStack(spacing: MarineTheme.Spacing.large) {
@@ -75,6 +79,16 @@ public struct AnchorAlarmView: View {
     }
     .onDisappear {
       viewModel.isSetupModeActive = false
+    }
+    .sheet(item: $viewModel.permissionGateType) { gateType in
+      PermissionGateView(type: gateType)
+        .presentationDetents([.medium, .large])
+    }
+    .onChange(of: permissionService.notificationStatus) { _, status in
+      if status == .authorized {
+        viewModel.finalizePendingAction()
+        viewModel.permissionGateType = nil
+      }
     }
   }
   
@@ -218,7 +232,7 @@ public struct AnchorAlarmView: View {
       case .dropped:
         Button(action: {
           Logger.anchor.info("User requested to arm alarm")
-          viewModel.armAlarm()
+          viewModel.requestArmAlarm(in: permissionService)
         }) {
           Label("Arm Alarm", systemImage: "bell.fill")
             .font(.title3.bold())
