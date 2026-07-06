@@ -25,7 +25,7 @@ public final class ActiveTrackViewModel {
   private let trackRecordingService: TrackRecordingService
   private let permissionService: PermissionService
   
-  public init(trackRecordingService: TrackRecordingService, permissionService: PermissionService) {
+  init(trackRecordingService: TrackRecordingService, permissionService: PermissionService) {
     self.trackRecordingService = trackRecordingService
     self.permissionService = permissionService
   }
