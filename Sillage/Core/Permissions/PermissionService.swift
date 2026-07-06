@@ -47,6 +47,8 @@ public final class PermissionService: PermissionServiceProtocol {
     
     @ObservationIgnored
     nonisolated(unsafe) private var locationObservationTask: Task<Void, Never>?
+    @ObservationIgnored
+    nonisolated(unsafe) private var lifecycleObservationTask: Task<Void, Never>?
     
     init(positioningService: PositioningService, notificationService: NotificationService) {
         self.positioningService = positioningService
@@ -54,10 +56,20 @@ public final class PermissionService: PermissionServiceProtocol {
         
         checkInitialStatuses()
         observeLocationStatus()
+        observeAppLifecycle()
     }
     
     deinit {
         locationObservationTask?.cancel()
+        lifecycleObservationTask?.cancel()
+    }
+    
+    private func observeAppLifecycle() {
+        lifecycleObservationTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: UIApplication.willEnterForegroundNotification) {
+                self?.checkInitialStatuses()
+            }
+        }
     }
     
     private func checkInitialStatuses() {
