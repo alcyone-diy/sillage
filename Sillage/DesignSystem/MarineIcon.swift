@@ -15,7 +15,7 @@ enum MarineIcon: String {
     case waypoint = "mappin.and.ellipse"
     case track = "point.topleft.down.curvedto.point.bottomright.up"
     case instruments = "barometer"
-    case location = "location.viewfinder"
+    case anchorAlarm = "location.viewfinder"
     case settings = "gearshape.fill"
     
     // Actions
