@@ -82,6 +82,9 @@
     "Alcyone Sillage needs your location to display your vessel on the marine chart, record your track, and enable the anchor alarm." : {
 
     },
+    "Alcyone Sillage requires location access to use this feature." : {
+
+    },
     "Alert Level" : {
 
     },
