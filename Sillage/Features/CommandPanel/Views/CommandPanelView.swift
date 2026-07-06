@@ -22,8 +22,12 @@ struct CommandPanelView: View {
   @Environment(\.waypointService) private var waypointService
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(BarometerViewModel.self) private var barometerViewModel
+  @Environment(PermissionService.self) private var permissionService
   
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
+  
+  @State private var permissionGateType: PermissionGateType? = nil
+  @State private var pendingTrackRecording = false
   
   var body: some View {
     @Bindable var bindableViewModel = viewModel
@@ -46,15 +50,21 @@ struct CommandPanelView: View {
               icon: .record,
               isOn: Binding(
                 get: { activeTrackViewModel.isRecording },
-                set: { _ in activeTrackViewModel.toggleRecording() }
+                set: { _ in
+                  if activeTrackViewModel.isRecording {
+                    activeTrackViewModel.toggleRecording()
+                  } else {
+                    if permissionService.locationStatus == .authorized {
+                      activeTrackViewModel.toggleRecording()
+                    } else {
+                      pendingTrackRecording = true
+                      permissionGateType = .location
+                    }
+                  }
+                }
               )
             )
             .disabled(activeTrackViewModel.isSaving)
-            .requiresLocationPermission {
-                if !activeTrackViewModel.isRecording {
-                    activeTrackViewModel.toggleRecording()
-                }
-            }
           }
           .listRowBackground(Color.clear)
           .listRowInsets(EdgeInsets())
@@ -62,23 +72,43 @@ struct CommandPanelView: View {
         
         // Zone 2: Safety
         Section(header: Text("Safety")) {
-          NavigationLink(value: PanelManagerViewModel.CommandDestination.anchorAlarm) {
-            Label {
-              Text("Anchor Alarm").foregroundStyle(.primary)
-            } icon: {
-              Image(marineIcon: .location).foregroundStyle(.blue)
+          Button {
+            if let gate = viewModel.requestNavigation(to: .anchorAlarm, status: permissionService.locationStatus) {
+                permissionGateType = gate
             }
-            .marineFont(.body)
+          } label: {
+            HStack {
+              Label {
+                Text("Anchor Alarm").foregroundStyle(.primary)
+              } icon: {
+                Image(marineIcon: .location).foregroundStyle(.blue)
+              }
+              .marineFont(.body)
+              Spacer()
+              Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(Color(uiColor: .tertiaryLabel))
+            }
           }
           .marineListCell()
-          .requiresLocationPermission()
-          NavigationLink(value: PanelManagerViewModel.CommandDestination.baroAlarm) {
-            Label {
-              Text("Baro Alarm").foregroundStyle(.primary)
-            } icon: {
-              Image(marineIcon: .instruments).foregroundStyle(.blue)
+          
+          Button {
+            if let gate = viewModel.requestNavigation(to: .baroAlarm, status: permissionService.motionStatus) {
+                permissionGateType = gate
             }
-            .marineFont(.body)
+          } label: {
+            HStack {
+              Label {
+                Text("Baro Alarm").foregroundStyle(.primary)
+              } icon: {
+                Image(marineIcon: .instruments).foregroundStyle(.blue)
+              }
+              .marineFont(.body)
+              Spacer()
+              Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(Color(uiColor: .tertiaryLabel))
+            }
           }
           .marineListCell()
         }
@@ -175,6 +205,32 @@ struct CommandPanelView: View {
             Image(marineIcon: .cancelAction)
               .foregroundStyle(.tertiary)
               .font(.title2)
+          }
+        }
+      }
+      .sheet(item: $permissionGateType) { gateType in
+        PermissionGateView(type: gateType)
+          .presentationDetents([.medium, .large])
+      }
+      .onChange(of: permissionService.locationStatus) { _, status in
+        if status == .authorized {
+          if pendingTrackRecording {
+            activeTrackViewModel.toggleRecording()
+            pendingTrackRecording = false
+            permissionGateType = nil
+          } else {
+            viewModel.finalizePendingNavigation(for: .location)
+            if viewModel.pendingDestination == nil {
+              permissionGateType = nil
+            }
+          }
+        }
+      }
+      .onChange(of: permissionService.motionStatus) { _, status in
+        if status == .authorized {
+          viewModel.finalizePendingNavigation(for: .motion)
+          if viewModel.pendingDestination == nil {
+            permissionGateType = nil
           }
         }
       }

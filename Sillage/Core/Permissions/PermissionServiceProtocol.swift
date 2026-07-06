@@ -19,5 +19,6 @@ public protocol PermissionServiceProtocol: AnyObject {
     func requestLocationAuthorization() async
     func requestNotificationAuthorization() async -> Bool
     func requestCriticalNotificationAuthorization() async -> Bool
+    func requestMotionAuthorization() async
     func openSystemSettings()
 }

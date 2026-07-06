@@ -186,6 +186,40 @@ public final class PermissionService: PermissionServiceProtocol {
         }
     }
     
+    @ObservationIgnored
+    private var motionActivityManager: CMMotionActivityManager?
+    
+    public func requestMotionAuthorization() async {
+        guard motionStatus == .notDetermined else {
+            if motionStatus == .denied {
+                openSystemSettings()
+            }
+            return
+        }
+        
+        let manager = CMMotionActivityManager()
+        self.motionActivityManager = manager
+        
+        let now = Date()
+        manager.queryActivityStarting(from: now, to: now, to: .main) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                let authStatus = CMMotionActivityManager.authorizationStatus()
+                switch authStatus {
+                case .notDetermined:
+                    self.motionStatus = .notDetermined
+                case .restricted, .denied:
+                    self.motionStatus = .denied
+                case .authorized:
+                    self.motionStatus = .authorized
+                @unknown default:
+                    self.motionStatus = .unknown
+                }
+                self.motionActivityManager = nil
+            }
+        }
+    }
+    
     public func openSystemSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString), UIApplication.shared.canOpenURL(url) {
             UIApplication.shared.open(url)

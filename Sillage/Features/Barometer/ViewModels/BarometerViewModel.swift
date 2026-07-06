@@ -109,6 +109,13 @@ public final class BarometerViewModel {
         self.chartData = newChartData
     }
     
+    // MARK: - Lifecycle Actions
+    
+    /// Starts barometric updates if not already running.
+    public func startUpdates() {
+        service.startUpdates()
+    }
+    
     // MARK: - Presentation State (Computed)
     
     /// Formatted current pressure, strictly nil if data is unavailable.

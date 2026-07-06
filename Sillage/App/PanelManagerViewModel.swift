@@ -73,4 +73,45 @@ public final class PanelManagerViewModel {
   private func resetCommandPath() {
     commandPath.removeAll()
   }
+
+  // MARK: - Permission & Navigation Routing
+
+  /// The destination that is waiting for a permission grant.
+  var pendingDestination: CommandDestination? = nil
+
+  /// Processes a navigation request that requires a permission check.
+  /// If authorized, it navigates immediately.
+  /// If not, it saves the destination as pending and returns the required gate type.
+  func requestNavigation(to destination: CommandDestination, status: PermissionStatus) -> PermissionGateType? {
+      if status == .authorized {
+          commandPath.append(destination)
+          return nil
+      } else {
+          pendingDestination = destination
+          switch destination {
+          case .anchorAlarm: return .location
+          case .baroAlarm: return .motion
+          default: return nil
+          }
+      }
+  }
+
+  /// Called when a permission status changes to authorized.
+  /// Executes any pending navigation for that permission.
+  func finalizePendingNavigation(for gateType: PermissionGateType) {
+      guard let destination = pendingDestination else { return }
+      
+      let matches: Bool = {
+          switch destination {
+          case .anchorAlarm: return gateType == .location
+          case .baroAlarm: return gateType == .motion
+          default: return false
+          }
+      }()
+      
+      if matches {
+          commandPath.append(destination)
+          pendingDestination = nil
+      }
+  }
 }
