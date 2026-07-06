@@ -215,6 +215,7 @@ struct CommandPanelView: View {
       .onChange(of: permissionService.locationStatus) { _, status in
         if status == .authorized {
           viewModel.finalizePendingLocationAction()
+          activeTrackViewModel.finalizePendingLocationAction()
           permissionGateType = nil
         }
       }
