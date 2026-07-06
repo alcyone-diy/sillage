@@ -81,7 +81,7 @@ final class AppEnvironment {
         notificationService: notificationService,
         permissionService: permissionService
       )
-      if permissionService.motionStatus != .notDetermined {
+      if permissionService.motionStatus == .authorized {
           barometricService.startUpdates()
       }
       

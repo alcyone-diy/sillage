@@ -31,7 +31,7 @@ public enum PermissionStatus: Sendable, Equatable {
 /// Use this service strictly to drive explicit permission workflows (like `PermissionGateView`) and informative UI components.
 @Observable
 @MainActor
-public final class PermissionService: PermissionServiceProtocol {
+final class PermissionService: PermissionServiceProtocol {
     
     public private(set) var locationStatus: PermissionStatus = .unknown
     public private(set) var notificationStatus: PermissionStatus = .unknown
@@ -51,6 +51,23 @@ public final class PermissionService: PermissionServiceProtocol {
     init(positioningService: PositioningService, notificationService: NotificationService) {
         self.positioningService = positioningService
         self.notificationService = notificationService
+        
+        // Sync initialization for statuses that don't require async
+        let motionAuth = CMMotionActivityManager.authorizationStatus()
+        switch motionAuth {
+        case .notDetermined: self.motionStatus = .notDetermined
+        case .restricted, .denied: self.motionStatus = .denied
+        case .authorized: self.motionStatus = .authorized
+        @unknown default: self.motionStatus = .unknown
+        }
+        
+        let locAuth = positioningService.currentAuthorizationStatus
+        switch locAuth {
+        case .notDetermined: self.locationStatus = .notDetermined
+        case .restricted, .denied: self.locationStatus = .denied
+        case .authorizedAlways, .authorizedWhenInUse: self.locationStatus = .authorized
+        @unknown default: self.locationStatus = .unknown
+        }
         
         Task { [weak self] in
             await self?.checkInitialStatuses()
@@ -74,11 +91,7 @@ public final class PermissionService: PermissionServiceProtocol {
     }
     
     private func checkInitialStatuses() async {
-        // Location
-        let status = positioningService.currentAuthorizationStatus
-        self.updateLocationStatus(from: status)
-        
-        // Notifications
+        // Notifications (Asynchronous by nature)
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         
@@ -91,19 +104,6 @@ public final class PermissionService: PermissionServiceProtocol {
             self.notificationStatus = .authorized
         @unknown default:
             self.notificationStatus = .unknown
-        }
-        
-        // Motion
-        let authStatus = CMMotionActivityManager.authorizationStatus()
-        switch authStatus {
-        case .notDetermined:
-            self.motionStatus = .notDetermined
-        case .restricted, .denied:
-            self.motionStatus = .denied
-        case .authorized:
-            self.motionStatus = .authorized
-        @unknown default:
-            self.motionStatus = .unknown
         }
     }
     
