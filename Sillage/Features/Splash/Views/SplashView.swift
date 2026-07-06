@@ -23,7 +23,7 @@ struct SplashView: View {
       Color(UIColor.systemBackground).ignoresSafeArea()
       
       VStack(spacing: 32) {
-        Text("ALCYONE SILLAGE")
+        Text(AppConstants.appName.uppercased())
           .marineFont(.largeTitle)
           .fontWeight(.black)
           .foregroundColor(.accentColor)
