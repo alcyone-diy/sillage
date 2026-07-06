@@ -15,30 +15,74 @@ enum PermissionIcon {
     case marine(MarineIcon)
 }
 
-enum PermissionGateType: Identifiable {
-    case location
+enum LocationPermissionTrigger: Hashable {
+    case mapTracking
+    case trackRecording
+    case anchorAlarm
+}
+
+enum NotificationPermissionTrigger: Hashable {
+    case anchorAlarm
+}
+
+enum PermissionGateType: Identifiable, Hashable {
+    case location(trigger: LocationPermissionTrigger)
     case motion
+    case notification(trigger: NotificationPermissionTrigger)
     
-    var id: Self { self }
+    var id: String {
+        switch self {
+        case .location(let trigger): return "location-\(trigger)"
+        case .motion: return "motion"
+        case .notification(let trigger): return "notification-\(trigger)"
+        }
+    }
     
     var icon: PermissionIcon {
         switch self {
-        case .location: return .system("location.circle.fill")
-        case .motion: return .marine(.instruments)
+        case .location(let trigger):
+            switch trigger {
+            case .mapTracking: return .system("location.fill")
+            case .trackRecording: return .marine(.track)
+            case .anchorAlarm: return .marine(.anchorAlarm)
+            }
+        case .motion:
+            return .marine(.instruments)
+        case .notification(.anchorAlarm):
+            return .system("bell.fill")
         }
     }
     
     var title: LocalizedStringKey {
         switch self {
-        case .location: return "Location Access"
-        case .motion: return "Barometer Access"
+        case .location(let trigger):
+            switch trigger {
+            case .mapTracking: return "Show your Vessel"
+            case .trackRecording: return "Record Track"
+            case .anchorAlarm: return "Anchor Watch GPS"
+            }
+        case .motion:
+            return "Barometer Access"
+        case .notification(.anchorAlarm):
+            return "Anchor Alerts"
         }
     }
     
     var description: LocalizedStringKey {
         switch self {
-        case .location: return "Alcyone Sillage needs your location to display your vessel on the marine chart, record your track, and enable the anchor alarm."
-        case .motion: return "Alcyone Sillage needs 'Motion & Fitness' access to read your device's internal altimeter, enabling the weather alarm feature."
+        case .location(let trigger):
+            switch trigger {
+            case .mapTracking:
+                return "Sillage requires access to your GPS to display your vessel's position on the chart."
+            case .trackRecording:
+                return "Sillage needs location access to accurately log your voyage and compute statistics."
+            case .anchorAlarm:
+                return "To alert you if your vessel drags anchor, Sillage needs continuous background GPS access."
+            }
+        case .motion:
+            return "Alcyone Sillage needs 'Motion & Fitness' access to read your device's internal altimeter, enabling the weather alarm feature."
+        case .notification(.anchorAlarm):
+            return "Alcyone Sillage requires permission to send notifications to alert you if your vessel drags its anchor."
         }
     }
     
@@ -46,13 +90,20 @@ enum PermissionGateType: Identifiable {
         switch self {
         case .location: return "Allow Location"
         case .motion: return "Allow Access"
+        case .notification: return "Allow Notifications"
         }
     }
     
     var deniedMessage: LocalizedStringKey {
         switch self {
-        case .location: return "Alcyone Sillage requires location access to use this feature."
+        case .location(let trigger):
+            switch trigger {
+            case .mapTracking: return "Sillage requires location access to show you on the map."
+            case .trackRecording: return "Sillage requires location access to record your track."
+            case .anchorAlarm: return "Sillage requires location access to monitor your anchor."
+            }
         case .motion: return "Alcyone Sillage requires motion and fitness access to read the barometer."
+        case .notification: return "Alcyone Sillage requires notification access to warn you of a dragging anchor."
         }
     }
     
@@ -60,6 +111,7 @@ enum PermissionGateType: Identifiable {
         switch self {
         case .location: return service.locationStatus
         case .motion: return service.motionStatus
+        case .notification: return service.notificationStatus
         }
     }
     
@@ -67,6 +119,7 @@ enum PermissionGateType: Identifiable {
         switch self {
         case .location: await service.requestLocationAuthorization()
         case .motion: await service.requestMotionAuthorization()
+        case .notification: _ = await service.requestCriticalNotificationAuthorization()
         }
     }
 }
@@ -77,7 +130,7 @@ struct PermissionGateView: View {
     
     let type: PermissionGateType
     
-    init(type: PermissionGateType = .location) {
+    init(type: PermissionGateType) {
         self.type = type
     }
     

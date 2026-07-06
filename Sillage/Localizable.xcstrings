@@ -82,13 +82,13 @@
     "Alcyone Sillage needs 'Motion & Fitness' access to read your device's internal altimeter, enabling the weather alarm feature." : {
 
     },
-    "Alcyone Sillage needs your location to display your vessel on the marine chart, record your track, and enable the anchor alarm." : {
-
-    },
-    "Alcyone Sillage requires location access to use this feature." : {
-
-    },
     "Alcyone Sillage requires motion and fitness access to read the barometer." : {
+
+    },
+    "Alcyone Sillage requires notification access to warn you of a dragging anchor." : {
+
+    },
+    "Alcyone Sillage requires permission to send notifications to alert you if your vessel drags its anchor." : {
 
     },
     "Alert Level" : {
@@ -103,10 +103,19 @@
     "Allow Location" : {
 
     },
+    "Allow Notifications" : {
+
+    },
     "Anchor Alarm" : {
 
     },
+    "Anchor Alerts" : {
+
+    },
     "Anchor Dropped" : {
+
+    },
+    "Anchor Watch GPS" : {
 
     },
     "Anchor:" : {
@@ -382,9 +391,6 @@
     "Location" : {
 
     },
-    "Location Access" : {
-
-    },
     "Log In" : {
 
     },
@@ -499,6 +505,9 @@
     "Raw sensor: %@" : {
 
     },
+    "Record Track" : {
+
+    },
     "Recording aborted. No GPS fix was obtained." : {
 
     },
@@ -550,7 +559,25 @@
     "Show Time Ticks" : {
 
     },
+    "Show your Vessel" : {
+
+    },
     "SILENCE ALERT" : {
+
+    },
+    "Sillage needs location access to accurately log your voyage and compute statistics." : {
+
+    },
+    "Sillage requires access to your GPS to display your vessel's position on the chart." : {
+
+    },
+    "Sillage requires location access to monitor your anchor." : {
+
+    },
+    "Sillage requires location access to record your track." : {
+
+    },
+    "Sillage requires location access to show you on the map." : {
 
     },
     "SLIDE TO CANCEL" : {
@@ -593,6 +620,9 @@
 
     },
     "Time Horizon" : {
+
+    },
+    "To alert you if your vessel drags anchor, Sillage needs continuous background GPS access." : {
 
     },
     "Track" : {

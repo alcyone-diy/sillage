@@ -96,8 +96,24 @@ public final class PanelManagerViewModel {
 
   /// Called when a permission status changes to authorized.
   /// Executes any pending action for that permission.
-  func finalizePendingAction(for gateType: PermissionGateType) {
-      if pendingGateType == gateType {
+  func finalizePendingLocationAction() {
+      if case .location = pendingGateType {
+          pendingAction?()
+          pendingAction = nil
+          pendingGateType = nil
+      }
+  }
+  
+  func finalizePendingMotionAction() {
+      if case .motion = pendingGateType {
+          pendingAction?()
+          pendingAction = nil
+          pendingGateType = nil
+      }
+  }
+  
+  func finalizePendingNotificationAction() {
+      if case .notification = pendingGateType {
           pendingAction?()
           pendingAction = nil
           pendingGateType = nil

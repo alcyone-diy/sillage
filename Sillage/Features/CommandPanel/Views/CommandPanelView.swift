@@ -53,7 +53,7 @@ struct CommandPanelView: View {
                   if activeTrackViewModel.isRecording {
                     activeTrackViewModel.toggleRecording()
                   } else {
-                    if let gate = viewModel.executeOrRequestPermission(type: .location, status: permissionService.locationStatus, action: { [weak activeTrackViewModel] in
+                    if let gate = viewModel.executeOrRequestPermission(type: .location(trigger: .trackRecording), status: permissionService.locationStatus, action: { [weak activeTrackViewModel] in
                         activeTrackViewModel?.toggleRecording()
                     }) {
                         permissionGateType = gate
@@ -71,7 +71,7 @@ struct CommandPanelView: View {
         // Zone 2: Safety
         Section(header: Text("Safety")) {
           Button {
-            if let gate = viewModel.executeOrRequestPermission(type: .location, status: permissionService.locationStatus, action: { [weak viewModel] in
+            if let gate = viewModel.executeOrRequestPermission(type: .location(trigger: .anchorAlarm), status: permissionService.locationStatus, action: { [weak viewModel] in
                 viewModel?.commandPath.append(.anchorAlarm)
             }) {
                 permissionGateType = gate
@@ -81,7 +81,7 @@ struct CommandPanelView: View {
               Label {
                 Text("Anchor Alarm").foregroundStyle(.primary)
               } icon: {
-                Image(marineIcon: .location).foregroundStyle(.blue)
+                Image(marineIcon: .anchorAlarm).foregroundStyle(.blue)
               }
               .marineFont(.body)
               Spacer()
@@ -216,13 +216,19 @@ struct CommandPanelView: View {
       }
       .onChange(of: permissionService.locationStatus) { _, status in
         if status == .authorized {
-          viewModel.finalizePendingAction(for: .location)
+          viewModel.finalizePendingLocationAction()
           permissionGateType = nil
         }
       }
       .onChange(of: permissionService.motionStatus) { _, status in
         if status == .authorized {
-          viewModel.finalizePendingAction(for: .motion)
+          viewModel.finalizePendingMotionAction()
+          permissionGateType = nil
+        }
+      }
+      .onChange(of: permissionService.notificationStatus) { _, status in
+        if status == .authorized {
+          viewModel.finalizePendingNotificationAction()
           permissionGateType = nil
         }
       }
