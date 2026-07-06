@@ -40,8 +40,6 @@ public final class PermissionService: PermissionServiceProtocol {
     private let positioningService: PositioningService
     private let notificationService: NotificationService
     
-    private let locationManager = CLLocationManager()
-    
     private var isRequestingLocation = false
     private var isRequestingNotification = false
     
@@ -54,7 +52,10 @@ public final class PermissionService: PermissionServiceProtocol {
         self.positioningService = positioningService
         self.notificationService = notificationService
         
-        checkInitialStatuses()
+        Task { [weak self] in
+            await self?.checkInitialStatuses()
+        }
+        
         observeLocationStatus()
         observeAppLifecycle()
     }
@@ -67,31 +68,29 @@ public final class PermissionService: PermissionServiceProtocol {
     private func observeAppLifecycle() {
         lifecycleObservationTask = Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: UIApplication.willEnterForegroundNotification) {
-                self?.checkInitialStatuses()
+                await self?.checkInitialStatuses()
             }
         }
     }
     
-    private func checkInitialStatuses() {
+    private func checkInitialStatuses() async {
         // Location
-        let status = locationManager.authorizationStatus
+        let status = positioningService.currentAuthorizationStatus
         self.updateLocationStatus(from: status)
         
         // Notifications
-        Task {
-            let center = UNUserNotificationCenter.current()
-            let settings = await center.notificationSettings()
-            
-            switch settings.authorizationStatus {
-            case .notDetermined:
-                self.notificationStatus = .notDetermined
-            case .denied:
-                self.notificationStatus = .denied
-            case .authorized, .provisional, .ephemeral:
-                self.notificationStatus = .authorized
-            @unknown default:
-                self.notificationStatus = .unknown
-            }
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            self.notificationStatus = .notDetermined
+        case .denied:
+            self.notificationStatus = .denied
+        case .authorized, .provisional, .ephemeral:
+            self.notificationStatus = .authorized
+        @unknown default:
+            self.notificationStatus = .unknown
         }
         
         // Motion

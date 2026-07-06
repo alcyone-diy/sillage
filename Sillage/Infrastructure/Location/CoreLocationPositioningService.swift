@@ -22,6 +22,10 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   
   private let locationManager: CLLocationManager
   
+  var currentAuthorizationStatus: CLAuthorizationStatus {
+    locationManager.authorizationStatus
+  }
+  
   // MARK: - Multicast Streams
   
   private var locationContinuations: [UUID: AsyncStream<NavigationFix>.Continuation] = [:]

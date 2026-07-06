@@ -12,6 +12,7 @@ import Foundation
 import CoreLocation
 
 protocol PositioningService {
+  var currentAuthorizationStatus: CLAuthorizationStatus { get }
   var locationUpdates: AsyncStream<NavigationFix> { get }
   var authorizationStatusStream: AsyncStream<CLAuthorizationStatus> { get }
 

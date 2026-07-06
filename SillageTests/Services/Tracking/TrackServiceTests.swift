@@ -29,6 +29,8 @@ struct TrackServiceTests {
     let (locationUpdates, locationContinuation) = AsyncStream.makeStream(of: NavigationFix.self)
     let (authorizationStatusStream, authContinuation) = AsyncStream.makeStream(of: CLAuthorizationStatus.self)
     
+    var currentAuthorizationStatus: CLAuthorizationStatus = .notDetermined
+    
     func requestAuthorization() {}
     func startUpdatingLocation() {}
     func stopUpdatingLocation() {}

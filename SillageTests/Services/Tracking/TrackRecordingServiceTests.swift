@@ -30,6 +30,8 @@ struct TrackRecordingServiceTests {
   class MockPositioningService: PositioningService, Sendable {
     let (locationUpdates, locationContinuation) = AsyncStream.makeStream(of: NavigationFix.self)
     let (authorizationStatusStream, authContinuation) = AsyncStream.makeStream(of: CLAuthorizationStatus.self)
+    
+    var currentAuthorizationStatus: CLAuthorizationStatus = .notDetermined
 
     var requestAuthorizationCallCount = 0
     func requestAuthorization() {
