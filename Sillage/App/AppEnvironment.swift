@@ -189,10 +189,16 @@ final class AppEnvironment {
       try fm.createDirectory(at: chartsURL, withIntermediateDirectories: true)
     }
     
-    let dummyURL = docsURL.appendingPathComponent("Sillage_ReadMe.txt")
+    let dummyURL = docsURL.appendingPathComponent("\(AppConstants.appName)_ReadMe.txt")
     if !fm.fileExists(atPath: dummyURL.path) {
-      let text = "\(AppConstants.appName) - Chart Plotter.\nPlease place your .mbtiles files in the 'Charts' directory."
-      try text.write(to: dummyURL, atomically: true, encoding: .utf8)
+      Task.detached(priority: .background) {
+        let text = "\(AppConstants.appName) - Chart Plotter.\nPlease place your .mbtiles files in the 'Charts' directory."
+        do {
+          try text.write(to: dummyURL, atomically: true, encoding: .utf8)
+        } catch {
+          Logger.storage.error("❌ Failed to write ReadMe file: \(error.localizedDescription, privacy: .public)")
+        }
+      }
     }
     
     // Cleanup GPX temporary directory explicitly in background to avoid blocking bootstrap
