@@ -11,6 +11,6 @@
 import Foundation
 
 public enum AppConstants {
-  public static let appName = "Alcyone Sillage"
+  public static let appName = "Sillage"
   public static let appURL = URL(string: "https://alcyone-sillage.com")!
 }
