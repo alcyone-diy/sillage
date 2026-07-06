@@ -80,16 +80,23 @@ public final class PanelManagerViewModel {
   private var pendingAction: (@MainActor () -> Void)? = nil
   private var pendingGateType: PermissionGateType? = nil
 
-  /// Processes an action that requires a permission check.
-  /// If authorized, it executes immediately.
-  /// If not, it saves the action as pending and returns the required gate type.
-  func executeOrRequestPermission(type: PermissionGateType, status: PermissionStatus, action: @escaping @MainActor () -> Void) -> PermissionGateType? {
+  /// Evaluates the permission and executes the action, or prepares the request if necessary.
+  func executeOrRequestPermission(
+      type: PermissionGateType,
+      in service: PermissionService,
+      action: @escaping @MainActor () -> Void
+  ) -> PermissionGateType? {
+      
+      // 1. Source of truth is guaranteed by the enum
+      let status = type.currentStatus(in: service)
+      
+      // 2. Evaluation
       if status == .authorized {
           action()
           return nil
       } else {
-          pendingAction = action
-          pendingGateType = type
+          self.pendingGateType = type
+          self.pendingAction = action
           return type
       }
   }

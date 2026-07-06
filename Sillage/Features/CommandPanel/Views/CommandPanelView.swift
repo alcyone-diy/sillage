@@ -53,9 +53,13 @@ struct CommandPanelView: View {
                   if activeTrackViewModel.isRecording {
                     activeTrackViewModel.toggleRecording()
                   } else {
-                    if let gate = viewModel.executeOrRequestPermission(type: .location(trigger: .trackRecording), status: permissionService.locationStatus, action: { [weak activeTrackViewModel] in
-                        activeTrackViewModel?.toggleRecording()
-                    }) {
+                    if let gate = viewModel.executeOrRequestPermission(
+                        type: .location(trigger: .trackRecording),
+                        in: permissionService,
+                        action: { [weak activeTrackViewModel] in
+                            activeTrackViewModel?.toggleRecording()
+                        }
+                    ) {
                         permissionGateType = gate
                     }
                   }
@@ -71,9 +75,13 @@ struct CommandPanelView: View {
         // Zone 2: Safety
         Section(header: Text("Safety")) {
           Button {
-            if let gate = viewModel.executeOrRequestPermission(type: .location(trigger: .anchorAlarm), status: permissionService.locationStatus, action: { [weak viewModel] in
-                viewModel?.commandPath.append(.anchorAlarm)
-            }) {
+            if let gate = viewModel.executeOrRequestPermission(
+                type: .location(trigger: .anchorAlarm),
+                in: permissionService,
+                action: { [weak viewModel] in
+                    viewModel?.commandPath.append(.anchorAlarm)
+                }
+            ) {
                 permissionGateType = gate
             }
           } label: {
@@ -93,9 +101,13 @@ struct CommandPanelView: View {
           .marineListCell()
           
           Button {
-            if let gate = viewModel.executeOrRequestPermission(type: .motion, status: permissionService.motionStatus, action: { [weak viewModel] in
-                viewModel?.commandPath.append(.baroAlarm)
-            }) {
+            if let gate = viewModel.executeOrRequestPermission(
+                type: .motion,
+                in: permissionService,
+                action: { [weak viewModel] in
+                    viewModel?.commandPath.append(.baroAlarm)
+                }
+            ) {
                 permissionGateType = gate
             }
           } label: {
