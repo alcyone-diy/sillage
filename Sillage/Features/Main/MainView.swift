@@ -25,7 +25,6 @@ struct ContentView: View {
   
   @State private var localSheetPresented: Bool = false
   @State private var permissionGateType: PermissionGateType? = nil
-  @State private var pendingToggleTracking: Bool = false
 
   var body: some View {
     GeometryReader { geo in
@@ -70,11 +69,10 @@ struct ContentView: View {
           HStack {
             // Recenter Button
             Button(action: {
-              if permissionService.locationStatus == .authorized {
-                chartViewModel.toggleTrackingMode()
-              } else {
-                pendingToggleTracking = true
-                permissionGateType = .location
+              if let gate = panelManagerViewModel.executeOrRequestPermission(type: .location, status: permissionService.locationStatus, action: { [weak chartViewModel] in
+                  chartViewModel?.toggleTrackingMode()
+              }) {
+                  permissionGateType = gate
               }
             }) {
               Image(marineIcon: trackingIconName(for: chartViewModel.trackingMode))
@@ -176,11 +174,8 @@ struct ContentView: View {
     }
     .onChange(of: permissionService.locationStatus) { _, status in
       if status == .authorized {
-        if pendingToggleTracking {
-          chartViewModel.toggleTrackingMode()
-          pendingToggleTracking = false
-          permissionGateType = nil
-        }
+        panelManagerViewModel.finalizePendingAction(for: .location)
+        permissionGateType = nil
       }
     }
     .sheet(item: Bindable(appViewModel).waypointDraft) { item in

@@ -74,44 +74,33 @@ public final class PanelManagerViewModel {
     commandPath.removeAll()
   }
 
-  // MARK: - Permission & Navigation Routing
+  // MARK: - Permission & Action Routing
 
-  /// The destination that is waiting for a permission grant.
-  var pendingDestination: CommandDestination? = nil
+  /// The pending action waiting for a permission grant.
+  private var pendingAction: (@MainActor () -> Void)? = nil
+  private var pendingGateType: PermissionGateType? = nil
 
-  /// Processes a navigation request that requires a permission check.
-  /// If authorized, it navigates immediately.
-  /// If not, it saves the destination as pending and returns the required gate type.
-  func requestNavigation(to destination: CommandDestination, status: PermissionStatus) -> PermissionGateType? {
+  /// Processes an action that requires a permission check.
+  /// If authorized, it executes immediately.
+  /// If not, it saves the action as pending and returns the required gate type.
+  func executeOrRequestPermission(type: PermissionGateType, status: PermissionStatus, action: @escaping @MainActor () -> Void) -> PermissionGateType? {
       if status == .authorized {
-          commandPath.append(destination)
+          action()
           return nil
       } else {
-          pendingDestination = destination
-          switch destination {
-          case .anchorAlarm: return .location
-          case .baroAlarm: return .motion
-          default: return nil
-          }
+          pendingAction = action
+          pendingGateType = type
+          return type
       }
   }
 
   /// Called when a permission status changes to authorized.
-  /// Executes any pending navigation for that permission.
-  func finalizePendingNavigation(for gateType: PermissionGateType) {
-      guard let destination = pendingDestination else { return }
-      
-      let matches: Bool = {
-          switch destination {
-          case .anchorAlarm: return gateType == .location
-          case .baroAlarm: return gateType == .motion
-          default: return false
-          }
-      }()
-      
-      if matches {
-          commandPath.append(destination)
-          pendingDestination = nil
+  /// Executes any pending action for that permission.
+  func finalizePendingAction(for gateType: PermissionGateType) {
+      if pendingGateType == gateType {
+          pendingAction?()
+          pendingAction = nil
+          pendingGateType = nil
       }
   }
 }

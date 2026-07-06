@@ -27,7 +27,6 @@ struct CommandPanelView: View {
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   
   @State private var permissionGateType: PermissionGateType? = nil
-  @State private var pendingTrackRecording = false
   
   var body: some View {
     @Bindable var bindableViewModel = viewModel
@@ -54,11 +53,10 @@ struct CommandPanelView: View {
                   if activeTrackViewModel.isRecording {
                     activeTrackViewModel.toggleRecording()
                   } else {
-                    if permissionService.locationStatus == .authorized {
-                      activeTrackViewModel.toggleRecording()
-                    } else {
-                      pendingTrackRecording = true
-                      permissionGateType = .location
+                    if let gate = viewModel.executeOrRequestPermission(type: .location, status: permissionService.locationStatus, action: { [weak activeTrackViewModel] in
+                        activeTrackViewModel?.toggleRecording()
+                    }) {
+                        permissionGateType = gate
                     }
                   }
                 }
@@ -73,7 +71,9 @@ struct CommandPanelView: View {
         // Zone 2: Safety
         Section(header: Text("Safety")) {
           Button {
-            if let gate = viewModel.requestNavigation(to: .anchorAlarm, status: permissionService.locationStatus) {
+            if let gate = viewModel.executeOrRequestPermission(type: .location, status: permissionService.locationStatus, action: { [weak viewModel] in
+                viewModel?.commandPath.append(.anchorAlarm)
+            }) {
                 permissionGateType = gate
             }
           } label: {
@@ -93,7 +93,9 @@ struct CommandPanelView: View {
           .marineListCell()
           
           Button {
-            if let gate = viewModel.requestNavigation(to: .baroAlarm, status: permissionService.motionStatus) {
+            if let gate = viewModel.executeOrRequestPermission(type: .motion, status: permissionService.motionStatus, action: { [weak viewModel] in
+                viewModel?.commandPath.append(.baroAlarm)
+            }) {
                 permissionGateType = gate
             }
           } label: {
@@ -214,24 +216,14 @@ struct CommandPanelView: View {
       }
       .onChange(of: permissionService.locationStatus) { _, status in
         if status == .authorized {
-          if pendingTrackRecording {
-            activeTrackViewModel.toggleRecording()
-            pendingTrackRecording = false
-            permissionGateType = nil
-          } else {
-            viewModel.finalizePendingNavigation(for: .location)
-            if viewModel.pendingDestination == nil {
-              permissionGateType = nil
-            }
-          }
+          viewModel.finalizePendingAction(for: .location)
+          permissionGateType = nil
         }
       }
       .onChange(of: permissionService.motionStatus) { _, status in
         if status == .authorized {
-          viewModel.finalizePendingNavigation(for: .motion)
-          if viewModel.pendingDestination == nil {
-            permissionGateType = nil
-          }
+          viewModel.finalizePendingAction(for: .motion)
+          permissionGateType = nil
         }
       }
     }
