@@ -7,7 +7,7 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **Progressive Disclosure:** Display only what is vital for the current context.
 
 ## 2. Technical Stack & Swift 6 Standards
-- **Target:** iOS 17+.
+- **Target:** iOS 18.6+.
 - **Concurrency:** Strict Swift 6 Concurrency. Use `@MainActor` for all UI-related ViewModels. Prefer `Task` over `Timer`.
 - **State Management:** Use the `@Observable` framework.
 - **PROHIBITED (State):** `Combine`, `ObservableObject`, and `@Published` are strictly forbidden.
