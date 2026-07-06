@@ -54,7 +54,7 @@ enum PermissionGateType: Identifiable, Hashable {
         }
     }
     
-    var title: LocalizedStringKey {
+    var title: LocalizedStringResource {
         switch self {
         case .location(let trigger):
             switch trigger {
@@ -71,27 +71,27 @@ enum PermissionGateType: Identifiable, Hashable {
         }
     }
     
-    var description: LocalizedStringKey {
+    var description: LocalizedStringResource {
         switch self {
         case .location(let trigger):
             switch trigger {
             case .mapTracking:
-                return "Sillage requires access to your GPS to display your vessel's position on the chart."
+                return "\(AppConstants.appName) requires access to your GPS to display your vessel's position on the chart."
             case .trackRecording:
-                return "Sillage needs location access to accurately log your voyage and compute statistics."
+                return "\(AppConstants.appName) needs location access to accurately log your voyage and compute statistics."
             case .anchorAlarm:
-                return "To alert you if your vessel drags anchor, Sillage needs continuous background GPS access."
+                return "To alert you if your vessel drags anchor, \(AppConstants.appName) needs continuous background GPS access."
             }
         case .motion:
-            return "Alcyone Sillage needs 'Motion & Fitness' access to read your device's internal altimeter, enabling the weather alarm feature."
+            return "\(AppConstants.appName) needs 'Motion & Fitness' access to read your device's internal altimeter, enabling the weather alarm feature."
         case .notification(.anchorAlarm):
-            return "Alcyone Sillage requires permission to send notifications to alert you if your vessel drags its anchor."
+            return "\(AppConstants.appName) requires permission to send notifications to alert you if your vessel drags its anchor."
         case .notification(.baroAlarm):
-            return "Alcyone Sillage requires permission to send notifications to warn you of severe weather changes."
+            return "\(AppConstants.appName) requires permission to send notifications to warn you of severe weather changes."
         }
     }
     
-    var buttonTitle: LocalizedStringKey {
+    var buttonTitle: LocalizedStringResource {
         switch self {
         case .location: return "Allow Location"
         case .motion: return "Allow Access"
@@ -99,17 +99,17 @@ enum PermissionGateType: Identifiable, Hashable {
         }
     }
     
-    var deniedMessage: LocalizedStringKey {
+    var deniedMessage: LocalizedStringResource {
         switch self {
         case .location(let trigger):
             switch trigger {
-            case .mapTracking: return "Sillage requires location access to show you on the map."
-            case .trackRecording: return "Sillage requires location access to record your track."
-            case .anchorAlarm: return "Sillage requires location access to monitor your anchor."
+            case .mapTracking: return "\(AppConstants.appName) requires location access to show you on the map."
+            case .trackRecording: return "\(AppConstants.appName) requires location access to record your track."
+            case .anchorAlarm: return "\(AppConstants.appName) requires location access to monitor your anchor."
             }
-        case .motion: return "Alcyone Sillage requires motion and fitness access to read the barometer."
-        case .notification(.anchorAlarm): return "Alcyone Sillage requires notification access to warn you of a dragging anchor."
-        case .notification(.baroAlarm): return "Alcyone Sillage requires notification access to warn you of severe weather changes."
+        case .motion: return "\(AppConstants.appName) requires motion and fitness access to read the barometer."
+        case .notification(.anchorAlarm): return "\(AppConstants.appName) requires notification access to warn you of a dragging anchor."
+        case .notification(.baroAlarm): return "\(AppConstants.appName) requires notification access to warn you of severe weather changes."
         }
     }
     

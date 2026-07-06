@@ -12,7 +12,7 @@ import SwiftUI
 
 struct PermissionDeniedView: View {
     @Environment(PermissionService.self) private var permissionService
-    let message: LocalizedStringKey
+    let message: LocalizedStringResource
     
     var body: some View {
         VStack(spacing: 20) {
