@@ -23,6 +23,8 @@ final class MockPositioningService: PositioningService {
   var locationContinuation: AsyncStream<NavigationFix>.Continuation!
   var locationUpdates: AsyncStream<NavigationFix>
   
+  var currentAuthorizationStatus: CLAuthorizationStatus = .notDetermined
+  
   var authContinuation: AsyncStream<CLAuthorizationStatus>.Continuation!
   var authorizationStatusStream: AsyncStream<CLAuthorizationStatus>
   
