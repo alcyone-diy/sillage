@@ -21,16 +21,37 @@ struct AnyLocalizedError: LocalizedError {
 public final class ActiveTrackViewModel {
   public var recordingError: LocalizedError?
   public var recentlySavedSessionID: String?
-  private let trackRecordingService: TrackRecordingService
   
-  public init(trackRecordingService: TrackRecordingService) {
+  private let trackRecordingService: TrackRecordingService
+  private let permissionService: PermissionService
+  
+  public init(trackRecordingService: TrackRecordingService, permissionService: PermissionService) {
     self.trackRecordingService = trackRecordingService
+    self.permissionService = permissionService
   }
   
   public var isRecording: Bool {
     switch trackRecordingService.state {
     case .recording, .paused, .waitingForFix: return true
     case .idle, .saving: return false
+    }
+  }
+  
+  func handleRecordingToggle(requestedState: Bool) -> PermissionGateType? {
+    if requestedState {
+      if isRecording { return nil }
+      let gateType = PermissionGateType.location(trigger: .trackRecording)
+      if gateType.currentStatus(in: permissionService) == .authorized {
+        toggleRecording()
+        return nil
+      } else {
+        return gateType
+      }
+    } else {
+      if isRecording {
+        toggleRecording()
+      }
+      return nil
     }
   }
   

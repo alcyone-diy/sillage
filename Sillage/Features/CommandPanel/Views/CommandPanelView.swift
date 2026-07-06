@@ -38,34 +38,18 @@ struct CommandPanelView: View {
         // Zone 1: Quick Actions
         Section(header: Text("Quick Actions")) {
           HStack(spacing: MarineTheme.Spacing.medium) {
-            MarineToggleButton(
-              title: "Glove Mode",
-              icon: .gloveMode,
-              isOn: $bindableAppViewModel.isGloveModeEnabled
-            )
+            Toggle("Glove Mode", isOn: $bindableAppViewModel.isGloveModeEnabled)
+              .toggleStyle(.marine(icon: .gloveMode))
             
-            MarineToggleButton(
-              title: "Track",
-              icon: .record,
-              isOn: Binding(
-                get: { activeTrackViewModel.isRecording },
-                set: { _ in
-                  if activeTrackViewModel.isRecording {
-                    activeTrackViewModel.toggleRecording()
-                  } else {
-                    if let gate = viewModel.executeOrRequestPermission(
-                        type: .location(trigger: .trackRecording),
-                        in: permissionService,
-                        action: { [weak activeTrackViewModel] in
-                            activeTrackViewModel?.toggleRecording()
-                        }
-                    ) {
-                        permissionGateType = gate
-                    }
-                  }
+            Toggle("Track", isOn: Binding(
+              get: { activeTrackViewModel.isRecording },
+              set: { newValue in
+                if let gate = activeTrackViewModel.handleRecordingToggle(requestedState: newValue) {
+                  permissionGateType = gate
                 }
-              )
-            )
+              }
+            ))
+            .toggleStyle(.marine(icon: .record))
             .disabled(activeTrackViewModel.isSaving)
           }
           .listRowBackground(Color.clear)

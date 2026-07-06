@@ -133,7 +133,10 @@ final class AppEnvironment {
         waypointService: waypointService
       )
       let panelManagerViewModel = PanelManagerViewModel()
-      let activeTrackViewModel = ActiveTrackViewModel(trackRecordingService: trackRecordingService)
+      let activeTrackViewModel = ActiveTrackViewModel(
+        trackRecordingService: trackRecordingService,
+        permissionService: permissionService
+      )
       let barometerViewModel = BarometerViewModel(
         service: barometricService,
         preferencesService: preferencesService
