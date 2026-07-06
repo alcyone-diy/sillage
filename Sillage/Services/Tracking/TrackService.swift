@@ -22,7 +22,7 @@ public struct TrackService: Sendable {
   
   /// Observes saved track sessions, ordered by start time descending, in real-time.
   /// - Returns: An AsyncSequence emitting arrays of `TrackSessionRecord` whenever the database updates.
-  public func observeTrackSessions() -> some AsyncSequence<[TrackSession], Error> {
+  public func observeTrackSessions() -> AsyncValueObservation<[TrackSession]> {
     let observation = ValueObservation.tracking { db in
       let records = try TrackSessionRecord
         .order(TrackSessionRecord.Columns.startTimestamp_unix.desc)
@@ -52,7 +52,7 @@ public struct TrackService: Sendable {
   /// Observes a single track session by its ID, reacting to database updates.
   /// - Parameter id: The ID of the session to observe.
   /// - Returns: An AsyncSequence emitting `TrackSession?` whenever the session changes in the database.
-  public func observeTrackSession(id: String) -> some AsyncSequence<TrackSession?, Error> {
+  public func observeTrackSession(id: String) -> AsyncValueObservation<TrackSession?> {
     let observation = ValueObservation.tracking { db in
       try TrackSessionRecord.fetchOne(db, key: id)?.toDomain()
     }
