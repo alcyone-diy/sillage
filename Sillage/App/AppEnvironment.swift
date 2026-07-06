@@ -191,7 +191,7 @@ final class AppEnvironment {
     
     let dummyURL = docsURL.appendingPathComponent("Sillage_ReadMe.txt")
     if !fm.fileExists(atPath: dummyURL.path) {
-      let text = "Alcyone Sillage - Chart Plotter.\nPlease place your .mbtiles files in the 'Charts' directory."
+      let text = "\(AppConstants.appName) - Chart Plotter.\nPlease place your .mbtiles files in the 'Charts' directory."
       try text.write(to: dummyURL, atomically: true, encoding: .utf8)
     }
     

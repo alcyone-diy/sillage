@@ -24,7 +24,7 @@ struct LegalListView: View {
         documentRow(for: navigationWarningDocument)
         documentRow(for: sillageLicenseDocument)
       } header: {
-        Text("Alcyone Sillage")
+        Text(AppConstants.appName)
       }
       Section {
         ForEach(thirdPartyLicenseDocuments) { document in
