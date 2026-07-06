@@ -33,11 +33,11 @@ struct LegalListView: View {
       } header: {
         Text("Third-Party Licenses")
       }
-      .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-      .marineListBackground()
-      .navigationTitle("Legal & Licenses")
-      .navigationBarTitleDisplayMode(.inline)
     }
+    .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+    .marineListBackground()
+    .navigationTitle("Legal & Licenses")
+    .navigationBarTitleDisplayMode(.inline)
   }
   
   @ViewBuilder
@@ -47,5 +47,6 @@ struct LegalListView: View {
         .marineFont(.body)
         .foregroundColor(.primary)
     }
+    .marineListCell()
   }
 }
