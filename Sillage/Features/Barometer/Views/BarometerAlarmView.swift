@@ -15,6 +15,7 @@ import Charts
 /// It observes the BarometerViewModel and renders the current pressure and the 12-hour history chart.
 public struct BarometerAlarmView: View {
     @Bindable var viewModel: BarometerViewModel
+    @Environment(PermissionService.self) private var permissionService
     
     public init(viewModel: BarometerViewModel) {
         self.viewModel = viewModel
@@ -87,7 +88,12 @@ public struct BarometerAlarmView: View {
             
             // MARK: - Settings
             Section(header: Text("Configuration")) {
-                Toggle("Weather Alarms", isOn: $viewModel.isAlarmEnabled)
+                Toggle("Weather Alarms", isOn: Binding(
+                    get: { viewModel.isAlarmEnabled },
+                    set: { newValue in
+                        viewModel.requestToggleAlarm(isOn: newValue, in: permissionService)
+                    }
+                ))
                     .tint(MarineTheme.Colors.accent)
                 
                 if viewModel.isAlarmEnabled {
@@ -139,6 +145,16 @@ public struct BarometerAlarmView: View {
             // Automatically re-evaluates and refreshes the history chart 
             // the exact moment the service commits a new point to the database.
             await viewModel.refreshHistory()
+        }
+        .sheet(item: $viewModel.permissionGateType) { gateType in
+            PermissionGateView(type: gateType)
+                .presentationDetents([.medium, .large])
+        }
+        .onChange(of: permissionService.notificationStatus) { _, status in
+            if status == .authorized {
+                viewModel.finalizePendingAction()
+                viewModel.permissionGateType = nil
+            }
         }
     }
     

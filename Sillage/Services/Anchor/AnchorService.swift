@@ -140,7 +140,7 @@ final class AnchorService {
     self.isMuted = false
     persistState()
     
-    notificationService.clearDeliveredNotifications()
+    notificationService.clearAllNotifications()
     
     notifyStateChange()
   }
@@ -154,7 +154,7 @@ final class AnchorService {
     persistState()
     self.currentDistance = nil
     
-    notificationService.clearDeliveredNotifications()
+    notificationService.clearAllNotifications()
     
     backgroundToken?.invalidate()
     backgroundToken = nil
@@ -166,7 +166,7 @@ final class AnchorService {
   func silenceAlarm() {
     Logger.anchor.info("⚓️ Silencing anchor alarm notifications.")
     isMuted = true
-    notificationService.clearDeliveredNotifications()
+    notificationService.clearAllNotifications()
     notifyStateChange()
   }
   

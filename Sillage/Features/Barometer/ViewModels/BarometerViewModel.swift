@@ -116,6 +116,30 @@ public final class BarometerViewModel {
         service.startUpdates()
     }
     
+    // MARK: - Permissions
+    
+    var permissionGateType: PermissionGateType? = nil
+    private var pendingAction: (@MainActor () -> Void)? = nil
+    
+    func requestToggleAlarm(isOn: Bool, in service: PermissionService) {
+        if isOn {
+            let status = service.notificationStatus
+            if status == .authorized {
+                self.isAlarmEnabled = true
+            } else {
+                self.pendingAction = { [weak self] in self?.isAlarmEnabled = true }
+                self.permissionGateType = .notification(trigger: .baroAlarm)
+            }
+        } else {
+            self.isAlarmEnabled = false
+        }
+    }
+    
+    func finalizePendingAction() {
+        pendingAction?()
+        pendingAction = nil
+    }
+    
     // MARK: - Presentation State (Computed)
     
     /// Formatted current pressure, strictly nil if data is unavailable.

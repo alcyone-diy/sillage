@@ -149,7 +149,13 @@ public final class PermissionService: PermissionServiceProtocol {
         defer { isRequestingNotification = false }
         
         do {
-            let granted = try await notificationService.requestAuthorization()
+            let center = UNUserNotificationCenter.current()
+            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+            if granted {
+                Logger.system.info("User granted local notification permissions.")
+            } else {
+                Logger.system.warning("User denied local notification permissions.")
+            }
             self.notificationStatus = granted ? .authorized : .denied
             return granted
         } catch {
@@ -176,7 +182,13 @@ public final class PermissionService: PermissionServiceProtocol {
         defer { isRequestingNotification = false }
         
         do {
-            let granted = try await notificationService.requestCriticalAuthorization()
+            let center = UNUserNotificationCenter.current()
+            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge, .criticalAlert])
+            if granted {
+                Logger.system.info("User granted critical notification permissions.")
+            } else {
+                Logger.system.warning("User denied critical notification permissions.")
+            }
             self.notificationStatus = granted ? .authorized : .denied
             return granted
         } catch {

@@ -17,16 +17,7 @@ public struct LocalNotificationService: NotificationService {
   
   public init() {}
   
-  public func requestAuthorization() async throws -> Bool {
-    let center = UNUserNotificationCenter.current()
-    let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-    if granted {
-      Logger.system.info("User granted local notification permissions.")
-    } else {
-      Logger.system.warning("User denied local notification permissions.")
-    }
-    return granted
-  }
+
   
   public func sendNotification(title: String, body: String, identifier: String) async {
     let center = UNUserNotificationCenter.current()
@@ -52,16 +43,7 @@ public struct LocalNotificationService: NotificationService {
     }
   }
   
-  public func requestCriticalAuthorization() async throws -> Bool {
-    let center = UNUserNotificationCenter.current()
-    let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge, .criticalAlert])
-    if granted {
-      Logger.system.info("User granted critical notification permissions.")
-    } else {
-      Logger.system.warning("User denied critical notification permissions.")
-    }
-    return granted
-  }
+
   
   public func sendCriticalNotification(title: String, body: String, identifier: String) async {
     let center = UNUserNotificationCenter.current()
@@ -87,8 +69,10 @@ public struct LocalNotificationService: NotificationService {
     }
   }
   
-  public func clearDeliveredNotifications() {
-    UNUserNotificationCenter.current().removeAllDeliveredNotifications()
-    Logger.system.info("Cleared delivered notifications.")
+  public func clearAllNotifications() {
+    let center = UNUserNotificationCenter.current()
+    center.removeAllDeliveredNotifications()
+    center.removeAllPendingNotificationRequests()
+    Logger.system.info("Cleared all notifications.")
   }
 }

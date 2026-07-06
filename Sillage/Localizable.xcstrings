@@ -88,7 +88,13 @@
     "Alcyone Sillage requires notification access to warn you of a dragging anchor." : {
 
     },
+    "Alcyone Sillage requires notification access to warn you of severe weather changes." : {
+
+    },
     "Alcyone Sillage requires permission to send notifications to alert you if your vessel drags its anchor." : {
+
+    },
+    "Alcyone Sillage requires permission to send notifications to warn you of severe weather changes." : {
 
     },
     "Alert Level" : {
@@ -689,6 +695,9 @@
 
     },
     "Weather Alarms" : {
+
+    },
+    "Weather Alerts" : {
 
     },
     "xctest-dynamic-overlay" : {

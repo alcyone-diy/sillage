@@ -23,6 +23,7 @@ enum LocationPermissionTrigger: Hashable {
 
 enum NotificationPermissionTrigger: Hashable {
     case anchorAlarm
+    case baroAlarm
 }
 
 enum PermissionGateType: Identifiable, Hashable {
@@ -48,7 +49,7 @@ enum PermissionGateType: Identifiable, Hashable {
             }
         case .motion:
             return .marine(.instruments)
-        case .notification(.anchorAlarm):
+        case .notification(.anchorAlarm), .notification(.baroAlarm):
             return .system("bell.fill")
         }
     }
@@ -65,6 +66,8 @@ enum PermissionGateType: Identifiable, Hashable {
             return "Barometer Access"
         case .notification(.anchorAlarm):
             return "Anchor Alerts"
+        case .notification(.baroAlarm):
+            return "Weather Alerts"
         }
     }
     
@@ -83,6 +86,8 @@ enum PermissionGateType: Identifiable, Hashable {
             return "Alcyone Sillage needs 'Motion & Fitness' access to read your device's internal altimeter, enabling the weather alarm feature."
         case .notification(.anchorAlarm):
             return "Alcyone Sillage requires permission to send notifications to alert you if your vessel drags its anchor."
+        case .notification(.baroAlarm):
+            return "Alcyone Sillage requires permission to send notifications to warn you of severe weather changes."
         }
     }
     
@@ -103,7 +108,8 @@ enum PermissionGateType: Identifiable, Hashable {
             case .anchorAlarm: return "Sillage requires location access to monitor your anchor."
             }
         case .motion: return "Alcyone Sillage requires motion and fitness access to read the barometer."
-        case .notification: return "Alcyone Sillage requires notification access to warn you of a dragging anchor."
+        case .notification(.anchorAlarm): return "Alcyone Sillage requires notification access to warn you of a dragging anchor."
+        case .notification(.baroAlarm): return "Alcyone Sillage requires notification access to warn you of severe weather changes."
         }
     }
     
