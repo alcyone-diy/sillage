@@ -54,7 +54,7 @@ class ChartViewModel {
   
   // MARK: - Chart Camera State
   
-  var centerCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
+  var centerCoordinate: CLLocationCoordinate2D = AppConstants.defaultMapCenter
   var zoomLevel: Double = 10.0
   var chartDirection: Measurement<UnitAngle> = Measurement(value: 0.0, unit: UnitAngle.degrees)
   
