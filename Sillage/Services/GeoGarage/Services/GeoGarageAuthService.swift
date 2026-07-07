@@ -10,12 +10,17 @@
 
 import Foundation
 
-protocol GeoGarageAuthServiceProtocol {
+@MainActor
+protocol GeoGarageAuthServiceProtocol: AnyObject {
+  var authError: Error? { get set }
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse
   func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse
 }
 
-struct GeoGarageAuthService: GeoGarageAuthServiceProtocol {
+@Observable
+@MainActor
+final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
+  var authError: Error? = nil
   private let endpoint = URL(string: "https://accounts.geogarage.com/o/token/")!
   private let settingsEndpoint = URL(string: "https://accounts.geogarage.com/api/account/settings")!
 
@@ -52,6 +57,7 @@ struct GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     if httpResponse.statusCode == 200 {
       do {
         let successResponse = try JSONDecoder().decode(AuthSuccessResponse.self, from: data)
+        self.authError = nil
         return successResponse
       } catch {
         throw AuthError.invalidResponse
@@ -59,7 +65,8 @@ struct GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     } else if httpResponse.statusCode == 400 || httpResponse.statusCode == 401 {
       if let errorResponse = try? JSONDecoder().decode(AuthErrorResponse.self, from: data),
          let description = errorResponse.error_description, !description.isEmpty {
-        throw AuthError.apiError(description: description)
+        let error = AuthError.apiError(description: description)
+        throw error
       } else {
         throw AuthError.unknown
       }
@@ -88,14 +95,19 @@ struct GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     if httpResponse.statusCode == 200 {
       do {
         let settingsResponse = try JSONDecoder().decode(GeoGarageSettingsResponse.self, from: data)
+        self.authError = nil
         return settingsResponse
       } catch {
         throw AuthError.invalidResponse
       }
     } else if httpResponse.statusCode == 401 {
-      throw AuthError.tokenExpired
+      let error = AuthError.tokenExpired
+      self.authError = error
+      throw error
     } else {
-      throw AuthError.fetchSettingsFailed(statusCode: httpResponse.statusCode)
+      let error = AuthError.fetchSettingsFailed(statusCode: httpResponse.statusCode)
+      self.authError = error
+      throw error
     }
   }
 

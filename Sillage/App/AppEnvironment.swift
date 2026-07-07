@@ -124,7 +124,10 @@ final class AppEnvironment {
       let anchorViewModel = AnchorViewModel(anchorService: anchorService)
       
       // d. ViewModels instantiation (injecting the ready Services)
-      let appViewModel = AppViewModel(preferencesService: preferencesService)
+      let appViewModel = AppViewModel(
+        preferencesService: preferencesService,
+        authService: geoGarageAuthService
+      )
       let chartViewModel = ChartViewModel(
         positioningService: positioningService,
         preferencesService: preferencesService,

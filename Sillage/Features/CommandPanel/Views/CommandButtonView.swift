@@ -13,6 +13,7 @@ import SwiftUI
 @MainActor
 struct CommandButtonView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
+  @Environment(AppViewModel.self) private var appViewModel
 
   var body: some View {
     @Bindable var bindableViewModel = viewModel
@@ -24,6 +25,7 @@ struct CommandButtonView: View {
         .foregroundColor(.white)
     }
     .buttonStyle(MarineFABStyle(backgroundColor: .blue))
+    .marineBadge(isPresent: appViewModel.hasActiveAlert)
   }
 }
 

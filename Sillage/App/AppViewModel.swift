@@ -30,11 +30,16 @@ public struct CoordinateWrapper: Identifiable {
 final class AppViewModel {
   private var preferencesService: PreferencesServiceProtocol
   private let chartImportService: ChartImportService
+  private let authService: GeoGarageAuthService?
 
   var importError: ChartImportError?
   var showImportError: Bool = false
   
   var waypointDraft: CoordinateWrapper?
+
+  var hasActiveAlert: Bool {
+    return authService?.authError != nil
+  }
 
 
   var isGloveModeEnabled: Bool {
@@ -53,10 +58,12 @@ final class AppViewModel {
 
   init(
     preferencesService: PreferencesServiceProtocol,
-    chartImportService: ChartImportService? = nil
+    chartImportService: ChartImportService? = nil,
+    authService: GeoGarageAuthService? = nil
   ) {
     self.preferencesService = preferencesService
     self.chartImportService = chartImportService ?? ChartImportService()
+    self.authService = authService
     self.isGloveModeEnabled = preferencesService.gloveModeEnabled
   }
 
