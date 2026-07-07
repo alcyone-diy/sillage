@@ -13,9 +13,22 @@ import SwiftUI
 struct DebugView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(ChartViewModel.self) private var chartViewModel
+  @Environment(AppEnvironment.self) private var appEnvironment
   
   var body: some View {
     Form {
+      Section(header: Text("System Information")) {
+        HStack {
+          Text("Startup Time")
+            .marineFont(.body)
+          Spacer()
+          Text(appEnvironment.bootDate.formatted(date: .abbreviated, time: .standard))
+            .marineFont(.body)
+            .foregroundColor(.secondary)
+        }
+        .marineListCell()
+      }
+      
       Section(header: Text("GPS Information")) {
         HStack {
           Text("Position")
