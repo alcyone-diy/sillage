@@ -109,3 +109,21 @@ extension EnvironmentValues {
     set { self[MarineThemeKey.self] = newValue }
   }
 }
+
+public extension View {
+  /// Adds a small red badge indicator to the top-trailing corner of the view when `isPresent` is true.
+  @ViewBuilder
+  func marineBadge(isPresent: Bool) -> some View {
+    if isPresent {
+      self.overlay(alignment: .topTrailing) {
+        Circle()
+          .fill(Color.red)
+          .frame(width: 16, height: 16)
+          .alignmentGuide(.top) { $0[.top] }
+          .alignmentGuide(.trailing) { $0[.trailing]}
+      }
+    } else {
+      self
+    }
+  }
+}
