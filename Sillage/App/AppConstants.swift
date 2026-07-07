@@ -9,8 +9,10 @@
 //
 
 import Foundation
+import CoreLocation
 
 public enum AppConstants {
   nonisolated public static let appName = "Sillage"
   nonisolated public static let appURL = URL(string: "https://alcyone-sillage.com")!
+  nonisolated public static let defaultMapCenter = CLLocationCoordinate2D(latitude: 46.1378, longitude: -1.1792)
 }
