@@ -19,6 +19,7 @@ final class AppEnvironment {
   private(set) var state: AppState = .uninitialized
 
   public let metadata: AppMetadata
+  public let bootDate: Date
   
   struct AppContainer {
     let preferencesService: PreferencesService
@@ -40,14 +41,14 @@ final class AppEnvironment {
   
   public init(metadata: AppMetadata? = nil) {
     self.metadata = metadata ?? AppMetadataProvider.resolve()
+    self.bootDate = Date.now
   }
   
   func bootstrap() async {
     if case .bootstrapping = state { return }
     if case .ready = state { return }
     state = .bootstrapping
-    Logger.system.info("🚀 Starting AppEnvironment bootstrap sequence.")
-    
+    Logger.system.info("🚀 Starting AppEnvironment bootstrap sequence. Boot time: \(self.bootDate, privacy: .public)")
     do {
       // a. File system preparation
       try await Task.detached {

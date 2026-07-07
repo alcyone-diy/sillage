@@ -595,6 +595,9 @@
     "Start Time" : {
 
     },
+    "Startup Time" : {
+
+    },
     "Storm Warning" : {
       "comment" : "Weather alarm"
     },
@@ -605,6 +608,9 @@
 
     },
     "System" : {
+
+    },
+    "System Information" : {
 
     },
     "The provided URL is not a valid file." : {
