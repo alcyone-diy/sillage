@@ -27,4 +27,5 @@ extension Logger {
   nonisolated static let tracking = Logger(subsystem: subsystem, category: "Tracking")
   nonisolated static let barometer = Logger(subsystem: subsystem, category: "Barometer")
   nonisolated static let anchor = Logger(subsystem: subsystem, category: "Anchor")
+  nonisolated static let offline = Logger(subsystem: subsystem, category: "Offline")
 }

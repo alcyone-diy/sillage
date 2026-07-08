@@ -11,10 +11,14 @@
 import SwiftUI
 import CoreLocation
 import Observation
+import OSLog
 
 @Observable
 @MainActor
 final class OfflineSelectionViewModel {
+  let offlineMapManager: OfflineMapManager
+  
+  @ObservationIgnored private(set) var selectedBounds: GeographicBoundingBox?
   
   var isSelectionModeActive: Bool = false
   var estimatedArea: Measurement<UnitArea>?
@@ -26,8 +30,13 @@ final class OfflineSelectionViewModel {
   private var calculationTask: Task<Void, Never>?
   private let maxArea = Measurement(value: 900, unit: UnitArea.squareNauticalMiles)
   
+  init(offlineMapManager: OfflineMapManager) {
+    self.offlineMapManager = offlineMapManager
+  }
+  
   func updateBoundingBox(_ bounds: GeographicBoundingBox) {
     guard isSelectionModeActive else { return }
+    self.selectedBounds = bounds
     
     calculationTask?.cancel()
     calculationTask = Task { @MainActor [weak self] in
@@ -44,5 +53,25 @@ final class OfflineSelectionViewModel {
         // Ignore
       }
     }
+  }
+  
+  func startDownload() {
+    guard let bounds = selectedBounds else { return }
+    guard let styleURL = AppConstants.Cartography.defaultStyleURL else {
+      Logger.offline.error("Failed to retrieve default style URL from AppConstants")
+      return
+    }
+    let regionName = "Area - \(Date().formatted(.dateTime.day().month().year().hour().minute()))"
+    
+    offlineMapManager.downloadRegion(bounds: bounds, styleURL: styleURL, regionName: regionName)
+  }
+  
+  func close() {
+    offlineMapManager.reset()
+    isSelectionModeActive = false
+  }
+  
+  func cancelDownload() {
+    offlineMapManager.cancelDownload()
   }
 }
