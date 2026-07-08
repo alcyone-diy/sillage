@@ -19,6 +19,12 @@ private struct OfflinePackContext: Codable {
   let regionName: String
 }
 
+struct OfflineRegionInfo: Identifiable, Equatable {
+  let id: String
+  let name: String
+  let sizeInBytes: UInt64
+}
+
 @Observable
 @MainActor
 final class OfflineMapManager {
@@ -27,7 +33,7 @@ final class OfflineMapManager {
   var isDownloadComplete: Bool = false
   var downloadProgress: Double = 0.0
   var downloadError: String? = nil
-  var downloadedRegions: [String] = []
+  var downloadedRegions: [OfflineRegionInfo] = []
   
   private var progressObservationTask: Task<Void, Never>?
   private var errorObservationTask: Task<Void, Never>?
@@ -40,15 +46,37 @@ final class OfflineMapManager {
   
   func loadExistingPacks() {
     guard let packs = MLNOfflineStorage.shared.packs else { return }
-    var regions: [String] = []
+    var regions: [OfflineRegionInfo] = []
     let decoder = JSONDecoder()
     for pack in packs {
       let contextData = pack.context
       if let context = try? decoder.decode(OfflinePackContext.self, from: contextData) {
-        regions.append(context.regionName)
+        let size = pack.progress.countOfBytesCompleted
+        regions.append(OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: size))
       }
     }
     self.downloadedRegions = regions
+  }
+  
+  func deletePack(id: String) {
+    guard let packs = MLNOfflineStorage.shared.packs else { return }
+    let decoder = JSONDecoder()
+    
+    for pack in packs {
+      let contextData = pack.context
+      if let context = try? decoder.decode(OfflinePackContext.self, from: contextData), context.id == id {
+        MLNOfflineStorage.shared.removePack(pack) { [weak self] error in
+          Task { @MainActor [weak self] in
+            if let error = error {
+              Logger.offline.error("Failed to remove offline pack: \(error.localizedDescription, privacy: .public)")
+            } else {
+              self?.loadExistingPacks()
+            }
+          }
+        }
+        break
+      }
+    }
   }
   
   func downloadRegion(bounds: GeographicBoundingBox, styleURL: URL, regionName: String) {
