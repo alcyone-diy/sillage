@@ -57,6 +57,8 @@ struct ContentView: View {
               .foregroundColor(.secondary)
           }
         }
+        
+        OfflineSelectionOverlayView()
 
         // UI Overlay
         VStack {
