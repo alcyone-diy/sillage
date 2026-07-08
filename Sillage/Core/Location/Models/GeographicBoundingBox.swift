@@ -57,6 +57,23 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
     }
   }
   
+  // MARK: - Geometry
+  
+  /// Estimated area (approximation via Haversine for the bounding box)
+  public var estimatedArea: Measurement<UnitArea> {
+    let heightPoint = CLLocation(latitude: northEast.latitude, longitude: 0)
+    let swPoint = CLLocation(latitude: southWest.latitude, longitude: 0)
+    let heightMeters = heightPoint.distance(from: swPoint)
+    
+    let centerLat = (southWest.latitude + northEast.latitude) / 2.0
+    let angularWidth = (northEast.longitude - southWest.longitude + 360.0).truncatingRemainder(dividingBy: 360.0)
+    let leftPoint = CLLocation(latitude: centerLat, longitude: 0)
+    let rightPoint = CLLocation(latitude: centerLat, longitude: angularWidth)
+    let widthMeters = leftPoint.distance(from: rightPoint)
+    
+    return Measurement(value: widthMeters * heightMeters, unit: UnitArea.squareMeters)
+  }
+  
   // MARK: - Private Math
   
   private func degreesDistance(from start: CLLocationDegrees, to end: CLLocationDegrees) -> CLLocationDegrees {
