@@ -25,6 +25,7 @@ struct CommandPanelView: View {
   @Environment(PermissionService.self) private var permissionService
   
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
+  @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
   
   @State private var permissionGateType: PermissionGateType? = nil
   
@@ -114,6 +115,8 @@ struct CommandPanelView: View {
         }
         
         Section(header: Text("Navigation")) {
+          offlineAreaButton
+
           NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
             Label {
               Text("Tracks").foregroundStyle(.primary)
@@ -232,5 +235,28 @@ struct CommandPanelView: View {
         }
       }
     }
+  }
+
+  @ViewBuilder
+  private var offlineAreaButton: some View {
+    Button {
+      offlineSelectionViewModel.isSelectionModeActive = true
+      viewModel.closePanel()
+    } label: {
+      HStack {
+        Label {
+          Text("Offline Area")
+            .foregroundStyle(offlineSelectionViewModel.isSelectionModeActive ? Color.secondary : Color.primary)
+        } icon: {
+          Image(systemName: "square.and.arrow.down")
+            .foregroundStyle(offlineSelectionViewModel.isSelectionModeActive ? Color.secondary : Color.blue)
+        }
+        .marineFont(.body)
+        Spacer()
+      }
+    }
+    .tint(.primary)
+    .marineListCell()
+    .disabled(offlineSelectionViewModel.isSelectionModeActive)
   }
 }
