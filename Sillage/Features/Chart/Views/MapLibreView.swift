@@ -76,6 +76,7 @@ struct MapLibreView: UIViewRepresentable {
   @Environment(\.waypointService) private var waypointService
   @Environment(PanelManagerViewModel.self) private var panelManager
   @Environment(AppViewModel.self) private var appViewModel
+  @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel: OfflineSelectionViewModel?
   var viewModel: ChartViewModel
   
   
@@ -407,6 +408,20 @@ struct MapLibreView: UIViewRepresentable {
           context.coordinator.lastDataStale = isDataStale
         }
       }
+    }
+    
+    if let offlineVM = offlineSelectionViewModel, offlineVM.isSelectionModeActive {
+      if uiView.direction != 0 {
+        uiView.setDirection(0, animated: true)
+      }
+      if uiView.camera.pitch != 0 {
+        let camera = uiView.camera
+        camera.pitch = 0
+        uiView.setCamera(camera, animated: true)
+      }
+      uiView.isRotateEnabled = false
+    } else {
+      uiView.isRotateEnabled = true
     }
     
     // Force tracking mode to none if it deviated, since tracking is explicitly handled in the viewModel
@@ -891,6 +906,24 @@ struct MapLibreView: UIViewRepresentable {
         
         // Save the camera state to UserDefaults
         self.parent.viewModel.saveCameraState()
+        
+        // Compute geographic bounding box for offline selection locally and pass it down
+        if let offlineVM = self.parent.offlineSelectionViewModel, offlineVM.isSelectionModeActive {
+          let baseSize = min(mapView.bounds.width, mapView.bounds.height) * offlineVM.cropBoxWidthRatio
+          let cropWidth = baseSize
+          let cropHeight = baseSize * offlineVM.cropBoxAspect
+          let x = (mapView.bounds.width - cropWidth) / 2.0
+          let y = (mapView.bounds.height - cropHeight) / 2.0
+          let rect = CGRect(x: x, y: y, width: cropWidth, height: cropHeight)
+          
+          let mlnBounds = mapView.convert(rect, toCoordinateBoundsFrom: mapView)
+          
+          let bounds = GeographicBoundingBox(
+            southWest: mlnBounds.sw,
+            northEast: mlnBounds.ne
+          )
+          offlineVM.updateBoundingBox(bounds)
+        }
         
         // If it was a manual interaction, break tracking
         if self.shouldBreakTracking(for: reason) {

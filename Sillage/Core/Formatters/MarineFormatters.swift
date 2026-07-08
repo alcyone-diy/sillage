@@ -53,3 +53,11 @@ extension Measurement where UnitType == UnitAngle {
     )
   }
 }
+
+extension Measurement where UnitType == UnitArea {
+  public var marineFormatted: String {
+    self.converted(to: .squareNauticalMiles).formatted(
+      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(1)))
+    )
+  }
+}
