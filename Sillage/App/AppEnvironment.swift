@@ -20,6 +20,7 @@ final class AppEnvironment {
 
   public let metadata: AppMetadata
   public let bootDate: Date
+  public let offlineMapManager: OfflineMapManager
   
   struct AppContainer {
     let preferencesService: PreferencesService
@@ -37,11 +38,14 @@ final class AppEnvironment {
     let barometerViewModel: BarometerViewModel
     let anchorViewModel: AnchorViewModel
     let permissionService: PermissionService
+    let offlineSelectionViewModel: OfflineSelectionViewModel
   }
   
   public init(metadata: AppMetadata? = nil) {
     self.metadata = metadata ?? AppMetadataProvider.resolve()
     self.bootDate = Date.now
+    Self.setupMapLibreProtocol()
+    self.offlineMapManager = OfflineMapManager()
   }
   
   func bootstrap() async {
@@ -53,7 +57,6 @@ final class AppEnvironment {
       // a. File system preparation
       try await Task.detached {
         try self.setupFileSystem()
-        self.setupMapLibreProtocol()
       }.value
       
       // b. DatabaseManager async initialization
@@ -145,6 +148,8 @@ final class AppEnvironment {
         service: barometricService,
         preferencesService: preferencesService
       )
+      
+      let offlineSelectionViewModel = OfflineSelectionViewModel(offlineMapManager: self.offlineMapManager)
 
 
       await trackRecordingService.attemptRecoveryIfNeeded()
@@ -173,7 +178,8 @@ final class AppEnvironment {
         activeTrackViewModel: activeTrackViewModel,
         barometerViewModel: barometerViewModel,
         anchorViewModel: anchorViewModel,
-        permissionService: permissionService
+        permissionService: permissionService,
+        offlineSelectionViewModel: offlineSelectionViewModel
       )
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
@@ -230,7 +236,7 @@ final class AppEnvironment {
     }
   }
 
-  nonisolated private func setupMapLibreProtocol() {
+  nonisolated private static func setupMapLibreProtocol() {
     URLProtocol.registerClass(TileProxyProtocol.self)
     guard let config = MLNNetworkConfiguration.sharedManager.sessionConfiguration else { return }
     

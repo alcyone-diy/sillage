@@ -41,6 +41,7 @@ struct SillageApp: App {
             .environment(\.waypointService, container.waypointService)
             .environment(container.preferencesService)
             .environment(container.permissionService)
+            .environment(container.offlineSelectionViewModel)
         }
       }
       .environment(environment)
