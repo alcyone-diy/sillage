@@ -23,6 +23,19 @@ actor TileProxyManager {
         cache.countLimit = 1000 // reasonable limit for map tiles
     }
 
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.protocolClasses = [TileURLProtocol.self] + (config.protocolClasses ?? [])
+        return URLSession(configuration: config)
+    }()
+
+    func fetchTile(z: Int, x: Int, y: Int, layerID: String = "shom") async throws -> Data? {
+        let clientID = AppConfiguration.shared.geoGarageClientID
+        // Construct the GeoGarage URL. Note that GeoGarage tile APIs usually require the layer ID.
+        guard let url = URL(string: "https://tiles.geogarage.com/\(clientID)/\(layerID)/\(z)/\(x)/\(y).png") else { return nil }
+        return try await fetchTile(url: url)
+    }
+
     func fetchTile(url: URL) async throws -> Data? {
         let nsURL = url as NSURL
 
@@ -40,7 +53,12 @@ actor TileProxyManager {
         let task = Task<Data?, Error> {
             defer { inFlightTasks.removeValue(forKey: url) }
 
-            let (data, response) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            if let token = KeychainManager.shared.retrieveToken(for: "geogarage_access_token"), !token.isEmpty {
+                request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            }
+
+            let (data, response) = try await self.session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 return nil
             }
@@ -48,7 +66,7 @@ actor TileProxyManager {
                 cache.setObject(data as NSData, forKey: nsURL)
                 return data
             } else if httpResponse.statusCode == 404 {
-                // Return nil to trigger fallback
+                // Return nil to trigger fallback or just return nil
                 return nil
             }
             return nil

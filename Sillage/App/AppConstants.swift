@@ -17,6 +17,8 @@ public enum AppConstants {
   nonisolated public static let defaultMapCenter = CLLocationCoordinate2D(latitude: 46.1378, longitude: -1.1792)
   
   public struct Cartography {
-    public static let defaultStyleURL: URL? = URL(string: "asset://styles/geogarage.json")
+    public static var defaultStyleURL: URL? {
+      Bundle.main.url(forResource: "geogarage", withExtension: "json")
+    }
   }
 }
