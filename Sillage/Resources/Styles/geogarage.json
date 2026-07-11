@@ -1,0 +1,22 @@
+{
+  "version": 8,
+  "name": "GeoGarage Raster",
+  "sources": {
+    "geogarage-raster": {
+      "type": "raster",
+      "tiles": [
+        "sillage://tiles/{z}/{x}/{y}.png"
+      ],
+      "tileSize": 256
+    }
+  },
+  "layers": [
+    {
+      "id": "geogarage-layer",
+      "type": "raster",
+      "source": "geogarage-raster",
+      "minzoom": 0,
+      "maxzoom": 18
+    }
+  ]
+}

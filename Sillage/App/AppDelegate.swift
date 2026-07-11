@@ -17,6 +17,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
     ) -> Bool {
+        URLProtocol.registerClass(TileURLProtocol.self)
+        
         // Critical: The delegate must be assigned before the app finishes launching
         // so that iOS knows how to route foreground notifications.
         UNUserNotificationCenter.current().delegate = self

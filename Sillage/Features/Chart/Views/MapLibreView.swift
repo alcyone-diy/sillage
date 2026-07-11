@@ -420,6 +420,10 @@ struct MapLibreView: UIViewRepresentable {
         uiView.setCamera(camera, animated: true)
       }
       uiView.isRotateEnabled = false
+      
+      if offlineVM.selectedBounds == nil {
+        context.coordinator.updateOfflineSelectionBounds(mapView: uiView)
+      }
     } else {
       uiView.isRotateEnabled = true
     }
@@ -895,6 +899,25 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
     
+    func updateOfflineSelectionBounds(mapView: MLNMapView) {
+      if let offlineVM = self.parent.offlineSelectionViewModel, offlineVM.isSelectionModeActive {
+        let baseSize = min(mapView.bounds.width, mapView.bounds.height) * offlineVM.cropBoxWidthRatio
+        let cropWidth = baseSize
+        let cropHeight = baseSize * offlineVM.cropBoxAspect
+        let x = (mapView.bounds.width - cropWidth) / 2.0
+        let y = (mapView.bounds.height - cropHeight) / 2.0
+        let rect = CGRect(x: x, y: y, width: cropWidth, height: cropHeight)
+        
+        let mlnBounds = mapView.convert(rect, toCoordinateBoundsFrom: mapView)
+        
+        let bounds = GeographicBoundingBox(
+          southWest: mlnBounds.sw,
+          northEast: mlnBounds.ne
+        )
+        offlineVM.updateBoundingBox(bounds)
+      }
+    }
+    
     // Capture user's chart movements to break tracking ONLY when the movement stops, as requested
     // Also sync the final camera state back to the ViewModel so it knows where the chart is.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
@@ -908,22 +931,7 @@ struct MapLibreView: UIViewRepresentable {
         self.parent.viewModel.saveCameraState()
         
         // Compute geographic bounding box for offline selection locally and pass it down
-        if let offlineVM = self.parent.offlineSelectionViewModel, offlineVM.isSelectionModeActive {
-          let baseSize = min(mapView.bounds.width, mapView.bounds.height) * offlineVM.cropBoxWidthRatio
-          let cropWidth = baseSize
-          let cropHeight = baseSize * offlineVM.cropBoxAspect
-          let x = (mapView.bounds.width - cropWidth) / 2.0
-          let y = (mapView.bounds.height - cropHeight) / 2.0
-          let rect = CGRect(x: x, y: y, width: cropWidth, height: cropHeight)
-          
-          let mlnBounds = mapView.convert(rect, toCoordinateBoundsFrom: mapView)
-          
-          let bounds = GeographicBoundingBox(
-            southWest: mlnBounds.sw,
-            northEast: mlnBounds.ne
-          )
-          offlineVM.updateBoundingBox(bounds)
-        }
+        self.updateOfflineSelectionBounds(mapView: mapView)
         
         // If it was a manual interaction, break tracking
         if self.shouldBreakTracking(for: reason) {
