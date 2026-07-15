@@ -19,6 +19,10 @@ private struct OfflinePackContext: Codable {
   let regionName: String
 }
 
+enum MapConstants {
+  static let ambientCacheSize: UInt64 = 524_288_000
+}
+
 struct OfflineRegionInfo: Identifiable, Equatable {
   let id: String
   let name: String
@@ -41,6 +45,14 @@ final class OfflineMapManager {
   
   init() {
     MLNOfflineStorage.shared.setMaximumAllowedMapboxTiles(UInt64.max)
+    MLNOfflineStorage.shared.setMaximumAmbientCacheSize(UInt(MapConstants.ambientCacheSize), withCompletionHandler: { error in
+      if let error = error {
+        Logger.offline.error("Failed to set maximum ambient cache size: \(error.localizedDescription, privacy: .public)")
+      } else {
+        let sizeMB = MapConstants.ambientCacheSize / 1024 / 1024
+        Logger.offline.info("Successfully set maximum ambient cache size to \(sizeMB, privacy: .public)MB")
+      }
+    })
     loadExistingPacks()
   }
   

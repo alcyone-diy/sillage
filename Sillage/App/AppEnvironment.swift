@@ -237,18 +237,21 @@ final class AppEnvironment {
   }
 
   nonisolated private static func setupMapLibreProtocol() {
-    URLProtocol.registerClass(TileProxyProtocol.self)
     guard let config = MLNNetworkConfiguration.sharedManager.sessionConfiguration else { return }
     
     if let protocolClasses = config.protocolClasses {
       var newProtocolClasses = protocolClasses
       if !newProtocolClasses.contains(where: { $0 == TileProxyProtocol.self }) {
         newProtocolClasses.insert(TileProxyProtocol.self, at: 0)
-        config.protocolClasses = newProtocolClasses
       }
+      if !newProtocolClasses.contains(where: { $0 == TileURLProtocol.self }) {
+        newProtocolClasses.insert(TileURLProtocol.self, at: 0)
+      }
+      config.protocolClasses = newProtocolClasses
     } else {
-      config.protocolClasses = [TileProxyProtocol.self]
+      config.protocolClasses = [TileURLProtocol.self, TileProxyProtocol.self]
     }
     MLNNetworkConfiguration.sharedManager.sessionConfiguration = config
   }
+
 }
