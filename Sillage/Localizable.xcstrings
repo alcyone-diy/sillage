@@ -184,6 +184,12 @@
     "Chart Preferences" : {
 
     },
+    "Clear Cache" : {
+
+    },
+    "Clear Map Cache" : {
+
+    },
     "Close" : {
 
     },
@@ -427,6 +433,9 @@
     "Low" : {
       "comment" : "Low sensitivity"
     },
+    "Map Cache" : {
+
+    },
     "MapLibre GL Native (BSD 2-Clause License)" : {
 
     },
@@ -644,6 +653,9 @@
 
     },
     "This action cannot be undone." : {
+
+    },
+    "This will delete all temporary data and force the network to reload." : {
 
     },
     "Time" : {

@@ -10,10 +10,18 @@
 
 import SwiftUI
 
+private struct AlertError: Identifiable {
+  let id = UUID()
+  let error: Error
+}
+
 struct DebugView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(AppEnvironment.self) private var appEnvironment
+  
+  @State private var activeError: AlertError? = nil
+  @State private var showClearCacheConfirmation: Bool = false
   
   var body: some View {
     Form {
@@ -81,11 +89,55 @@ struct DebugView: View {
         }
         .marineListCell()
       }
+      
+      Section(header: Text("Map Cache")) {
+        Button(role: .destructive) {
+          showClearCacheConfirmation = true
+        } label: {
+          HStack {
+            Text("Clear Map Cache")
+              .marineFont(.body)
+            Spacer()
+            if appEnvironment.offlineMapManager.isClearingCache {
+              ProgressView()
+                .tint(.primary)
+            } else {
+              Image(systemName: "trash")
+            }
+          }
+        }
+        .disabled(appEnvironment.offlineMapManager.isClearingCache)
+        .marineListCell()
+      }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .marineListBackground()
     .navigationTitle("Debug")
     .navigationBarTitleDisplayMode(.inline)
+    .confirmationDialog("Clear Map Cache", isPresented: $showClearCacheConfirmation, titleVisibility: .visible) {
+      Button("Clear Cache", role: .destructive) {
+        Task {
+          do {
+            try await appEnvironment.offlineMapManager.clearAmbientCache()
+          } catch {
+            activeError = AlertError(error: error)
+          }
+        }
+      }
+      Button("Cancel", role: .cancel) { }
+    } message: {
+      Text("This will delete all temporary data and force the network to reload.")
+    }
+    .alert("Error",
+           isPresented: Binding(
+             get: { activeError != nil },
+             set: { if !$0 { activeError = nil } }
+           ),
+           presenting: activeError) { _ in
+      Button("OK", role: .cancel) { }
+    } message: { alertError in
+      Text(alertError.error.localizedDescription)
+    }
   }
 }
 

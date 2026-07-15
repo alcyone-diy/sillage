@@ -35,6 +35,7 @@ final class OfflineMapManager {
   
   var isDownloading: Bool = false
   var isDownloadComplete: Bool = false
+  var isClearingCache: Bool = false
   var downloadProgress: Double = 0.0
   var downloadError: String? = nil
   var downloadedRegions: [OfflineRegionInfo] = []
@@ -271,5 +272,24 @@ final class OfflineMapManager {
   
   private func clearProgressTask() {
     self.progressObservationTask = nil
+  }
+  
+  @MainActor
+  func clearAmbientCache() async throws {
+    guard !isClearingCache else { return }
+    isClearingCache = true
+    defer { isClearingCache = false }
+    
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      MLNOfflineStorage.shared.clearAmbientCache { @Sendable error in
+        if let error = error {
+          Logger.offline.error("Failed to clear ambient cache: \(error.localizedDescription, privacy: .public)")
+          continuation.resume(throwing: error)
+        } else {
+          Logger.offline.info("Ambient cache cleared successfully.")
+          continuation.resume(returning: ())
+        }
+      }
+    }
   }
 }
