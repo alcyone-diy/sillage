@@ -10,158 +10,247 @@
 
 import Foundation
 import CoreGraphics
-import UIKit
+import ImageIO
+import UniformTypeIdentifiers
+import os
+import OSLog
 
-class TileProxyProtocol: URLProtocol {
-    private var activeTask: Task<Void, Never>?
+fileprivate enum TileSource: Sendable {
+  case network
+  case fallback
+  case transparent
+}
 
-    override class func canInit(with request: URLRequest) -> Bool {
-        guard let url = request.url else { return false }
-        return url.scheme == "sillage-geo"
+class TileProxyProtocol: URLProtocol, @unchecked Sendable {
+  private let taskLock = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
+
+  private static let tilePathRegex = #/^/([^/]+)/(\d+)/(\d+)/(\d+)\.png$/#
+
+  override class func canInit(with request: URLRequest) -> Bool {
+    guard let url = request.url else { return false }
+    return url.scheme == "sillage-geo"
+  }
+
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+    return request
+  }
+
+  override func startLoading() {
+    guard let url = request.url else {
+      client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+      return
     }
 
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
-        return request
-    }
-
-    override func startLoading() {
-        guard let url = request.url else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
-            return
-        }
+    // URLProtocol bridging to Swift Concurrency:
+    // We encapsulate the async work inside a standard Task and store it in taskLock.
+    // When MapLibre calls stopLoading(), we explicitly cancel this Task.
+    // This top-level cancellation propagates down the entire hierarchy (including child Tasks).
+    taskLock.withLock { lockState in
+      lockState = Task { [weak self] in
+        guard let self = self else { return }
 
         // 1. Intercept & Verify: Local Authorization Firewall
-        let token = KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
-        if token == nil || token!.isEmpty {
-            // Rule 2: Fail-Closed
-            client?.urlProtocol(self, didFailWithError: URLError(.userAuthenticationRequired))
+        let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
+        guard let validToken = token, !validToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+          // Rule 2: Fail-Closed
+          self.client?.urlProtocol(self, didFailWithError: URLError(.userAuthenticationRequired))
+          return
+        }
+
+        do {
+          guard let (data, source) = try await fetchTileData(for: url) else {
+            try Task.checkCancellation()
+            self.client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
             return
+          }
+
+          // URLProtocol contract: do not send messages if cancelled
+          guard !Task.isCancelled else { return }
+
+          let cacheControl: String
+          if case .network = source {
+            cacheControl = "max-age=604800, public"
+          } else {
+            cacheControl = "no-store"
+          }
+          let headers = [
+            "Content-Type": "image/png",
+            "Cache-Control": cacheControl
+          ]
+          guard let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: headers) else {
+            Logger.network.error("Failed to create HTTPURLResponse for offline tile: \(url.absoluteString, privacy: .public)")
+            self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+          }
+          
+          // URLProtocol contract: do not send messages if cancelled
+          guard !Task.isCancelled else { return }
+          self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+          
+          guard !Task.isCancelled else { return }
+          self.client?.urlProtocol(self, didLoad: data)
+          
+          guard !Task.isCancelled else { return }
+          self.client?.urlProtocolDidFinishLoading(self)
+
+        } catch is CancellationError {
+          // URLProtocol contract: do not call didFailWithError if stopped by the client
+          return
+        } catch {
+          self.client?.urlProtocol(self, didFailWithError: error)
         }
+      }
+    }
+  }
 
-        activeTask = Task {
-            do {
-                guard let data = try await fetchTileData(for: url) else {
-                    self.client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable))
-                    return
-                }
+  override func stopLoading() {
+    // Explicitly cancel the top-level Task when MapLibre aborts the request.
+    // This triggers Task.checkCancellation() in child operations to abort immediately.
+    taskLock.withLock { let t = $0; $0 = nil; t?.cancel() }
+  }
 
-                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "image/png"])!
-                self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .allowed)
-                self.client?.urlProtocol(self, didLoad: data)
-                self.client?.urlProtocolDidFinishLoading(self)
-            } catch {
-                self.client?.urlProtocol(self, didFailWithError: error)
-            }
-        }
+  private func fetchTileData(for url: URL, depth: Int = 0) async throws -> (Data, TileSource)? {
+    // Rewrite and Dispatch
+    // Example URL: sillage-geo://geogarage-proxy/<layerID>/{z}/{x}/{y}.png
+    guard let host = url.host, host == "geogarage-proxy" else { return nil }
+
+    guard let match = url.path.firstMatch(of: Self.tilePathRegex) else { return nil }
+
+    let layerID = String(match.output.1)
+    let zString = String(match.output.2)
+    let xString = String(match.output.3)
+    let yString = String(match.output.4)
+
+    let clientID = AppConfiguration.shared.geoGarageClientID
+    guard let httpsURL = URL(string: "https://tiles.geogarage.com/\(clientID)/\(layerID)/\(zString)/\(xString)/\(yString).png") else { return nil }
+
+    // Use TileProxyManager to fetch with request coalescing
+    if let data = try await TileProxyManager.shared.fetchTile(url: httpsURL) {
+      return (data, .network)
     }
 
-    override func stopLoading() {
-        activeTask?.cancel()
+    // 404 Case: fallback logic
+    if depth >= 2 {
+      if let data = generateTransparentTile() {
+        return (data, .transparent)
+      }
+      return nil
     }
 
-    private func fetchTileData(for url: URL, depth: Int = 0) async throws -> Data? {
-        // Rewrite and Dispatch
-        // Example URL: sillage-geo://geogarage-proxy/<layerID>/{z}/{x}/{y}.png
-        guard url.host == "geogarage-proxy" else { return nil }
+    return try await generateFallbackTile(for: url, depth: depth)
+  }
 
-        let pathComponents = url.pathComponents.filter { $0 != "/" }
-        guard pathComponents.count >= 4 else { return nil }
+  private func generateFallbackTile(for url: URL, depth: Int) async throws -> (Data, TileSource)? {
+    guard let match = url.path.firstMatch(of: Self.tilePathRegex) else { return nil }
 
-        let layerID = pathComponents[0]
-        let z = pathComponents[1]
-        let x = pathComponents[2]
-        let y = pathComponents[3]
+    let layerID = String(match.output.1)
+    guard let z = Int(String(match.output.2)),
+          let x = Int(String(match.output.3)),
+          let y = Int(String(match.output.4)) else { return nil }
 
-        let clientID = AppConfiguration.shared.geoGarageClientID
-        guard let httpsURL = URL(string: "https://tiles.geogarage.com/\(clientID)/\(layerID)/\(z)/\(x)/\(y)") else { return nil }
+    let parentZ = z - 1
+    let parentX = x / 2
+    let parentY = y / 2
 
-        // Use TileProxyManager to fetch with request coalescing
-        if let data = try await TileProxyManager.shared.fetchTile(url: httpsURL) {
-            return data
-        }
+    // Reconstruct URL with parent components
+    guard let host = url.host, let parentURL = URL(string: "sillage-geo://\(host)/\(layerID)/\(parentZ)/\(parentX)/\(parentY).png") else { return nil }
 
-        // 404 Case: fallback logic
-        if depth >= 2 {
-            return generateTransparentTile()
-        }
-
-        return try await generateFallbackTile(for: url, depth: depth)
+    // Recursively fetch parent tile
+    guard let (parentData, _) = try await fetchTileData(for: parentURL, depth: depth + 1),
+          let source = CGImageSourceCreateWithData(parentData as CFData, nil),
+          let parentImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+      return nil
     }
 
-    private func generateFallbackTile(for url: URL, depth: Int) async throws -> Data? {
-        let pathComponents = url.pathComponents
-        guard pathComponents.count >= 3 else { return nil }
+    let quadrantX = x % 2
+    let quadrantY = y % 2
 
-        // URL path format is typically .../{z}/{x}/{y}.png
-        let yString = pathComponents[pathComponents.count - 1].replacingOccurrences(of: ".png", with: "")
-        let xString = pathComponents[pathComponents.count - 2]
-        let zString = pathComponents[pathComponents.count - 3]
+    // We use a structured Task instead of Task.detached to inherit the caller's
+    // cancellation context. This ensures that if stopLoading() cancels the main Task,
+    // the heavy image processing is aborted to save CPU cycles.
+    let data = try? await Task {
+      try Task.checkCancellation() // Prevent CPU starvation if tile is already off-screen
+      return Self.cropAndScaleImage(parentImage, quadrantX: quadrantX, quadrantY: quadrantY)
+    }.value
 
-        guard let z = Int(zString), let x = Int(xString), let y = Int(yString) else { return nil }
-
-        let parentZ = z - 1
-        let parentX = x / 2
-        let parentY = y / 2
-
-        var parentPathComponents = pathComponents
-        parentPathComponents[pathComponents.count - 1] = "\(parentY).png"
-        parentPathComponents[pathComponents.count - 2] = "\(parentX)"
-        parentPathComponents[pathComponents.count - 3] = "\(parentZ)"
-
-        // Reconstruct URL with parent components
-        let parentPath = parentPathComponents.dropFirst().joined(separator: "/")
-        guard let parentURL = URL(string: "sillage-geo://\(url.host!)/\(parentPath)") else { return nil }
-
-        // Recursively fetch parent tile
-        guard let parentData = try await fetchTileData(for: parentURL, depth: depth + 1),
-              let parentImage = UIImage(data: parentData)?.cgImage else {
-            return nil
-        }
-
-        let quadrantX = x % 2
-        let quadrantY = y % 2
-
-        return cropAndScaleImage(parentImage, quadrantX: quadrantX, quadrantY: quadrantY)
+    if let data = data {
+      return (data, .fallback)
     }
+    return nil
+  }
 
-    private func cropAndScaleImage(_ image: CGImage, quadrantX: Int, quadrantY: Int) -> Data? {
-        let halfWidth = image.width / 2
-        let halfHeight = image.height / 2
+  private static func cropAndScaleImage(_ image: CGImage, quadrantX: Int, quadrantY: Int) -> Data? {
+    let halfWidth = image.width / 2
+    let halfHeight = image.height / 2
 
-        let cropRect = CGRect(
-            x: quadrantX * halfWidth,
-            y: quadrantY * halfHeight,
-            width: halfWidth,
-            height: halfHeight
-        )
+    let cropRect = CGRect(
+      x: quadrantX * halfWidth,
+      y: quadrantY * halfHeight,
+      width: halfWidth,
+      height: halfHeight
+    )
 
-        guard let croppedImage = image.cropping(to: cropRect) else { return nil }
+    guard let croppedImage = image.cropping(to: cropRect) else { return nil }
 
-        let targetSize = CGSize(width: image.width, height: image.height)
+    let targetWidth = image.width
+    let targetHeight = image.height
 
-        // Nearest-neighbor scaling
-        UIGraphicsBeginImageContextWithOptions(targetSize, false, 1.0)
-        guard let context = UIGraphicsGetCurrentContext() else { return nil }
+    guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+          let context = CGContext(
+            data: nil,
+            width: targetWidth,
+            height: targetHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+          ) else { return nil }
 
-        context.interpolationQuality = .none
+    context.interpolationQuality = .none
 
-        // Invert Y axis for CoreGraphics context drawing
-        context.translateBy(x: 0, y: targetSize.height)
-        context.scaleBy(x: 1.0, y: -1.0)
+    let targetRect = CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight)
+    
+    // Invert Y axis for CoreGraphics context drawing
+    context.translateBy(x: 0, y: CGFloat(targetHeight))
+    context.scaleBy(x: 1.0, y: -1.0)
+    
+    context.draw(croppedImage, in: targetRect)
 
-        context.draw(croppedImage, in: CGRect(origin: .zero, size: targetSize))
+    guard let scaledImage = context.makeImage() else { return nil }
 
-        let scaledImage = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
+    let mutableData = NSMutableData()
+    guard let destination = CGImageDestinationCreateWithData(mutableData as CFMutableData, UTType.png.identifier as CFString, 1, nil) else { return nil }
+    CGImageDestinationAddImage(destination, scaledImage, nil)
+    guard CGImageDestinationFinalize(destination) else { return nil }
 
-        return scaledImage?.pngData()
-    }
+    return mutableData as Data
+  }
 
-    private func generateTransparentTile() -> Data? {
-        let size = CGSize(width: 256, height: 256)
-        UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
-        let image = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
-        return image?.pngData()
-    }
+  private static let transparentTileData: Data? = {
+    let size = 256
+    guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+          let context = CGContext(
+            data: nil,
+            width: size,
+            height: size,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+          ) else { return nil }
+
+    context.clear(CGRect(x: 0, y: 0, width: size, height: size))
+    guard let image = context.makeImage() else { return nil }
+
+    let mutableData = NSMutableData()
+    guard let destination = CGImageDestinationCreateWithData(mutableData as CFMutableData, UTType.png.identifier as CFString, 1, nil) else { return nil }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else { return nil }
+
+    return mutableData as Data
+  }()
+
+  private func generateTransparentTile() -> Data? {
+    return Self.transparentTileData
+  }
 }

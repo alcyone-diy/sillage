@@ -10,6 +10,7 @@
 
 import UIKit
 import UserNotifications
+import MapLibre
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     
@@ -17,6 +18,12 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
     ) -> Bool {
+        // CRITICAL FIX: MapLibre's C++ core (mbgl::HTTPFileSource) hardcodes 
+        // [NSURLSessionConfiguration defaultSessionConfiguration] and ignores MLNNetworkConfiguration.
+        // Therefore, URLProtocol.registerClass is MANDATORY for custom schemes.
+        // This does NOT pollute the app's global networking because canInit(with:) strictly
+        // filters for "sillage-geo" and "sillage" schemes, letting regular http/https pass through instantly.
+        URLProtocol.registerClass(TileProxyProtocol.self)
         URLProtocol.registerClass(TileURLProtocol.self)
         
         // Critical: The delegate must be assigned before the app finishes launching
