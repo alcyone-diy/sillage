@@ -229,6 +229,8 @@ struct MapLibreView: UIViewRepresentable {
     
     mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     
+    context.coordinator.mapView = mapView
+    
     // Delegate configuration
     mapView.delegate = context.coordinator
     
@@ -519,6 +521,7 @@ struct MapLibreView: UIViewRepresentable {
     var parent: MapLibreView
     private var streamTask: Task<Void, Never>?
     var lastChartSource: ChartSource?
+    weak var mapView: MLNMapView?
     
     // Cache for diffing to avoid unnecessary MapLibre shape updates
     var lastVesselFeature: MLNShape?
@@ -537,10 +540,18 @@ struct MapLibreView: UIViewRepresentable {
     
     init(_ parent: MapLibreView) {
       self.parent = parent
+      super.init()
+      
+      NotificationCenter.default.addObserver(forName: NSNotification.Name("NetworkDidReconnect"), object: nil, queue: .main) { [weak self] _ in
+        guard let self = self, let mapView = self.mapView else { return }
+        Logger.chart.info("Network reconnected, forcing MapLibre complete style reload")
+        mapView.reloadStyle(nil)
+      }
     }
     
     deinit {
       streamTask?.cancel()
+      NotificationCenter.default.removeObserver(self)
     }
     
     @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
@@ -785,7 +796,8 @@ struct MapLibreView: UIViewRepresentable {
         let template = "https://tiles.geogarage.com/\(clientID)/\(remoteLayerID)/{z}/{x}/{y}.png"
         newSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
           .minimumZoomLevel: AppConstants.Cartography.Zoom.globalMinimum,
-          .maximumZoomLevel: AppConstants.Cartography.Zoom.geoGarageMaximum
+          .maximumZoomLevel: AppConstants.Cartography.Zoom.geoGarageMaximum,
+          .tileSize: 256
         ])
         
       case .openSeaMap:
@@ -794,7 +806,8 @@ struct MapLibreView: UIViewRepresentable {
         newSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
           .minimumZoomLevel: AppConstants.Cartography.Zoom.globalMinimum,
           .maximumZoomLevel: AppConstants.Cartography.Zoom.openSeaMapMaximum,
-          .attributionInfos: [attribution]
+          .attributionInfos: [attribution],
+          .tileSize: 256
         ])
       }
       

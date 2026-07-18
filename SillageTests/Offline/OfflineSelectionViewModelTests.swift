@@ -40,7 +40,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
         let layerID = "test_layer_123"
         let chartSource = ChartSource.remoteGeoGarage(clientID: "test_client", layerID: layerID)
         viewModel.isSelectionModeActive = true
-        let bounds = GeographicBoundingBox(northEast: .init(latitude: 45, longitude: 1), southWest: .init(latitude: 44, longitude: 0))
+        let bounds = GeographicBoundingBox(southWest: .init(latitude: 44, longitude: 0), northEast: .init(latitude: 45, longitude: 1))
         viewModel.updateBoundingBox(bounds)
         
         // Wait for area calculation to finish
