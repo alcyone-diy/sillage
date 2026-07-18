@@ -28,8 +28,8 @@ class OpenSeaMapLayerService {
         identifier: sourceID,
         tileURLTemplates: [templateURL],
         options: [
-          .minimumZoomLevel: 0,
-          .maximumZoomLevel: 18,
+          .minimumZoomLevel: AppConstants.Cartography.Zoom.globalMinimum,
+          .maximumZoomLevel: AppConstants.Cartography.Zoom.openSeaMapMaximum,
           .tileSize: 256,
           .attributionInfos: [
             MLNAttributionInfo(title: NSAttributedString(string: "Map data © OpenSeaMap contributors"), url: URL(string: "https://openseamap.org"))

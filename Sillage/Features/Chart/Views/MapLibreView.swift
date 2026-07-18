@@ -233,7 +233,7 @@ struct MapLibreView: UIViewRepresentable {
     mapView.delegate = context.coordinator
     
     // Set maximum zoom level to allow overzooming
-    mapView.maximumZoomLevel = 22.0
+    mapView.maximumZoomLevel = AppConstants.Cartography.Zoom.globalMaximum
     
     // Disable pitch gesture to keep the map in 2D
     mapView.isPitchEnabled = false
@@ -785,16 +785,16 @@ struct MapLibreView: UIViewRepresentable {
         // Construct GeoGarage URL template using custom local scheme to bypass MapLibre direct request
         let template = "sillage-geo://geogarage-proxy/\(remoteLayerID)/{z}/{x}/{y}.png"
         newSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
-          .minimumZoomLevel: 0,
-          .maximumZoomLevel: 16
+          .minimumZoomLevel: AppConstants.Cartography.Zoom.globalMinimum,
+          .maximumZoomLevel: AppConstants.Cartography.Zoom.geoGarageMaximum
         ])
         
       case .openSeaMap:
         let template = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         let attribution = MLNAttributionInfo(title: NSAttributedString(string: "© OpenStreetMap contributors"), url: URL(string: "https://www.openstreetmap.org/copyright"))
         newSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
-          .minimumZoomLevel: 0,
-          .maximumZoomLevel: 18,
+          .minimumZoomLevel: AppConstants.Cartography.Zoom.globalMinimum,
+          .maximumZoomLevel: AppConstants.Cartography.Zoom.openSeaMapMaximum,
           .attributionInfos: [attribution]
         ])
       }
