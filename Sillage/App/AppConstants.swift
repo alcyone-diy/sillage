@@ -20,5 +20,19 @@ public enum AppConstants {
     public static var defaultStyleURL: URL? {
       Bundle.main.url(forResource: "geogarage", withExtension: "json")
     }
+    
+    public struct Zoom {
+      // Global view limits (enables overzooming)
+      public static let globalMinimum: Double = 0.0
+      public static let globalMaximum: Double = 22.0
+      
+      // Offline download bounds
+      public static let offlineMinimum: Double = 0.0
+      public static let offlineMaximum: Double = 18.0
+      
+      // Specific remote source limits
+      public static let geoGarageMaximum: Float = 16.0
+      public static let openSeaMapMaximum: Float = 18.0
+    }
   }
 }

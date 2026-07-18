@@ -99,7 +99,7 @@ final class OfflineMapManager {
     downloadError = nil
     
     let coordinateBounds = MLNCoordinateBounds(sw: bounds.southWest, ne: bounds.northEast)
-    let region = MLNTilePyramidOfflineRegion(styleURL: styleURL, bounds: coordinateBounds, fromZoomLevel: 6.0, toZoomLevel: 18.0)
+    let region = MLNTilePyramidOfflineRegion(styleURL: styleURL, bounds: coordinateBounds, fromZoomLevel: AppConstants.Cartography.Zoom.offlineMinimum, toZoomLevel: AppConstants.Cartography.Zoom.offlineMaximum)
     
     let context = OfflinePackContext(id: UUID().uuidString, regionName: regionName)
     guard let contextData = try? JSONEncoder().encode(context) else {
