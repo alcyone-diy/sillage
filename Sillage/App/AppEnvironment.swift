@@ -39,6 +39,7 @@ final class AppEnvironment {
     let anchorViewModel: AnchorViewModel
     let permissionService: PermissionService
     let offlineSelectionViewModel: OfflineSelectionViewModel
+    let networkMonitorService: NetworkMonitorService
   }
   
   public init(metadata: AppMetadata? = nil) {
@@ -150,8 +151,7 @@ final class AppEnvironment {
       )
       
       let offlineSelectionViewModel = OfflineSelectionViewModel(offlineMapManager: self.offlineMapManager)
-
-
+      let networkMonitorService = NetworkMonitorService()
       await trackRecordingService.attemptRecoveryIfNeeded()
       
       if let displayedTrackID = preferencesService.displayedTrackSessionID {
@@ -179,7 +179,8 @@ final class AppEnvironment {
         barometerViewModel: barometerViewModel,
         anchorViewModel: anchorViewModel,
         permissionService: permissionService,
-        offlineSelectionViewModel: offlineSelectionViewModel
+        offlineSelectionViewModel: offlineSelectionViewModel,
+        networkMonitorService: networkMonitorService
       )
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")

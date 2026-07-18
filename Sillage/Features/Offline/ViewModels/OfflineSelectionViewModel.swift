@@ -61,8 +61,8 @@ final class OfflineSelectionViewModel {
     
     var styleURL = AppConstants.Cartography.defaultStyleURL
     
-    if let source = chartSource, case .remoteGeoGarage(_, let layerID) = source {
-        if let dynamicStyleURL = generateDynamicStyleJSON(forLayer: layerID) {
+    if let source = chartSource, case .remoteGeoGarage(let clientID, let layerID) = source {
+        if let dynamicStyleURL = generateDynamicStyleJSON(forLayer: layerID, clientID: clientID) {
             styleURL = dynamicStyleURL
         } else {
             Logger.offline.error("Failed to generate dynamic style for layer \(layerID, privacy: .public), falling back to default.")
@@ -77,7 +77,7 @@ final class OfflineSelectionViewModel {
     offlineMapManager.downloadRegion(bounds: bounds, styleURL: finalStyleURL, regionName: regionName)
   }
   
-  private func generateDynamicStyleJSON(forLayer layerID: String) -> URL? {
+  private func generateDynamicStyleJSON(forLayer layerID: String, clientID: String) -> URL? {
     let jsonString = """
     {
       "version": 8,
@@ -86,7 +86,7 @@ final class OfflineSelectionViewModel {
         "geogarage-raster": {
           "type": "raster",
           "tiles": [
-            "sillage-geo://geogarage-proxy/\(layerID)/{z}/{x}/{y}.png"
+            "https://tiles.geogarage.com/\(clientID)/\(layerID)/{z}/{x}/{y}.png"
           ],
           "tileSize": 256,
           "maxzoom": 16

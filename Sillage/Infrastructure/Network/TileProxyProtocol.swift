@@ -24,11 +24,11 @@ fileprivate enum TileSource: Sendable {
 class TileProxyProtocol: URLProtocol, @unchecked Sendable {
   private let taskLock = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
 
-  private static let tilePathRegex = #/^/([^/]+)/(\d+)/(\d+)/(\d+)\.png$/#
+  private static let tilePathRegex = #/^/([^/]+)/([^/]+)/(\d+)/(\d+)/(\d+)\.png$/#
 
   override class func canInit(with request: URLRequest) -> Bool {
     guard let url = request.url else { return false }
-    return url.scheme == "sillage-geo"
+    return url.host == "tiles.geogarage.com"
   }
 
   override class func canonicalRequest(for request: URLRequest) -> URLRequest {
@@ -85,7 +85,7 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
           
           // URLProtocol contract: do not send messages if cancelled
           guard !Task.isCancelled else { return }
-          self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+          self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .allowed)
           
           guard !Task.isCancelled else { return }
           self.client?.urlProtocol(self, didLoad: data)
@@ -110,22 +110,11 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
   }
 
   private func fetchTileData(for url: URL, depth: Int = 0) async throws -> (Data, TileSource)? {
-    // Rewrite and Dispatch
-    // Example URL: sillage-geo://geogarage-proxy/<layerID>/{z}/{x}/{y}.png
-    guard let host = url.host, host == "geogarage-proxy" else { return nil }
-
-    guard let match = url.path.firstMatch(of: Self.tilePathRegex) else { return nil }
-
-    let layerID = String(match.output.1)
-    let zString = String(match.output.2)
-    let xString = String(match.output.3)
-    let yString = String(match.output.4)
-
-    let clientID = AppConfiguration.shared.geoGarageClientID
-    guard let httpsURL = URL(string: "https://tiles.geogarage.com/\(clientID)/\(layerID)/\(zString)/\(xString)/\(yString).png") else { return nil }
+    // URL is now natively https://tiles.geogarage.com/<clientID>/<layerID>/{z}/{x}/{y}.png
+    guard let host = url.host, host == "tiles.geogarage.com" else { return nil }
 
     // Use TileProxyManager to fetch with request coalescing
-    if let data = try await TileProxyManager.shared.fetchTile(url: httpsURL) {
+    if let data = try await TileProxyManager.shared.fetchTile(url: url) {
       return (data, .network)
     }
 
@@ -143,17 +132,18 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
   private func generateFallbackTile(for url: URL, depth: Int) async throws -> (Data, TileSource)? {
     guard let match = url.path.firstMatch(of: Self.tilePathRegex) else { return nil }
 
-    let layerID = String(match.output.1)
-    guard let z = Int(String(match.output.2)),
-          let x = Int(String(match.output.3)),
-          let y = Int(String(match.output.4)) else { return nil }
+    let clientID = String(match.output.1)
+    let layerID = String(match.output.2)
+    guard let z = Int(String(match.output.3)),
+          let x = Int(String(match.output.4)),
+          let y = Int(String(match.output.5)) else { return nil }
 
     let parentZ = z - 1
     let parentX = x / 2
     let parentY = y / 2
 
     // Reconstruct URL with parent components
-    guard let host = url.host, let parentURL = URL(string: "sillage-geo://\(host)/\(layerID)/\(parentZ)/\(parentX)/\(parentY).png") else { return nil }
+    guard let host = url.host, let parentURL = URL(string: "https://\(host)/\(clientID)/\(layerID)/\(parentZ)/\(parentX)/\(parentY).png") else { return nil }
 
     // Recursively fetch parent tile
     guard let (parentData, _) = try await fetchTileData(for: parentURL, depth: depth + 1),
