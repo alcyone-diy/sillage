@@ -34,5 +34,9 @@ public enum AppConstants {
       public static let geoGarageMaximum: Float = 16.0
       public static let openSeaMapMaximum: Float = 18.0
     }
+    
+    public struct Offline {
+      public static let maxDownloadArea = Measurement(value: 900, unit: UnitArea.squareNauticalMiles)
+    }
   }
 }
