@@ -28,7 +28,7 @@ public enum AppConstants {
       
       // Offline download bounds
       public static let offlineMinimum: Double = 0.0
-      public static let offlineMaximum: Double = 18.0
+      public static let offlineMaximum: Double = 16.0
       
       // Specific remote source limits
       public static let geoGarageMaximum: Float = 16.0
