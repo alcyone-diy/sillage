@@ -7,7 +7,8 @@
       "tiles": [
         "sillage://tiles/{z}/{x}/{y}.png"
       ],
-      "tileSize": 256
+      "tileSize": 256,
+      "maxzoom": 16
     }
   },
   "layers": [
