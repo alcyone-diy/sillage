@@ -43,6 +43,7 @@ final class OfflineMapManager {
   private var progressObservationTask: Task<Void, Never>?
   private var errorObservationTask: Task<Void, Never>?
   private var activePack: MLNOfflinePack?
+  private var packsObservation: NSKeyValueObservation?
   
   init() {
     MLNOfflineStorage.shared.setMaximumAllowedMapboxTiles(UInt64.max)
@@ -54,7 +55,26 @@ final class OfflineMapManager {
         Logger.offline.info("Successfully set maximum ambient cache size to \(sizeMB, privacy: .public)MB")
       }
     })
-    loadExistingPacks()
+    
+    // MLNOfflineStorage loads the database asynchronously on launch.
+    // packs is nil initially, so we must observe it via KVO to know when it's ready.
+    packsObservation = MLNOfflineStorage.shared.observe(\.packs, options: [.initial, .new]) { [weak self] _, _ in
+      Task { @MainActor [weak self] in
+        self?.loadExistingPacks()
+      }
+    }
+    
+    // Globally observe progress changes to update sizes of completed packs
+    // when requestProgress() is called.
+    Task { [weak self] in
+      for await notification in NotificationCenter.default.notifications(named: NSNotification.Name.MLNOfflinePackProgressChanged) {
+        guard !Task.isCancelled else { break }
+        guard let self = self, let pack = notification.object as? MLNOfflinePack else { continue }
+        Task { @MainActor [weak self] in
+          self?.updateRegionSize(for: pack)
+        }
+      }
+    }
   }
   
   func loadExistingPacks() {
@@ -66,9 +86,23 @@ final class OfflineMapManager {
       if let context = try? decoder.decode(OfflinePackContext.self, from: contextData) {
         let size = pack.progress.countOfBytesCompleted
         regions.append(OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: size))
+        // Force MapLibre to recalculate the size from the database
+        pack.requestProgress()
       }
     }
     self.downloadedRegions = regions
+  }
+  
+  private func updateRegionSize(for pack: MLNOfflinePack) {
+    let decoder = JSONDecoder()
+    guard let context = try? decoder.decode(OfflinePackContext.self, from: pack.context) else { return }
+    
+    if let index = downloadedRegions.firstIndex(where: { $0.id == context.id }) {
+      let newSize = pack.progress.countOfBytesCompleted
+      if downloadedRegions[index].sizeInBytes != newSize {
+        downloadedRegions[index] = OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: newSize)
+      }
+    }
   }
   
   func deletePack(id: String) {
