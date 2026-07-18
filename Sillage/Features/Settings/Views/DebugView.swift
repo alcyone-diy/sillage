@@ -108,26 +108,26 @@ struct DebugView: View {
         }
         .disabled(appEnvironment.offlineMapManager.isClearingCache)
         .marineListCell()
+        .confirmationDialog("Clear Map Cache", isPresented: $showClearCacheConfirmation, titleVisibility: .visible) {
+          Button("Clear Cache", role: .destructive) {
+            Task {
+              do {
+                try await appEnvironment.offlineMapManager.clearAmbientCache()
+              } catch {
+                activeError = AlertError(error: error)
+              }
+            }
+          }
+          Button("Cancel", role: .cancel) { }
+        } message: {
+          Text("This will delete all temporary data and force the network to reload.")
+        }
       }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .marineListBackground()
     .navigationTitle("Debug")
     .navigationBarTitleDisplayMode(.inline)
-    .confirmationDialog("Clear Map Cache", isPresented: $showClearCacheConfirmation, titleVisibility: .visible) {
-      Button("Clear Cache", role: .destructive) {
-        Task {
-          do {
-            try await appEnvironment.offlineMapManager.clearAmbientCache()
-          } catch {
-            activeError = AlertError(error: error)
-          }
-        }
-      }
-      Button("Cancel", role: .cancel) { }
-    } message: {
-      Text("This will delete all temporary data and force the network to reload.")
-    }
     .alert("Error",
            isPresented: Binding(
              get: { activeError != nil },
