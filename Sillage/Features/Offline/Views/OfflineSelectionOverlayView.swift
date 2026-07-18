@@ -12,6 +12,7 @@ import SwiftUI
 
 struct OfflineSelectionOverlayView: View {
   @Environment(OfflineSelectionViewModel.self) private var viewModel: OfflineSelectionViewModel?
+  @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
   @Environment(\.marineTheme) private var marineTheme
   
   var body: some View {
@@ -126,7 +127,7 @@ struct OfflineSelectionOverlayView: View {
           .cornerRadius(MarineTheme.Metrics.cornerRadius)
         } else {
           Button(action: {
-            viewModel.startDownload()
+            viewModel.startDownload(chartSource: chartViewModel?.currentChartSource)
           }) {
             Text("Download")
               .marineFont(.headline)

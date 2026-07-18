@@ -781,9 +781,8 @@ struct MapLibreView: UIViewRepresentable {
           newSource = MLNRasterTileSource(identifier: sourceID, configurationURL: configURL, tileSize: 256)
         }
         
-      case .remoteGeoGarage(_, let remoteLayerID):
-        // Construct GeoGarage URL template using custom local scheme to bypass MapLibre direct request
-        let template = "sillage-geo://geogarage-proxy/\(remoteLayerID)/{z}/{x}/{y}.png"
+      case .remoteGeoGarage(let clientID, let remoteLayerID):
+        let template = "https://tiles.geogarage.com/\(clientID)/\(remoteLayerID)/{z}/{x}/{y}.png"
         newSource = MLNRasterTileSource(identifier: sourceID, tileURLTemplates: [template], options: [
           .minimumZoomLevel: AppConstants.Cartography.Zoom.globalMinimum,
           .maximumZoomLevel: AppConstants.Cartography.Zoom.geoGarageMaximum

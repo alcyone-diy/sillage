@@ -55,15 +55,70 @@ final class OfflineSelectionViewModel {
     }
   }
   
-  func startDownload() {
+  func startDownload(chartSource: ChartSource?) {
     guard let bounds = selectedBounds else { return }
-    guard let styleURL = AppConstants.Cartography.defaultStyleURL else {
-      Logger.offline.error("Failed to retrieve default style URL from AppConstants")
-      return
-    }
     let regionName = "Area - \(Date().formatted(.dateTime.day().month().year().hour().minute()))"
     
-    offlineMapManager.downloadRegion(bounds: bounds, styleURL: styleURL, regionName: regionName)
+    var styleURL = AppConstants.Cartography.defaultStyleURL
+    
+    if let source = chartSource, case .remoteGeoGarage(_, let layerID) = source {
+        if let dynamicStyleURL = generateDynamicStyleJSON(forLayer: layerID) {
+            styleURL = dynamicStyleURL
+        } else {
+            Logger.offline.error("Failed to generate dynamic style for layer \(layerID, privacy: .public), falling back to default.")
+        }
+    }
+    
+    guard let finalStyleURL = styleURL else {
+      Logger.offline.error("Failed to retrieve style URL for offline region.")
+      return
+    }
+    
+    offlineMapManager.downloadRegion(bounds: bounds, styleURL: finalStyleURL, regionName: regionName)
+  }
+  
+  private func generateDynamicStyleJSON(forLayer layerID: String) -> URL? {
+    let jsonString = """
+    {
+      "version": 8,
+      "name": "GeoGarage Raster - \(layerID)",
+      "sources": {
+        "geogarage-raster": {
+          "type": "raster",
+          "tiles": [
+            "sillage-geo://geogarage-proxy/\(layerID)/{z}/{x}/{y}.png"
+          ],
+          "tileSize": 256,
+          "maxzoom": 16
+        }
+      },
+      "layers": [
+        {
+          "id": "geogarage-layer",
+          "type": "raster",
+          "source": "geogarage-raster",
+          "minzoom": 0,
+          "maxzoom": 18
+        }
+      ]
+    }
+    """
+    
+    let fm = FileManager.default
+    guard let cachesDir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
+    let stylesDir = cachesDir.appendingPathComponent("DynamicStyles", isDirectory: true)
+    
+    do {
+      if !fm.fileExists(atPath: stylesDir.path) {
+        try fm.createDirectory(at: stylesDir, withIntermediateDirectories: true)
+      }
+      let fileURL = stylesDir.appendingPathComponent("geogarage-\(layerID).json")
+      try jsonString.write(to: fileURL, atomically: true, encoding: .utf8)
+      return fileURL
+    } catch {
+      Logger.offline.error("Failed to write dynamic style JSON: \(error.localizedDescription, privacy: .public)")
+      return nil
+    }
   }
   
   func close() {

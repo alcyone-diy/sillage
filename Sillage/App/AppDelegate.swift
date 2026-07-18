@@ -22,9 +22,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // [NSURLSessionConfiguration defaultSessionConfiguration] and ignores MLNNetworkConfiguration.
         // Therefore, URLProtocol.registerClass is MANDATORY for custom schemes.
         // This does NOT pollute the app's global networking because canInit(with:) strictly
-        // filters for "sillage-geo" and "sillage" schemes, letting regular http/https pass through instantly.
+        // filters for "sillage-geo" schemes, letting regular http/https pass through instantly.
         URLProtocol.registerClass(TileProxyProtocol.self)
-        URLProtocol.registerClass(TileURLProtocol.self)
         
         // Critical: The delegate must be assigned before the app finishes launching
         // so that iOS knows how to route foreground notifications.
