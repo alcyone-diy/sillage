@@ -244,12 +244,9 @@ final class AppEnvironment {
       if !newProtocolClasses.contains(where: { $0 == TileProxyProtocol.self }) {
         newProtocolClasses.insert(TileProxyProtocol.self, at: 0)
       }
-      if !newProtocolClasses.contains(where: { $0 == TileURLProtocol.self }) {
-        newProtocolClasses.insert(TileURLProtocol.self, at: 0)
-      }
       config.protocolClasses = newProtocolClasses
     } else {
-      config.protocolClasses = [TileURLProtocol.self, TileProxyProtocol.self]
+      config.protocolClasses = [TileProxyProtocol.self]
     }
     MLNNetworkConfiguration.sharedManager.sessionConfiguration = config
   }
