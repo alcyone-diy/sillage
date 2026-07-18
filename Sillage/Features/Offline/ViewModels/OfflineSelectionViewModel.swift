@@ -28,7 +28,7 @@ final class OfflineSelectionViewModel {
   let cropBoxAspect = 0.75
   
   private var calculationTask: Task<Void, Never>?
-  private let maxArea = Measurement(value: 900, unit: UnitArea.squareNauticalMiles)
+  private let maxArea = AppConstants.Cartography.Offline.maxDownloadArea
   
   init(offlineMapManager: OfflineMapManager) {
     self.offlineMapManager = offlineMapManager
@@ -69,6 +69,7 @@ final class OfflineSelectionViewModel {
   func close() {
     offlineMapManager.reset()
     isSelectionModeActive = false
+    selectedBounds = nil
   }
   
   func cancelDownload() {

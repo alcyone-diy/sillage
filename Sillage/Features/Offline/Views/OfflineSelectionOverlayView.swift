@@ -20,6 +20,7 @@ struct OfflineSelectionOverlayView: View {
         ZStack {
           MarineTheme.Colors.overlay
             .ignoresSafeArea()
+            .allowsHitTesting(false)
             .reverseMask {
               RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius)
                 .frame(width: cropWidth(in: geometry), height: cropHeight(in: geometry))
