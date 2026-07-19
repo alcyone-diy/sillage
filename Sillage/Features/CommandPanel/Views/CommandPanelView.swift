@@ -35,8 +35,12 @@ struct CommandPanelView: View {
     @Bindable var bindableActiveTrackViewModel = activeTrackViewModel
     
     NavigationStack(path: $bindableViewModel.commandPath) {
-      List {
-        // Zone 1: Quick Actions
+      VStack(spacing: 0) {
+        MessageCarouselView()
+          .background(MarineTheme.Colors.panelBackground)
+          
+        List {
+          // Zone 1: Quick Actions
         Section(header: Text("Quick Actions")) {
           HStack(spacing: MarineTheme.Spacing.medium) {
             Toggle("Glove Mode", isOn: $bindableAppViewModel.isGloveModeEnabled)
@@ -150,6 +154,7 @@ struct CommandPanelView: View {
       .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
       .listStyle(.insetGrouped)
       .marineListBackground()
+      }
       .navigationTitle("Command Panel")
       .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(for: PanelManagerViewModel.CommandDestination.self) { destination in

@@ -23,6 +23,7 @@ final class AppEnvironment {
   public let offlineMapManager: OfflineMapManager
   
   struct AppContainer {
+    let messageService: MessageService
     let preferencesService: PreferencesService
     let positioningService: CoreLocationPositioningService
     let trackRecordingService: TrackRecordingService
@@ -66,6 +67,8 @@ final class AppEnvironment {
       }.value
       
       // c. Other Services instantiation (injecting the ready DB)
+      let messageService = MessageService()
+      
       let preferencesService = PreferencesService()
       
       let positioningService = CoreLocationPositioningService()
@@ -93,7 +96,8 @@ final class AppEnvironment {
       let trackRecordingService = TrackRecordingService(
         positioningService: positioningService,
         databaseManager: databaseManager,
-        preferencesService: preferencesService
+        preferencesService: preferencesService,
+        messageService: messageService
       )
       
       let trackService = TrackService(databaseManager: databaseManager)
@@ -165,6 +169,7 @@ final class AppEnvironment {
       }
       
       let container = AppContainer(
+        messageService: messageService,
         preferencesService: preferencesService,
         positioningService: positioningService,
         trackRecordingService: trackRecordingService,

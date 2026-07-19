@@ -77,17 +77,20 @@ public final class TrackRecordingService {
   
   private var persistenceWriter: TrackPersistenceWriter?
   private let preferencesService: PreferencesServiceProtocol
+  private let messageService: MessageService
   
   init(
     filters: TrackFilters = .default,
     positioningService: PositioningService,
     databaseManager: DatabaseManager,
-    preferencesService: PreferencesServiceProtocol
+    preferencesService: PreferencesServiceProtocol,
+    messageService: MessageService
   ) {
     self.filters = filters
     self.positioningService = positioningService
     self.databaseManager = databaseManager
     self.preferencesService = preferencesService
+    self.messageService = messageService
   }
   
   public func updateFilters(_ newFilters: TrackFilters) {
