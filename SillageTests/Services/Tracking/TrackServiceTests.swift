@@ -186,7 +186,8 @@ struct TrackServiceTests {
     let recordingService = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     let sessionID = "session-to-delete-vm"
@@ -224,7 +225,8 @@ struct TrackServiceTests {
     let recordingService = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     // Start recording so we have an active session

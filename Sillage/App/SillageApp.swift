@@ -42,6 +42,7 @@ struct SillageApp: App {
             .environment(container.preferencesService)
             .environment(container.permissionService)
             .environment(container.offlineSelectionViewModel)
+            .environment(container.messageService)
         }
       }
       .environment(environment)

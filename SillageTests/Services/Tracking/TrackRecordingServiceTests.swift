@@ -168,7 +168,8 @@ struct TrackRecordingServiceTests {
     let service = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     #expect(service.state == .idle)
@@ -185,7 +186,8 @@ struct TrackRecordingServiceTests {
     let service = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     service.startRecording()
@@ -204,7 +206,8 @@ struct TrackRecordingServiceTests {
     let service = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     service.startRecording()
@@ -231,7 +234,8 @@ struct TrackRecordingServiceTests {
     let service = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     service.startRecording()
@@ -255,7 +259,8 @@ struct TrackRecordingServiceTests {
     let service = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     service.startRecording()
@@ -277,7 +282,8 @@ struct TrackRecordingServiceTests {
     let service = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     service.startRecording()
@@ -303,7 +309,8 @@ struct TrackRecordingServiceTests {
     let service = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     service.startRecording()
@@ -329,7 +336,8 @@ struct TrackRecordingServiceTests {
     let service = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     service.startRecording()
@@ -357,7 +365,8 @@ struct TrackRecordingServiceTests {
     let service = TrackRecordingService(
       positioningService: mockPositioning,
       databaseManager: dbManager,
-      preferencesService: mockPreferences
+      preferencesService: mockPreferences,
+      messageService: MessageService()
     )
     
     service.startRecording()
