@@ -51,7 +51,6 @@ final class MessageServiceTests: XCTestCase {
     XCTAssertEqual(addedMessage.category, .network)
     XCTAssertEqual(addedMessage.intent, .none)
     XCTAssertFalse(addedMessage.isDismissable)
-    XCTAssertNil(addedMessage.timeout)
   }
 
   func testPostUpdatesExistingMessageAndMovesToTop() {
@@ -95,103 +94,7 @@ final class MessageServiceTests: XCTestCase {
     XCTAssertFalse(messageInStore.isDismissable)
   }
   
-  func testPostMessageWithTimeout() async throws {
-    // Given
-    let message = AppMessage(
-      title: "Ephemeral",
-      detail: "Will disappear",
-      severity: .info,
-      category: .network,
-      timeout: 0.1
-    )
-    
-    // When
-    sut.post(message)
-    XCTAssertEqual(sut.messages.count, 1)
-    
-    // Wait for the timeout + small margin
-    try await Task.sleep(for: .seconds(0.2))
-    
-    // Then
-    XCTAssertEqual(sut.messages.count, 0)
-  }
-  
-  func testPostWithTimeoutCancellationOnUpdate() async throws {
-    // Given
-    let messageId = UUID()
-    let initialMessage = AppMessage(
-      id: messageId,
-      title: "Ephemeral",
-      detail: "Will disappear",
-      severity: .info,
-      category: .network,
-      timeout: 0.1
-    )
-    
-    sut.post(initialMessage)
-    XCTAssertEqual(sut.messages.count, 1)
-    
-    // Wait half of the timeout
-    try await Task.sleep(for: .seconds(0.05))
-    
-    // When updating the message with a new, longer timeout
-    let updatedMessage = AppMessage(
-      id: messageId,
-      title: "Updated",
-      detail: "Will stay longer",
-      severity: .info,
-      category: .network,
-      timeout: 0.3
-    )
-    sut.post(updatedMessage)
-    
-    // Wait past the original timeout but before the new one
-    try await Task.sleep(for: .seconds(0.1))
-    
-    // Then: the message should still be there because the original task was cancelled
-    XCTAssertEqual(sut.messages.count, 1)
-    XCTAssertEqual(sut.messages.first?.title, "Updated")
-    
-    // Wait for the new timeout
-    try await Task.sleep(for: .seconds(0.3))
-    
-    // Finally it should be gone
-    XCTAssertEqual(sut.messages.count, 0)
-  }
 
-  func testPostIdenticalMessageRenewsTimeout() async throws {
-    // Given
-    let messageId = UUID()
-    let initialMessage = AppMessage(
-      id: messageId,
-      title: "Identical",
-      detail: "Body",
-      severity: .info,
-      category: .system,
-      timeout: 0.2
-    )
-    
-    sut.post(initialMessage)
-    XCTAssertEqual(sut.messages.count, 1)
-    
-    // Wait for almost the entire timeout
-    try await Task.sleep(for: .seconds(0.15))
-    
-    // When: Post exact same message to renew the TTL
-    sut.post(initialMessage)
-    
-    // Wait past the ORIGINAL timeout, but well within the renewed timeout
-    try await Task.sleep(for: .seconds(0.1))
-    
-    // Then: The message should still exist because the timeout was renewed
-    XCTAssertEqual(sut.messages.count, 1)
-    
-    // Wait for the renewed timeout to expire
-    try await Task.sleep(for: .seconds(0.15))
-    
-    // Finally it should be gone
-    XCTAssertEqual(sut.messages.count, 0)
-  }
   
   func testPostExceedsMaxMessageCount() {
     // Given
@@ -243,20 +146,7 @@ final class MessageServiceTests: XCTestCase {
     XCTAssertTrue(sut.messages.contains(where: { $0.id == criticalMessage.id }))
   }
 
-  func testNonDismissableMessageIgnoresTimeout() {
-    // Given
-    let message = AppMessage(
-      title: "Critical",
-      detail: "Critical failure",
-      severity: .error,
-      category: .system,
-      isDismissable: false,
-      timeout: 5.0
-    )
-    
-    // Then
-    XCTAssertNil(message.timeout)
-  }
+
   
   func testListMessagesReflectsAdditionsInLIFO() {
     // Given

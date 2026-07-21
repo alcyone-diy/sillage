@@ -18,9 +18,6 @@ import OSLog
 @MainActor
 public final class MessageService: Sendable {
   public private(set) var messages: [AppMessage] = []
-  @ObservationIgnored
-  private var timeoutTasks: [UUID: Task<Void, Never>] = [:]
-  
   private let maxMessageCount = 50
 
 
@@ -29,8 +26,6 @@ public final class MessageService: Sendable {
   /// Posts a new message or updates an existing one with the same ID
   /// - Parameter message: The message to post
   public func post(_ message: AppMessage) {
-    cancelTimeout(for: message.id)
-    
     if let index = messages.firstIndex(where: { $0.id == message.id }) {
       messages.remove(at: index)
       messages.insert(message, at: 0)
@@ -40,14 +35,9 @@ public final class MessageService: Sendable {
       Logger.messaging.info("Added new message [\(message.id, privacy: .public)]: \(String(localized: message.title), privacy: .public)")
     }
     
-    if let timeout = message.timeout {
-      scheduleTimeout(for: message, timeout: timeout)
-    }
-    
     if messages.count > maxMessageCount {
       if let indexToEvict = messages.lastIndex(where: { $0.isDismissable }) {
         let removedMessage = messages.remove(at: indexToEvict)
-        cancelTimeout(for: removedMessage.id)
         Logger.messaging.warning("Limit reached. Evicted dismissable message [\(removedMessage.id, privacy: .public)]")
       } else {
         Logger.messaging.error("Limit reached but all messages are critical/non-dismissable. Bypassing limit.")
@@ -58,8 +48,6 @@ public final class MessageService: Sendable {
   /// Removes a message by its UUID
   /// - Parameter id: The UUID of the message to remove
   public func removeMessage(id: UUID) {
-    cancelTimeout(for: id)
-    
     let initialCount = messages.count
     messages.removeAll { $0.id == id }
     if messages.count < initialCount {
@@ -75,7 +63,6 @@ public final class MessageService: Sendable {
     let initialCount = messages.count
     messages.removeAll { msg in
       if msg.category == category {
-        cancelTimeout(for: msg.id)
         return true
       }
       return false
@@ -83,22 +70,4 @@ public final class MessageService: Sendable {
     let removedCount = initialCount - messages.count
     Logger.messaging.info("Cleared \(removedCount) messages of category: \(category.rawValue, privacy: .public)")
   }
-  
-  private func scheduleTimeout(for message: AppMessage, timeout: TimeInterval) {
-    let task = Task { @MainActor [weak self] in
-      do {
-        try await Task.sleep(for: .seconds(timeout))
-        self?.removeMessage(id: message.id)
-      } catch {
-        // La tâche a été annulée (CancellationError), on ne supprime pas le message
-      }
-    }
-    timeoutTasks[message.id] = task
-  }
-
-  private func cancelTimeout(for id: UUID) {
-    timeoutTasks[id]?.cancel()
-    timeoutTasks.removeValue(forKey: id)
-  }
-
 }
