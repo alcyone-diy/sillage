@@ -178,6 +178,7 @@ struct TrackServiceTests {
   }
   
   @Test("ViewModel delete session succeeds when session is not active")
+  @MainActor
   func testViewModelDeleteSessionSucceeds() async throws {
     let dbManager = try makeDatabaseManager()
     let trackService = TrackService(databaseManager: dbManager)
@@ -217,6 +218,7 @@ struct TrackServiceTests {
   }
   
   @Test("ViewModel delete session throws error when session is active")
+  @MainActor
   func testViewModelDeleteSessionFailsForActive() async throws {
     let dbManager = try makeDatabaseManager()
     let trackService = TrackService(databaseManager: dbManager)

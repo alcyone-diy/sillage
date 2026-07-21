@@ -119,6 +119,8 @@ class ChartViewModel {
   private var waypointsObservationTask: TaskCancellable?
   private var anchorObservationTask: TaskCancellable?
   
+  var silentFetchTask: TaskCancellable?
+  
   // MARK: - Camera Multicast Stream
   
   private var cameraMoveContinuations: [UUID: AsyncStream<CameraMoveEvent>.Continuation] = [:]
@@ -174,11 +176,9 @@ class ChartViewModel {
   
   private func startObservingLocalCharts() {
     observationTask = TaskCancellable(Task { [weak self] in
-      guard let self = self else { return }
-      for await files in await self.chartStorageService.observeMBTilesDirectory() {
-        await MainActor.run {
-          self.localOfflineCharts = files
-        }
+      guard let storageService = self?.chartStorageService else { return }
+      for await files in await storageService.observeMBTilesDirectory() {
+        self?.localOfflineCharts = files
       }
     })
   }
@@ -338,14 +338,10 @@ class ChartViewModel {
     Task {
       do {
         let importedURL = try await LocalChartManager.shared.importChart(from: url)
-        await MainActor.run {
-          self.switchChartSource(to: .localMBTiles(url: importedURL))
-        }
+        self.switchChartSource(to: .localMBTiles(url: importedURL))
       } catch {
-        await MainActor.run {
-          self.chartImportError = error.localizedDescription
-          self.showImportError = true
-        }
+        self.chartImportError = error.localizedDescription
+        self.showImportError = true
       }
     }
   }
@@ -363,17 +359,15 @@ class ChartViewModel {
       return
     }
     
-    Task.detached { [weak self] in
-      guard let self = self else { return }
+    silentFetchTask = TaskCancellable(Task { [weak self] in
       do {
-        let settings = try await self.authService.fetchAccountSettings(accessToken: accessToken)
-        await MainActor.run {
-          self.availableGeoGarageLayers = settings.layers
-        }
+        guard let authService = self?.authService else { return }
+        let settings = try await authService.fetchAccountSettings(accessToken: accessToken)
+        self?.availableGeoGarageLayers = settings.layers
       } catch {
         Logger.network.error("Silent fetch of GeoGarage layers failed: \(error, privacy: .public)")
       }
-    }
+    })
   }
   
   // MARK: - Anchor Observation
@@ -381,15 +375,13 @@ class ChartViewModel {
   private func setupAnchorService() {
     anchorObservationTask = TaskCancellable(Task { [weak self] in
       // Process initial state safely without persistent strong capture
-      await MainActor.run { self?.handleAnchorStateChange() }
+      self?.handleAnchorStateChange()
       
       guard let stateUpdates = self?.anchorService.stateUpdates else { return }
       
       for await _ in stateUpdates {
         guard !Task.isCancelled else { break }
-        await MainActor.run { [weak self] in
-          self?.handleAnchorStateChange()
-        }
+        self?.handleAnchorStateChange()
       }
     })
     
@@ -487,9 +479,7 @@ class ChartViewModel {
         }
         lastProcessedTime = now
         
-        await MainActor.run {
-          self?.handleNewNavigationFix(navigationFix)
-        }
+        self?.handleNewNavigationFix(navigationFix)
       }
     })
     
