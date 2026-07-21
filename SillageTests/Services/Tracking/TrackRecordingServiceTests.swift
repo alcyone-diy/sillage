@@ -160,6 +160,7 @@ struct TrackRecordingServiceTests {
 
 
   @Test("Initial state is idle")
+  @MainActor
   func testInitialState() async throws {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
@@ -178,6 +179,7 @@ struct TrackRecordingServiceTests {
   }
   
   @Test("Start recording changes state to waitingForFix and requests background token")
+  @MainActor
   func testStartRecording() async throws {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
@@ -198,6 +200,7 @@ struct TrackRecordingServiceTests {
   }
   
   @Test("Receiving good fix transitions to recording state")
+  @MainActor
   func testTransitionToRecordingOnFix() async throws {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
@@ -226,6 +229,7 @@ struct TrackRecordingServiceTests {
   }
   
   @Test("Poor accuracy fix is ignored")
+  @MainActor
   func testPoorAccuracyFixIgnored() async throws {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
@@ -251,6 +255,7 @@ struct TrackRecordingServiceTests {
   }
   
   @Test("Pause recording")
+  @MainActor
   func testPauseRecording() async throws {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
@@ -274,6 +279,7 @@ struct TrackRecordingServiceTests {
   }
   
   @Test("Resume recording")
+  @MainActor
   func testResumeRecording() async throws {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
@@ -301,6 +307,7 @@ struct TrackRecordingServiceTests {
   }
   
   @Test("Stop recording without fix")
+  @MainActor
   func testStopRecordingWithoutFix() async throws {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
@@ -328,6 +335,7 @@ struct TrackRecordingServiceTests {
   }
   
   @Test("Stop recording with fix")
+  @MainActor
   func testStopRecordingWithFix() async throws {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
@@ -357,6 +365,7 @@ struct TrackRecordingServiceTests {
     #expect(mockPreferences.activeTrackSessionID == nil)
   }
   @Test("Coordinate precision is maintained as Double")
+  @MainActor
   func testCoordinatePrecision() async throws {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()

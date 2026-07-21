@@ -12,7 +12,7 @@
 /// This is particularly useful for managing task lifecycles within `@MainActor` isolated classes
 /// without violating Swift 6 strict concurrency rules during `deinit`.
 public final class TaskCancellable: Sendable {
-  private let task: Task<Void, Never>
+  let task: Task<Void, Never>
 
   /// Initializes the wrapper with the given task.
   /// - Parameter task: The asynchronous task to manage and automatically cancel.
