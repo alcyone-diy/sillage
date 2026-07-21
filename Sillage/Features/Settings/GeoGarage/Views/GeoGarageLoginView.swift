@@ -20,15 +20,15 @@ struct GeoGarageLoginView: View {
   var body: some View {
     ZStack {
       ScrollView {
-        VStack(spacing: 24) {
+        VStack(spacing: MarineTheme.Spacing.large) {
           // Header
           Text("GeoGarage Login")
             .font(.title)
             .fontWeight(.semibold)
-            .padding(.bottom, 16)
+            .padding(.bottom, MarineTheme.Spacing.medium)
 
           // Form Fields
-          VStack(spacing: 16) {
+          VStack(spacing: MarineTheme.Spacing.medium) {
             TextField("Username", text: $viewModel.username)
               .textFieldStyle(.roundedBorder)
               .textInputAutocapitalization(.never)
@@ -46,50 +46,49 @@ struct GeoGarageLoginView: View {
               .padding(.horizontal)
           }
 
-          // Error Message
           if let errorMessage = viewModel.errorMessage {
             Text(errorMessage)
-              .foregroundColor(.red)
-              .font(.callout)
-              .multilineTextAlignment(.center)
+              .font(.footnote)
+              .foregroundColor(MarineTheme.Colors.error)
               .padding(.horizontal)
+              .multilineTextAlignment(.center)
           }
 
           // Login Button
-          Button(action: {
-            viewModel.login()
-          }) {
-            ZStack {
-              if viewModel.isLoading {
-                ProgressView()
-                  .tint(.white)
-              } else {
-                Text("Log In")
-                  .font(.headline)
-                  .fontWeight(.bold)
+              Button(action: {
+                viewModel.login()
+              }) {
+                ZStack {
+                  if viewModel.isLoading {
+                    ProgressView()
+                      .tint(MarineTheme.Colors.onPrimary)
+                  } else {
+                    Text("Log In")
+                      .font(.headline)
+                      .fontWeight(.bold)
+                  }
+                }
+                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget * scaleFactor)
+                .background(viewModel.isLoading ? MarineTheme.Colors.primary.opacity(0.6) : MarineTheme.Colors.primary)
+                .foregroundColor(MarineTheme.Colors.onPrimary)
+                .cornerRadius(MarineTheme.Metrics.cornerRadius)
+                .padding(.horizontal)
               }
-            }
-            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget * scaleFactor)
-            .background(viewModel.isLoading ? Color.blue.opacity(0.6) : Color.blue)
-            .foregroundColor(.white)
-            .cornerRadius(12)
-            .padding(.horizontal)
-          }
-          .disabled(viewModel.isLoading)
-          .padding(.top, 8)
+              .disabled(viewModel.isLoading)
+              .padding(.top, MarineTheme.Spacing.small)
 
-          Spacer(minLength: 40)
-        }
-        .padding(.vertical, 32)
-      }
+              Spacer(minLength: MarineTheme.Spacing.extraLarge)
+            }
+            .padding(.vertical, MarineTheme.Spacing.extraLarge)
+          }
 
       if viewModel.isLoading {
-        Color.black.opacity(0.3)
+        MarineTheme.Colors.overlay
           .ignoresSafeArea()
 
         ProgressView()
           .controlSize(.large)
-          .tint(.white)
+          .tint(MarineTheme.Colors.onPrimary)
       }
     }
     .navigationTitle("GeoGarage")
@@ -104,6 +103,9 @@ struct GeoGarageLoginView: View {
         }
         dismiss()
       }
+    }
+    .onDisappear {
+      viewModel.cancelLogin()
     }
   }
 }

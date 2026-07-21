@@ -18,6 +18,7 @@ public enum AppMessageCategory: String, Sendable, Equatable {
   case network
   case weather
   case anchor
+  case geoGarage
 }
 
 /// Severity of the message

@@ -142,7 +142,8 @@ final class AppEnvironment {
         authService: geoGarageAuthService,
         anchorService: anchorService,
         anchorViewModel: anchorViewModel,
-        waypointService: waypointService
+        waypointService: waypointService,
+        messageService: messageService
       )
       let panelManagerViewModel = PanelManagerViewModel()
       let activeTrackViewModel = ActiveTrackViewModel(
