@@ -17,30 +17,34 @@ final class GeoGarageLoginViewModel {
   var username = ""
   var password = ""
   var isLoading = false
-  var errorMessage: String? = nil
   var availableLayers: [GeoGarageLayer] = []
   var isAuthorizationReady: Bool = false
 
-  private let authService: GeoGarageAuthServiceProtocol
+  var errorMessage: String?
 
-  @MainActor
+  private let authService: GeoGarageAuthServiceProtocol
+  var loginTask: Task<Void, Never>?
+
   init(authService: GeoGarageAuthServiceProtocol? = nil) {
     self.authService = authService ?? GeoGarageAuthService()
   }
 
   func login() {
-    Task {
-      isLoading = true
-      errorMessage = nil
+    loginTask?.cancel()
+    loginTask = Task { [weak self] in
+      self?.isLoading = true
 
-      defer { isLoading = false }
+      defer { self?.isLoading = false }
+
+      guard let username = self?.username, let password = self?.password else { return }
 
       if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        errorMessage = String(localized: "Please enter a valid username.")
+        self?.errorMessage = String(localized: "Please enter a valid username.")
         return
       }
 
       do {
+        guard let authService = self?.authService else { return }
         let response = try await authService.authenticate(username: username, password: password)
 
         // Save tokens securely
@@ -50,20 +54,24 @@ final class GeoGarageLoginViewModel {
         // Fetch account settings/layers
         let settingsResponse = try await authService.fetchAccountSettings(accessToken: response.access_token)
 
-        // Ensure UI-bound updates are explicitly on the MainActor
-        await MainActor.run {
-          availableLayers = settingsResponse.layers
-          isAuthorizationReady = true
-        }
+        self?.availableLayers = settingsResponse.layers
+        self?.isAuthorizationReady = true
 
         // Log successful fetch
         let layerNames = settingsResponse.layers.map { $0.brand_name }.joined(separator: ", ")
         Logger.network.info("Successfully fetched layers: \(layerNames, privacy: .public)")
+        
+        // Clear any previous authentication error messages
+        self?.errorMessage = nil
       } catch let error as AuthError {
-        errorMessage = error.localizedDescription
+        self?.errorMessage = error.localizedDescription
       } catch {
-        errorMessage = AuthError.unknown.localizedDescription
+        self?.errorMessage = AuthError.unknown.localizedDescription
       }
     }
+  }
+
+  func cancelLogin() {
+    loginTask?.cancel()
   }
 }

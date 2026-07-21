@@ -25,7 +25,7 @@ enum CameraMoveEvent {
 /// It handles location updates, chart source switching, and coordinates camera movements.
 @Observable
 @MainActor
-class ChartViewModel {
+final class ChartViewModel {
   
   // MARK: - Core State
   
@@ -108,6 +108,7 @@ class ChartViewModel {
   private let waypointService: WaypointService?
   private let anchorService: AnchorService
   private let anchorViewModel: AnchorViewModel
+  private let messageService: MessageService?
   
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
   /// when the ViewModel is deallocated, adhering to Swift 6 strict concurrency rules
@@ -146,14 +147,14 @@ class ChartViewModel {
   
   // MARK: - Initialization
   
-  @MainActor
   init(
     positioningService: PositioningService,
     preferencesService: PreferencesServiceProtocol,
     authService: GeoGarageAuthServiceProtocol,
     anchorService: AnchorService,
     anchorViewModel: AnchorViewModel,
-    waypointService: WaypointService? = nil
+    waypointService: WaypointService? = nil,
+    messageService: MessageService? = nil
   ) {
     self.positioningService = positioningService
     self.preferencesService = preferencesService
@@ -161,6 +162,7 @@ class ChartViewModel {
     self.anchorService = anchorService
     self.anchorViewModel = anchorViewModel
     self.waypointService = waypointService
+    self.messageService = messageService
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
     
     loadSavedChartSource()
@@ -364,8 +366,23 @@ class ChartViewModel {
         guard let authService = self?.authService else { return }
         let settings = try await authService.fetchAccountSettings(accessToken: accessToken)
         self?.availableGeoGarageLayers = settings.layers
+        self?.messageService?.clear(category: .geoGarage)
       } catch {
         Logger.network.error("Silent fetch of GeoGarage layers failed: \(error, privacy: .public)")
+        
+        if let authError = error as? AuthError, case .networkError = authError {
+          return // Ignore offline / network issues silently
+        }
+        
+        let appMessage = AppMessage(
+          title: LocalizedStringResource("GeoGarage Auth Error"),
+          detail: LocalizedStringResource("Failed to load layers. Please verify your connection or settings."),
+          severity: .error,
+          category: .geoGarage,
+          intent: .openSettings(target: .geoGarage),
+          isDismissable: true
+        )
+        self?.messageService?.post(appMessage)
       }
     })
   }

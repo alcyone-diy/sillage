@@ -313,6 +313,9 @@
     "Failed to fetch account settings. Server returned code %lld." : {
 
     },
+    "Failed to load layers. Please verify your connection or settings." : {
+
+    },
     "Failed to load track points." : {
 
     },
@@ -335,6 +338,9 @@
 
     },
     "GeoGarage" : {
+
+    },
+    "GeoGarage Auth Error" : {
 
     },
     "GeoGarage Login" : {
