@@ -211,6 +211,9 @@
     "Configuration" : {
 
     },
+    "Corrupt GeoGarage Token" : {
+
+    },
     "Could not create the Charts directory." : {
 
     },
@@ -350,6 +353,9 @@
 
     },
     "GeoGarage Terms of Use" : {
+
+    },
+    "GeoGarage Testing" : {
 
     },
     "Git Hash" : {

@@ -20,6 +20,8 @@ struct DebugView: View {
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(AppEnvironment.self) private var appEnvironment
   
+  @State private var viewModel = DebugViewModel()
+  
   @State private var activeError: AlertError? = nil
   @State private var showClearCacheConfirmation: Bool = false
   
@@ -122,6 +124,16 @@ struct DebugView: View {
         } message: {
           Text("This will delete all temporary data and force the network to reload.")
         }
+      }
+      
+      Section(header: Text("GeoGarage Testing")) {
+        Button(role: .destructive) {
+          viewModel.invalidateGeoGarageToken()
+        } label: {
+          Text("Corrupt GeoGarage Token")
+            .marineFont(.body)
+        }
+        .marineListCell()
       }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
