@@ -368,23 +368,26 @@ final class ChartViewModel {
         self?.availableGeoGarageLayers = settings.layers
         self?.messageService?.clear(category: .geoGarage)
       } catch {
-        Logger.network.error("Silent fetch of GeoGarage layers failed: \(error, privacy: .public)")
-        
-        if let authError = error as? AuthError, case .networkError = authError {
-          return // Ignore offline / network issues silently
-        }
-        
-        let appMessage = AppMessage(
-          title: LocalizedStringResource("GeoGarage Auth Error"),
-          detail: LocalizedStringResource("Failed to load layers. Please verify your connection or settings."),
-          severity: .error,
-          category: .geoGarage,
-          intent: .openSettings(target: .geoGarage),
-          isDismissable: true
-        )
-        self?.messageService?.post(appMessage)
+        self?.handleGeoGarageAuthError(error)
       }
     })
+  }
+  
+  private func handleGeoGarageAuthError(_ error: Error) {
+    Logger.network.error("Silent fetch of GeoGarage layers failed: \(error, privacy: .public)")
+    
+    if let authError = error as? AuthError, case .networkError = authError {
+      return // Ignore offline / network issues silently
+    }
+    
+    let appMessage = AppMessage(
+      title: LocalizedStringResource("GeoGarage Auth Error"),
+      detail: LocalizedStringResource("Failed to load layers. Please verify your connection or settings."),
+      severity: .error,
+      category: .geoGarage,
+      intent: .openSettings(target: .geoGarage),
+    )
+    self.messageService?.post(appMessage)
   }
   
   // MARK: - Anchor Observation
