@@ -53,7 +53,6 @@ public struct AppMessage: Identifiable, Sendable, Equatable {
   public let category: AppMessageCategory
   public let intent: AppMessageIntent
   public let isDismissable: Bool
-  public let timeout: TimeInterval?
   public let timestamp: Date
 
   public init(
@@ -64,7 +63,6 @@ public struct AppMessage: Identifiable, Sendable, Equatable {
     category: AppMessageCategory,
     intent: AppMessageIntent = .none,
     isDismissable: Bool = true,
-    timeout: TimeInterval? = nil,
     timestamp: Date = Date()
   ) {
     self.id = id
@@ -74,9 +72,6 @@ public struct AppMessage: Identifiable, Sendable, Equatable {
     self.category = category
     self.intent = intent
     self.isDismissable = isDismissable
-    self.timeout = isDismissable ? timeout : nil
     self.timestamp = timestamp
   }
-
-  public static let defaultTimeout: TimeInterval = 10.0
 }
