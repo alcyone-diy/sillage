@@ -19,7 +19,7 @@ struct CardHeightPreferenceKey: PreferenceKey {
 
 private struct ScrollInfo: Equatable {
   var offset: CGFloat = 0
-  var width: CGFloat = 1
+  var width: CGFloat?
 }
 
 @MainActor
@@ -35,15 +35,15 @@ struct MessageCarouselView: View {
   private var targetScrollHeight: CGFloat? {
     let count = messageService.messages.count
     guard count > 0 else { return nil }
+    guard let width = scrollInfo.width, width > 0 else { return nil }
     
     let offset = scrollInfo.offset
-    let width = scrollInfo.width
     
     // Handle rubber banding by clamping offset
     let clampedOffset = max(0, min(offset, CGFloat(count - 1) * width))
     
-    let firstIndex = max(0, Int(clampedOffset / width))
-    let lastIndex = min(count - 1, Int((clampedOffset + width - 0.1) / width))
+    let firstIndex = max(0, Int(floor(clampedOffset / width)))
+    let lastIndex = min(count - 1, Int(ceil(clampedOffset / width)))
     
     var maxHeight: CGFloat = 0
     for i in firstIndex...lastIndex {
@@ -53,8 +53,8 @@ struct MessageCarouselView: View {
       }
     }
     
-    // Add 10 points to accommodate the bottom shadow (radius 4 + y-offset 2)
-    return maxHeight > 0 ? maxHeight + 10 : nil
+    // Add the space required for the shadow padding
+    return maxHeight > 0 ? maxHeight + MarineTheme.Metrics.shadowRadius + MarineTheme.Metrics.shadowOffset : nil
   }
 
   var body: some View {
@@ -64,6 +64,7 @@ struct MessageCarouselView: View {
           HStack(alignment: .top, spacing: 0) {
             ForEach(messageService.messages) { message in
               MessageCardView(message: message)
+                .padding(.bottom, MarineTheme.Metrics.shadowRadius + MarineTheme.Metrics.shadowOffset) // Structural padding for shadow
                 .padding(.horizontal, MarineTheme.Spacing.medium)
                 .containerRelativeFrame(.horizontal, alignment: .top)
                 .id(message.id)
@@ -80,7 +81,7 @@ struct MessageCarouselView: View {
           cardHeights = newHeights
         }
         .onScrollGeometryChange(for: ScrollInfo.self) { geo in
-          ScrollInfo(offset: geo.contentOffset.x, width: max(1, geo.containerSize.width))
+          ScrollInfo(offset: geo.contentOffset.x, width: geo.containerSize.width > 0 ? geo.containerSize.width : nil)
         } action: { _, newValue in
           scrollInfo = newValue
         }
@@ -93,14 +94,13 @@ struct MessageCarouselView: View {
         
         // Pagination dots
         if messageService.messages.count > 1 {
-          HStack(spacing: 6) {
+          HStack(spacing: MarineTheme.Spacing.small) {
             ForEach(messageService.messages) { message in
               Circle()
                 .fill(message.id == scrolledID ? MarineTheme.Colors.primary : Color.secondary.opacity(0.3))
-                .frame(width: 6, height: 6)
+                .frame(width: MarineTheme.Metrics.paginationDotSize, height: MarineTheme.Metrics.paginationDotSize)
             }
           }
-          .offset(y: -8)
         }
       }
       .onAppear {
@@ -123,7 +123,7 @@ struct MessageCardView: View {
       HStack(alignment: .top) {
         severityIcon
         
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
           Text(message.title)
             .marineFont(.headline)
             .foregroundStyle(.primary)
@@ -134,14 +134,14 @@ struct MessageCardView: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.trailing, 24) // Reserve space for the close button
+        .padding(.trailing, MarineTheme.Spacing.extraLarge) // Reserve space for the close button
         
         Spacer(minLength: 0)
       }
     }
     .padding(MarineTheme.Spacing.medium)
     .background(Color(uiColor: .secondarySystemGroupedBackground))
-    .cornerRadius(12)
+    .cornerRadius(MarineTheme.Metrics.cornerRadius)
     .overlay(alignment: .topTrailing) {
       if message.isDismissable {
         Button {
@@ -157,16 +157,16 @@ struct MessageCardView: View {
         }
         .buttonStyle(.plain)
         .alignmentGuide(.trailing) { d in
-          // Keep the visual center invariant (e.g. 18 points from the right edge)
-          d.width / 2 + 18
+          // Keep the visual center invariant
+          d.width / 2 + MarineTheme.Spacing.medium
         }
         .alignmentGuide(.top) { d in
-          // Keep the visual center invariant (e.g. 18 points from the top edge)
-          d.height / 2 - 18
+          // Keep the visual center invariant
+          d.height / 2 - MarineTheme.Spacing.medium
         }
       }
     }
-    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+    .shadow(color: MarineTheme.Colors.shadow, radius: MarineTheme.Metrics.shadowRadius, x: 0, y: MarineTheme.Metrics.shadowOffset)
     .background(
       GeometryReader { geo in
         Color.clear.preference(

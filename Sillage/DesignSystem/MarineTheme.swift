@@ -24,6 +24,7 @@ struct MarineTheme {
     static let overlay = Color.black.opacity(0.3)
     static let primaryFaded = primary.opacity(0.4)
     static let planningLine = primary.opacity(0.5)
+    static let shadow = Color.black.opacity(0.1)
 
     // New colors
     static let surfaceBackground = Color(uiColor: .secondarySystemGroupedBackground)
@@ -35,6 +36,7 @@ struct MarineTheme {
     static let panelBackground = Color(uiColor: .systemGroupedBackground)
     static let secondarySurface = Color(uiColor: .secondarySystemGroupedBackground)
     static let destructive = Color(uiColor: .systemRed)
+    static let error = destructive // Alias for semantic usage
     static let destructiveBackground = Color(uiColor: .systemRed).opacity(0.15)
     static let disabledBackground = Color.gray.opacity(0.15)
     static let border = Color(uiColor: .separator)
@@ -57,6 +59,9 @@ struct MarineTheme {
     let touchTarget: CGFloat
     static let cornerRadius: CGFloat = 12.0
     static let borderWidth: CGFloat = 1.0
+    static let paginationDotSize: CGFloat = 6.0
+    static let shadowRadius: CGFloat = 4.0
+    static let shadowOffset: CGFloat = 2.0
   }
 
   var metrics: Metrics {
@@ -64,9 +69,11 @@ struct MarineTheme {
   }
 
   struct Spacing {
+    static let tiny: CGFloat = 4
     static let small: CGFloat = 8
     static let medium: CGFloat = 16
     static let large: CGFloat = 24
+    static let extraLarge: CGFloat = 32
   }
 
   struct ChartMetrics {
