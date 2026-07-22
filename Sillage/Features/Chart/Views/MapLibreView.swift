@@ -555,7 +555,7 @@ struct MapLibreView: UIViewRepresentable {
     }
     
     @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
-      // Ne déclencher qu'au début du geste pour éviter les ouvertures multiples
+      // Only trigger at the start of the gesture to prevent multiple openings
       guard sender.state == .began else { return }
       guard let mapView = sender.view as? MLNMapView else { return }
       let point = sender.location(in: mapView)
