@@ -39,8 +39,8 @@ final class OfflineSelectionViewModel {
   /// The default aspect ratio (height/width) of the selection crop box.
   let cropBoxAspect = 0.75
   
-  /// The user-defined dimension of the selection crop box. If nil, defaults are applied.
-  private(set) var cropSize: CGSize?
+  /// The user-defined dimension and position of the selection crop box. If nil, defaults are applied based on screen size.
+  private(set) var cropRect: CGRect?
   
   private var calculationTask: Task<Void, Never>?
   private let maxArea = AppConstants.Cartography.Offline.maxDownloadArea
@@ -75,14 +75,14 @@ final class OfflineSelectionViewModel {
     }
   }
   
-  /// Updates the size of the selection crop box.
+  /// Updates the position and size of the selection crop box.
   ///
   /// This method must only be called at the end of the resize gesture (`.onEnded`)
   /// to conserve CPU and battery. Continuous updates during the *drag* phase
   /// would trigger heavy MapLibre geometric and geospatial recalculations.
-  /// - Parameter size: The new final size of the selection area.
-  func updateCropSize(_ size: CGSize) {
-    self.cropSize = size
+  /// - Parameter rect: The new final frame of the selection area in screen coordinates.
+  func updateCropRect(_ rect: CGRect) {
+    self.cropRect = rect
   }
   
   /// Initiates the offline map download using the current geographic bounding box.
@@ -163,7 +163,8 @@ final class OfflineSelectionViewModel {
     offlineMapManager.reset()
     isSelectionModeActive = false
     selectedBounds = nil
-    cropSize = nil
+    cropRect = nil
+    calculationTask?.cancel()
   }
   
   /// Cancels any active offline map download process.
