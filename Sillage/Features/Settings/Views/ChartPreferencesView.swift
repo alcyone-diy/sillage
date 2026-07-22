@@ -20,7 +20,7 @@ struct ChartPreferencesView: View {
   
   /// Injects the global design system theme.
   @Environment(\.marineTheme) private var marineTheme
-  
+
   /// Controls the presentation of the system file picker for importing charts.
   @State private var showingFileImporter = false
 

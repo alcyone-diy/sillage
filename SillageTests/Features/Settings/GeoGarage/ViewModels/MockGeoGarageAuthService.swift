@@ -33,4 +33,10 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
     }
     return GeoGarageSettingsResponse(layers: [])
   }
+
+  func logout() {
+    KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+    KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
+    self.authError = nil
+  }
 }
