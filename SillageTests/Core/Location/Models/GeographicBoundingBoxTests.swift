@@ -161,4 +161,76 @@ struct GeographicBoundingBoxTests {
     #expect(box.southWest.longitude == southWest.longitude)
     #expect(box.northEast.longitude == northEast.longitude)
   }
+  
+  // MARK: - Equivalence Tests (Epsilon)
+  
+  @Test("isApproximatelyEqual: Exact equality returns true")
+  func testIsApproximatelyEqualExact() {
+    let box1 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 40.0, longitude: -10.0),
+      northEast: CLLocationCoordinate2D(latitude: 50.0, longitude: 10.0)
+    )
+    let box2 = box1
+    
+    #expect(box1.isApproximatelyEqual(to: box2))
+  }
+  
+  @Test("isApproximatelyEqual: Slight variations below 1e-6 return true")
+  func testIsApproximatelyEqualBelowTolerance() {
+    let box1 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 40.0, longitude: -10.0),
+      northEast: CLLocationCoordinate2D(latitude: 50.0, longitude: 10.0)
+    )
+    // Variation of 0.0000005 (5e-7), which is less than default 1e-6 tolerance
+    let box2 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 40.0 + 5e-7, longitude: -10.0 - 5e-7),
+      northEast: CLLocationCoordinate2D(latitude: 50.0 - 5e-7, longitude: 10.0 + 5e-7)
+    )
+    
+    #expect(box1.isApproximatelyEqual(to: box2))
+  }
+  
+  @Test("isApproximatelyEqual: Variations above 1e-6 return false")
+  func testIsApproximatelyEqualAboveTolerance() {
+    let box1 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 40.0, longitude: -10.0),
+      northEast: CLLocationCoordinate2D(latitude: 50.0, longitude: 10.0)
+    )
+    // Variation of 0.000002 (2e-6), which is strictly greater than default 1e-6 tolerance
+    let box2 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 40.0 + 2e-6, longitude: -10.0),
+      northEast: CLLocationCoordinate2D(latitude: 50.0, longitude: 10.0)
+    )
+    
+    #expect(!box1.isApproximatelyEqual(to: box2))
+  }
+  
+  @Test("isApproximatelyEqual: Edge cases near anti-meridian and poles")
+  func testIsApproximatelyEqualEdgeCases() {
+    // Near poles (same coordinate, no wrap, just exact equivalence near pole)
+    let polesBox1 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: -89.9999999, longitude: 0.0),
+      northEast: CLLocationCoordinate2D(latitude: 89.9999999, longitude: 0.0)
+    )
+    let polesBox2 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: -90.0, longitude: 0.0),
+      northEast: CLLocationCoordinate2D(latitude: 90.0, longitude: 0.0)
+    )
+    #expect(polesBox1.isApproximatelyEqual(to: polesBox2))
+    
+    // Near anti-meridian (Wrap around 180 / -180)
+    // 179.999999 and -179.999999 are ~0.000002 degrees apart across the anti-meridian
+    let amBox1 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 0.0, longitude: 179.999999),
+      northEast: CLLocationCoordinate2D(latitude: 0.0, longitude: -179.999999)
+    )
+    let amBox2 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 0.0, longitude: -179.999999),
+      northEast: CLLocationCoordinate2D(latitude: 0.0, longitude: 179.999999)
+    )
+    
+    // An absolute delta would yield ~360, but shortest path is ~0.000002.
+    // 0.000002 is smaller than the provided tolerance of 1e-5 (0.00001).
+    #expect(amBox1.isApproximatelyEqual(to: amBox2, tolerance: 1e-5))
+  }
 }
