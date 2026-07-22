@@ -30,7 +30,7 @@ class OpenSeaMapLayerService {
         options: [
           .minimumZoomLevel: AppConstants.Cartography.Zoom.globalMinimum,
           .maximumZoomLevel: AppConstants.Cartography.Zoom.openSeaMapMaximum,
-          .tileSize: 256,
+          .tileSize: AppConstants.Cartography.Tile.rasterTileSize,
           .attributionInfos: [
             MLNAttributionInfo(title: NSAttributedString(string: "Map data © OpenSeaMap contributors"), url: URL(string: "https://openseamap.org"))
           ]

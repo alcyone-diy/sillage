@@ -35,6 +35,12 @@ public enum AppConstants {
       public static let openSeaMapMaximum: Float = 18.0
     }
     
+    public struct Tile {
+      /// Tile size (in points) used for rendering raster tile sources.
+      /// 128 compresses 256px raster tiles into 128 points (256 physical pixels on @2x), doubling the pixel density for Retina displays.
+      public static let rasterTileSize: CGFloat = 128
+    }
+    
     public struct Offline {
       public static let maxDownloadArea = Measurement(value: 900, unit: UnitArea.squareNauticalMiles)
     }
