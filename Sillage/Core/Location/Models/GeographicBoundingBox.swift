@@ -74,7 +74,27 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
     return Measurement(value: widthMeters * heightMeters, unit: UnitArea.squareMeters)
   }
   
+  /// Compares two bounding boxes with a geographic epsilon tolerance to prevent infinite render loops
+  /// caused by floating point precision limits when converting screen rects to map bounds.
+  /// 
+  /// - Parameters:
+  ///   - other: The other `GeographicBoundingBox` to compare against.
+  ///   - tolerance: The maximum allowed coordinate deviation (epsilon) in degrees. Defaults to `1e-6`.
+  /// - Returns: `true` if all corner coordinates are within the specified tolerance; otherwise `false`.
+  public func isApproximatelyEqual(to other: GeographicBoundingBox, tolerance: CLLocationDegrees = 1e-6) -> Bool {
+    return abs(southWest.latitude - other.southWest.latitude) < tolerance &&
+           shortestLongitudeDelta(from: southWest.longitude, to: other.southWest.longitude) < tolerance &&
+           abs(northEast.latitude - other.northEast.latitude) < tolerance &&
+           shortestLongitudeDelta(from: northEast.longitude, to: other.northEast.longitude) < tolerance
+  }
+  
   // MARK: - Private Math
+  
+  /// Calculates the shortest angular distance between two longitudes, accounting for the 360-degree wrap at the anti-meridian.
+  private func shortestLongitudeDelta(from lon1: CLLocationDegrees, to lon2: CLLocationDegrees) -> CLLocationDegrees {
+    let delta = abs(lon1 - lon2).truncatingRemainder(dividingBy: 360.0)
+    return delta > 180.0 ? 360.0 - delta : delta
+  }
   
   private func degreesDistance(from start: CLLocationDegrees, to end: CLLocationDegrees) -> CLLocationDegrees {
     var diff = end - start

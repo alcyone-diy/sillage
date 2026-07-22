@@ -423,9 +423,7 @@ struct MapLibreView: UIViewRepresentable {
       }
       uiView.isRotateEnabled = false
       
-      if offlineVM.selectedBounds == nil {
-        context.coordinator.updateOfflineSelectionBounds(mapView: uiView)
-      }
+      context.coordinator.updateOfflineSelectionBounds(mapView: uiView)
     } else {
       uiView.isRotateEnabled = true
     }
@@ -517,9 +515,11 @@ struct MapLibreView: UIViewRepresentable {
   
   // MARK: - Coordinator
   
+  @MainActor
   class Coordinator: NSObject, MLNMapViewDelegate, UIPopoverPresentationControllerDelegate {
     var parent: MapLibreView
     private var streamTask: Task<Void, Never>?
+    private var pendingBoundsUpdateTask: Task<Void, Never>?
     var lastChartSource: ChartSource?
     weak var mapView: MLNMapView?
     
@@ -551,6 +551,7 @@ struct MapLibreView: UIViewRepresentable {
     
     deinit {
       streamTask?.cancel()
+      pendingBoundsUpdateTask?.cancel()
       NotificationCenter.default.removeObserver(self)
     }
     
@@ -911,14 +912,17 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
     
+    @MainActor
     func updateOfflineSelectionBounds(mapView: MLNMapView) {
       if let offlineVM = self.parent.offlineSelectionViewModel, offlineVM.isSelectionModeActive {
-        let baseSize = min(mapView.bounds.width, mapView.bounds.height) * offlineVM.cropBoxWidthRatio
-        let cropWidth = baseSize
-        let cropHeight = baseSize * offlineVM.cropBoxAspect
-        let x = (mapView.bounds.width - cropWidth) / 2.0
-        let y = (mapView.bounds.height - cropHeight) / 2.0
-        let rect = CGRect(x: x, y: y, width: cropWidth, height: cropHeight)
+        let cropSize = offlineVM.cropSize ?? {
+            let baseSize = min(mapView.bounds.width, mapView.bounds.height) * offlineVM.cropBoxWidthRatio
+            return CGSize(width: baseSize, height: baseSize * offlineVM.cropBoxAspect)
+        }()
+        
+        let x = (mapView.bounds.width - cropSize.width) / 2.0
+        let y = (mapView.bounds.height - cropSize.height) / 2.0
+        let rect = CGRect(x: x, y: y, width: cropSize.width, height: cropSize.height)
         
         let mlnBounds = mapView.convert(rect, toCoordinateBoundsFrom: mapView)
         
@@ -926,7 +930,30 @@ struct MapLibreView: UIViewRepresentable {
           southWest: mlnBounds.sw,
           northEast: mlnBounds.ne
         )
-        offlineVM.updateBoundingBox(bounds)
+        
+        // Prevent redundant recalculations by only updating if bounds have changed significantly
+        // This avoids infinite loops caused by MapLibre floating point conversion drift
+        if let current = offlineVM.selectedBounds, current.isApproximatelyEqual(to: bounds) {
+            return
+        }
+        
+        // Cancel any pending bounds update to avoid saturating the MainActor with redundant tasks.
+        pendingBoundsUpdateTask?.cancel()
+        
+        // Defer the mutation and debounce it by 50ms to avoid
+        // "Modifying state during view update" runtime warnings in SwiftUI
+        // and to prevent CPU saturation from rapid MapLibre layout passes.
+        pendingBoundsUpdateTask = Task { @MainActor [weak offlineVM] in
+            do {
+                try await Task.sleep(for: .milliseconds(50))
+                guard !Task.isCancelled else { return }
+                offlineVM?.updateBoundingBox(bounds)
+            } catch is CancellationError {
+                // Task was cancelled by a newer layout update, exit cleanly.
+            } catch {
+                // Ignore other potential sleep errors.
+            }
+        }
       }
     }
     

@@ -57,6 +57,9 @@ struct MarineTheme {
 
   struct Metrics {
     let touchTarget: CGFloat
+    
+    /// The visual size of the interaction handles, dynamically adjusted for Glove Mode visibility.
+    let handleSize: CGFloat
     static let cornerRadius: CGFloat = 12.0
     static let borderWidth: CGFloat = 1.0
     static let paginationDotSize: CGFloat = 6.0
@@ -65,7 +68,7 @@ struct MarineTheme {
   }
 
   var metrics: Metrics {
-    Metrics(touchTarget: minTouchTarget)
+    Metrics(touchTarget: minTouchTarget, handleSize: isGloveMode ? 36.0 : 24.0)
   }
 
   struct Spacing {

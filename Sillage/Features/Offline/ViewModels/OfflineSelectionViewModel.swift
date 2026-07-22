@@ -13,27 +13,47 @@ import CoreLocation
 import Observation
 import OSLog
 
+/// A ViewModel responsible for managing the state of the offline map region selection process.
+/// It coordinates the crop box dimensions, calculates estimated download areas, and handles interactions with the `OfflineMapManager`.
 @Observable
 @MainActor
 final class OfflineSelectionViewModel {
+  /// The underlying map manager handling the actual tile downloads.
   let offlineMapManager: OfflineMapManager
   
+  /// The geographically accurate bounding box derived from the UI crop box.
   @ObservationIgnored private(set) var selectedBounds: GeographicBoundingBox?
   
+  /// Indicates whether the user is currently actively selecting an offline region.
   var isSelectionModeActive: Bool = false
+  
+  /// The estimated surface area of the currently selected bounds, used to warn the user about download limits.
   var estimatedArea: Measurement<UnitArea>?
+  
+  /// Indicates whether the currently selected area fits within the maximum allowed download limits.
   var isValidSize: Bool = false
   
+  /// The default width ratio relative to the smallest map dimension.
   let cropBoxWidthRatio = 0.7
+  
+  /// The default aspect ratio (height/width) of the selection crop box.
   let cropBoxAspect = 0.75
+  
+  /// The user-defined dimension of the selection crop box. If nil, defaults are applied.
+  private(set) var cropSize: CGSize?
   
   private var calculationTask: Task<Void, Never>?
   private let maxArea = AppConstants.Cartography.Offline.maxDownloadArea
   
+  /// Initializes the view model with a specified map manager.
+  /// - Parameter offlineMapManager: The manager that executes downloads.
   init(offlineMapManager: OfflineMapManager) {
     self.offlineMapManager = offlineMapManager
   }
   
+  /// Updates the geographical bounding box linked to the UI selection area.
+  /// It debounces the area computation to prevent excessive calculation during rapid map panning.
+  /// - Parameter bounds: The new computed geographic bounding box.
   func updateBoundingBox(_ bounds: GeographicBoundingBox) {
     guard isSelectionModeActive else { return }
     self.selectedBounds = bounds
@@ -55,6 +75,18 @@ final class OfflineSelectionViewModel {
     }
   }
   
+  /// Updates the size of the selection crop box.
+  ///
+  /// This method must only be called at the end of the resize gesture (`.onEnded`)
+  /// to conserve CPU and battery. Continuous updates during the *drag* phase
+  /// would trigger heavy MapLibre geometric and geospatial recalculations.
+  /// - Parameter size: The new final size of the selection area.
+  func updateCropSize(_ size: CGSize) {
+    self.cropSize = size
+  }
+  
+  /// Initiates the offline map download using the current geographic bounding box.
+  /// - Parameter chartSource: The active chart source to derive the specific style JSON or map layers for download.
   func startDownload(chartSource: ChartSource?) {
     guard let bounds = selectedBounds else { return }
     let regionName = "Area - \(Date().formatted(.dateTime.day().month().year().hour().minute()))"
@@ -77,6 +109,11 @@ final class OfflineSelectionViewModel {
     offlineMapManager.downloadRegion(bounds: bounds, styleURL: finalStyleURL, regionName: regionName)
   }
   
+  /// Generates a dynamic style JSON tailored for the selected remote GeoGarage layer.
+  /// - Parameters:
+  ///   - layerID: The map layer ID.
+  ///   - clientID: The authorization client ID.
+  /// - Returns: A file URL pointing to the locally generated JSON style.
   private func generateDynamicStyleJSON(forLayer layerID: String, clientID: String) -> URL? {
     let jsonString = """
     {
@@ -121,12 +158,15 @@ final class OfflineSelectionViewModel {
     }
   }
   
-  func close() {
+  /// Fully clears the active selection and drops out of selection mode.
+  func resetSelection() {
     offlineMapManager.reset()
     isSelectionModeActive = false
     selectedBounds = nil
+    cropSize = nil
   }
   
+  /// Cancels any active offline map download process.
   func cancelDownload() {
     offlineMapManager.cancelDownload()
   }
