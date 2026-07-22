@@ -23,10 +23,21 @@ final class GeoGarageLoginViewModel {
   var errorMessage: String?
 
   private let authService: GeoGarageAuthServiceProtocol
+  var messageService: MessageService?
   var loginTask: Task<Void, Never>?
 
-  init(authService: GeoGarageAuthServiceProtocol? = nil) {
+  init(authService: GeoGarageAuthServiceProtocol? = nil, messageService: MessageService? = nil) {
     self.authService = authService ?? GeoGarageAuthService()
+    self.messageService = messageService
+  }
+
+  func logout() {
+    loginTask?.cancel()
+    availableLayers = []
+    isAuthorizationReady = false
+    errorMessage = nil
+    authService.logout()
+    messageService?.clear(category: .geoGarage)
   }
 
   func login() {
@@ -63,6 +74,7 @@ final class GeoGarageLoginViewModel {
         
         // Clear any previous authentication error messages
         self?.errorMessage = nil
+        self?.messageService?.clear(category: .geoGarage)
       } catch let error as AuthError {
         self?.errorMessage = error.localizedDescription
       } catch {

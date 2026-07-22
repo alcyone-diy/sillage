@@ -13,6 +13,7 @@ import SwiftUI
 struct GeoGarageLoginView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(ChartViewModel.self) private var chartViewModel
+  @Environment(MessageService.self) private var messageService: MessageService?
   @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
   @State private var viewModel = GeoGarageLoginViewModel()
   @Environment(\.dismiss) private var dismiss
@@ -103,6 +104,9 @@ struct GeoGarageLoginView: View {
         }
         dismiss()
       }
+    }
+    .onAppear {
+      viewModel.messageService = messageService
     }
     .onDisappear {
       viewModel.cancelLogin()
