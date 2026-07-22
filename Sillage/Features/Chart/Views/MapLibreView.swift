@@ -789,7 +789,7 @@ struct MapLibreView: UIViewRepresentable {
         }
         
         if let configURL = configurationURL {
-          newSource = MLNRasterTileSource(identifier: sourceID, configurationURL: configURL, tileSize: 256)
+          newSource = MLNRasterTileSource(identifier: sourceID, configurationURL: configURL, tileSize: AppConstants.Cartography.Tile.rasterTileSize)
         }
         
       case .remoteGeoGarage(let clientID, let remoteLayerID):
@@ -807,7 +807,7 @@ struct MapLibreView: UIViewRepresentable {
           .minimumZoomLevel: AppConstants.Cartography.Zoom.globalMinimum,
           .maximumZoomLevel: AppConstants.Cartography.Zoom.openSeaMapMaximum,
           .attributionInfos: [attribution],
-          .tileSize: 256
+          .tileSize: AppConstants.Cartography.Tile.rasterTileSize
         ])
       }
       

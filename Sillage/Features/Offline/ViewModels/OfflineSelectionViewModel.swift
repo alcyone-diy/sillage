@@ -88,7 +88,7 @@ final class OfflineSelectionViewModel {
           "tiles": [
             "https://tiles.geogarage.com/\(clientID)/\(layerID)/{z}/{x}/{y}.png"
           ],
-          "tileSize": 256,
+          "tileSize": \(Int(AppConstants.Cartography.Tile.rasterTileSize)),
           "maxzoom": 16
         }
       },
