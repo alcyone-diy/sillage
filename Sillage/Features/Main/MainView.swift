@@ -128,6 +128,7 @@ struct ContentView: View {
           }
         }
       }
+      .environment(\.physicalSafeArea, geo.safeAreaInsets)
       .onChange(of: panelManagerViewModel.activePanel, initial: true) { _, newPanel in
         if useNativeSheet { localSheetPresented = (newPanel != .none) }
       }

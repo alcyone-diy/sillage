@@ -915,14 +915,13 @@ struct MapLibreView: UIViewRepresentable {
     @MainActor
     func updateOfflineSelectionBounds(mapView: MLNMapView) {
       if let offlineVM = self.parent.offlineSelectionViewModel, offlineVM.isSelectionModeActive {
-        let cropSize = offlineVM.cropSize ?? {
+        let rect = offlineVM.cropRect ?? {
             let baseSize = min(mapView.bounds.width, mapView.bounds.height) * offlineVM.cropBoxWidthRatio
-            return CGSize(width: baseSize, height: baseSize * offlineVM.cropBoxAspect)
+            let size = CGSize(width: baseSize, height: baseSize * offlineVM.cropBoxAspect)
+            let x = (mapView.bounds.width - size.width) / 2.0
+            let y = (mapView.bounds.height - size.height) / 2.0
+            return CGRect(x: x, y: y, width: size.width, height: size.height)
         }()
-        
-        let x = (mapView.bounds.width - cropSize.width) / 2.0
-        let y = (mapView.bounds.height - cropSize.height) / 2.0
-        let rect = CGRect(x: x, y: y, width: cropSize.width, height: cropSize.height)
         
         let mlnBounds = mapView.convert(rect, toCoordinateBoundsFrom: mapView)
         
