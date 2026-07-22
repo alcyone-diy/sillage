@@ -48,7 +48,7 @@ enum MarineIcon: String {
 }
 
 extension Image {
-    /// Initialise une image à partir du design system marin.
+    /// Initializes an image from the marine design system.
     init(marineIcon: MarineIcon) {
         // Anticipation : Si certaines icônes deviennent des assets custom (SVG) plus tard
         // on modifiera cette logique sans toucher au reste de l'application.

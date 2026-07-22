@@ -19,7 +19,7 @@ struct MarineListBackgroundModifier: ViewModifier {
 }
 
 extension View {
-  /// Applique le fond standard du thème marin pour les listes et panneaux.
+  /// Applies the standard marine theme background for lists and panels.
   func marineListBackground() -> some View {
     modifier(MarineListBackgroundModifier())
   }

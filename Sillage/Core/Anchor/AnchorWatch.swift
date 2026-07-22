@@ -12,12 +12,12 @@ import Foundation
 import CoreLocation
 
 public struct AnchorWatch: Codable, Sendable, Equatable {
-  // Stockage interne sérialisable
+  // Serializable internal storage
   private let storedCoordinate: CodableCoordinate
   public let radius: Measurement<UnitLength>
   public let createdAt: Date
   
-  // Accesseur public pour le domaine
+  // Public accessor for the domain
   public var coordinate: CLLocationCoordinate2D {
     storedCoordinate.coordinate
   }

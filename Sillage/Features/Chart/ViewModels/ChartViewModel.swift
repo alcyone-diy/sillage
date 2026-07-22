@@ -224,7 +224,7 @@ final class ChartViewModel {
     // 1. Validation stricte
     guard let id = id,
           let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == id }) else {
-      // 2. Fallback sécurisé : Reset total si invalide ou nil
+      // 2. Safe fallback: Total reset if invalid or nil
       self.goToWaypointID = nil
       self.goToWaypointFeature = nil
       self.updateBearingToWaypoint()
@@ -232,7 +232,7 @@ final class ChartViewModel {
       return
     }
     
-    // 3. Application de l'état valide
+    // 3. Application of the valid state
     let coordinate = waypoint.coordinate
     let feature = MLNPointFeature()
     feature.coordinate = coordinate
@@ -252,7 +252,7 @@ final class ChartViewModel {
     self.updateBearingLine()
     self.trackingMode = .free
     
-    // 4. Émission de l'événement
+    // 4. Emit the event
     let event: CameraMoveEvent
     if let boatCoordinate = lastKnownNavigationFix?.coordinate {
       let minLat = min(coordinate.latitude, boatCoordinate.latitude)
@@ -295,10 +295,10 @@ final class ChartViewModel {
     
     self.visibleWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
     
-    // Vérification de la persistance du waypoint cible actuel
-    // Note: On lit l'intention depuis le waypointService au lieu de self.goToWaypointID
-    // Cela permet de restaurer correctement la navigation au démarrage de l'app,
-    // car handleGoToWaypointChange a pu purger l'état temporairement si les waypoints n'étaient pas encore chargés.
+    // Check the persistence of the current target waypoint
+    // Note: We read the intent from waypointService instead of self.goToWaypointID
+    // This allows correctly restoring navigation upon app startup,
+    // as handleGoToWaypointChange might have temporarily purged the state if waypoints were not yet loaded.
     guard let targetID = waypointService?.goToWaypointID else {
       self.goToWaypointID = nil
       self.goToWaypointFeature = nil
@@ -308,7 +308,7 @@ final class ChartViewModel {
     }
     
     guard let waypoint = waypoints.first(where: { $0.id == targetID }) else {
-      // Le waypoint cible n'existe plus (supprimé), on annule la navigation
+      // The target waypoint no longer exists (deleted), cancel navigation
       self.goToWaypointID = nil
       self.goToWaypointFeature = nil
       self.updateBearingToWaypoint()
@@ -316,7 +316,7 @@ final class ChartViewModel {
       return
     }
     
-    // Le waypoint existe toujours, on met à jour ses données (couleur, nom, position)
+    // The waypoint still exists, update its data (color, name, position)
     let feature = MLNPointFeature()
     feature.coordinate = waypoint.coordinate
     var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]

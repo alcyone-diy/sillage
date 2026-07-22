@@ -21,7 +21,7 @@ actor TileProxyManager {
     config.timeoutIntervalForRequest = 30
     config.timeoutIntervalForResource = 60
     
-    // 1. SUPPRESSION DU DOUBLE CACHE (MapLibre Ambient Cache gère déjà cela)
+    // 1. REMOVE DOUBLE CACHE (MapLibre Ambient Cache already handles this)
     config.urlCache = nil
     config.requestCachePolicy = .reloadIgnoringLocalCacheData
     
