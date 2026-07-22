@@ -42,7 +42,7 @@ public enum AppConstants {
     }
     
     public struct Offline {
-      public static let maxDownloadArea = Measurement(value: 900, unit: UnitArea.squareNauticalMiles)
+      public static let maxDownloadArea = Measurement(value: 1500, unit: UnitArea.squareNauticalMiles)
     }
   }
 }
