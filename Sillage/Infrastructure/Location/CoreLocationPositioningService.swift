@@ -14,7 +14,7 @@ import OSLog
 
 @MainActor
 public protocol BackgroundLocationToken: AnyObject {
-    func invalidate()
+  func invalidate()
 }
 
 @MainActor
@@ -24,6 +24,12 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   
   var currentAuthorizationStatus: CLAuthorizationStatus {
     locationManager.authorizationStatus
+  }
+  
+  // MARK: - Configuration Constants
+  
+  private enum PositioningConfig {
+    static let defaultDistanceFilter: Double = 10.0
   }
   
   // MARK: - Multicast Streams
@@ -114,7 +120,7 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     
     // Prioritize accuracy over battery for a marine environment.
     self.locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
-    self.locationManager.distanceFilter = 10.0 // Default 10 meters, will be updated by Domain layer
+    self.locationManager.distanceFilter = PositioningConfig.defaultDistanceFilter
     
     // Marine Activity Type: Crucial to prevent iOS from aggressively snapping
     // coordinates to the nearest coastal road (automotive algorithm).
@@ -206,7 +212,7 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   }
   
   private func recalculateDistanceFilter() {
-    let fallbackFilter = 50.0
+    let fallbackFilter = PositioningConfig.defaultDistanceFilter
     
     var minFilter = fallbackFilter
     var commandingService = "Default (Standby)"
