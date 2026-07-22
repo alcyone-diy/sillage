@@ -13,10 +13,12 @@ import SwiftUI
 @MainActor
 struct CommandButtonView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
-  @Environment(AppViewModel.self) private var appViewModel
+  @Environment(MessageService.self) private var messageService: MessageService?
 
   var body: some View {
     @Bindable var bindableViewModel = viewModel
+    let hasMessages = !(messageService?.messages.isEmpty ?? true)
+
     Button(action: {
       bindableViewModel.openPanel(.command)
     }) {
@@ -25,11 +27,12 @@ struct CommandButtonView: View {
         .foregroundColor(.white)
     }
     .buttonStyle(MarineFABStyle(backgroundColor: .blue))
-    .marineBadge(isPresent: appViewModel.hasActiveAlert)
+    .marineBadge(isPresent: hasMessages)
   }
 }
 
 #Preview {
   CommandButtonView()
     .environment(PanelManagerViewModel())
+    .environment(MessageService())
 }

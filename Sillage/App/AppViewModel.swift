@@ -37,11 +37,6 @@ final class AppViewModel {
   
   var waypointDraft: CoordinateWrapper?
 
-  var hasActiveAlert: Bool {
-    return authService?.authError != nil
-  }
-
-
   var isGloveModeEnabled: Bool {
     didSet {
       preferencesService.gloveModeEnabled = isGloveModeEnabled
