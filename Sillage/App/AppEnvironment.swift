@@ -73,6 +73,8 @@ final class AppEnvironment {
       
       let positioningService = CoreLocationPositioningService()
       
+      let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+      
       let barometricHistoryStore = BarometricHistoryStore()
       await barometricHistoryStore.load()
       
@@ -138,6 +140,7 @@ final class AppEnvironment {
       )
       let chartViewModel = ChartViewModel(
         positioningService: positioningService,
+        instrumentDampingService: instrumentDampingService,
         preferencesService: preferencesService,
         authService: geoGarageAuthService,
         anchorService: anchorService,

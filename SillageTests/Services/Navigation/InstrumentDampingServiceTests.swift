@@ -394,4 +394,81 @@ struct InstrumentDampingServiceTests {
     
     service.stop()
   }
+
+  @Test("Multicast Stream Distribution (Multiple Subscribers)")
+  @MainActor
+  func testMulticastStreamDistribution() async throws {
+    let mockPositioning = MockPositioningService()
+    let mockClock = MockClock()
+    let service = InstrumentDampingService(positioningService: mockPositioning, clock: mockClock)
+    
+    let stream1 = service.observeState()
+    let stream2 = service.observeState()
+    
+    // We use a safe wrapper or directly isolate state if needed, but since the test is @MainActor
+    // we can use a class to accumulate counts from the unstructured tasks
+    class Counters {
+      var count1 = 0
+      var count2 = 0
+    }
+    let counters = Counters()
+    
+    let task1 = Task { @MainActor in
+      for await _ in stream1 {
+        counters.count1 += 1
+      }
+    }
+    
+    let task2 = Task { @MainActor in
+      for await _ in stream2 {
+        counters.count2 += 1
+      }
+    }
+    
+    service.start()
+    
+    let baseLoc = CLLocationCoordinate2D(latitude: 45, longitude: 45)
+    let fix1 = NavigationFix(
+      coordinate: baseLoc,
+      horizontalAccuracy: Measurement(value: 5, unit: .meters),
+      courseOverGround: Measurement(value: 90.0, unit: .degrees),
+      courseOverGroundAccuracy: nil,
+      speedOverGround: Measurement(value: 5.0, unit: .knots),
+      speedOverGroundAccuracy: nil,
+      timestamp: Date.now
+    )
+    
+    mockPositioning.continuation.yield(.active(fix1))
+    
+    try await waitFor { counters.count1 == 1 && counters.count2 == 1 }
+    
+    #expect(counters.count1 == 1)
+    #expect(counters.count2 == 1)
+    
+    task1.cancel()
+    // Small sleep to ensure the cancellation handler runs and removes the continuation
+    try await Task.sleep(nanoseconds: 10_000_000)
+    
+    mockClock.advance(by: .seconds(1.1))
+    
+    let fix2 = NavigationFix(
+      coordinate: baseLoc,
+      horizontalAccuracy: Measurement(value: 5, unit: .meters),
+      courseOverGround: Measurement(value: 90.0, unit: .degrees),
+      courseOverGroundAccuracy: nil,
+      speedOverGround: Measurement(value: 6.0, unit: .knots), // Different speed to trigger update
+      speedOverGroundAccuracy: nil,
+      timestamp: Date.now.addingTimeInterval(1.1)
+    )
+    
+    mockPositioning.continuation.yield(.active(fix2))
+    
+    try await waitFor { counters.count2 == 2 }
+    
+    #expect(counters.count1 == 1) // task1 was cancelled, should not receive updates
+    #expect(counters.count2 == 2)
+    
+    service.stop()
+    task2.cancel()
+  }
 }

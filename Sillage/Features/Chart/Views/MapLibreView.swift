@@ -282,11 +282,10 @@ struct MapLibreView: UIViewRepresentable {
     let anchorPointFeature = viewModel.anchorPointFeature
     let anchorRadiusFeature = viewModel.anchorRadiusFeature
     let isDataStale: Bool
-    switch viewModel.gpsState {
-    case .stale, .lost:
+    if let state = viewModel.instrumentDampingService.state {
+      isDataStale = (state.gpsState == .lost)
+    } else {
       isDataStale = true
-    case .waiting, .active, .degraded:
-      isDataStale = false
     }
     let currentSource = viewModel.currentChartSource
     let isOpenSeaMapOverlayEnabled = viewModel.isOpenSeaMapOverlayEnabled
@@ -738,11 +737,10 @@ struct MapLibreView: UIViewRepresentable {
       }
       if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
         let isStale: Bool
-        switch parent.viewModel.gpsState {
-        case .stale, .lost:
+        if let state = parent.viewModel.instrumentDampingService.state {
+          isStale = (state.gpsState == .lost)
+        } else {
           isStale = true
-        case .waiting, .active, .degraded:
-          isStale = false
         }
         layer.iconOpacity = NSExpression(forConstantValue: isStale ? 0.4 : 1.0)
         lastDataStale = isStale

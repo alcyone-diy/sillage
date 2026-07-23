@@ -188,8 +188,10 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService)
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let chartViewModel = ChartViewModel(
       positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,

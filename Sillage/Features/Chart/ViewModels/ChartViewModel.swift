@@ -60,10 +60,6 @@ final class ChartViewModel {
   
   // MARK: - Navigation & Telemetry
   
-  var currentCoordinate: CLLocationCoordinate2D? = nil
-  var horizontalAccuracy: Measurement<UnitLength>? = nil
-  var speedOverGround: Measurement<UnitSpeed>? = nil
-  var courseOverGround: Measurement<UnitAngle>? = nil
   var courseState: CourseState? = nil
   var bearingToWaypoint: Measurement<UnitAngle>? = nil
   
@@ -90,14 +86,6 @@ final class ChartViewModel {
     }
   }
   
-  public enum GPSState: String, Sendable, Equatable {
-    case waiting
-    case active
-    case degraded
-    case stale
-    case lost
-  }
-  var gpsState: GPSState = .waiting
   
   public enum CourseState: Sendable, Equatable {
     case active
@@ -124,6 +112,7 @@ final class ChartViewModel {
   
   private var chartLayer: ChartLayer?
   private let positioningService: PositioningService
+  let instrumentDampingService: InstrumentDampingService<ContinuousClock>
   private let chartStorageService = ChartStorageService()
   private var preferencesService: PreferencesServiceProtocol
   private let authService: GeoGarageAuthServiceProtocol
@@ -135,8 +124,7 @@ final class ChartViewModel {
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
   /// when the ViewModel is deallocated, adhering to Swift 6 strict concurrency rules
   /// without requiring a non-isolated `deinit`.
-  private var stationaryDataTask: TaskCancellable?
-  private var locationUpdatesTask: TaskCancellable?
+    private var instrumentTask: TaskCancellable?
   private var observationTask: TaskCancellable?
   private var waypointSelectionTask: TaskCancellable?
   private var waypointsObservationTask: TaskCancellable?
@@ -164,13 +152,12 @@ final class ChartViewModel {
     return stream
   }
   
-  /// Stores the last received GPS fix to allow instant recentering when requested.
-  private var lastKnownNavigationFix: NavigationFix?
   
   // MARK: - Initialization
   
   init(
     positioningService: PositioningService,
+    instrumentDampingService: InstrumentDampingService<ContinuousClock>,
     preferencesService: PreferencesServiceProtocol,
     authService: GeoGarageAuthServiceProtocol,
     anchorService: AnchorService,
@@ -179,6 +166,7 @@ final class ChartViewModel {
     messageService: MessageService? = nil
   ) {
     self.positioningService = positioningService
+    self.instrumentDampingService = instrumentDampingService
     self.preferencesService = preferencesService
     self.authService = authService
     self.anchorService = anchorService
@@ -188,7 +176,7 @@ final class ChartViewModel {
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
     
     loadSavedChartSource()
-    setupPositioningService()
+    setupInstrumentTask()
     setupWaypointService()
     setupAnchorService()
     silentlyFetchGeoGarageLayers()
@@ -249,8 +237,8 @@ final class ChartViewModel {
       // 2. Safe fallback: Total reset if invalid or nil
       self.goToWaypointID = nil
       self.goToWaypointFeature = nil
-      self.updateBearingToWaypoint()
-      self.updateBearingLine()
+      self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
+      self.updateBearingLine(state: self.instrumentDampingService.state)
       return
     }
     
@@ -270,13 +258,13 @@ final class ChartViewModel {
     
     self.goToWaypointID = id
     self.goToWaypointFeature = feature
-    self.updateBearingToWaypoint()
-    self.updateBearingLine()
+    self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
+    self.updateBearingLine(state: self.instrumentDampingService.state)
     self.trackingMode = .free
     
     // 4. Emit the event
     let event: CameraMoveEvent
-    if let boatCoordinate = lastKnownNavigationFix?.coordinate {
+    if let boatCoordinate = instrumentDampingService.state?.coordinate {
       let minLat = min(coordinate.latitude, boatCoordinate.latitude)
       let maxLat = max(coordinate.latitude, boatCoordinate.latitude)
       let minLon = min(coordinate.longitude, boatCoordinate.longitude)
@@ -324,8 +312,8 @@ final class ChartViewModel {
     guard let targetID = waypointService?.goToWaypointID else {
       self.goToWaypointID = nil
       self.goToWaypointFeature = nil
-      self.updateBearingToWaypoint()
-      self.updateBearingLine()
+      self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
+      self.updateBearingLine(state: self.instrumentDampingService.state)
       return
     }
     
@@ -333,8 +321,8 @@ final class ChartViewModel {
       // The target waypoint no longer exists (deleted), cancel navigation
       self.goToWaypointID = nil
       self.goToWaypointFeature = nil
-      self.updateBearingToWaypoint()
-      self.updateBearingLine()
+      self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
+      self.updateBearingLine(state: self.instrumentDampingService.state)
       return
     }
     
@@ -353,8 +341,8 @@ final class ChartViewModel {
     
     self.goToWaypointID = targetID
     self.goToWaypointFeature = feature
-    self.updateBearingToWaypoint()
-    self.updateBearingLine()
+    self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
+    self.updateBearingLine(state: self.instrumentDampingService.state)
   }
   
   /// Initiates the asynchronous import of an MBTiles file and switches the chart to it upon success.
@@ -455,7 +443,7 @@ final class ChartViewModel {
     
     if status == .inactive {
       if anchorViewModel.isSetupModeActive {
-        if let coord = currentCoordinate ?? lastKnownNavigationFix?.coordinate {
+        if let coord = instrumentDampingService.state?.coordinate {
           // Setup Preview Point
           let pointFeature = MLNPointFeature()
           pointFeature.coordinate = coord
@@ -511,256 +499,134 @@ final class ChartViewModel {
   
   // MARK: - Location Handling
   
-  /// Subscribes to the positioning service stream, applying a 1-second throttle to UI updates to prevent overloading.
-  private func setupPositioningService() {
-    let service = self.positioningService
-    
-    locationUpdatesTask = TaskCancellable(Task { [weak self] in
-      let clock = ContinuousClock()
-      var lastProcessedTime = clock.now.advanced(by: .seconds(-2))
+  // MARK: - Instrument & Positioning Services
+  
+
+  // ARCHITECTURE: Single Source of Truth & Memory Safety
+  // The ViewModel subscribes strictly to the Domain Service (InstrumentDampingService)
+  // rather than listening to the hardware sensors directly.
+  // We use `[weak self]` in an unstructured Task loop to prevent retain cycles,
+  // iterating safely over the `AsyncStream` instead of relying on Combine.
+  private func setupInstrumentTask() {
+    instrumentTask = TaskCancellable(Task { @MainActor [weak self] in
+      guard let stream = self?.instrumentDampingService.observeState() else { return }
       
-      for await state in service.locationUpdates {
-        guard !Task.isCancelled else { break }
-        
-        let now = clock.now
-        if now.duration(to: lastProcessedTime) > .seconds(-1) {
-          continue
-        }
-        lastProcessedTime = now
-        
-        self?.handleNewPositioningState(state)
+      for await state in stream {
+        guard !Task.isCancelled, let self = self else { break }
+        self.handleInstrumentState(state)
       }
     })
-    
-    // Authorization is now handled Just-In-Time by PermissionService
   }
-  
-  private func handleNewPositioningState(_ state: PositioningState) {
-    switch state {
-    case .active(let fix):
-      self.gpsState = .active
-      processFix(fix, isDegraded: false)
-    case .degraded(let fix):
-      self.gpsState = .degraded
-      processFix(fix, isDegraded: true)
-    case .lost(_):
-      self.gpsState = .lost
+  private func handleInstrumentState(_ state: InstrumentState) {
+    if state.smoothedCOG != nil {
+      self.courseState = state.movementState == .stopped ? .stopped : .active
+    } else {
+      self.courseState = .invalid
     }
+    
+    // Batched map refresh invoked after all data is safely assigned
+    refreshMapFeatures(state: state)
   }
-  
-  /// Processes a new GPS fix, updating telemetry measurements, chart features, and camera position if tracking is enabled.
-  private func processFix(_ navigationFix: NavigationFix, isDegraded: Bool) {
-    lastKnownNavigationFix = navigationFix
+  private func refreshMapFeatures(state: InstrumentState? = nil) {
+    let safeState = state ?? instrumentDampingService.state
     
-    // Update current coordinate based on the latest fix, even if degraded,
-    // to ensure the user still gets a visual position estimate.
-    currentCoordinate = navigationFix.coordinate
-    horizontalAccuracy = navigationFix.horizontalAccuracy
-    updateBearingToWaypoint()
-    updateBearingLine()
+    updateBearingToWaypoint(state: safeState)
+    updateBearingLine(state: safeState)
+    updateVesselFeature(state: safeState)
+    updateHeadingVector(state: safeState)
+    updateAccuracyFeature(state: safeState)
     
-    if !isDegraded {
-      // ---------------------------------------------------------
-      // Hysteresis & COG Smoothing
-      // ---------------------------------------------------------
-      // We apply a Schmitt trigger-like hysteresis to avoid the
-      // vessel icon flickering between "stopped" and "moving"
-      // when the speed hovers around the cutoff threshold.
-      if let speed = navigationFix.speedOverGround?.converted(to: .metersPerSecond).value {
-        if movementState == .moving && speed < cutOffSpeed {
-          movementState = .stopped
-        } else if movementState == .stopped && speed >= resumeSpeed {
-          movementState = .moving
-        }
-      }
-      
-      var finalCourseOverGround = lastSmoothedCourseOverGround
-      
-      // We only smooth and apply the Course Over Ground (COG) if the vessel is moving.
-      // If stopped, we retain the last known heading to keep the vector oriented
-      // in the direction of travel until it naturally times out.
-      if movementState == .moving {
-        if let rawCourse = navigationFix.courseOverGround?.converted(to: .degrees).value {
-          // Circular buffer to hold the last 'N' raw headings
-          courseOverGroundBuffer.append(rawCourse)
-          if courseOverGroundBuffer.count > maxBufferSize {
-            courseOverGroundBuffer.removeFirst()
-          }
-          
-          // Compute the mean of circular quantities (angles) by converting
-          // them to Cartesian coordinates (x, y) vectors, averaging them,
-          // and then taking the arctangent.
-          var sumX = 0.0
-          var sumY = 0.0
-          
-          for c in courseOverGroundBuffer {
-            let radians = c * .pi / 180.0
-            sumX += cos(radians)
-            sumY += sin(radians)
-          }
-          
-          let avgX = sumX / Double(courseOverGroundBuffer.count)
-          let avgY = sumY / Double(courseOverGroundBuffer.count)
-          
-          var smoothedAngleOverGround = atan2(avgY, avgX)
-          if smoothedAngleOverGround < 0 {
-            smoothedAngleOverGround += .pi * 2 // Normalize to [0, 2π)
-          }
-          
-          finalCourseOverGround = Measurement(value: smoothedAngleOverGround, unit: .radians)
-          lastSmoothedCourseOverGround = finalCourseOverGround
-        } else {
-          // Fallback if rawCourse is missing
-          finalCourseOverGround = lastSmoothedCourseOverGround
-        }
-      }
-      
-      // Update SOG using Apple's exact Measurement object
-      speedOverGround = navigationFix.speedOverGround
-      
-      // Update COG and its state (active or stopped) for the UI
-      courseOverGround = finalCourseOverGround
-      courseState = finalCourseOverGround != nil ? (movementState == .stopped ? .stopped : .active) : .invalid
-    }
-    
-    // ---------------------------------------------------------
-    // Dynamic Timeout Algorithm
-    // ---------------------------------------------------------
-    // The GPS hardware is configured with a `distanceFilter` (e.g. 5m) to save battery.
-    // If the vessel stops moving, the OS will stop emitting new location points.
-    // To prevent the UI from displaying a stale "moving" vector indefinitely, we
-    // calculate a dynamic timeout based on the current speed and the distance filter.
-    // If no new points arrive within this expected window, we assume the vessel has stopped.
-    self.stationaryDataTask?.cancel()
-    let sogMPS = speedOverGround?.converted(to: .metersPerSecond).value ?? 0
-    let filterMeters = positioningService.currentDistanceFilter.converted(to: .meters).value
-    
-    // Expected time to travel the filter distance. We use a minimum of 0.1 m/s 
-    // to avoid division by zero.
-    let expectedDelay = filterMeters / max(sogMPS, 0.1)
-    
-    // We add a 50% margin (x1.5) to account for GPS fluctuations, 
-    // but bound the timeout between 4 and 20 seconds for UX responsiveness.
-    let timeoutSeconds = min(max(expectedDelay * 1.5, 4.0), 20.0)
-    
-    // Note: Since `TaskCancellable` is held by a reference type (`ChartViewModel`),
-    // unstructured tasks here must capture `[weak self]` to avoid retain cycles.
-    self.stationaryDataTask = TaskCancellable(Task { @MainActor [weak self] in
-      try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
-      guard !Task.isCancelled else { return }
-      
-      // Timeout reached with no new points: the vessel is stopped.
-      self?.speedOverGround = Measurement(value: 0, unit: .metersPerSecond)
-      self?.courseState = .stopped
-      self?.headingVectorFeature = nil
-      self?.movementState = .stopped
-    })
-    
-    // Generate Chart Annotations
-    let feature = MLNPointFeature()
-    feature.coordinate = navigationFix.coordinate
-    var attributes: [String: Any] = [:]
-    if let cog = courseOverGround {
-      attributes["course"] = cog.converted(to: .degrees).value
-    }
-    feature.attributes = attributes
-    self.vesselFeature = feature
-    
-    // Update Heading Vector Feature
-    self.headingVectorFeature = generateHeadingVector(for: navigationFix)
-    
-    // Update GPS Accuracy Polygon Feature
-    self.gpsAccuracyFeature = generateAccuracyFeature(for: navigationFix)
-    
-    // Broadcast camera move if actively tracking the user
-    if trackingMode != .free {
-      let heading = (trackingMode == .courseUp && courseOverGround != nil) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
-      let event = CameraMoveEvent.center(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
+    if trackingMode != .free, let coordinate = safeState?.coordinate {
+      let heading = (trackingMode == .courseUp) ? safeState?.smoothedCOG : nil
+      let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: heading)
       for continuation in cameraMoveContinuations.values {
         continuation.yield(event)
       }
     }
-    
-    // Update Anchor preview if in setup mode
-    if anchorViewModel.isSetupModeActive {
-      handleAnchorStateChange()
-    }
   }
-  
-  /// Generates a single, time-based predictive vector with optional point features serving as time ticks.
-  private func generateHeadingVector(for navigationFix: NavigationFix) -> MLNShapeCollectionFeature? {
-    guard preferencesService.isCOGVectorEnabled else {
-      return nil
+
+  private func updateVesselFeature(state: InstrumentState?) {
+    guard let coordinate = state?.coordinate else {
+      self.vesselFeature = nil
+      return
+    }
+    let feature = MLNPointFeature()
+    feature.coordinate = coordinate
+    var attributes: [String: Any] = [:]
+    
+    if let cog = state?.smoothedCOG {
+      attributes["course"] = cog.converted(to: .degrees).value
     }
     
-    guard let sogMeasurement = speedOverGround, let cog = courseOverGround, navigationFix.speedOverGround != nil else {
-      return nil
+    // The MapLibre style layer can bind to `isStale` to render the vessel in gray
+    if state?.gpsState == .lost {
+      attributes["isStale"] = true
+    } else {
+      attributes["isStale"] = false
     }
     
-    // Hide the vector at negligible speeds to avoid erratic UI behavior
-    let sogKnots = sogMeasurement.converted(to: .knots).value
-    if sogKnots < 0.5 {
-      return nil
+    feature.attributes = attributes
+    self.vesselFeature = feature
+  }
+
+  private func updateHeadingVector(state: InstrumentState?) {
+    guard preferencesService.isCOGVectorEnabled,
+          let sog = state?.smoothedSOG,
+          let cog = state?.smoothedCOG,
+          let startCoordinate = state?.coordinate else {
+      self.headingVectorFeature = nil
+      return
     }
     
-    let speedInMetersPerSecond = sogMeasurement.converted(to: .metersPerSecond).value
     let timeHorizonSeconds = preferencesService.cogVectorTimeHorizon.converted(to: .seconds).value
-    let totalDistanceMeters = speedInMetersPerSecond * timeHorizonSeconds
-    let totalDistance = Measurement<UnitLength>(value: totalDistanceMeters, unit: .meters)
+    let generateTicks = preferencesService.isCOGVectorTicksEnabled
     
-    let startCoordinate = navigationFix.coordinate
-    guard let endCoordinate = startCoordinate.rhumbCoordinate(atDistance: totalDistance, bearing: cog) else {
-      return nil
+    guard let prediction = HeadingVectorPredictor.predict(
+      startCoordinate: startCoordinate,
+      sog: sog,
+      cog: cog,
+      timeHorizonSeconds: timeHorizonSeconds,
+      generateTicks: generateTicks
+    ) else {
+      self.headingVectorFeature = nil
+      return
     }
     
     var shapes: [MLNShape] = []
     
-    // 1. Calculate Main Vector
-    var lineCoordinates = [startCoordinate, endCoordinate]
-    let lineFeature = MLNPolylineFeature(coordinates: &lineCoordinates, count: UInt(lineCoordinates.count))
+    var lineCoords = prediction.lineCoordinates
+    let lineFeature = MLNPolylineFeature(coordinates: &lineCoords, count: UInt(lineCoords.count))
     lineFeature.attributes = ["featureType": "vectorLine"]
     shapes.append(lineFeature)
     
-    // 2. Calculate Ticks
-    if preferencesService.isCOGVectorTicksEnabled {
-      let intervalSeconds: Double = timeHorizonSeconds <= 3600 ? 600 : 1800
-      let majorIntervalSeconds: Double = timeHorizonSeconds <= 3600 ? 1800 : 3600
-      var currentTickSeconds = intervalSeconds
-      
-      while currentTickSeconds < timeHorizonSeconds {
-        let tickDistanceMeters = speedInMetersPerSecond * currentTickSeconds
-        let tickDistance = Measurement<UnitLength>(value: tickDistanceMeters, unit: .meters)
-        
-        if let tickCoordinate = startCoordinate.rhumbCoordinate(atDistance: tickDistance, bearing: cog) {
-          let tickFeature = MLNPointFeature()
-          tickFeature.coordinate = tickCoordinate
-          let isMajor = currentTickSeconds.truncatingRemainder(dividingBy: majorIntervalSeconds) == 0
-          tickFeature.attributes = ["featureType": "vectorTick", "isMajorTick": isMajor]
-          shapes.append(tickFeature)
-        }
-        
-        currentTickSeconds += intervalSeconds
-      }
-      
-      // Add a major tick point at the very end of the COG vector
-      let endPointFeature = MLNPointFeature()
-      endPointFeature.coordinate = endCoordinate
-      endPointFeature.attributes = ["featureType": "vectorTick", "isMajorTick": true]
-      shapes.append(endPointFeature)
+    for tick in prediction.majorTickCoordinates {
+      let tickFeature = MLNPointFeature()
+      tickFeature.coordinate = tick
+      tickFeature.attributes = ["featureType": "vectorTick", "isMajorTick": true]
+      shapes.append(tickFeature)
     }
     
-    return MLNShapeCollectionFeature(shapes: shapes)
-  }
-  
-  /// Generates a circle polygon around the user's location indicating GPS horizontal accuracy.
-  private func generateAccuracyFeature(for navigationFix: NavigationFix) -> MLNPolygonFeature? {
-    let accuracy = navigationFix.horizontalAccuracy.converted(to: .meters).value
-    // Generate a circular polygon feature for the GPS accuracy to map correctly visually
-    let accuracyMeasurement = Measurement(value: accuracy, unit: UnitLength.meters)
-    guard var accuracyCoords = navigationFix.coordinate.circularPolygon(radius: accuracyMeasurement) else {
-      return nil
+    for tick in prediction.minorTickCoordinates {
+      let tickFeature = MLNPointFeature()
+      tickFeature.coordinate = tick
+      tickFeature.attributes = ["featureType": "vectorTick", "isMajorTick": false]
+      shapes.append(tickFeature)
     }
-    return MLNPolygonFeature(coordinates: &accuracyCoords, count: UInt(accuracyCoords.count))
+    
+    self.headingVectorFeature = MLNShapeCollectionFeature(shapes: shapes)
+  }
+
+  private func updateAccuracyFeature(state: InstrumentState?) {
+    guard let accuracy = state?.horizontalAccuracy?.converted(to: .meters).value, let coordinate = state?.coordinate else {
+      self.gpsAccuracyFeature = nil
+      return
+    }
+    let accuracyMeasurement = Measurement(value: accuracy, unit: UnitLength.meters)
+    guard var accuracyCoords = coordinate.circularPolygon(radius: accuracyMeasurement) else {
+      self.gpsAccuracyFeature = nil
+      return
+    }
+    self.gpsAccuracyFeature = MLNPolygonFeature(coordinates: &accuracyCoords, count: UInt(accuracyCoords.count))
   }
   
   // MARK: - Chart State Management
@@ -791,7 +657,7 @@ final class ChartViewModel {
       self.minZoom = 0.0
       self.maxZoom = 20.0
       
-      resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: lastKnownNavigationFix?.coordinate)
+      resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: instrumentDampingService.state?.coordinate)
       
     case .openSeaMap:
       preferencesService.savedChartSource = "openSeaMap"
@@ -800,7 +666,7 @@ final class ChartViewModel {
       self.minZoom = 0.0
       self.maxZoom = 18.0
       
-      resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: lastKnownNavigationFix?.coordinate)
+      resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: instrumentDampingService.state?.coordinate)
     }
   }
   
@@ -837,10 +703,9 @@ final class ChartViewModel {
       preferencesService.savedTrackingMode = .northUp
     }
     
-    if trackingMode != .free, let navigationFix = lastKnownNavigationFix {
-      let courseOverGround = navigationFix.courseOverGround
-      let heading = (trackingMode == .courseUp && courseOverGround != nil) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
-      let event = CameraMoveEvent.center(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
+    if trackingMode != .free, let coordinate = instrumentDampingService.state?.coordinate {
+      let heading = (trackingMode == .courseUp) ? instrumentDampingService.state?.smoothedCOG : nil
+      let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: heading)
       for continuation in cameraMoveContinuations.values {
         continuation.yield(event)
       }
@@ -849,14 +714,13 @@ final class ChartViewModel {
   
   /// Forces the chart camera to jump to the user's last known location.
   func centerOnUserLocation() {
-    guard let navigationFix = lastKnownNavigationFix else {
-      Logger.chart.warning("Cannot center: lastKnownNavigationFix is nil. Waiting for a valid GPS fix from PositioningService.")
+    guard let coordinate = instrumentDampingService.state?.coordinate else {
+      Logger.chart.warning("Cannot center: coordinate is nil. Waiting for a valid GPS fix from PositioningService.")
       return
     }
     
-    let courseOverGround = navigationFix.courseOverGround
-    let heading = (trackingMode == .courseUp && courseOverGround != nil) ? courseOverGround : Measurement(value: 0.0, unit: UnitAngle.degrees)
-    let event = CameraMoveEvent.center(coordinate: navigationFix.coordinate, zoom: nil, heading: heading)
+    let heading = (trackingMode == .courseUp) ? instrumentDampingService.state?.smoothedCOG : nil
+    let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: heading)
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
     }
@@ -1040,30 +904,21 @@ final class ChartViewModel {
     } onChange: { [weak self] in
       Task { @MainActor [weak self] in
         guard let self = self else { return }
-        self.updateHeadingVector()
+        self.updateHeadingVector(state: self.instrumentDampingService.state)
         self.observePreferences()
       }
     }
   }
-  
-  private func updateHeadingVector() {
-    if let navigationFix = lastKnownNavigationFix {
-      self.headingVectorFeature = generateHeadingVector(for: navigationFix)
-    } else {
-      self.headingVectorFeature = nil
-    }
-  }
-  
-  private func updateBearingToWaypoint() {
-    guard let current = currentCoordinate, let waypoint = goToWaypointFeature?.coordinate else {
+  private func updateBearingToWaypoint(state: InstrumentState?) {
+    guard let current = state?.coordinate, let waypoint = goToWaypointFeature?.coordinate else {
       bearingToWaypoint = nil
       return
     }
     bearingToWaypoint = current.greatCircleBearing(to: waypoint)
   }
   
-  private func updateBearingLine() {
-    guard let current = currentCoordinate, let waypoint = goToWaypointFeature?.coordinate else {
+  private func updateBearingLine(state: InstrumentState?) {
+    guard let current = state?.coordinate, let waypoint = goToWaypointFeature?.coordinate else {
       bearingLineFeature = nil
       return
     }
