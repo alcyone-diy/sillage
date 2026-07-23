@@ -543,9 +543,11 @@ struct MapLibreView: UIViewRepresentable {
       super.init()
       
       NotificationCenter.default.addObserver(forName: NSNotification.Name("NetworkDidReconnect"), object: nil, queue: .main) { [weak self] _ in
-        guard let self = self, let mapView = self.mapView else { return }
-        Logger.chart.info("Network reconnected, forcing MapLibre complete style reload")
-        mapView.reloadStyle(nil)
+        Task { @MainActor [weak self] in
+          guard let self = self, let mapView = self.mapView else { return }
+          Logger.chart.info("Network reconnected, forcing MapLibre complete style reload")
+          mapView.reloadStyle(nil)
+        }
       }
     }
     
