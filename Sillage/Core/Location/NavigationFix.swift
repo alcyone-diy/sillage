@@ -23,15 +23,6 @@ public struct NavigationFix: Sendable, Equatable {
   public let speedOverGround: Measurement<UnitSpeed>?
   public let speedOverGroundAccuracy: Measurement<UnitSpeed>?
   
-  public enum CourseState: Sendable, Equatable {
-    case active
-    case stopped
-    case invalid
-  }
-  
-  // Indicates the state of the course over ground
-  public let courseState: CourseState
-  
   // Always valid.
   public let timestamp: Date
   
@@ -42,7 +33,6 @@ public struct NavigationFix: Sendable, Equatable {
     courseOverGroundAccuracy: Measurement<UnitAngle>?,
     speedOverGround: Measurement<UnitSpeed>?,
     speedOverGroundAccuracy: Measurement<UnitSpeed>?,
-    courseState: CourseState,
     timestamp: Date
   ) {
     self.coordinate = coordinate
@@ -51,7 +41,6 @@ public struct NavigationFix: Sendable, Equatable {
     self.courseOverGroundAccuracy = courseOverGroundAccuracy
     self.speedOverGround = speedOverGround
     self.speedOverGroundAccuracy = speedOverGroundAccuracy
-    self.courseState = courseState
     self.timestamp = timestamp
   }
   

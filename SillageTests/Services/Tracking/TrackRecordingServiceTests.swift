@@ -28,7 +28,8 @@ struct TrackRecordingServiceTests {
 
   @MainActor
   class MockPositioningService: PositioningService, Sendable {
-    let (locationUpdates, locationContinuation) = AsyncStream.makeStream(of: NavigationFix.self)
+    let (locationUpdates, locationContinuation) = AsyncStream.makeStream(of: PositioningState.self)
+    var currentDistanceFilter: Measurement<UnitLength> = Measurement(value: 5, unit: .meters)
     let (authorizationStatusStream, authContinuation) = AsyncStream.makeStream(of: CLAuthorizationStatus.self)
     
     var currentAuthorizationStatus: CLAuthorizationStatus = .notDetermined
@@ -61,7 +62,7 @@ struct TrackRecordingServiceTests {
     }
     
     func emit(fix: NavigationFix) {
-      locationContinuation.yield(fix)
+      locationContinuation.yield(.active(fix))
     }
   }
 
@@ -124,7 +125,6 @@ struct TrackRecordingServiceTests {
       courseOverGroundAccuracy: nil,
       speedOverGround: Measurement(value: speed, unit: .metersPerSecond),
       speedOverGroundAccuracy: nil,
-      courseState: .invalid,
       timestamp: timestamp
     )
   }

@@ -285,7 +285,7 @@ struct MapLibreView: UIViewRepresentable {
     switch viewModel.gpsState {
     case .stale, .lost:
       isDataStale = true
-    case .waiting, .active:
+    case .waiting, .active, .degraded:
       isDataStale = false
     }
     let currentSource = viewModel.currentChartSource
@@ -739,7 +739,7 @@ struct MapLibreView: UIViewRepresentable {
         switch parent.viewModel.gpsState {
         case .stale, .lost:
           isStale = true
-        case .waiting, .active:
+        case .waiting, .active, .degraded:
           isStale = false
         }
         layer.iconOpacity = NSExpression(forConstantValue: isStale ? 0.4 : 1.0)

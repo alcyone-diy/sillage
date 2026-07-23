@@ -118,9 +118,11 @@ public final class TrackRecordingService {
     startFlushTimer()
     
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
-      for await navigationFix in service.locationUpdates {
+      for await state in service.locationUpdates {
         guard !Task.isCancelled, let self = self else { break }
-        self.processLocationUpdate(navigationFix)
+        if case .active(let fix) = state {
+          self.processLocationUpdate(fix)
+        }
       }
     })
     
@@ -225,9 +227,11 @@ public final class TrackRecordingService {
     startFlushTimer()
     
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
-      for await navigationFix in service.locationUpdates {
+      for await state in service.locationUpdates {
         guard !Task.isCancelled, let self = self else { break }
-        self.processLocationUpdate(navigationFix)
+        if case .active(let fix) = state {
+          self.processLocationUpdate(fix)
+        }
       }
     })
     
@@ -336,9 +340,11 @@ public final class TrackRecordingService {
     service.requestDistanceFilter(Measurement(value: 5, unit: .meters), for: "TrackRecording")
     startFlushTimer()
     locationUpdatesTask = TaskCancellable(Task { [weak self] in
-      for await navigationFix in service.locationUpdates {
+      for await state in service.locationUpdates {
         guard !Task.isCancelled, let self = self else { break }
-        self.processLocationUpdate(navigationFix)
+        if case .active(let fix) = state {
+          self.processLocationUpdate(fix)
+        }
       }
     })
     
