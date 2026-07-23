@@ -35,8 +35,10 @@ final class ChartViewModelTests: XCTestCase {
     
 
     // Act
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let viewModel = ChartViewModel(
       positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,
@@ -46,7 +48,9 @@ final class ChartViewModelTests: XCTestCase {
     )
     
     // Wait for the background task to complete
-    _ = await viewModel.silentFetchTask?.task.value
+    if let task = viewModel.silentFetchTask?.task {
+      _ = await task.value
+    }
     
     _ = viewModel // Keep strong reference alive
 
@@ -79,8 +83,10 @@ final class ChartViewModelTests: XCTestCase {
     
 
     // Act
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let viewModel = ChartViewModel(
       positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,
@@ -90,7 +96,9 @@ final class ChartViewModelTests: XCTestCase {
     )
     
     // Wait for the background task to complete
-    _ = await viewModel.silentFetchTask?.task.value
+    if let task = viewModel.silentFetchTask?.task {
+      _ = await task.value
+    }
     
     // Assert
     XCTAssertEqual(messageService.messages.count, 0, "No message should be posted to MessageService on network failure (offline mode)")
@@ -119,8 +127,10 @@ final class ChartViewModelTests: XCTestCase {
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService)
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let viewModel = ChartViewModel(
       positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,
@@ -162,8 +172,10 @@ final class ChartViewModelTests: XCTestCase {
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     // Act
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let viewModel = ChartViewModel(
       positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,
@@ -173,7 +185,9 @@ final class ChartViewModelTests: XCTestCase {
     )
 
     // Wait for the background task to complete
-    _ = await viewModel.silentFetchTask?.task.value
+    if let task = viewModel.silentFetchTask?.task {
+      _ = await task.value
+    }
 
     // Assert
     XCTAssertEqual(messageService.messages.count, 0, "Successful silent auth fetch should clear .geoGarage messages in MessageService")
@@ -206,8 +220,10 @@ final class ChartViewModelTests: XCTestCase {
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService)
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let viewModel = ChartViewModel(
       positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,
@@ -254,8 +270,10 @@ final class ChartViewModelTests: XCTestCase {
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     // Act
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let viewModel = ChartViewModel(
       positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,
@@ -265,7 +283,9 @@ final class ChartViewModelTests: XCTestCase {
     )
 
     // Wait for the background task to complete
-    _ = await viewModel.silentFetchTask?.task.value
+    if let task = viewModel.silentFetchTask?.task {
+      _ = await task.value
+    }
 
     // Assert
     XCTAssertEqual(messageService.messages.count, 2, "Silent auth success should clear ONLY .geoGarage messages")
@@ -298,8 +318,10 @@ final class ChartViewModelTests: XCTestCase {
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService)
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let viewModel = ChartViewModel(
       positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,
@@ -326,8 +348,10 @@ final class ChartViewModelTests: XCTestCase {
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService)
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let viewModel = ChartViewModel(
       positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,
@@ -365,8 +389,10 @@ final class ChartViewModelTests: XCTestCase {
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService)
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let viewModel = ChartViewModel(
       positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,

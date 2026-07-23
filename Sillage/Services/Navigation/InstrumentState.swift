@@ -16,9 +16,15 @@ public enum MovementState: Sendable, Equatable {
   case stopped
 }
 
+public enum InstrumentGPSState: Sendable, Equatable {
+  case active
+  case degraded
+  case lost
+}
+
 public struct InstrumentState: Sendable, Equatable {
-  public let rawCoordinate: CLLocationCoordinate2D
-  public let rawAccuracy: Measurement<UnitLength>
+  public let coordinate: CLLocationCoordinate2D?
+  public let horizontalAccuracy: Measurement<UnitLength>?
   
   public let smoothedSOG: Measurement<UnitSpeed>?
   public let smoothedCOG: Measurement<UnitAngle>?
@@ -26,22 +32,25 @@ public struct InstrumentState: Sendable, Equatable {
   public let movementState: MovementState
   public let sensorTimestamp: Date
   public let systemDate: Date
+  public let gpsState: InstrumentGPSState
   
   public init(
-    rawCoordinate: CLLocationCoordinate2D,
-    rawAccuracy: Measurement<UnitLength>,
+    coordinate: CLLocationCoordinate2D?,
+    horizontalAccuracy: Measurement<UnitLength>?,
     smoothedSOG: Measurement<UnitSpeed>?,
     smoothedCOG: Measurement<UnitAngle>?,
     movementState: MovementState,
     sensorTimestamp: Date,
-    systemDate: Date
+    systemDate: Date,
+    gpsState: InstrumentGPSState
   ) {
-    self.rawCoordinate = rawCoordinate
-    self.rawAccuracy = rawAccuracy
+    self.coordinate = coordinate
+    self.horizontalAccuracy = horizontalAccuracy
     self.smoothedSOG = smoothedSOG
     self.smoothedCOG = smoothedCOG
     self.movementState = movementState
     self.sensorTimestamp = sensorTimestamp
     self.systemDate = systemDate
+    self.gpsState = gpsState
   }
 }
