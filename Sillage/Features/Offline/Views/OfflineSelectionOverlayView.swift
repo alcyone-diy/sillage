@@ -321,8 +321,8 @@ struct OfflineSelectionOverlayView: View {
     let minAllowedY = safeArea.top + verticalPadding + touchRadius
     let maxAllowedY = size.height - bottomPanelHeight - verticalPadding - touchRadius
     
-    var newX = max(minAllowedX, min(maxAllowedX - minSize, rect.minX))
-    var newY = max(minAllowedY, min(maxAllowedY - minSize, rect.minY))
+    let newX = max(minAllowedX, min(maxAllowedX - minSize, rect.minX))
+    let newY = max(minAllowedY, min(maxAllowedY - minSize, rect.minY))
     
     var newWidth = min(rect.width, maxAllowedX - newX)
     var newHeight = min(rect.height, maxAllowedY - newY)
