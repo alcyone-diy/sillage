@@ -180,6 +180,7 @@ extension DebugView {
     switch chartViewModel.gpsState {
     case .stale, .lost: return .red
     case .waiting, .active: return .primary
+    case .degraded: return .orange
     }
   }
   
@@ -187,6 +188,7 @@ extension DebugView {
     switch chartViewModel.gpsState {
     case .waiting: return "Waiting"
     case .active: return "Active"
+    case .degraded: return "Degraded"
     case .stale: return "Stale"
     case .lost: return "Lost"
     }
@@ -196,6 +198,7 @@ extension DebugView {
     switch chartViewModel.gpsState {
     case .waiting: return .orange
     case .active: return .green
+    case .degraded: return .orange
     case .stale: return .orange
     case .lost: return .red
     }

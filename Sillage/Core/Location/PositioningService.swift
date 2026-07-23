@@ -13,8 +13,9 @@ import CoreLocation
 
 protocol PositioningService {
   var currentAuthorizationStatus: CLAuthorizationStatus { get }
-  var locationUpdates: AsyncStream<NavigationFix> { get }
+  var locationUpdates: AsyncStream<PositioningState> { get }
   var authorizationStatusStream: AsyncStream<CLAuthorizationStatus> { get }
+  var currentDistanceFilter: Measurement<UnitLength> { get }
 
   func requestAuthorization()
   func startUpdatingLocation()

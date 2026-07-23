@@ -26,6 +26,10 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     locationManager.authorizationStatus
   }
   
+  var currentDistanceFilter: Measurement<UnitLength> {
+    Measurement(value: locationManager.distanceFilter, unit: .meters)
+  }
+  
   // MARK: - Configuration Constants
   
   private enum PositioningConfig {
@@ -34,10 +38,10 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   
   // MARK: - Multicast Streams
   
-  private var locationContinuations: [UUID: AsyncStream<NavigationFix>.Continuation] = [:]
+  private var locationContinuations: [UUID: AsyncStream<PositioningState>.Continuation] = [:]
   
-  var locationUpdates: AsyncStream<NavigationFix> {
-    let (stream, continuation) = AsyncStream.makeStream(of: NavigationFix.self)
+  var locationUpdates: AsyncStream<PositioningState> {
+    let (stream, continuation) = AsyncStream.makeStream(of: PositioningState.self)
     let id = UUID()
     locationContinuations[id] = continuation
     
@@ -68,27 +72,6 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     }
     return stream
   }
-  
-  // MARK: - Heading Stabilization State
-  
-  private enum MovementState {
-    case moving
-    case stopped
-  }
-  
-  private var movementState: MovementState = .stopped
-  private var lastSmoothedCourseOverGround: Measurement<UnitAngle>?
-  private var courseOverGroundBuffer: [CLLocationDirection] = []
-  
-  // The buffer size dictates the smoothing window. 4 updates (~4 seconds) provides
-  // a good balance between stability and responsiveness during a tack or jibe.
-  private let maxBufferSize = 4
-  
-  // Speed thresholds for the Hysteresis State Machine.
-  // Using hysteresis prevents the boat icon from wildly spinning (GPS jitter)
-  // when moving very slowly or docked.
-  private let cutOffSpeed: CLLocationSpeed = Measurement(value: 0.8, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
-  private let resumeSpeed: CLLocationSpeed = Measurement(value: 1.5, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
   
   private let rawLocationContinuation: AsyncStream<[CLLocation]>.Continuation
   
@@ -263,63 +246,25 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   }
   
   private func processLocation(_ latestLocation: CLLocation) {
-    // Filter out inaccurate GPS points (horizontal accuracy > 50m or invalid < 0).
     let accuracy = latestLocation.horizontalAccuracy
-    guard accuracy >= 0 && accuracy <= 50 else {
-      Logger.telemetry.warning("CoreLocationPositioningService ignored coordinate due to low accuracy: \(accuracy, privacy: .public)m")
-      return
+    
+    // 1. Drop strictly invalid coordinates (Apple API definition)
+    guard accuracy >= 0 else {
+      Logger.telemetry.warning("CoreLocationPositioningService dropped strictly invalid coordinate (accuracy < 0)")
+      return 
     }
     
-    let speed = latestLocation.speed
+    // 2. Mark as degraded if accuracy is poor, but coordinate is physically valid
+    let isDegraded = accuracy > 50
     
-    // Hysteresis State Machine: Update movement state based on speed thresholds
-    if movementState == .moving && speed >= 0 && speed < cutOffSpeed {
-      movementState = .stopped
-    } else if movementState == .stopped && speed >= resumeSpeed {
-      movementState = .moving
+    if isDegraded {
+      Logger.telemetry.warning("CoreLocationPositioningService coordinates are degraded: \(accuracy, privacy: .public)m")
     }
     
-    var finalCourseOverGround = lastSmoothedCourseOverGround
-    
-    if movementState == .moving {
-      let rawCourse = latestLocation.course
-      if rawCourse >= 0 && latestLocation.courseAccuracy >= 0 {
-        courseOverGroundBuffer.append(rawCourse)
-        if courseOverGroundBuffer.count > maxBufferSize {
-          courseOverGroundBuffer.removeFirst()
-        }
-        
-        var sumX = 0.0
-        var sumY = 0.0
-        
-        // Vector-based average of the course over ground.
-        // This mathematically solves the 359° to 1° wrap-around issue which would
-        // incorrectly average to 180° using standard arithmetic.
-        for c in courseOverGroundBuffer {
-          let radians = c * .pi / 180.0
-          sumX += cos(radians)
-          sumY += sin(radians)
-        }
-        
-        let avgX = sumX / Double(courseOverGroundBuffer.count)
-        let avgY = sumY / Double(courseOverGroundBuffer.count)
-        
-        var smoothedAngleOverGround = atan2(avgY, avgX)
-        if smoothedAngleOverGround < 0 {
-          smoothedAngleOverGround += .pi * 2
-        }
-        
-        finalCourseOverGround = Measurement(value: smoothedAngleOverGround, unit: .radians)
-        lastSmoothedCourseOverGround = finalCourseOverGround
-      } else {
-#if DEBUG
-        // Debug value to understand why the cog is not updated.
-        finalCourseOverGround = Measurement(value: 1, unit: .gradians)
-#else
-        // Fallback to the last known good course if GPS briefly loses course accuracy while moving
-        finalCourseOverGround = lastSmoothedCourseOverGround
-#endif
-      }
+    let rawCourse = latestLocation.course
+    var courseOverGround: Measurement<UnitAngle>?
+    if rawCourse >= 0 && latestLocation.courseAccuracy >= 0 {
+      courseOverGround = Measurement(value: rawCourse, unit: .degrees)
     }
     
     var speedOverGround: Measurement<UnitSpeed>?
@@ -331,22 +276,27 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     
     let filteredLocation = NavigationFix(
       coordinate: latestLocation.coordinate,
-      horizontalAccuracy: Measurement(value: latestLocation.horizontalAccuracy, unit: .meters),
-      courseOverGround: finalCourseOverGround,
+      horizontalAccuracy: Measurement(value: accuracy, unit: .meters),
+      courseOverGround: courseOverGround,
       courseOverGroundAccuracy: (latestLocation.courseAccuracy >= 0) ? Measurement(value: latestLocation.courseAccuracy, unit: .degrees) : nil,
       speedOverGround: speedOverGround,
       speedOverGroundAccuracy: speedOverGroundAccuracy,
-      courseState: finalCourseOverGround != nil ? (movementState == .stopped ? .stopped : .active) : .invalid,
       timestamp: latestLocation.timestamp
     )
     
+    let state: PositioningState = isDegraded ? .degraded(filteredLocation) : .active(filteredLocation)
     for continuation in locationContinuations.values {
-      continuation.yield(filteredLocation)
+      continuation.yield(state)
     }
   }
   
   nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
     // OSLog is natively thread-safe. No actor hop required.
     Logger.telemetry.error("CoreLocationPositioningService failed with error: \(error.localizedDescription, privacy: .public)")
+    Task { @MainActor in
+      for continuation in locationContinuations.values {
+        continuation.yield(.lost(error))
+      }
+    }
   }
 }

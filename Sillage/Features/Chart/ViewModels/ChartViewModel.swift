@@ -64,7 +64,7 @@ final class ChartViewModel {
   var horizontalAccuracy: Measurement<UnitLength>? = nil
   var speedOverGround: Measurement<UnitSpeed>? = nil
   var courseOverGround: Measurement<UnitAngle>? = nil
-  var courseState: NavigationFix.CourseState? = nil
+  var courseState: CourseState? = nil
   var bearingToWaypoint: Measurement<UnitAngle>? = nil
   
   // MARK: - Chart Features (Annotations)
@@ -93,10 +93,32 @@ final class ChartViewModel {
   public enum GPSState: String, Sendable, Equatable {
     case waiting
     case active
+    case degraded
     case stale
     case lost
   }
   var gpsState: GPSState = .waiting
+  
+  public enum CourseState: Sendable, Equatable {
+    case active
+    case stopped
+    case invalid
+  }
+  
+  // MARK: - Heading Stabilization State
+  
+  private enum MovementState {
+    case moving
+    case stopped
+  }
+  
+  private var movementState: MovementState = .stopped
+  private var courseOverGroundBuffer: [CLLocationDirection] = []
+  private let maxBufferSize = 4
+  private let cutOffSpeed: CLLocationSpeed = Measurement(value: 0.8, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
+  private let resumeSpeed: CLLocationSpeed = Measurement(value: 1.5, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
+  private var lastSmoothedCourseOverGround: Measurement<UnitAngle>?
+  
   
   // MARK: - Private Services & Tasks
   
@@ -113,7 +135,7 @@ final class ChartViewModel {
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
   /// when the ViewModel is deallocated, adhering to Swift 6 strict concurrency rules
   /// without requiring a non-isolated `deinit`.
-  private var staleDataTask: TaskCancellable?
+  private var stationaryDataTask: TaskCancellable?
   private var locationUpdatesTask: TaskCancellable?
   private var observationTask: TaskCancellable?
   private var waypointSelectionTask: TaskCancellable?
@@ -497,7 +519,7 @@ final class ChartViewModel {
       let clock = ContinuousClock()
       var lastProcessedTime = clock.now.advanced(by: .seconds(-2))
       
-      for await navigationFix in service.locationUpdates {
+      for await state in service.locationUpdates {
         guard !Task.isCancelled else { break }
         
         let now = clock.now
@@ -506,49 +528,133 @@ final class ChartViewModel {
         }
         lastProcessedTime = now
         
-        self?.handleNewNavigationFix(navigationFix)
+        self?.handleNewPositioningState(state)
       }
     })
     
     // Authorization is now handled Just-In-Time by PermissionService
   }
   
-  /// Processes a new GPS fix, updating telemetry measurements, chart features, and camera position if tracking is enabled.
-  private func handleNewNavigationFix(_ navigationFix: NavigationFix) {
-    // Discard highly inaccurate fixes
-    if navigationFix.horizontalAccuracy.converted(to: .meters).value > 50 {
-      speedOverGround = nil
-      courseOverGround = nil
-      return
+  private func handleNewPositioningState(_ state: PositioningState) {
+    switch state {
+    case .active(let fix):
+      self.gpsState = .active
+      processFix(fix, isDegraded: false)
+    case .degraded(let fix):
+      self.gpsState = .degraded
+      processFix(fix, isDegraded: true)
+    case .lost(_):
+      self.gpsState = .lost
     }
-    
+  }
+  
+  /// Processes a new GPS fix, updating telemetry measurements, chart features, and camera position if tracking is enabled.
+  private func processFix(_ navigationFix: NavigationFix, isDegraded: Bool) {
     lastKnownNavigationFix = navigationFix
     
-    // Reset the stale data timer.
-    self.gpsState = .active
-    self.staleDataTask?.cancel()
-    self.staleDataTask = TaskCancellable(Task { @MainActor [weak self] in
-      try? await Task.sleep(nanoseconds: 5_000_000_000)
-      guard !Task.isCancelled else { return }
-      self?.gpsState = .stale
-      
-      try? await Task.sleep(nanoseconds: 10_000_000_000)
-      guard !Task.isCancelled else { return }
-      self?.gpsState = .lost
-    })
-    
-    // Update current coordinate
+    // Update current coordinate based on the latest fix, even if degraded,
+    // to ensure the user still gets a visual position estimate.
     currentCoordinate = navigationFix.coordinate
     horizontalAccuracy = navigationFix.horizontalAccuracy
     updateBearingToWaypoint()
     updateBearingLine()
     
-    // Update SOG using Apple's Measurement
-    speedOverGround = navigationFix.speedOverGround
+    if !isDegraded {
+      // ---------------------------------------------------------
+      // Hysteresis & COG Smoothing
+      // ---------------------------------------------------------
+      // We apply a Schmitt trigger-like hysteresis to avoid the
+      // vessel icon flickering between "stopped" and "moving"
+      // when the speed hovers around the cutoff threshold.
+      if let speed = navigationFix.speedOverGround?.converted(to: .metersPerSecond).value {
+        if movementState == .moving && speed < cutOffSpeed {
+          movementState = .stopped
+        } else if movementState == .stopped && speed >= resumeSpeed {
+          movementState = .moving
+        }
+      }
+      
+      var finalCourseOverGround = lastSmoothedCourseOverGround
+      
+      // We only smooth and apply the Course Over Ground (COG) if the vessel is moving.
+      // If stopped, we retain the last known heading to keep the vector oriented
+      // in the direction of travel until it naturally times out.
+      if movementState == .moving {
+        if let rawCourse = navigationFix.courseOverGround?.converted(to: .degrees).value {
+          // Circular buffer to hold the last 'N' raw headings
+          courseOverGroundBuffer.append(rawCourse)
+          if courseOverGroundBuffer.count > maxBufferSize {
+            courseOverGroundBuffer.removeFirst()
+          }
+          
+          // Compute the mean of circular quantities (angles) by converting
+          // them to Cartesian coordinates (x, y) vectors, averaging them,
+          // and then taking the arctangent.
+          var sumX = 0.0
+          var sumY = 0.0
+          
+          for c in courseOverGroundBuffer {
+            let radians = c * .pi / 180.0
+            sumX += cos(radians)
+            sumY += sin(radians)
+          }
+          
+          let avgX = sumX / Double(courseOverGroundBuffer.count)
+          let avgY = sumY / Double(courseOverGroundBuffer.count)
+          
+          var smoothedAngleOverGround = atan2(avgY, avgX)
+          if smoothedAngleOverGround < 0 {
+            smoothedAngleOverGround += .pi * 2 // Normalize to [0, 2π)
+          }
+          
+          finalCourseOverGround = Measurement(value: smoothedAngleOverGround, unit: .radians)
+          lastSmoothedCourseOverGround = finalCourseOverGround
+        } else {
+          // Fallback if rawCourse is missing
+          finalCourseOverGround = lastSmoothedCourseOverGround
+        }
+      }
+      
+      // Update SOG using Apple's exact Measurement object
+      speedOverGround = navigationFix.speedOverGround
+      
+      // Update COG and its state (active or stopped) for the UI
+      courseOverGround = finalCourseOverGround
+      courseState = finalCourseOverGround != nil ? (movementState == .stopped ? .stopped : .active) : .invalid
+    }
     
-    // Update COG
-    courseOverGround = navigationFix.courseOverGround
-    courseState = navigationFix.courseState
+    // ---------------------------------------------------------
+    // Dynamic Timeout Algorithm
+    // ---------------------------------------------------------
+    // The GPS hardware is configured with a `distanceFilter` (e.g. 5m) to save battery.
+    // If the vessel stops moving, the OS will stop emitting new location points.
+    // To prevent the UI from displaying a stale "moving" vector indefinitely, we
+    // calculate a dynamic timeout based on the current speed and the distance filter.
+    // If no new points arrive within this expected window, we assume the vessel has stopped.
+    self.stationaryDataTask?.cancel()
+    let sogMPS = speedOverGround?.converted(to: .metersPerSecond).value ?? 0
+    let filterMeters = positioningService.currentDistanceFilter.converted(to: .meters).value
+    
+    // Expected time to travel the filter distance. We use a minimum of 0.1 m/s 
+    // to avoid division by zero.
+    let expectedDelay = filterMeters / max(sogMPS, 0.1)
+    
+    // We add a 50% margin (x1.5) to account for GPS fluctuations, 
+    // but bound the timeout between 4 and 20 seconds for UX responsiveness.
+    let timeoutSeconds = min(max(expectedDelay * 1.5, 4.0), 20.0)
+    
+    // Note: Since `TaskCancellable` is held by a reference type (`ChartViewModel`),
+    // unstructured tasks here must capture `[weak self]` to avoid retain cycles.
+    self.stationaryDataTask = TaskCancellable(Task { @MainActor [weak self] in
+      try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+      guard !Task.isCancelled else { return }
+      
+      // Timeout reached with no new points: the vessel is stopped.
+      self?.speedOverGround = Measurement(value: 0, unit: .metersPerSecond)
+      self?.courseState = .stopped
+      self?.headingVectorFeature = nil
+      self?.movementState = .stopped
+    })
     
     // Generate Chart Annotations
     let feature = MLNPointFeature()

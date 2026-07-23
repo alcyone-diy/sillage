@@ -20,8 +20,9 @@ final class MockBackgroundLocationToken: BackgroundLocationToken {
 
 @MainActor
 final class MockPositioningService: PositioningService {
-  var locationContinuation: AsyncStream<NavigationFix>.Continuation!
-  var locationUpdates: AsyncStream<NavigationFix>
+  var locationContinuation: AsyncStream<PositioningState>.Continuation!
+  var locationUpdates: AsyncStream<PositioningState>
+  var currentDistanceFilter: Measurement<UnitLength> = Measurement(value: 10, unit: .meters)
   
   var currentAuthorizationStatus: CLAuthorizationStatus = .notDetermined
   
@@ -29,7 +30,7 @@ final class MockPositioningService: PositioningService {
   var authorizationStatusStream: AsyncStream<CLAuthorizationStatus>
   
   init() {
-    let (locStream, locCont) = AsyncStream.makeStream(of: NavigationFix.self)
+    let (locStream, locCont) = AsyncStream.makeStream(of: PositioningState.self)
     self.locationUpdates = locStream
     self.locationContinuation = locCont
     
@@ -53,7 +54,7 @@ final class MockPositioningService: PositioningService {
   }
   
   func simulateFix(_ fix: NavigationFix) {
-    locationContinuation.yield(fix)
+    locationContinuation.yield(.active(fix))
   }
 }
 
@@ -169,7 +170,6 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
-      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -196,7 +196,6 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
-      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -222,7 +221,6 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
-      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -248,7 +246,6 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
-      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -271,7 +268,6 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
-      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -291,7 +287,6 @@ final class AnchorServiceTests: XCTestCase {
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
-      courseState: .invalid,
       timestamp: Date()
     )
     
@@ -357,18 +352,16 @@ final class AnchorServiceTests: XCTestCase {
     
     // Simulate a fix OUTSIDE the radius (e.g. 111m away) with valid accuracy
     let outsideFixCoord = CLLocationCoordinate2D(latitude: 45.001, longitude: -1.0)
-    let outsideFix = NavigationFix(
+    let fix = NavigationFix(
       coordinate: outsideFixCoord,
       horizontalAccuracy: Measurement(value: 10.0, unit: .meters),
       courseOverGround: nil,
       courseOverGroundAccuracy: nil,
       speedOverGround: nil,
       speedOverGroundAccuracy: nil,
-      courseState: .invalid,
       timestamp: Date()
     )
-    
-    mockGPS.simulateFix(outsideFix)
+    mockGPS.locationContinuation.yield(.active(fix))
     try await Task.sleep(nanoseconds: 500_000_000)
     
     // The distance MUST be calculated and updated

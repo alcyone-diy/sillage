@@ -188,9 +188,11 @@ final class AnchorService {
     locationUpdateTask.task = Task { [weak self] in
       guard let positioningService = self?.positioningService else { return }
       
-      for await fix in positioningService.locationUpdates {
+      for await state in positioningService.locationUpdates {
         guard !Task.isCancelled else { break }
-        self?.processLocationFix(fix)
+        if case .active(let fix) = state {
+          self?.processLocationFix(fix)
+        }
       }
     }
   }
