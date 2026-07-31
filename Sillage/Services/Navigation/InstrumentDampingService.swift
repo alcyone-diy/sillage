@@ -44,9 +44,9 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   
   @ObservationIgnored private var locationUpdatesTask: Task<Void, Never>?
   @ObservationIgnored private var stationaryDataTask: Task<Void, Error>?
+  @ObservationIgnored private var gpsState: GPSState = .lost
   
-  @ObservationIgnored private var movementState: MovementState = .stopped
-  @ObservationIgnored private var gpsState: InstrumentGPSState = .lost
+  @ObservationIgnored private var courseState: CourseState = .stopped
   
   // Time-based circular buffer to compute a stable vector average.
   @ObservationIgnored private var courseOverGroundBuffer: [(timestamp: C.Instant, cosX: Double, sinY: Double)] = []
@@ -132,12 +132,12 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   private func processFix(_ fix: NavigationFix) {
     // 1. Movement Hysteresis
     if let speed = fix.speedOverGround {
-      if movementState == .moving && speed < cutOffSpeed {
-        movementState = .stopped
+      if courseState == .active && speed < cutOffSpeed {
+        courseState = .stopped
         Logger.navigation.debug("Vessel stopped. Speed \(speed.value, format: .fixed(precision: 1)) below cutoff threshold.")
         courseOverGroundBuffer.removeAll()
-      } else if movementState == .stopped && speed >= resumeSpeed {
-        movementState = .moving
+      } else if courseState == .stopped && speed >= resumeSpeed {
+        courseState = .active
         Logger.navigation.debug("Vessel moving. Speed \(speed.value, format: .fixed(precision: 1)) above resume threshold.")
       }
     }
@@ -145,7 +145,7 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
     var finalCourseOverGround = lastSmoothedCourseOverGround
     
     // 2. Course Over Ground (COG) Smoothing via Vector Circular Average
-    if movementState == .moving {
+    if courseState == .active {
       let now = clock.now
       
       courseOverGroundBuffer.removeAll { $0.timestamp.duration(to: now) > .seconds(4.0) }
@@ -176,15 +176,17 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
     
     speedOverGround = fix.speedOverGround
     
+    let finalCourseState: CourseState = finalCourseOverGround != nil ? courseState : .invalid
+    
     let newState = InstrumentState(
       coordinate: fix.coordinate,
       horizontalAccuracy: fix.horizontalAccuracy,
       smoothedSOG: speedOverGround,
       smoothedCOG: finalCourseOverGround,
-      movementState: movementState,
+      courseState: finalCourseState,
+      gpsState: self.gpsState,
       sensorTimestamp: fix.timestamp,
-      systemDate: dateProvider(),
-      gpsState: self.gpsState
+      systemDate: dateProvider()
     )
     
     // 3. UI Throttling
@@ -219,7 +221,7 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   
   private func shouldUpdateState(_ newState: InstrumentState) -> Bool {
     guard let currentState = state else { return true }
-    if currentState.movementState != newState.movementState { return true }
+    if currentState.courseState != newState.courseState { return true }
     if let lastUpdate = lastUpdateTime, lastUpdate.duration(to: clock.now) < .seconds(timeUpdateThreshold) { return false }
     
     if let curCoord = currentState.coordinate, let newCoord = newState.coordinate {
@@ -245,17 +247,17 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   private func handleLostSignal() {
     Logger.navigation.info("GPS Signal lost. Nullifying telemetry and forcing vessel to stopped state.")
     self.speedOverGround = nil
-    self.movementState = .stopped
+    self.courseState = .stopped
     
     let newState = InstrumentState(
       coordinate: self.state?.coordinate,
       horizontalAccuracy: self.state?.horizontalAccuracy,
       smoothedSOG: nil,
       smoothedCOG: self.lastSmoothedCourseOverGround,
-      movementState: .stopped,
+      courseState: .stopped,
+      gpsState: self.gpsState,
       sensorTimestamp: self.state?.sensorTimestamp ?? dateProvider(),
-      systemDate: dateProvider(),
-      gpsState: .lost
+      systemDate: dateProvider()
     )
     
     self.state = newState
@@ -265,17 +267,17 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   private func handleStationaryTimeout(fix: NavigationFix) {
     Logger.navigation.info("Stationary timeout triggered. Forcing vessel to stopped state.")
     self.speedOverGround = nil
-    self.movementState = .stopped
+    self.courseState = .stopped
     
     let newState = InstrumentState(
       coordinate: fix.coordinate,
       horizontalAccuracy: fix.horizontalAccuracy,
       smoothedSOG: nil,
       smoothedCOG: self.lastSmoothedCourseOverGround,
-      movementState: self.movementState,
+      courseState: self.courseState,
+      gpsState: self.gpsState,
       sensorTimestamp: fix.timestamp,
-      systemDate: dateProvider(),
-      gpsState: self.gpsState
+      systemDate: dateProvider()
     )
     
     self.state = newState

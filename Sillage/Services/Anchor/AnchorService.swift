@@ -25,6 +25,8 @@ final class AnchorService {
   private(set) var activeWatch: AnchorWatch?
   private(set) var status: AnchorStatus = .inactive
   private(set) var isMuted: Bool = false
+  private(set) var isSensorDegraded: Bool = false
+  private var isDegradedAlertSent: Bool = false
   
   var defaultRadius: Measurement<UnitLength> {
     get { preferencesService.savedAnchorRadius }
@@ -41,7 +43,9 @@ final class AnchorService {
     var task: Task<Void, Never>?
     deinit { task?.cancel() }
   }
-  private let locationUpdateTask = TaskCancellable()
+  
+  private var locationUpdateTask = TaskCancellable()
+  private var degradedAlertTask: Task<Void, Never>?
   
   // MARK: - State Stream
   
@@ -138,7 +142,11 @@ final class AnchorService {
     
     self.status = .dropped
     self.isMuted = false
+    self.isSensorDegraded = false
     persistState()
+    
+    degradedAlertTask?.cancel()
+    degradedAlertTask = nil
     
     notificationService.clearAllNotifications()
     
@@ -151,6 +159,7 @@ final class AnchorService {
     self.activeWatch = nil
     self.status = .inactive
     self.isMuted = false
+    self.isSensorDegraded = false
     persistState()
     self.currentDistance = nil
     
@@ -159,6 +168,7 @@ final class AnchorService {
     backgroundToken?.invalidate()
     backgroundToken = nil
     positioningService.removeDistanceFilter(for: "AnchorWatch")
+    isDegradedAlertSent = false
     
     notifyStateChange()
   }
@@ -185,14 +195,43 @@ final class AnchorService {
   
   private func startListeningToGPS() {
     locationUpdateTask.task?.cancel()
-    locationUpdateTask.task = Task { [weak self] in
+    locationUpdateTask.task = Task { @MainActor [weak self] in
       guard let positioningService = self?.positioningService else { return }
       
       for await state in positioningService.locationUpdates {
         guard !Task.isCancelled else { break }
-        if case .active(let fix) = state {
+        switch state {
+        case .active(let fix):
+          self?.isDegradedAlertSent = false
+          self?.isSensorDegraded = false
           self?.processLocationFix(fix)
+        case .degraded(_):
+          self?.handleDegradedGPS()
+        case .lost:
+          break
         }
+      }
+    }
+  }
+  
+  private func handleDegradedGPS() {
+    guard status == .armed || status == .dragging else { return }
+    guard !isDegradedAlertSent else { return }
+    
+    isDegradedAlertSent = true
+    isSensorDegraded = true
+    Logger.anchor.warning("⚓️ GPS accuracy lost at anchor. Verification temporarily suspended.")
+    
+    if !isMuted {
+      // Unstructured task used as "fire-and-forget" to prevent blocking the GPS stream loop.
+      degradedAlertTask?.cancel()
+      degradedAlertTask = Task { [weak self] in
+        guard let self = self else { return }
+        await self.notificationService.sendCriticalNotification(
+          title: String(localized: "⚠️ Monitoring Suspended"),
+          body: String(localized: "Critical GPS accuracy. Anchor alarm is temporarily unreliable."),
+          identifier: "AnchorGPSDegraded"
+        )
       }
     }
   }

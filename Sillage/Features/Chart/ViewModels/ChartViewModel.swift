@@ -60,7 +60,13 @@ final class ChartViewModel {
   
   // MARK: - Navigation & Telemetry
   
+  var currentCoordinate: CLLocationCoordinate2D?
+  var horizontalAccuracy: Measurement<UnitLength>?
+  var speedOverGround: Measurement<UnitSpeed>?
+  var courseOverGround: Measurement<UnitAngle>?
   var courseState: CourseState? = nil
+  var gpsState: GPSState? = nil
+  
   var bearingToWaypoint: Measurement<UnitAngle>? = nil
   
   // MARK: - Chart Features (Annotations)
@@ -86,26 +92,7 @@ final class ChartViewModel {
     }
   }
   
-  
-  public enum CourseState: Sendable, Equatable {
-    case active
-    case stopped
-    case invalid
-  }
-  
-  // MARK: - Heading Stabilization State
-  
-  private enum MovementState {
-    case moving
-    case stopped
-  }
-  
-  private var movementState: MovementState = .stopped
-  private var courseOverGroundBuffer: [CLLocationDirection] = []
-  private let maxBufferSize = 4
-  private let cutOffSpeed: CLLocationSpeed = Measurement(value: 0.8, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
-  private let resumeSpeed: CLLocationSpeed = Measurement(value: 1.5, unit: UnitSpeed.knots).converted(to: .metersPerSecond).value
-  private var lastSmoothedCourseOverGround: Measurement<UnitAngle>?
+  // Heading Stabilization State moved to InstrumentDampingService
   
   
   // MARK: - Private Services & Tasks
@@ -124,7 +111,7 @@ final class ChartViewModel {
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
   /// when the ViewModel is deallocated, adhering to Swift 6 strict concurrency rules
   /// without requiring a non-isolated `deinit`.
-    private var instrumentTask: TaskCancellable?
+  private var instrumentTask: TaskCancellable?
   private var observationTask: TaskCancellable?
   private var waypointSelectionTask: TaskCancellable?
   private var waypointsObservationTask: TaskCancellable?
@@ -516,13 +503,20 @@ final class ChartViewModel {
         self.handleInstrumentState(state)
       }
     })
+    
   }
-  private func handleInstrumentState(_ state: InstrumentState) {
-    if state.smoothedCOG != nil {
-      self.courseState = state.movementState == .stopped ? .stopped : .active
-    } else {
-      self.courseState = .invalid
-    }
+  
+   private func handleInstrumentState(_ state: InstrumentState) {
+    // Extracted directly from InstrumentState as the single source of truth
+    self.currentCoordinate = state.coordinate
+    self.horizontalAccuracy = state.horizontalAccuracy
+    
+    // The consolidated stream (InstrumentDampingService) acts as the single source of truth
+    self.gpsState = state.gpsState
+    
+    self.speedOverGround = state.smoothedSOG
+    self.courseOverGround = state.smoothedCOG
+    self.courseState = state.courseState
     
     // Batched map refresh invoked after all data is safely assigned
     refreshMapFeatures(state: state)
@@ -558,12 +552,11 @@ final class ChartViewModel {
       attributes["course"] = cog.converted(to: .degrees).value
     }
     
-    // The MapLibre style layer can bind to `isStale` to render the vessel in gray
-    if state?.gpsState == .lost {
-      attributes["isStale"] = true
-    } else {
-      attributes["isStale"] = false
-    }
+    // The vessel is grey if lost or stale
+    attributes["isStale"] = (self.gpsState == .lost || self.gpsState == .stale)
+    
+    // The vessel is tinted (e.g., orange) if the signal is degraded
+    attributes["isDegraded"] = (self.gpsState == .degraded)
     
     feature.attributes = attributes
     self.vesselFeature = feature
