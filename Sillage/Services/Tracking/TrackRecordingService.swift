@@ -117,14 +117,7 @@ public final class TrackRecordingService {
     
     startFlushTimer()
     
-    locationUpdatesTask = TaskCancellable(Task { [weak self] in
-      for await state in service.locationUpdates {
-        guard !Task.isCancelled, let self = self else { break }
-        if case .active(let fix) = state {
-          self.processLocationUpdate(fix)
-        }
-      }
-    })
+    subscribeToLocationUpdates()
     
     persistenceWriter = TrackPersistenceWriter(databaseManager: databaseManager)
     state = .waitingForFix
@@ -226,14 +219,7 @@ public final class TrackRecordingService {
     
     startFlushTimer()
     
-    locationUpdatesTask = TaskCancellable(Task { [weak self] in
-      for await state in service.locationUpdates {
-        guard !Task.isCancelled, let self = self else { break }
-        if case .active(let fix) = state {
-          self.processLocationUpdate(fix)
-        }
-      }
-    })
+    subscribeToLocationUpdates()
     
     state = .waitingForFix
     Logger.database.info("Track recording resumed (segment \(self.telemetry.segmentIndex ?? 0, privacy: .public)).")
@@ -339,21 +325,35 @@ public final class TrackRecordingService {
     backgroundLocationToken = service.requestBackgroundLocation()
     service.requestDistanceFilter(Measurement(value: 5, unit: .meters), for: "TrackRecording")
     startFlushTimer()
-    locationUpdatesTask = TaskCancellable(Task { [weak self] in
-      for await state in service.locationUpdates {
-        guard !Task.isCancelled, let self = self else { break }
-        if case .active(let fix) = state {
-          self.processLocationUpdate(fix)
-        }
-      }
-    })
+    subscribeToLocationUpdates()
     
     state = .waitingForFix
     Logger.database.info("Restored session \(trackSession.id, privacy: .public) at segment \(self.telemetry.segmentIndex ?? 0).")
   }
   
+  private func subscribeToLocationUpdates() {
+    locationUpdatesTask?.cancel()
+    let service = positioningService
+    locationUpdatesTask = TaskCancellable(Task { @MainActor [weak self] in
+      for await state in service.locationUpdates {
+        guard !Task.isCancelled, let self = self else { break }
+        switch state {
+        case .active(let fix), .degraded(let fix):
+          self.processLocationUpdate(fix)
+        case .lost:
+          break
+        }
+      }
+    })
+  }
+  
   private func processLocationUpdate(_ navigationFix: NavigationFix) {
-    guard navigationFix.horizontalAccuracy <= filters.maxHorizontalAccuracy else { return }
+    guard navigationFix.horizontalAccuracy <= filters.maxHorizontalAccuracy else {
+      if let accuracy = navigationFix.horizontalAccuracy {
+        Logger.database.debug("GPS point ignored: insufficient accuracy (\(accuracy.converted(to: .meters).value, format: .fixed(precision: 1))m)")
+      }
+      return
+    }
     
     switch state {
     case .waitingForFix:

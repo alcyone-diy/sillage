@@ -11,14 +11,16 @@
 import Foundation
 import CoreLocation
 
-public enum MovementState: Sendable, Equatable {
-  case moving
+public enum CourseState: Sendable, Equatable {
+  case active
   case stopped
+  case invalid
 }
 
-public enum InstrumentGPSState: Sendable, Equatable {
+public enum GPSState: Sendable, Equatable {
   case active
   case degraded
+  case stale
   case lost
 }
 
@@ -29,28 +31,28 @@ public struct InstrumentState: Sendable, Equatable {
   public let smoothedSOG: Measurement<UnitSpeed>?
   public let smoothedCOG: Measurement<UnitAngle>?
   
-  public let movementState: MovementState
+  public let courseState: CourseState
+  public let gpsState: GPSState
   public let sensorTimestamp: Date
   public let systemDate: Date
-  public let gpsState: InstrumentGPSState
   
   public init(
     coordinate: CLLocationCoordinate2D?,
     horizontalAccuracy: Measurement<UnitLength>?,
     smoothedSOG: Measurement<UnitSpeed>?,
     smoothedCOG: Measurement<UnitAngle>?,
-    movementState: MovementState,
+    courseState: CourseState,
+    gpsState: GPSState,
     sensorTimestamp: Date,
-    systemDate: Date,
-    gpsState: InstrumentGPSState
+    systemDate: Date
   ) {
     self.coordinate = coordinate
     self.horizontalAccuracy = horizontalAccuracy
     self.smoothedSOG = smoothedSOG
     self.smoothedCOG = smoothedCOG
-    self.movementState = movementState
+    self.courseState = courseState
+    self.gpsState = gpsState
     self.sensorTimestamp = sensorTimestamp
     self.systemDate = systemDate
-    self.gpsState = gpsState
   }
 }
