@@ -39,8 +39,26 @@ public final class ActiveTrackViewModel {
     }
   }
   
-  func handleRecordingToggle(requestedState: Bool) -> PermissionGateType? {
-    if requestedState {
+  var showStopConfirmation = false
+  var pendingPermissionGate: PermissionGateType? = nil
+  
+  func requestRecordingState(_ state: Bool) {
+    if !state && sessionTotalPointCount > 0 {
+      showStopConfirmation = true
+      return
+    }
+    
+    if let gate = executeRecordingStateChange(to: state) {
+      pendingPermissionGate = gate
+    }
+  }
+  
+  func confirmStopRecording() {
+    _ = executeRecordingStateChange(to: false)
+  }
+  
+  private func executeRecordingStateChange(to state: Bool) -> PermissionGateType? {
+    if state {
       if isRecording { return nil }
       let gateType = PermissionGateType.location(trigger: .trackRecording)
       if gateType.currentStatus(in: permissionService) == .authorized {
@@ -75,6 +93,10 @@ public final class ActiveTrackViewModel {
   
   public var sessionTotalDistanceOverGround: Measurement<UnitLength>? {
     trackRecordingService.telemetry.totalDistanceOverGround
+  }
+  
+  public var sessionTotalPointCount: Int {
+    trackRecordingService.telemetry.totalPointCount
   }
   
   public func activeSessionDuration() -> Duration? {

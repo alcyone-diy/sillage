@@ -148,6 +148,9 @@
     "Are you sure you want to delete this waypoint? This action cannot be undone." : {
 
     },
+    "Are you sure you want to stop recording this track?" : {
+
+    },
     "Arm Alarm" : {
 
     },
@@ -644,6 +647,12 @@
 
     },
     "Startup Time" : {
+
+    },
+    "Stop" : {
+
+    },
+    "Stop Track Recording" : {
 
     },
     "Storage & Charts" : {

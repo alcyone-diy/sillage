@@ -17,6 +17,8 @@ struct TrackControlView: View {
   
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   
+  @State private var optimisticRecordingState: Bool? = nil
+  
   var body: some View {
     @Bindable var bindableActiveTrackViewModel = activeTrackViewModel
     
@@ -24,12 +26,16 @@ struct TrackControlView: View {
       HStack {
         Text("Recording Status")
         Spacer()
-        Toggle("", isOn: Binding(
-          get: { activeTrackViewModel.isRecording },
-          set: { _ in activeTrackViewModel.toggleRecording() }
-        ))
-        .labelsHidden()
-        .disabled(activeTrackViewModel.isSaving)
+        let interceptingBinding = Binding<Bool>(
+          get: { optimisticRecordingState ?? activeTrackViewModel.isRecording },
+          set: { newValue in
+            optimisticRecordingState = newValue
+            activeTrackViewModel.requestRecordingState(newValue)
+          }
+        )
+        Toggle("", isOn: interceptingBinding)
+          .labelsHidden()
+          .disabled(activeTrackViewModel.isSaving)
       }
       .marineListCell()
       .marineFont(.body)
@@ -75,6 +81,14 @@ struct TrackControlView: View {
       Button("OK", role: .cancel) { }
     } message: { error in
       Text(error.errorDescription ?? "")
+    }
+    .onChange(of: activeTrackViewModel.showStopConfirmation) { _, isShowing in
+      if !isShowing {
+        optimisticRecordingState = nil
+      }
+    }
+    .onChange(of: activeTrackViewModel.isRecording) { _, _ in
+      optimisticRecordingState = nil
     }
   }
   

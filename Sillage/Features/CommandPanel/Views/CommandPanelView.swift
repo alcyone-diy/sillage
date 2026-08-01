@@ -46,15 +46,27 @@ struct CommandPanelView: View {
             Toggle("Glove Mode", isOn: $bindableAppViewModel.isGloveModeEnabled)
               .toggleStyle(.marine(icon: .gloveMode))
             
-            Toggle("Track", isOn: Binding(
-              get: { activeTrackViewModel.isRecording },
-              set: { newValue in
-                if let gate = activeTrackViewModel.handleRecordingToggle(requestedState: newValue) {
-                  permissionGateType = gate
+            Button {
+              activeTrackViewModel.requestRecordingState(!activeTrackViewModel.isRecording)
+            } label: {
+              VStack(spacing: MarineTheme.Spacing.small) {
+                Image(marineIcon: .record)
+                  .font(.title2)
+                Text("Track")
+                  .marineFont(.caption)
+              }
+              .frame(maxWidth: .infinity, minHeight: marineTheme.metrics.touchTarget)
+              .foregroundColor(activeTrackViewModel.isRecording ? MarineTheme.Colors.textOnActive : MarineTheme.Colors.textSecondary)
+              .background {
+                if activeTrackViewModel.isRecording {
+                  MarineTheme.Colors.activeToggle
+                } else {
+                  CellBackgroundView()
                 }
               }
-            ))
-            .toggleStyle(.marine(icon: .record))
+            }
+            .buttonStyle(MarineButtonStyle())
+            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
             .disabled(activeTrackViewModel.isSaving)
           }
           .listRowBackground(Color.clear)
@@ -223,7 +235,6 @@ struct CommandPanelView: View {
       .onChange(of: permissionService.locationStatus) { _, status in
         if status == .authorized {
           viewModel.finalizePendingLocationAction()
-          activeTrackViewModel.finalizePendingLocationAction()
           permissionGateType = nil
         }
       }
