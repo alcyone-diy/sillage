@@ -176,7 +176,7 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
     
     speedOverGround = fix.speedOverGround
     
-    let finalCourseState: CourseState = finalCourseOverGround != nil ? courseState : .invalid
+    let finalCourseState: CourseState = (courseState == .active && finalCourseOverGround == nil) ? .invalid : courseState
     
     let newState = InstrumentState(
       coordinate: fix.coordinate,

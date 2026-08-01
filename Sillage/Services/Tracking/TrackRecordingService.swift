@@ -335,12 +335,20 @@ public final class TrackRecordingService {
     locationUpdatesTask?.cancel()
     let service = positioningService
     locationUpdatesTask = TaskCancellable(Task { @MainActor [weak self] in
-      for await state in service.locationUpdates {
-        guard !Task.isCancelled, let self = self else { break }
-        switch state {
+      for await positioningState in service.locationUpdates {
+        guard !Task.isCancelled, let self else { break }
+        switch positioningState {
         case .active(let fix), .degraded(let fix):
-          self.processLocationUpdate(fix)
-        case .lost:
+          processLocationUpdate(fix)
+        case .lost(let error):
+          Logger.telemetry.error("GPS signal lost: \(error.localizedDescription, privacy: .public)")
+          if state == .recording {
+            telemetry.pause()
+            state = .waitingForFix
+            persistenceWriter?.flushAsync(telemetryUpdate: buildTelemetryUpdate())
+            unflushedPointCount = 0
+            Logger.database.info("Track segment closed due to lost signal. Waiting for fix...")
+          }
           break
         }
       }
@@ -349,15 +357,15 @@ public final class TrackRecordingService {
   
   private func processLocationUpdate(_ navigationFix: NavigationFix) {
     guard navigationFix.horizontalAccuracy <= filters.maxHorizontalAccuracy else {
-      if let accuracy = navigationFix.horizontalAccuracy {
-        Logger.database.debug("GPS point ignored: insufficient accuracy (\(accuracy.converted(to: .meters).value, format: .fixed(precision: 1))m)")
-      }
+      let accuracy = navigationFix.horizontalAccuracy
+      Logger.database.debug("GPS point ignored: insufficient accuracy (\(accuracy.converted(to: .meters).value, format: .fixed(precision: 1))m)")
       return
     }
     
     switch state {
     case .waitingForFix:
       state = .recording
+      telemetry.resume()
       
       if currentSessionID == nil {
         let sessionID = UUID().uuidString

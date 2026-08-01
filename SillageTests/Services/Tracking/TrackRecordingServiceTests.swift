@@ -64,6 +64,14 @@ struct TrackRecordingServiceTests {
     func emit(fix: NavigationFix) {
       locationContinuation.yield(.active(fix))
     }
+    
+    func emitDegraded(fix: NavigationFix) {
+      locationContinuation.yield(.degraded(fix))
+    }
+    
+    func emitLost(error: Error) {
+      locationContinuation.yield(.lost(error))
+    }
   }
 
   @Observable
@@ -216,16 +224,27 @@ struct TrackRecordingServiceTests {
     service.startRecording()
     #expect(service.state == .waitingForFix)
     
-    // Emit a fix
-    let fix = createNavigationFix(latitude: 45.0, longitude: -1.0)
-    mockPositioning.emit(fix: fix)
+    // Emit an active fix
+    let activeFix = createNavigationFix(latitude: 45.0, longitude: -1.0)
+    mockPositioning.emit(fix: activeFix)
     
-    try await waitUntil { service.state == .recording }
+    try await waitUntil { service.state == .recording && service.trackPoints.count == 1 }
     
     #expect(service.state == .recording)
     #expect(service.trackPoints.count == 1)
     #expect(mockPreferences.activeTrackSessionID != nil)
-    #expect(service.telemetry.startTime == fix.timestamp)
+    #expect(service.telemetry.startTime == activeFix.timestamp)
+    
+    // Emit a degraded fix
+    let degradedFix = createNavigationFix(latitude: 45.1, longitude: -1.1, accuracy: 50)
+    mockPositioning.emitDegraded(fix: degradedFix)
+    
+    try await waitUntil { service.trackPoints.count == 2 }
+    
+    #expect(service.trackPoints.count == 2)
+    let lastPoint = try #require(service.trackPoints.last)
+    #expect(lastPoint.coordinate.latitude == 45.1)
+    #expect(lastPoint.horizontalAccuracy.value == 50)
   }
   
   @Test("Poor accuracy fix is ignored")
@@ -394,5 +413,51 @@ struct TrackRecordingServiceTests {
     // Validate that the underlying Measurement value matches exactly the Double precision
     #expect(trackPoint.coordinate.latitude == highPrecisionLat)
     #expect(trackPoint.coordinate.longitude == highPrecisionLon)
+  }
+  
+  @Test("Signal lost creates a new segment")
+  @MainActor
+  func testSignalLostCreatesNewSegment() async throws {
+    let dbManager = try makeDatabaseManager()
+    let mockPositioning = MockPositioningService()
+    let mockPreferences = MockPreferencesService()
+    
+    let service = TrackRecordingService(
+      positioningService: mockPositioning,
+      databaseManager: dbManager,
+      preferencesService: mockPreferences,
+      messageService: MessageService()
+    )
+    
+    service.startRecording()
+    
+    // Emit an active fix (segment 0)
+    let fix1 = createNavigationFix(latitude: 45.0, longitude: -1.0)
+    mockPositioning.emit(fix: fix1)
+    
+    try await waitUntil { service.state == .recording && service.trackPoints.count == 1 }
+    
+    // Verify first segment is 0
+    #expect(service.trackPoints.last?.segmentIndex == 0)
+    
+    // Emit lost state
+    struct DummyError: Error {}
+    mockPositioning.emitLost(error: DummyError())
+    
+    try await waitUntil { service.state == .waitingForFix }
+    
+    // Emit another active fix
+    let fix2 = createNavigationFix(latitude: 45.1, longitude: -1.1)
+    mockPositioning.emit(fix: fix2)
+    
+    try await waitUntil { service.state == .recording && service.trackPoints.count == 2 }
+    
+    // Verify second segment is 1 (incremented)
+    let lastPoint2 = try #require(service.trackPoints.last)
+    #expect(lastPoint2.segmentIndex == 1)
+    
+    // The total distance should NOT include the artificial straight line between fix1 and fix2.
+    // Because the segment was broken, distance should be 0.
+    #expect(service.telemetry.totalDistanceOverGround?.value == 0)
   }
 }
