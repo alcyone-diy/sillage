@@ -13,89 +13,63 @@ import SwiftUI
 struct GeoGarageLoginView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(ChartViewModel.self) private var chartViewModel
-  @Environment(MessageService.self) private var messageService: MessageService?
   @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
-  @State private var viewModel = GeoGarageLoginViewModel()
+  @State private var viewModel: GeoGarageLoginViewModel
   @Environment(\.dismiss) private var dismiss
+  
+  private enum Field {
+    case username
+    case password
+  }
+  @FocusState private var focusedField: Field?
+
+  init(authService: GeoGarageAuthServiceProtocol, messageService: MessageService?) {
+    _viewModel = State(initialValue: GeoGarageLoginViewModel(authService: authService, messageService: messageService))
+  }
 
   var body: some View {
-    ZStack {
-      ScrollView {
-        VStack(spacing: MarineTheme.Spacing.large) {
-          // Header
-          Text("GeoGarage Login")
-            .font(.title)
-            .fontWeight(.semibold)
-            .padding(.bottom, MarineTheme.Spacing.medium)
+    ScrollView {
+      VStack(spacing: MarineTheme.Spacing.extraLarge) {
+        
+        // Header
+        VStack(spacing: MarineTheme.Spacing.small) {
+          Image("GeoGarageLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(height: 44)
+        }
+        .padding(.top, MarineTheme.Spacing.extraLarge)
 
-          // Form Fields
-          VStack(spacing: MarineTheme.Spacing.medium) {
-            TextField("Username", text: $viewModel.username)
-              .textFieldStyle(.roundedBorder)
-              .textInputAutocapitalization(.never)
-              .autocorrectionDisabled(true)
-              .textContentType(.username)
-              .disabled(viewModel.isLoading)
-              .frame(minHeight: 44)
-              .padding(.horizontal)
-
-            SecureField("Password", text: $viewModel.password)
-              .textFieldStyle(.roundedBorder)
-              .textContentType(.password)
-              .disabled(viewModel.isLoading)
-              .frame(minHeight: 44)
-              .padding(.horizontal)
-          }
-
-          if let errorMessage = viewModel.errorMessage {
-            Text(errorMessage)
-              .font(.footnote)
-              .foregroundColor(MarineTheme.Colors.error)
-              .padding(.horizontal)
-              .multilineTextAlignment(.center)
-          }
-
-          // Login Button
-              Button(action: {
-                viewModel.login()
-              }) {
-                ZStack {
-                  if viewModel.isLoading {
-                    ProgressView()
-                      .tint(MarineTheme.Colors.onPrimary)
-                  } else {
-                    Text("Log In")
-                      .font(.headline)
-                      .fontWeight(.bold)
-                  }
-                }
-                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget * scaleFactor)
-                .background(viewModel.isLoading ? MarineTheme.Colors.primary.opacity(0.6) : MarineTheme.Colors.primary)
-                .foregroundColor(MarineTheme.Colors.onPrimary)
-                .cornerRadius(MarineTheme.Metrics.cornerRadius)
-                .padding(.horizontal)
-              }
-              .disabled(viewModel.isLoading)
-              .padding(.top, MarineTheme.Spacing.small)
-
-              Spacer(minLength: MarineTheme.Spacing.extraLarge)
-            }
-            .padding(.vertical, MarineTheme.Spacing.extraLarge)
-          }
-
-      if viewModel.isLoading {
-        MarineTheme.Colors.overlay
-          .ignoresSafeArea()
-
-        ProgressView()
-          .controlSize(.large)
-          .tint(MarineTheme.Colors.onPrimary)
+        switch viewModel.viewState {
+        case .authenticated(let username):
+          authenticatedView(username: username)
+        case .authenticationError(let error, let username):
+          authenticationErrorView(error: error, username: username)
+        case .reauthenticating(let error, _):
+          reauthenticatingView(error: error)
+        case .unauthenticated(let error):
+          unauthenticatedView(error: error)
+        }
+        
+        Spacer(minLength: MarineTheme.Spacing.extraLarge)
       }
+      .padding(.horizontal)
     }
-    .navigationTitle("GeoGarage")
+    .background(MarineTheme.Colors.panelBackground)
+    .navigationTitle(viewModel.isAuthenticated ? "GeoGarage Account" : "GeoGarage Login")
     .navigationBarTitleDisplayMode(.inline)
     .navigationBarBackButtonHidden(viewModel.isLoading)
     .interactiveDismissDisabled(viewModel.isLoading)
+    .overlay {
+      if viewModel.isLoading {
+        ZStack {
+          MarineTheme.Colors.overlay.ignoresSafeArea()
+          ProgressView()
+            .controlSize(.large)
+            .tint(MarineTheme.Colors.onPrimary)
+        }
+      }
+    }
     .onChange(of: viewModel.isAuthorizationReady) { oldState, isReady in
       if isReady {
         chartViewModel.updateGeoGarageLayers(viewModel.availableLayers)
@@ -105,17 +79,218 @@ struct GeoGarageLoginView: View {
         dismiss()
       }
     }
-    .onAppear {
-      viewModel.messageService = messageService
-    }
     .onDisappear {
       viewModel.cancelLogin()
     }
   }
+
+  // MARK: - State Views
+  
+  private func authenticatedView(username: String?) -> some View {
+    VStack(spacing: MarineTheme.Spacing.large) {
+      accountInfoView(username: username)
+        .padding(MarineTheme.Spacing.medium)
+        .background(MarineTheme.Colors.surfaceBackground)
+        .cornerRadius(12)
+      
+      Button(action: performLogout) {
+        Text("Log Out")
+      }
+      .buttonStyle(MarinePrimaryButtonStyle(isDestructive: true, minHeight: marineTheme.minTouchTarget * scaleFactor))
+      
+      Link("My Account", destination: viewModel.accountManagementURL)
+        .buttonStyle(.borderless)
+        .tint(MarineTheme.Colors.primary)
+        .padding(.top, MarineTheme.Spacing.small)
+    }
+  }
+
+  private func authenticationErrorView(error: String, username: String?) -> some View {
+    VStack(spacing: MarineTheme.Spacing.large) {
+      accountInfoView(username: username)
+      
+      VStack(spacing: MarineTheme.Spacing.small) {
+        Text("Authentication Error")
+          .font(.headline)
+          .foregroundColor(MarineTheme.Colors.error)
+        Text(error)
+          .font(.footnote)
+          .foregroundColor(MarineTheme.Colors.error)
+          .multilineTextAlignment(.center)
+      }
+
+      VStack(spacing: MarineTheme.Spacing.medium) {
+        Button(action: {
+          viewModel.forceReauthentication = true
+        }) {
+          Text("Re-authenticate")
+        }
+        .buttonStyle(MarinePrimaryButtonStyle(isDestructive: false, minHeight: marineTheme.minTouchTarget * scaleFactor))
+
+        Button(action: performLogout) {
+          Text("Log Out")
+        }
+        .buttonStyle(MarinePrimaryButtonStyle(isDestructive: true, minHeight: marineTheme.minTouchTarget * scaleFactor))
+      }
+    }
+  }
+
+  private func reauthenticatingView(error: String) -> some View {
+    VStack(spacing: MarineTheme.Spacing.large) {
+      VStack(spacing: MarineTheme.Spacing.small) {
+        Text("Re-authenticate")
+          .font(.headline)
+          .foregroundColor(MarineTheme.Colors.error)
+        Text(error)
+          .font(.footnote)
+          .foregroundColor(MarineTheme.Colors.error)
+          .multilineTextAlignment(.center)
+      }
+
+      loginForm()
+
+      VStack(spacing: MarineTheme.Spacing.medium) {
+        Button(action: {
+          viewModel.login()
+        }) {
+          Text("Log In")
+        }
+        .buttonStyle(MarinePrimaryButtonStyle(isDestructive: false, minHeight: marineTheme.minTouchTarget * scaleFactor))
+        .disabled(viewModel.isLoading)
+
+        Button("Cancel", role: .cancel) {
+          viewModel.forceReauthentication = false
+        }
+        .foregroundColor(MarineTheme.Colors.primary)
+        .padding(.vertical, MarineTheme.Spacing.small)
+      }
+    }
+  }
+
+  private func unauthenticatedView(error: String?) -> some View {
+    VStack(spacing: MarineTheme.Spacing.extraLarge) {
+      VStack(spacing: MarineTheme.Spacing.medium) {
+        loginForm()
+        
+        if let error = error {
+          Text(error)
+            .marineFont(.body)
+            .foregroundColor(MarineTheme.Colors.destructive)
+            .multilineTextAlignment(.center)
+        }
+        
+        Button(action: {
+          focusedField = nil
+          viewModel.login()
+        }) {
+          if viewModel.isLoading {
+            ProgressView()
+              .progressViewStyle(CircularProgressViewStyle(tint: .white))
+          } else {
+            Text("Log In")
+          }
+        }
+        .buttonStyle(MarinePrimaryButtonStyle(isDestructive: false, minHeight: marineTheme.minTouchTarget * scaleFactor))
+        .disabled(viewModel.isLoading)
+        
+        Link("Discover GeoGarage", destination: viewModel.discoverURL)
+          .buttonStyle(.borderless)
+          .tint(MarineTheme.Colors.primary)
+          .padding(.top, MarineTheme.Spacing.large)
+      }
+    }.padding(.top, MarineTheme.Spacing.small)
+  }
+
+  // MARK: - Actions
+
+  private func performLogout() {
+    viewModel.logout()
+    chartViewModel.logoutGeoGarage()
+    
+    // Si la carte actuelle était une carte GeoGarage, on force le retour sur OpenSeaMap (gratuite et globale)
+    // pour ne pas rester bloqué sur une source devenue invalide.
+    if case .remoteGeoGarage = chartViewModel.currentChartSource {
+      chartViewModel.switchChartSource(to: .openSeaMap)
+    }
+  }
+
+  // MARK: - Components
+
+  private func accountInfoView(username: String?) -> some View {
+    HStack(spacing: MarineTheme.Spacing.medium) {
+      Image(systemName: "person.crop.circle.fill")
+        .font(.system(size: 40))
+        .foregroundColor(MarineTheme.Colors.primary)
+      
+      VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+        Text("Account Connected")
+          .marineFont(.subheadline)
+          .foregroundColor(.secondary)
+        
+        if let username = username, !username.isEmpty {
+          Text(username)
+            .marineFont(.headline)
+            .foregroundColor(.primary)
+        }
+      }
+      
+      Spacer()
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  @ViewBuilder
+  private func loginForm() -> some View {
+    VStack(spacing: MarineTheme.Spacing.medium) {
+      TextField("Username", text: $viewModel.username)
+        .textFieldStyle(.roundedBorder)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled(true)
+        .textContentType(.username)
+        .disabled(viewModel.isLoading)
+        .focused($focusedField, equals: .username)
+        .submitLabel(.next)
+        .onSubmit {
+          focusedField = .password
+        }
+        .frame(minHeight: 44)
+
+      SecureField("Password", text: $viewModel.password)
+        .textFieldStyle(.roundedBorder)
+        .textContentType(.password)
+        .disabled(viewModel.isLoading)
+        .focused($focusedField, equals: .password)
+        .submitLabel(.go)
+        .onSubmit {
+          focusedField = nil
+          viewModel.login()
+        }
+        .frame(minHeight: 44)
+    }
+  }
+}
+
+// MARK: - Standard Button Style
+
+private struct MarinePrimaryButtonStyle: ButtonStyle {
+  let isDestructive: Bool
+  let minHeight: CGFloat
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.headline)
+      .fontWeight(.bold)
+      .frame(maxWidth: .infinity, minHeight: minHeight)
+      .background(isDestructive ? MarineTheme.Colors.destructiveBackground : MarineTheme.Colors.primary)
+      .foregroundColor(isDestructive ? MarineTheme.Colors.error : MarineTheme.Colors.onPrimary)
+      .cornerRadius(MarineTheme.Metrics.cornerRadius)
+      .opacity(configuration.isPressed ? 0.7 : 1.0)
+  }
 }
 
 #Preview {
-  NavigationStack {
-    GeoGarageLoginView()
-  }
+  // NavigationStack {
+  //   GeoGarageLoginView(...)
+  // }
+  EmptyView() // Preview disabled due to missing DI in preview context
 }

@@ -13,6 +13,9 @@ import Foundation
 @MainActor
 protocol GeoGarageAuthServiceProtocol: AnyObject {
   var authError: Error? { get set }
+  var savedUsername: String? { get set }
+  var discoverURL: URL { get }
+  var accountManagementURL: URL { get }
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse
   func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse
   func logout()
@@ -22,13 +25,28 @@ protocol GeoGarageAuthServiceProtocol: AnyObject {
 @MainActor
 final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   var authError: Error? = nil
+  private var preferencesService: PreferencesServiceProtocol
+  
+  var savedUsername: String? {
+    get { preferencesService.geoGarageUsername }
+    set { preferencesService.geoGarageUsername = newValue }
+  }
+
+  var discoverURL: URL { URL(string: "https://geogarage.com/")! }
+  var accountManagementURL: URL { URL(string: "https://accounts.geogarage.com/")! }
+
   private let endpoint = URL(string: "https://accounts.geogarage.com/o/token/")!
   private let settingsEndpoint = URL(string: "https://accounts.geogarage.com/api/account/settings")!
+
+  init(preferencesService: PreferencesServiceProtocol) {
+    self.preferencesService = preferencesService
+  }
 
   func logout() {
     KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
     self.authError = nil
+    self.savedUsername = nil
   }
 
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse {

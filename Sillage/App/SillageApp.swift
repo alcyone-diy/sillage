@@ -43,6 +43,7 @@ struct SillageApp: App {
             .environment(container.permissionService)
             .environment(container.offlineSelectionViewModel)
             .environment(container.messageService)
+            .environment(container.geoGarageAuthService)
         }
       }
       .environment(environment)

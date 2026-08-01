@@ -11,6 +11,13 @@
 import SwiftUI
 import OSLog
 
+enum GeoGarageViewState {
+  case unauthenticated(error: String?)
+  case authenticated(username: String?)
+  case authenticationError(error: String, username: String?)
+  case reauthenticating(error: String, username: String?)
+}
+
 @MainActor
 @Observable
 final class GeoGarageLoginViewModel {
@@ -19,15 +26,56 @@ final class GeoGarageLoginViewModel {
   var isLoading = false
   var availableLayers: [GeoGarageLayer] = []
   var isAuthorizationReady: Bool = false
+  var forceReauthentication: Bool = false
 
   var errorMessage: String?
+
+  var currentError: String? {
+    if let errorMessage {
+      return errorMessage
+    }
+    if let authError = authService.authError {
+      return authError.localizedDescription
+    }
+    return nil
+  }
+
+  var savedUsername: String? {
+    authService.savedUsername
+  }
+  
+  var discoverURL: URL {
+    authService.discoverURL
+  }
+  
+  var accountManagementURL: URL {
+    authService.accountManagementURL
+  }
+
+  var isAuthenticated: Bool {
+    KeychainManager.shared.retrieveToken(for: "geogarage_access_token") != nil
+  }
+
+  var viewState: GeoGarageViewState {
+    if isAuthenticated {
+      if forceReauthentication {
+        return .reauthenticating(error: currentError ?? String(localized: "Authentication required"), username: savedUsername)
+      } else if let error = currentError {
+        return .authenticationError(error: error, username: savedUsername)
+      } else {
+        return .authenticated(username: savedUsername)
+      }
+    } else {
+      return .unauthenticated(error: currentError)
+    }
+  }
 
   private let authService: GeoGarageAuthServiceProtocol
   var messageService: MessageService?
   var loginTask: Task<Void, Never>?
 
-  init(authService: GeoGarageAuthServiceProtocol? = nil, messageService: MessageService? = nil) {
-    self.authService = authService ?? GeoGarageAuthService()
+  init(authService: GeoGarageAuthServiceProtocol, messageService: MessageService? = nil) {
+    self.authService = authService
     self.messageService = messageService
   }
 
@@ -36,6 +84,7 @@ final class GeoGarageLoginViewModel {
     availableLayers = []
     isAuthorizationReady = false
     errorMessage = nil
+    forceReauthentication = false
     authService.logout()
     messageService?.clear(category: .geoGarage)
   }
@@ -62,11 +111,15 @@ final class GeoGarageLoginViewModel {
         KeychainManager.shared.save(token: response.access_token, for: "geogarage_access_token")
         KeychainManager.shared.save(token: response.refresh_token, for: "geogarage_refresh_token")
 
+        // Save username for display
+        authService.savedUsername = username
+
         // Fetch account settings/layers
         let settingsResponse = try await authService.fetchAccountSettings(accessToken: response.access_token)
 
         self?.availableLayers = settingsResponse.layers
         self?.isAuthorizationReady = true
+        self?.forceReauthentication = false
 
         // Log successful fetch
         let layerNames = settingsResponse.layers.map { $0.brand_name }.joined(separator: ", ")
