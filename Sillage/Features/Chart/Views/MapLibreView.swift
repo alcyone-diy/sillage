@@ -281,12 +281,7 @@ struct MapLibreView: UIViewRepresentable {
     let bearingLineFeature = viewModel.bearingLineFeature
     let anchorPointFeature = viewModel.anchorPointFeature
     let anchorRadiusFeature = viewModel.anchorRadiusFeature
-    let isDataStale: Bool
-    if let state = viewModel.instrumentDampingService.state {
-      isDataStale = (state.gpsState == .lost)
-    } else {
-      isDataStale = true
-    }
+    let isDataStale = viewModel.isDataStale
     let currentSource = viewModel.currentChartSource
     let isOpenSeaMapOverlayEnabled = viewModel.isOpenSeaMapOverlayEnabled
     let trackingMode = viewModel.trackingMode
@@ -736,12 +731,7 @@ struct MapLibreView: UIViewRepresentable {
         lastAnchorPointFeature = parent.viewModel.anchorPointFeature
       }
       if let layer = style.layer(withIdentifier: "vessel-layer") as? MLNSymbolStyleLayer {
-        let isStale: Bool
-        if let state = parent.viewModel.instrumentDampingService.state {
-          isStale = (state.gpsState == .lost)
-        } else {
-          isStale = true
-        }
+        let isStale = parent.viewModel.isDataStale
         layer.iconOpacity = NSExpression(forConstantValue: isStale ? 0.4 : 1.0)
         lastDataStale = isStale
       }

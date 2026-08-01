@@ -250,7 +250,7 @@ struct ContentView: View {
       VStack(spacing: 8) {
         // TODO: Need to find a way to add it back without taking too much space.
         /*
-        if let coordinate = chartViewModel.instrumentDampingService.state?.coordinate {
+        if let coordinate = chartViewModel.currentCoordinate {
           Text(coordinate.formatted(.marineCoordinate))
             .marineFont(.instrumentData)
             .foregroundColor(.yellow)
@@ -266,7 +266,7 @@ struct ContentView: View {
               .marineFont(.instrumentLabel)
               .foregroundColor(.secondary)
             Group {
-              if let sogMeasurement = chartViewModel.instrumentDampingService.state?.smoothedSOG {
+              if let sogMeasurement = chartViewModel.smoothedSOG {
                 let sogKnots = sogMeasurement.converted(to: .knots).value
                 Text(Measurement(value: sogKnots, unit: UnitSpeed.knots).formatted(
                     .measurement(width: .abbreviated,
@@ -286,7 +286,7 @@ struct ContentView: View {
               .marineFont(.instrumentLabel)
               .foregroundColor(.secondary)
             Group {
-              if let cog = chartViewModel.instrumentDampingService.state?.smoothedCOG {
+              if let cog = chartViewModel.smoothedCOG {
                 Text("\(cog.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
               } else {
                 Text("--°")
