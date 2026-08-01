@@ -107,14 +107,6 @@ struct ChartPreferencesView: View {
           .buttonStyle(.plain)
         }
         
-        // Button triggering the iOS native file picker
-        Button("Import Offline Map (.mbtiles)…") {
-          showingFileImporter = true
-        }
-        .marineFont(.body)
-        .foregroundColor(.primary)
-        .marineListCell()
-
         // List all authorized GeoGarage layers fetched from the API
         if !chartViewModel.availableGeoGarageLayers.isEmpty {
           ForEach(chartViewModel.availableGeoGarageLayers) { layer in
@@ -146,6 +138,14 @@ struct ChartPreferencesView: View {
           Text(chartViewModel.availableGeoGarageLayers.isEmpty ? "Login to GeoGarage" : "Manage GeoGarage Account")
             .marineFont(.body)
         }
+        .marineListCell()
+
+        // Button triggering the iOS native file picker
+        Button("Import Offline Map (.mbtiles)…") {
+          showingFileImporter = true
+        }
+        .marineFont(.body)
+        .foregroundColor(.primary)
         .marineListCell()
       }
 
