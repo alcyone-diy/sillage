@@ -62,10 +62,15 @@ final class ChartViewModel {
   
   var currentCoordinate: CLLocationCoordinate2D?
   var horizontalAccuracy: Measurement<UnitLength>?
-  var speedOverGround: Measurement<UnitSpeed>?
-  var courseOverGround: Measurement<UnitAngle>?
+  var smoothedSOG: Measurement<UnitSpeed>?
+  var smoothedCOG: Measurement<UnitAngle>?
   var courseState: CourseState? = nil
   var gpsState: GPSState? = nil
+  
+  var isDataStale: Bool {
+    guard let state = gpsState else { return true }
+    return state == .stale || state == .lost
+  }
   
   var bearingToWaypoint: Measurement<UnitAngle>? = nil
   
@@ -99,7 +104,7 @@ final class ChartViewModel {
   
   private var chartLayer: ChartLayer?
   private let positioningService: PositioningService
-  let instrumentDampingService: InstrumentDampingService<ContinuousClock>
+  private let instrumentDampingService: InstrumentDampingService<ContinuousClock>
   private let chartStorageService = ChartStorageService()
   private var preferencesService: PreferencesServiceProtocol
   private let authService: GeoGarageAuthServiceProtocol
@@ -514,8 +519,8 @@ final class ChartViewModel {
     // The consolidated stream (InstrumentDampingService) acts as the single source of truth
     self.gpsState = state.gpsState
     
-    self.speedOverGround = state.smoothedSOG
-    self.courseOverGround = state.smoothedCOG
+    self.smoothedSOG = state.smoothedSOG
+    self.smoothedCOG = state.smoothedCOG
     self.courseState = state.courseState
     
     // Batched map refresh invoked after all data is safely assigned

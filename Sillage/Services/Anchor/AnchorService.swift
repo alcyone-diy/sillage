@@ -205,8 +205,9 @@ final class AnchorService {
           self?.isDegradedAlertSent = false
           self?.isSensorDegraded = false
           self?.processLocationFix(fix)
-        case .degraded(_):
+        case .degraded(let fix):
           self?.handleDegradedGPS()
+          self?.processLocationFix(fix)
         case .lost:
           break
         }

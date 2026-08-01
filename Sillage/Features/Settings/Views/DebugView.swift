@@ -157,14 +157,14 @@ struct DebugView: View {
 extension DebugView {
   
   private var positionText: String {
-    if let coordinate = chartViewModel.instrumentDampingService.state?.coordinate {
+    if let coordinate = chartViewModel.currentCoordinate {
       return coordinate.formatted(.marineCoordinate)
     }
     return "Unknown"
   }
   
   private var horizontalAccuracyText: String {
-    guard let accuracy = chartViewModel.instrumentDampingService.state?.horizontalAccuracy else {
+    guard let accuracy = chartViewModel.horizontalAccuracy else {
       return "--"
     }
     return accuracy.converted(to: .meters).formatted(
@@ -177,8 +177,8 @@ extension DebugView {
   }
   
   private var positionColor: Color {
-    guard let state = chartViewModel.instrumentDampingService.state else { return .orange }
-    switch state.gpsState {
+    guard let gpsState = chartViewModel.gpsState else { return .orange }
+    switch gpsState {
     case .lost: return .red
     case .active: return .primary
     case .degraded: return .orange
@@ -187,8 +187,8 @@ extension DebugView {
   }
   
   private var gpsStateText: String {
-    guard let state = chartViewModel.instrumentDampingService.state else { return "Waiting" }
-    switch state.gpsState {
+    guard let gpsState = chartViewModel.gpsState else { return "Waiting" }
+    switch gpsState {
     case .active: return "Active"
     case .degraded: return "Degraded"
     case .lost: return "Lost"
@@ -197,8 +197,8 @@ extension DebugView {
   }
   
   private var gpsStateColor: Color {
-    guard let state = chartViewModel.instrumentDampingService.state else { return .orange }
-    switch state.gpsState {
+    guard let gpsState = chartViewModel.gpsState else { return .orange }
+    switch gpsState {
     case .active: return .green
     case .degraded: return .orange
     case .lost: return .red
@@ -207,7 +207,7 @@ extension DebugView {
   }
   
   private var cogText: String {
-    if let cog = chartViewModel.instrumentDampingService.state?.smoothedCOG {
+    if let cog = chartViewModel.smoothedCOG {
       return cog.converted(to: .degrees).formatted(
         .measurement(
           width: .narrow,
@@ -220,18 +220,18 @@ extension DebugView {
   }
   
   private var cogStateText: String {
-    guard let state = chartViewModel.instrumentDampingService.state else { return "Waiting" }
-    switch state.courseState {
-    case .active: return state.smoothedCOG != nil ? "Valid" : "Invalid"
+    guard let courseState = chartViewModel.courseState else { return "Waiting" }
+    switch courseState {
+    case .active: return chartViewModel.smoothedCOG != nil ? "Valid" : "Invalid"
     case .stopped: return "Stopped"
     case .invalid: return "Invalid"
     }
   }
   
   private var cogStateColor: Color {
-    guard let state = chartViewModel.instrumentDampingService.state else { return .orange }
-    switch state.courseState {
-    case .active: return state.smoothedCOG != nil ? .green : .red
+    guard let courseState = chartViewModel.courseState else { return .orange }
+    switch courseState {
+    case .active: return chartViewModel.smoothedCOG != nil ? .green : .red
     case .stopped: return .orange
     case .invalid: return .red
     }
