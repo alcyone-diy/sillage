@@ -149,7 +149,7 @@ struct InstrumentDampingServiceTests {
     )
     mockPositioning.continuation.yield(.active(fix1))
     
-    try await waitFor { service.state?.movementState == .moving }
+    try await waitFor { service.state?.courseState == .active }
     
     let initialAvgCog = try #require(service.state?.smoothedCOG?.converted(to: .degrees).value)
     #expect(abs(initialAvgCog - 350.0) < 0.1)
@@ -199,7 +199,7 @@ struct InstrumentDampingServiceTests {
     mockPositioning.continuation.yield(.active(fix1))
     
     try await waitFor { service.state?.sensorTimestamp == fix1.timestamp }
-    #expect(service.state?.movementState == .stopped)
+    #expect(service.state?.courseState == .stopped)
     
     mockClock.advance(by: .seconds(1.1))
     let fix2 = NavigationFix(
@@ -213,7 +213,7 @@ struct InstrumentDampingServiceTests {
     )
     mockPositioning.continuation.yield(.active(fix2))
     
-    try await waitFor { service.state?.movementState == .moving }
+    try await waitFor { service.state?.courseState == .active }
     
     mockClock.advance(by: .seconds(1.1))
     let fix3 = NavigationFix(
@@ -228,7 +228,7 @@ struct InstrumentDampingServiceTests {
     mockPositioning.continuation.yield(.active(fix3))
     
     try await waitFor { service.state?.sensorTimestamp == fix3.timestamp }
-    #expect(service.state?.movementState == .moving)
+    #expect(service.state?.courseState == .active)
     
     mockClock.advance(by: .seconds(1.1))
     let fix4 = NavigationFix(
@@ -242,7 +242,7 @@ struct InstrumentDampingServiceTests {
     )
     mockPositioning.continuation.yield(.active(fix4))
     
-    try await waitFor { service.state?.movementState == .stopped }
+    try await waitFor { service.state?.courseState == .stopped }
     
     service.stop()
   }
@@ -268,7 +268,7 @@ struct InstrumentDampingServiceTests {
     )
     mockPositioning.continuation.yield(.active(fix1))
     
-    try await waitFor { service.state?.movementState == .moving }
+    try await waitFor { service.state?.courseState == .active }
     #expect(service.state?.smoothedSOG?.value == 2.0)
     
     // We send another fix before the timeout
@@ -293,12 +293,12 @@ struct InstrumentDampingServiceTests {
     // Since we are mocking the clock, if the task was going to execute, it would do so immediately upon yielding.
     // We do a brief condition wait for a condition that will never happen, to let the micro-sleeps yield execution.
     do {
-      try await waitFor(timeout: .milliseconds(50)) { service.state?.movementState == .stopped }
+      try await waitFor(timeout: .milliseconds(50)) { service.state?.courseState == .stopped }
     } catch {
       // Expected timeout since it shouldn't stop
     }
     
-    #expect(service.state?.movementState == .moving)
+    #expect(service.state?.courseState == .active)
     #expect(service.state?.smoothedSOG?.value == 3.0)
     
     service.stop()

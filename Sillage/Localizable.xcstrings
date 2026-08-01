@@ -76,6 +76,9 @@
     "⚓️ DRAGGING ANCHOR!" : {
 
     },
+    "⚠️ Monitoring Suspended" : {
+
+    },
     "1 hr" : {
 
     },
@@ -221,6 +224,9 @@
 
     },
     "Create Waypoint…" : {
+
+    },
+    "Critical GPS accuracy. Anchor alarm is temporarily unreliable." : {
 
     },
     "Debug" : {

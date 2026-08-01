@@ -74,6 +74,7 @@ final class AppEnvironment {
       let positioningService = CoreLocationPositioningService()
       
       let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+      instrumentDampingService.start()
       
       let barometricHistoryStore = BarometricHistoryStore()
       await barometricHistoryStore.load()

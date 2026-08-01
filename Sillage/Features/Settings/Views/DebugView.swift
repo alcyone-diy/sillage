@@ -182,6 +182,7 @@ extension DebugView {
     case .lost: return .red
     case .active: return .primary
     case .degraded: return .orange
+    case .stale: return .orange
     }
   }
   
@@ -191,6 +192,7 @@ extension DebugView {
     case .active: return "Active"
     case .degraded: return "Degraded"
     case .lost: return "Lost"
+    case .stale: return "Stale"
     }
   }
   
@@ -200,6 +202,7 @@ extension DebugView {
     case .active: return .green
     case .degraded: return .orange
     case .lost: return .red
+    case .stale: return .yellow
     }
   }
   
@@ -218,17 +221,19 @@ extension DebugView {
   
   private var cogStateText: String {
     guard let state = chartViewModel.instrumentDampingService.state else { return "Waiting" }
-    switch state.movementState {
-    case .moving: return state.smoothedCOG != nil ? "Valid" : "Invalid"
+    switch state.courseState {
+    case .active: return state.smoothedCOG != nil ? "Valid" : "Invalid"
     case .stopped: return "Stopped"
+    case .invalid: return "Invalid"
     }
   }
   
   private var cogStateColor: Color {
     guard let state = chartViewModel.instrumentDampingService.state else { return .orange }
-    switch state.movementState {
-    case .moving: return state.smoothedCOG != nil ? .green : .red
+    switch state.courseState {
+    case .active: return state.smoothedCOG != nil ? .green : .red
     case .stopped: return .orange
+    case .invalid: return .red
     }
   }
 }
