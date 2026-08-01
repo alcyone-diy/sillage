@@ -22,6 +22,7 @@ struct ContentView: View {
   @Environment(\.waypointService) private var waypointService
   @Environment(AnchorViewModel.self) private var anchorViewModel
   @Environment(PermissionService.self) private var permissionService
+  @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   
   @State private var localSheetPresented: Bool = false
   @State private var permissionGateType: PermissionGateType? = nil
@@ -167,47 +168,6 @@ struct ContentView: View {
         }
       }
       } // End of Main ZStack
-    .alert(
-      isPresented: Bindable(appViewModel).showImportError,
-      error: appViewModel.importError
-    ) { _ in
-      Button("OK", role: .cancel) { }
-    } message: { error in
-      Text(error.localizedDescription)
-    }
-    .sheet(item: $permissionGateType) { gateType in
-      PermissionGateView(type: gateType)
-        .presentationDetents([.medium, .large])
-    }
-    .onChange(of: permissionService.locationStatus) { _, status in
-      if status == .authorized {
-        panelManagerViewModel.finalizePendingLocationAction()
-        permissionGateType = nil
-      }
-    }
-    .sheet(item: Bindable(appViewModel).waypointDraft) { item in
-      if let waypointService {
-        NavigationStack {
-          let viewModel = WaypointDetailViewModel(
-            waypointService: waypointService,
-            defaultName: item.defaultName,
-            initialCoordinate: item.coordinate
-          )
-          WaypointDetailView(
-            viewModel: viewModel,
-            onGoToRequested: { waypointID in
-              appViewModel.waypointDraft = nil
-              waypointService.setDestination(waypointID: waypointID)
-              panelManagerViewModel.closePanel()
-            },
-            onCancelNavigationRequested: {
-              appViewModel.waypointDraft = nil
-              waypointService.setDestination(waypointID: nil)
-            }
-          )
-        }
-      }
-    }
     .fullScreenCover(
       isPresented: Binding(
         get: { anchorViewModel.status == .dragging },
@@ -218,15 +178,90 @@ struct ContentView: View {
         .environment(anchorViewModel)
         .environment(\.marineTheme, appViewModel.marineTheme)
     }
+    .onChange(of: permissionService.locationStatus) { _, status in
+      if status == .authorized {
+        panelManagerViewModel.finalizePendingLocationAction()
+        activeTrackViewModel.finalizePendingLocationAction()
+        permissionGateType = nil
+        activeTrackViewModel.pendingPermissionGate = nil
+      }
+    }
+    .background {
+      Color.clear.alert(
+        isPresented: Bindable(appViewModel).showImportError,
+        error: appViewModel.importError
+      ) { _ in
+        Button("OK", role: .cancel) { }
+      } message: { error in
+        Text(error.localizedDescription)
+      }
+    }
+    .background {
+      Color.clear.sheet(item: Bindable(appViewModel).waypointDraft) { item in
+        if let waypointService {
+          NavigationStack {
+            let viewModel = WaypointDetailViewModel(
+              waypointService: waypointService,
+              defaultName: item.defaultName,
+              initialCoordinate: item.coordinate
+            )
+            WaypointDetailView(
+              viewModel: viewModel,
+              onGoToRequested: { waypointID in
+                appViewModel.waypointDraft = nil
+                waypointService.setDestination(waypointID: waypointID)
+                panelManagerViewModel.closePanel()
+              },
+              onCancelNavigationRequested: {
+                appViewModel.waypointDraft = nil
+                waypointService.setDestination(waypointID: nil)
+              }
+            )
+          }
+        }
+      }
+    }
+    .background {
+      Color.clear.sheet(item: $permissionGateType) { gateType in
+        PermissionGateView(type: gateType)
+          .presentationDetents([.medium, .large])
+      }
+    }
   }
 
   @ViewBuilder
   private var panelView: some View {
-    switch panelManagerViewModel.activePanel {
-    case .command:
-      CommandPanelView()
-    case .none:
-      EmptyView()
+    Group {
+      switch panelManagerViewModel.activePanel {
+      case .command:
+        CommandPanelView()
+      case .none:
+        EmptyView()
+      }
+    }
+    // MARK: - Architectural Constraint
+    // These specific modals MUST remain attached to `panelView` instead of the root MainView.
+    // Why? In SwiftUI on iOS, if a root View presents a native `.sheet` (the Command Panel in Portrait),
+    // the root UIViewController is actively presenting a modal.
+    // If we then trigger a `.alert` or `.sheet` from the ROOT view, iOS (UIKit) enforces a strict rule:
+    // A UIViewController can only present one modal at a time. It will forcibly dismiss the active `.sheet`
+    // to present the new `.alert`.
+    // By attaching these modals directly to the content of the `.sheet` (`panelView`), the alert is presented
+    // BY the sheet's UIViewController, safely layering over it without dismissing the panel.
+    .sheet(item: Bindable(activeTrackViewModel).pendingPermissionGate) { gateType in
+      PermissionGateView(type: gateType)
+        .presentationDetents([.medium, .large])
+    }
+    .alert(
+      "Stop Track Recording",
+      isPresented: Bindable(activeTrackViewModel).showStopConfirmation
+    ) {
+      Button("Stop", role: .destructive) {
+        activeTrackViewModel.confirmStopRecording()
+      }
+      Button("Cancel", role: .cancel) { }
+    } message: {
+      Text("Are you sure you want to stop recording this track?")
     }
   }
 
