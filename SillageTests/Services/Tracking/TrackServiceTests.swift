@@ -32,6 +32,7 @@ struct TrackServiceTests {
     
     var currentAuthorizationStatus: CLAuthorizationStatus = .notDetermined
     
+    var lastKnownLocation: NavigationFix?
     func requestAuthorization() {}
     func startUpdatingLocation() {}
     func stopUpdatingLocation() {}

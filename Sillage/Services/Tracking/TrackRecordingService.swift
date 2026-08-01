@@ -43,6 +43,8 @@ public final class TrackRecordingService {
     /// The maximum time delay before flushing buffered points to the database.
     nonisolated static let maxFlushInterval: Duration = .seconds(600) // 10mn.
     nonisolated static let maxRecoveryAge: TimeInterval = 12 * 3600
+    /// The maximum allowed age for a cached GPS fix to be used as the initial track point.
+    nonisolated static let maxInitialFixAge: TimeInterval = 30.0
   }
   
   private var currentSessionID: String?
@@ -121,6 +123,16 @@ public final class TrackRecordingService {
     
     persistenceWriter = TrackPersistenceWriter(databaseManager: databaseManager)
     state = .waitingForFix
+    
+    if let initialLocation = service.lastKnownLocation {
+      let fixAge = abs(initialLocation.timestamp.timeIntervalSinceNow)
+      
+      if fixAge <= Configuration.maxInitialFixAge {
+        processLocationUpdate(initialLocation)
+      } else {
+        Logger.telemetry.info("Cached fix ignored because it is too old (\(fixAge)s). Waiting for the next active fix.")
+      }
+    }
   }
   
   @discardableResult

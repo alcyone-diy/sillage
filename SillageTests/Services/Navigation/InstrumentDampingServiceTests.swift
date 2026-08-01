@@ -113,6 +113,8 @@ struct InstrumentDampingServiceTests {
     let continuation: AsyncStream<PositioningState>.Continuation
     let locationUpdates: AsyncStream<PositioningState>
     
+    var lastKnownLocation: NavigationFix?
+    
     init() {
       let (stream, cont) = AsyncStream<PositioningState>.makeStream()
       self.locationUpdates = stream

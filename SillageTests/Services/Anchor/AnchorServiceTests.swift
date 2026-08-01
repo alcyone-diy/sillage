@@ -29,6 +29,8 @@ final class MockPositioningService: PositioningService {
   var authContinuation: AsyncStream<CLAuthorizationStatus>.Continuation!
   var authorizationStatusStream: AsyncStream<CLAuthorizationStatus>
   
+  var lastKnownLocation: NavigationFix?
+  
   init() {
     let (locStream, locCont) = AsyncStream.makeStream(of: PositioningState.self)
     self.locationUpdates = locStream
