@@ -33,6 +33,8 @@ struct TrackRecordingServiceTests {
     let (authorizationStatusStream, authContinuation) = AsyncStream.makeStream(of: CLAuthorizationStatus.self)
     
     var currentAuthorizationStatus: CLAuthorizationStatus = .notDetermined
+    
+    var lastKnownLocation: NavigationFix?
 
     var requestAuthorizationCallCount = 0
     func requestAuthorization() {

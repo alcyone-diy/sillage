@@ -16,6 +16,7 @@ protocol PositioningService {
   var locationUpdates: AsyncStream<PositioningState> { get }
   var authorizationStatusStream: AsyncStream<CLAuthorizationStatus> { get }
   var currentDistanceFilter: Measurement<UnitLength> { get }
+  var lastKnownLocation: NavigationFix? { get }
 
   func requestAuthorization()
   func startUpdatingLocation()

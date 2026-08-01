@@ -30,6 +30,8 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     Measurement(value: locationManager.distanceFilter, unit: .meters)
   }
   
+  public private(set) var lastKnownLocation: NavigationFix?
+  
   // MARK: - Configuration Constants
   
   private enum PositioningConfig {
@@ -283,6 +285,8 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
       speedOverGroundAccuracy: speedOverGroundAccuracy,
       timestamp: latestLocation.timestamp
     )
+    
+    self.lastKnownLocation = filteredLocation
     
     let state: PositioningState = isDegraded ? .degraded(filteredLocation) : .active(filteredLocation)
     for continuation in locationContinuations.values {
