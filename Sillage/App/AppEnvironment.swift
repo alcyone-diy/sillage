@@ -123,7 +123,7 @@ final class AppEnvironment {
       }
       observeWaypointGoTo()
 
-      let geoGarageAuthService = GeoGarageAuthService()
+      let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService)
       
       let anchorService = AnchorService(
         positioningService: positioningService,

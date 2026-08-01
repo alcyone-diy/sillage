@@ -21,6 +21,9 @@ struct ChartPreferencesView: View {
   /// Injects the global design system theme.
   @Environment(\.marineTheme) private var marineTheme
 
+  @Environment(GeoGarageAuthService.self) private var authService
+  @Environment(MessageService.self) private var messageService: MessageService?
+
   /// Controls the presentation of the system file picker for importing charts.
   @State private var showingFileImporter = false
 
@@ -60,14 +63,26 @@ struct ChartPreferencesView: View {
     @Bindable var chartViewModel = chartViewModel
     
     Form {
-      // MARK: - Local Offline Charts Section
-      Section(header: Text("Local Offline Charts").marineFont(.headline)) {
+      // MARK: - Map Sources Section
+      Section(header: Text("Map Sources").marineFont(.headline)) {
+
+        // Free OpenSeaMap source (Default Fallback)
+        Button(action: {
+          chartViewModel.switchChartSource(to: .openSeaMap)
+        }) {
+          ChartSourceRowView(
+            title: "OpenSeaMap (Free)",
+            subtitle: "Global map",
+            isSelected: currentSelection == .openSeaMap
+          )
+          .marineListCell()
+        }
+        .buttonStyle(.plain)
 
         // Dynamically list all imported local MBTiles files
         ForEach(chartViewModel.localOfflineCharts, id: \.filename) { mapFile in
           let url = mapFile.fileURL
           
-          // Check if this specific file is the one currently displayed on the map
           let isSelected = currentSelection == .local && {
             if case .localMBTiles(let currentURL) = chartViewModel.currentChartSource {
               return currentURL == url
@@ -75,7 +90,6 @@ struct ChartPreferencesView: View {
             return false
           }()
 
-          // Prepare the subtitle, appending the file size if available from the metadata
           let subtitle = mapFile.fileSize != nil
             ? "Imported map - \(byteFormatter.string(from: mapFile.fileSize!))"
             : "Imported map"
@@ -100,34 +114,9 @@ struct ChartPreferencesView: View {
         .marineFont(.body)
         .foregroundColor(.primary)
         .marineListCell()
-      }
 
-      // MARK: - Online Charts Section
-      Section(header: Text("Online Charts (Internet Required)").marineFont(.headline)) {
-        
-        // Free OpenSeaMap source
-        Button(action: {
-          chartViewModel.switchChartSource(to: .openSeaMap)
-        }) {
-          ChartSourceRowView(
-            title: "OpenSeaMap (Free)",
-            subtitle: "Global map",
-            isSelected: currentSelection == .openSeaMap
-          )
-          .marineListCell()
-        }
-        .buttonStyle(.plain)
-
-        // GeoGarage premium sources
-        // If no layers are available, prompt the user to log in.
-        if chartViewModel.availableGeoGarageLayers.isEmpty {
-          NavigationLink(destination: GeoGarageLoginView()) {
-            Text("Login to GeoGarage")
-              .marineFont(.body)
-          }
-          .marineListCell()
-        } else {
-          // List all authorized GeoGarage layers fetched from the API
+        // List all authorized GeoGarage layers fetched from the API
+        if !chartViewModel.availableGeoGarageLayers.isEmpty {
           ForEach(chartViewModel.availableGeoGarageLayers) { layer in
             let isSelected = currentSelection == .remote && {
               if case .remoteGeoGarage(_, let currentLayerID) = chartViewModel.currentChartSource {
@@ -149,6 +138,15 @@ struct ChartPreferencesView: View {
             .buttonStyle(.plain)
           }
         }
+      }
+
+      // MARK: - Accounts & Services
+      Section(header: Text("Accounts & Services").marineFont(.headline)) {
+        NavigationLink(destination: GeoGarageLoginView(authService: authService, messageService: messageService)) {
+          Text(chartViewModel.availableGeoGarageLayers.isEmpty ? "Login to GeoGarage" : "Manage GeoGarage Account")
+            .marineFont(.body)
+        }
+        .marineListCell()
       }
 
       // MARK: - Maritime Layers Section

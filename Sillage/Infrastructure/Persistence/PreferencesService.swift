@@ -24,6 +24,7 @@ protocol PreferencesServiceProtocol {
   var gloveModeEnabled: Bool { get set }
   var hasAcceptedDisclaimer: Bool { get set }
   var isOpenSeaMapOverlayEnabled: Bool { get set }
+  var geoGarageUsername: String? { get set }
 
   var isCOGVectorEnabled: Bool { get set }
   var cogVectorTimeHorizon: Measurement<UnitDuration> { get set }
@@ -63,6 +64,7 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let gloveModeEnabledKey = "gloveModeEnabled"
   @ObservationIgnored private let hasAcceptedDisclaimerKey = "hasAcceptedDisclaimer"
   @ObservationIgnored private let isOpenSeaMapOverlayEnabledKey = "isOpenSeaMapOverlayEnabled"
+  @ObservationIgnored private let geoGarageUsernameKey = "geogarage_username"
 
   @ObservationIgnored private let isCOGVectorEnabledKey = "isCOGVectorEnabled"
   @ObservationIgnored private let cogVectorTimeHorizonSecondsKey = "cogVectorTimeHorizonSeconds"
@@ -118,6 +120,16 @@ class PreferencesService: PreferencesServiceProtocol {
 
   var isOpenSeaMapOverlayEnabled: Bool {
     didSet { defaults.set(isOpenSeaMapOverlayEnabled, forKey: isOpenSeaMapOverlayEnabledKey) }
+  }
+
+  var geoGarageUsername: String? {
+    didSet {
+      if let value = geoGarageUsername {
+        defaults.set(value, forKey: geoGarageUsernameKey)
+      } else {
+        defaults.removeObject(forKey: geoGarageUsernameKey)
+      }
+    }
   }
 
   var isCOGVectorEnabled: Bool {
@@ -222,6 +234,7 @@ class PreferencesService: PreferencesServiceProtocol {
     self.gloveModeEnabled = defaults.bool(forKey: gloveModeEnabledKey)
     self.hasAcceptedDisclaimer = defaults.bool(forKey: hasAcceptedDisclaimerKey)
     self.isOpenSeaMapOverlayEnabled = defaults.bool(forKey: isOpenSeaMapOverlayEnabledKey)
+    self.geoGarageUsername = defaults.string(forKey: geoGarageUsernameKey)
 
     self.isCOGVectorEnabled = defaults.object(forKey: isCOGVectorEnabledKey) as? Bool ?? true
     self.isCOGVectorTicksEnabled = defaults.object(forKey: isCOGVectorTicksEnabledKey) as? Bool ?? true

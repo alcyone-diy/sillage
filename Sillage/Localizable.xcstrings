@@ -97,6 +97,12 @@
     "About" : {
 
     },
+    "Account Connected" : {
+
+    },
+    "Accounts & Services" : {
+
+    },
     "Accuracy" : {
 
     },
@@ -154,7 +160,13 @@
     "Arm Alarm" : {
 
     },
+    "Authentication Error" : {
+
+    },
     "Authentication failed. Please check your network connection or credentials." : {
+
+    },
+    "Authentication required" : {
 
     },
     "Average Speed" : {
@@ -268,6 +280,9 @@
     "DISARM ANCHOR" : {
 
     },
+    "Discover GeoGarage" : {
+
+    },
     "Distance" : {
 
     },
@@ -349,7 +364,7 @@
     "General" : {
 
     },
-    "GeoGarage" : {
+    "GeoGarage Account" : {
 
     },
     "GeoGarage Auth Error" : {
@@ -439,13 +454,13 @@
     "Loading Waypoint..." : {
 
     },
-    "Local Offline Charts" : {
-
-    },
     "Location" : {
 
     },
     "Log In" : {
+
+    },
+    "Log Out" : {
 
     },
     "Login to GeoGarage" : {
@@ -454,7 +469,13 @@
     "Low" : {
       "comment" : "Low sensitivity"
     },
+    "Manage GeoGarage Account" : {
+
+    },
     "Map Cache" : {
+
+    },
+    "Map Sources" : {
 
     },
     "MapLibre GL Native (BSD 2-Clause License)" : {
@@ -476,6 +497,9 @@
       "comment" : "Medium sensitivity"
     },
     "Min" : {
+
+    },
+    "My Account" : {
 
     },
     "N" : {
@@ -518,9 +542,6 @@
 
     },
     "OK" : {
-
-    },
-    "Online Charts (Internet Required)" : {
 
     },
     "Open Settings" : {
@@ -569,6 +590,9 @@
 
     },
     "Raw sensor: %@" : {
+
+    },
+    "Re-authenticate" : {
 
     },
     "Record Track" : {
