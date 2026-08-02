@@ -31,6 +31,7 @@ final class AppViewModel {
   private var preferencesService: PreferencesServiceProtocol
   private let chartImportService: ChartImportService
   private let authService: GeoGarageAuthService?
+  private let panelManagerViewModel: PanelManagerViewModel
 
   var importError: ChartImportError?
   var showImportError: Bool = false
@@ -54,11 +55,13 @@ final class AppViewModel {
   init(
     preferencesService: PreferencesServiceProtocol,
     chartImportService: ChartImportService? = nil,
-    authService: GeoGarageAuthService? = nil
+    authService: GeoGarageAuthService? = nil,
+    panelManagerViewModel: PanelManagerViewModel
   ) {
     self.preferencesService = preferencesService
     self.chartImportService = chartImportService ?? ChartImportService()
     self.authService = authService
+    self.panelManagerViewModel = panelManagerViewModel
     self.isGloveModeEnabled = preferencesService.gloveModeEnabled
   }
 
@@ -71,6 +74,16 @@ final class AppViewModel {
     } catch {
       self.importError = .moveFailed(error)
       self.showImportError = true
+    }
+  }
+
+  @MainActor
+  func handleNotification(identifier: String) {
+    if identifier.starts(with: "sillage.barometer") {
+      if panelManagerViewModel.commandPath.last != .baroAlarm {
+        panelManagerViewModel.commandPath.append(.baroAlarm)
+      }
+      panelManagerViewModel.openPanel(.command)
     }
   }
 }

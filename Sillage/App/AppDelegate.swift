@@ -14,6 +14,19 @@ import MapLibre
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     
+    private var pendingNotificationID: String?
+    
+    weak var appViewModel: AppViewModel? {
+        didSet {
+            if let pendingID = pendingNotificationID {
+                Task { @MainActor [weak self] in
+                    self?.appViewModel?.handleNotification(identifier: pendingID)
+                }
+                self.pendingNotificationID = nil
+            }
+        }
+    }
+    
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
@@ -42,5 +55,24 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         } else {
             completionHandler([.alert, .sound, .badge])
         }
+    }
+    
+    // Handles the user tapping on a notification
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let identifier = response.notification.request.identifier
+        
+        if let appViewModel = self.appViewModel {
+            Task { @MainActor in
+                appViewModel.handleNotification(identifier: identifier)
+            }
+        } else {
+            self.pendingNotificationID = identifier
+        }
+        
+        completionHandler()
     }
 }
