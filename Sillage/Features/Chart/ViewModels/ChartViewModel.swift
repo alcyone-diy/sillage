@@ -58,6 +58,19 @@ final class ChartViewModel {
   var zoomLevel: Double = 10.0
   var chartDirection: Measurement<UnitAngle> = Measurement(value: 0.0, unit: UnitAngle.degrees)
   
+  // MARK: - Offline Area State
+  
+  var isOfflineAreaEnabled: Bool {
+    if case .remoteGeoGarage = currentChartSource {
+      return true
+    }
+    return false
+  }
+  
+  var showOfflineAreaWarning: Bool {
+    return !isOfflineAreaEnabled
+  }
+  
   // MARK: - Navigation & Telemetry
   
   var currentCoordinate: CLLocationCoordinate2D?

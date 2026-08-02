@@ -257,17 +257,28 @@ struct CommandPanelView: View {
 
   @ViewBuilder
   private var offlineAreaButton: some View {
+    let isDisabled = offlineSelectionViewModel.isSelectionModeActive || !chartViewModel.isOfflineAreaEnabled
+
     Button {
       offlineSelectionViewModel.isSelectionModeActive = true
       viewModel.closePanel()
     } label: {
       HStack {
         Label {
-          Text("Offline Area")
-            .foregroundStyle(offlineSelectionViewModel.isSelectionModeActive ? Color.secondary : Color.primary)
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Offline Area")
+              .foregroundStyle(isDisabled ? Color.secondary : Color.primary)
+            
+            if chartViewModel.showOfflineAreaWarning {
+              Text("Offline maps work only with GeoGarage")
+                .marineFont(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
         } icon: {
           Image(systemName: "square.and.arrow.down")
-            .foregroundStyle(offlineSelectionViewModel.isSelectionModeActive ? Color.secondary : Color.blue)
+            .foregroundStyle(isDisabled ? Color.secondary : Color.blue)
         }
         .marineFont(.body)
         Spacer()
@@ -275,6 +286,6 @@ struct CommandPanelView: View {
     }
     .tint(.primary)
     .marineListCell()
-    .disabled(offlineSelectionViewModel.isSelectionModeActive)
+    .disabled(isDisabled)
   }
 }
