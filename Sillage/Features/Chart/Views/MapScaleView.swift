@@ -29,41 +29,33 @@ struct MapScaleView: View {
   var body: some View {
     Group {
       if let scaleData = scaleData, showOverlay {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 6) {
           Text(scaleData.measurement.formatted(
             .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0...1)))
           ))
             .marineFont(.instrumentData)
-            .font(.caption)
-            .bold()
             .foregroundColor(.white)
-            .shadow(color: .black.opacity(0.8), radius: 1, x: 1, y: 1)
           
           // Scale Bar
           ZStack(alignment: .leading) {
-            // Shadow/stroke for contrast
-            Rectangle()
-              .fill(Color.black)
-              .frame(width: scaleData.width, height: 10)
-              .offset(x: 1, y: 1)
+            // Outline line
+            ScaleBarShape()
+              .stroke(Color.black, style: StrokeStyle(lineWidth: 5, lineCap: .square, lineJoin: .miter))
+              .frame(width: scaleData.width, height: 8)
             
-            // Main alternating colors
-            HStack(spacing: 0) {
-              Rectangle().fill(Color.black)
-              Rectangle().fill(Color.white)
-              Rectangle().fill(Color.black)
-              Rectangle().fill(Color.white)
-            }
-            .frame(width: scaleData.width, height: 8)
-            .border(Color.black, width: 1)
+            // Main white line
+            ScaleBarShape()
+              .stroke(Color.white, style: StrokeStyle(lineWidth: 3, lineCap: .square, lineJoin: .miter))
+              .frame(width: scaleData.width, height: 8)
           }
-          .animation(.linear(duration: 0.1), value: scaleData.width)
+          .animation(.linear(duration: 0.05), value: scaleData.width)
         }
-        .padding(12)
+        .padding(10)
         .background(Material.ultraThinMaterial)
         .environment(\.colorScheme, .dark)
-        .cornerRadius(8)
-        .padding()
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
         .transition(.opacity)
       }
     }
@@ -149,5 +141,19 @@ struct MapScaleView: View {
     let width = CGFloat(niceMeasurement.converted(to: .meters).value / mpp)
     
     self.scaleData = ScaleData(width: width, measurement: niceMeasurement)
+  }
+}
+
+struct ScaleBarShape: Shape {
+  func path(in rect: CGRect) -> Path {
+    var path = Path()
+    // Left tick
+    path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+    path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+    // Bottom line
+    path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+    // Right tick
+    path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+    return path
   }
 }
