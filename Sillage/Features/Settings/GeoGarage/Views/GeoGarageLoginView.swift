@@ -119,6 +119,9 @@ struct GeoGarageLoginView: View {
 
       VStack(spacing: MarineTheme.Spacing.medium) {
         Button(action: {
+          if let username = username {
+            viewModel.username = username
+          }
           viewModel.forceReauthentication = true
         }) {
           Text("Re-authenticate")
