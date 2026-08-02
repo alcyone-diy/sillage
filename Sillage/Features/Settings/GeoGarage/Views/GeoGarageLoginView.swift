@@ -14,10 +14,18 @@ struct GeoGarageLoginView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(ChartViewModel.self) private var chartViewModel
   @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
-  @State private var viewModel = GeoGarageLoginViewModel()
+  
+  @State private var viewModel: GeoGarageLoginViewModel
   @Environment(\.dismiss) private var dismiss
+  
   @Environment(GeoGarageAuthService.self) private var authService
   @Environment(MessageService.self) private var messageService
+  
+  @State private var showLogoutConfirmation = false
+  
+  init(offlineMapManager: OfflineMapManager) {
+    self._viewModel = State(initialValue: GeoGarageLoginViewModel(offlineMapManager: offlineMapManager))
+  }
   
   private enum Field {
     case username
@@ -80,6 +88,12 @@ struct GeoGarageLoginView: View {
     .onDisappear {
       viewModel.cancelLogin()
     }
+    .alert("Log Out", isPresented: $showLogoutConfirmation) {
+      Button("Cancel", role: .cancel) {}
+      Button("Log Out", role: .destructive, action: performLogout)
+    } message: {
+      Text("Logging out will permanently delete all offline maps to comply with GeoGarage licensing. You will need an active internet connection to download them again. Proceed?")
+    }
   }
 
   // MARK: - State Views
@@ -91,7 +105,7 @@ struct GeoGarageLoginView: View {
         .background(MarineTheme.Colors.surfaceBackground)
         .cornerRadius(12)
       
-      Button(action: performLogout) {
+      Button(action: initiateLogout) {
         Text("Log Out")
       }
       .buttonStyle(MarinePrimaryButtonStyle(isDestructive: true, minHeight: marineTheme.minTouchTarget * scaleFactor))
@@ -128,7 +142,7 @@ struct GeoGarageLoginView: View {
         }
         .buttonStyle(MarinePrimaryButtonStyle(isDestructive: false, minHeight: marineTheme.minTouchTarget * scaleFactor))
 
-        Button(action: performLogout) {
+        Button(action: initiateLogout) {
           Text("Log Out")
         }
         .buttonStyle(MarinePrimaryButtonStyle(isDestructive: true, minHeight: marineTheme.minTouchTarget * scaleFactor))
@@ -204,14 +218,21 @@ struct GeoGarageLoginView: View {
 
   // MARK: - Actions
 
+  private func initiateLogout() {
+    if viewModel.requiresOfflineMapsWarning() {
+      showLogoutConfirmation = true
+    } else {
+      performLogout()
+    }
+  }
+
   private func performLogout() {
-    viewModel.logout(authService: authService, messageService: messageService)
-    chartViewModel.logoutGeoGarage()
-    
-    // Si la carte actuelle était une carte GeoGarage, on force le retour sur OpenSeaMap (gratuite et globale)
-    // pour ne pas rester bloqué sur une source devenue invalide.
-    if case .remoteGeoGarage = chartViewModel.currentChartSource {
-      chartViewModel.switchChartSource(to: .openSeaMap)
+    Task {
+      await viewModel.performLogout(
+        authService: authService,
+        messageService: messageService,
+        chartViewModel: chartViewModel
+      )
     }
   }
 

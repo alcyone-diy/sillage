@@ -337,6 +337,9 @@
     "Failed to access the file securely." : {
 
     },
+    "Failed to delete some offline maps. Please check your storage." : {
+
+    },
     "Failed to delete track. Please try again." : {
 
     },
@@ -469,6 +472,9 @@
     "Log Out" : {
 
     },
+    "Logging out will permanently delete all offline maps to comply with GeoGarage licensing. You will need an active internet connection to download them again. Proceed?" : {
+
+    },
     "Login to GeoGarage" : {
 
     },
@@ -548,6 +554,9 @@
 
     },
     "Offline Charts" : {
+
+    },
+    "Offline Maps Error" : {
 
     },
     "Offline maps work only with GeoGarage" : {

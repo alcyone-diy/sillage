@@ -17,6 +17,7 @@ struct CommandPanelView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(AppViewModel.self) private var appViewModel
+  @Environment(AppEnvironment.self) private var appEnvironment
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.trackService) private var trackService
   @Environment(\.waypointService) private var waypointService
@@ -203,7 +204,7 @@ struct CommandPanelView: View {
         case .anchorAlarm:
           AnchorAlarmView()
         case .geoGarageLogin:
-          GeoGarageLoginView()
+          GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)
         }
       }
       .handleTrackRecordingErrors()
