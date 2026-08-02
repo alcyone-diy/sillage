@@ -126,11 +126,17 @@ final class AppEnvironment {
 
       let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService)
       
+      let backgroundMonitoringService = DefaultBackgroundMonitoringService(
+        positioningService: positioningService,
+        notificationService: notificationService
+      )
+      
       let anchorService = AnchorService(
         positioningService: positioningService,
         preferencesService: preferencesService,
         notificationService: notificationService,
-        permissionService: permissionService
+        permissionService: permissionService,
+        backgroundMonitoringService: backgroundMonitoringService
       )
       
       let anchorViewModel = AnchorViewModel(anchorService: anchorService)

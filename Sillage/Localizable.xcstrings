@@ -79,6 +79,9 @@
     "⚠️ Monitoring Suspended" : {
 
     },
+    "⚠️ Sillage Inactive" : {
+
+    },
     "1 hr" : {
 
     },
@@ -131,6 +134,9 @@
 
     },
     "Anchor Alarm" : {
+
+    },
+    "Anchor alarm is active but the app has stopped receiving GPS updates." : {
 
     },
     "Anchor Alerts" : {
@@ -658,6 +664,9 @@
     "SILENCE ALERT" : {
 
     },
+    "Sillage Terminated" : {
+
+    },
     "SLIDE TO CANCEL" : {
 
     },
@@ -698,6 +707,9 @@
 
     },
     "System Information" : {
+
+    },
+    "The application has been closed by iOS. Active services (like tracking or anchor watch) have been stopped." : {
 
     },
     "The provided URL is not a valid file." : {

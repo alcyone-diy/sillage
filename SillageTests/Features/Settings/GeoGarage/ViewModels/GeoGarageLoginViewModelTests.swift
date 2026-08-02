@@ -185,7 +185,8 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     let positioningService = MockPositioningService()
     let preferencesService = PreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService)
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)

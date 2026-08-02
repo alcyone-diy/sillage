@@ -105,10 +105,12 @@ final class AppViewModel {
       if panelManagerViewModel.commandPath.last != .baroAlarm {
         panelManagerViewModel.commandPath.append(.baroAlarm)
       }
-    case .anchorDragging, .anchorGPSDegraded:
+    case .anchorDragging, .anchorGPSDegraded, .anchorWatchdog:
       if panelManagerViewModel.commandPath.last != .anchorAlarm {
         panelManagerViewModel.commandPath.append(.anchorAlarm)
       }
+    case .appTerminated:
+      break
     }
     panelManagerViewModel.openPanel(.command)
   }
