@@ -138,6 +138,7 @@ public struct BarometerAlarmView: View {
         }
         .marineListBackground()
         .navigationTitle("Barometer Alarm")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.startUpdates()
         }
