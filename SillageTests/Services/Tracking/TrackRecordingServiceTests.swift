@@ -41,14 +41,14 @@ struct TrackRecordingServiceTests {
       requestAuthorizationCallCount += 1
     }
 
-    var startUpdatingLocationCallCount = 0
-    func startUpdatingLocation() {
-      startUpdatingLocationCallCount += 1
+    private final class MockLocationUpdateToken: LocationUpdateToken {
+      func invalidate() {}
     }
-
-    var stopUpdatingLocationCallCount = 0
-    func stopUpdatingLocation() {
-      stopUpdatingLocationCallCount += 1
+    
+    var requestLocationUpdatesCallCount = 0
+    func requestLocationUpdates() -> any LocationUpdateToken {
+      requestLocationUpdatesCallCount += 1
+      return MockLocationUpdateToken()
     }
     
     func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {}

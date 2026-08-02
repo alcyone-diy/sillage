@@ -11,6 +11,11 @@
 import Foundation
 import CoreLocation
 
+@MainActor
+public protocol LocationUpdateToken: AnyObject, Sendable {
+  func invalidate()
+}
+
 protocol PositioningService {
   var currentAuthorizationStatus: CLAuthorizationStatus { get }
   var locationUpdates: AsyncStream<PositioningState> { get }
@@ -19,10 +24,9 @@ protocol PositioningService {
   var lastKnownLocation: NavigationFix? { get }
 
   func requestAuthorization()
-  func startUpdatingLocation()
-  func stopUpdatingLocation()
   
   func requestBackgroundLocation() -> any BackgroundLocationToken
+  func requestLocationUpdates() -> any LocationUpdateToken
   
   func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String)
   func removeDistanceFilter(for identifier: String)

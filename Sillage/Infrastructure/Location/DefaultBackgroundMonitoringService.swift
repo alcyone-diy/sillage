@@ -21,6 +21,7 @@ final class DefaultBackgroundMonitoringService: BackgroundMonitoringService {
   private struct SessionState {
     let ownerIdentifier: String
     let backgroundLocationToken: any BackgroundLocationToken
+    let locationUpdateToken: any LocationUpdateToken
     let watchdog: WatchdogConfiguration?
   }
 
@@ -38,11 +39,13 @@ final class DefaultBackgroundMonitoringService: BackgroundMonitoringService {
   ) -> any BackgroundMonitoringToken {
     let tokenID = UUID()
     let bgToken = positioningService.requestBackgroundLocation()
+    let updateToken = positioningService.requestLocationUpdates()
     positioningService.requestDistanceFilter(distanceFilter, for: ownerIdentifier)
     
     activeSessions[tokenID] = SessionState(
       ownerIdentifier: ownerIdentifier,
       backgroundLocationToken: bgToken,
+      locationUpdateToken: updateToken,
       watchdog: watchdog
     )
     
@@ -62,6 +65,7 @@ final class DefaultBackgroundMonitoringService: BackgroundMonitoringService {
     guard let session = activeSessions.removeValue(forKey: id) else { return }
     
     session.backgroundLocationToken.invalidate()
+    session.locationUpdateToken.invalidate()
     positioningService.removeDistanceFilter(for: session.ownerIdentifier)
     
     if let watchdog = session.watchdog {

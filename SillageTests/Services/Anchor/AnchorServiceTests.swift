@@ -42,8 +42,12 @@ final class MockPositioningService: PositioningService {
   }
   
   func requestAuthorization() {}
-  func startUpdatingLocation() {}
-  func stopUpdatingLocation() {}
+  private final class MockLocationUpdateToken: LocationUpdateToken {
+    func invalidate() {}
+  }
+  func requestLocationUpdates() -> any LocationUpdateToken {
+    return MockLocationUpdateToken()
+  }
   
   func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {}
   func removeDistanceFilter(for identifier: String) {}
