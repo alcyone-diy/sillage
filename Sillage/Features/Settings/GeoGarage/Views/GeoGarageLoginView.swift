@@ -14,18 +14,16 @@ struct GeoGarageLoginView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(ChartViewModel.self) private var chartViewModel
   @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
-  @State private var viewModel: GeoGarageLoginViewModel
+  @State private var viewModel = GeoGarageLoginViewModel()
   @Environment(\.dismiss) private var dismiss
+  @Environment(GeoGarageAuthService.self) private var authService
+  @Environment(MessageService.self) private var messageService
   
   private enum Field {
     case username
     case password
   }
   @FocusState private var focusedField: Field?
-
-  init(authService: GeoGarageAuthServiceProtocol, messageService: MessageService?) {
-    _viewModel = State(initialValue: GeoGarageLoginViewModel(authService: authService, messageService: messageService))
-  }
 
   var body: some View {
     ScrollView {
@@ -40,7 +38,7 @@ struct GeoGarageLoginView: View {
         }
         .padding(.top, MarineTheme.Spacing.extraLarge)
 
-        switch viewModel.viewState {
+        switch viewModel.viewState(authService: authService) {
         case .authenticated(let username):
           authenticatedView(username: username)
         case .authenticationError(let error, let username):
@@ -98,7 +96,7 @@ struct GeoGarageLoginView: View {
       }
       .buttonStyle(MarinePrimaryButtonStyle(isDestructive: true, minHeight: marineTheme.minTouchTarget * scaleFactor))
       
-      Link("My Account", destination: viewModel.accountManagementURL)
+      Link("My Account", destination: viewModel.accountManagementURL(authService: authService))
         .buttonStyle(.borderless)
         .tint(MarineTheme.Colors.primary)
         .padding(.top, MarineTheme.Spacing.small)
@@ -151,7 +149,7 @@ struct GeoGarageLoginView: View {
 
       VStack(spacing: MarineTheme.Spacing.medium) {
         Button(action: {
-          viewModel.login()
+          viewModel.login(authService: authService, messageService: messageService)
         }) {
           Text("Log In")
         }
@@ -181,7 +179,7 @@ struct GeoGarageLoginView: View {
         
         Button(action: {
           focusedField = nil
-          viewModel.login()
+          viewModel.login(authService: authService, messageService: messageService)
         }) {
           if viewModel.isLoading {
             ProgressView()
@@ -193,7 +191,7 @@ struct GeoGarageLoginView: View {
         .buttonStyle(MarinePrimaryButtonStyle(isDestructive: false, minHeight: marineTheme.minTouchTarget * scaleFactor))
         .disabled(viewModel.isLoading)
         
-        Link("Discover GeoGarage", destination: viewModel.discoverURL)
+        Link("Discover GeoGarage", destination: viewModel.discoverURL(authService: authService))
           .buttonStyle(.borderless)
           .tint(MarineTheme.Colors.primary)
           .padding(.top, MarineTheme.Spacing.large)
@@ -204,7 +202,7 @@ struct GeoGarageLoginView: View {
   // MARK: - Actions
 
   private func performLogout() {
-    viewModel.logout()
+    viewModel.logout(authService: authService, messageService: messageService)
     chartViewModel.logoutGeoGarage()
     
     // Si la carte actuelle était une carte GeoGarage, on force le retour sur OpenSeaMap (gratuite et globale)
@@ -263,7 +261,7 @@ struct GeoGarageLoginView: View {
         .submitLabel(.go)
         .onSubmit {
           focusedField = nil
-          viewModel.login()
+          viewModel.login(authService: authService, messageService: messageService)
         }
         .frame(minHeight: 44)
     }

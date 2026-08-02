@@ -13,6 +13,9 @@ import Foundation
 
 final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked Sendable {
   var authError: Error?
+  var savedUsername: String?
+  var discoverURL: URL { URL(string: "https://geogarage.com/")! }
+  var accountManagementURL: URL { URL(string: "https://accounts.geogarage.com/")! }
   var shouldFailAuthenticate = false
   var shouldFailFetchAccountSettings = false
   var shouldFailWithNetworkError = false
@@ -38,5 +41,6 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
     KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
     self.authError = nil
+    self.savedUsername = nil
   }
 }
