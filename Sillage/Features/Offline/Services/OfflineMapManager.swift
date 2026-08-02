@@ -126,6 +126,43 @@ final class OfflineMapManager {
     }
   }
   
+  func deleteAllPacks() async throws {
+    guard let packs = MLNOfflineStorage.shared.packs, !packs.isEmpty else {
+      self.downloadedRegions = []
+      try? await self.clearAmbientCache()
+      return
+    }
+    var encounteredError: Error?
+    
+    for pack in packs {
+      do {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+          MLNOfflineStorage.shared.removePack(pack) { error in
+            Task { @MainActor in
+              if let error = error {
+                continuation.resume(throwing: error)
+              } else {
+                continuation.resume(returning: ())
+              }
+            }
+          }
+        }
+      } catch {
+        Logger.offline.error("Failed to remove an offline pack during mass deletion: \(error.localizedDescription, privacy: .public)")
+        if encounteredError == nil {
+          encounteredError = error
+        }
+      }
+    }
+    
+    if let error = encounteredError {
+      self.loadExistingPacks()
+      throw error
+    } else {
+      self.downloadedRegions = []
+    }
+  }
+  
   func downloadRegion(bounds: GeographicBoundingBox, styleURL: URL, regionName: String) {
     guard !isDownloading else { return }
     

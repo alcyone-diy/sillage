@@ -74,9 +74,22 @@ final class GeoGarageLoginViewModel {
 
   var loginTask: Task<Void, Never>?
 
-  init() {}
+  private let offlineMapManager: OfflineMapManager
 
-  func logout(authService: GeoGarageAuthServiceProtocol, messageService: MessageService?) {
+  init(offlineMapManager: OfflineMapManager) {
+    self.offlineMapManager = offlineMapManager
+  }
+
+  func requiresOfflineMapsWarning() -> Bool {
+    return !offlineMapManager.downloadedRegions.isEmpty
+  }
+
+  @MainActor
+  func performLogout(
+    authService: GeoGarageAuthServiceProtocol,
+    messageService: MessageService?,
+    chartViewModel: ChartViewModel
+  ) async {
     loginTask?.cancel()
     availableLayers = []
     isAuthorizationReady = false
@@ -84,6 +97,26 @@ final class GeoGarageLoginViewModel {
     forceReauthentication = false
     authService.logout()
     messageService?.clear(category: .geoGarage)
+    chartViewModel.logoutGeoGarage()
+    
+    do {
+      try await offlineMapManager.deleteAllPacks()
+    } catch {
+      Logger.offline.error("Failed to delete offline packs during logout: \(error.localizedDescription, privacy: .public)")
+      let appMessage = AppMessage(
+        title: LocalizedStringResource("Offline Maps Error"),
+        detail: LocalizedStringResource("Failed to delete some offline maps. Please check your storage."),
+        severity: .error,
+        category: .geoGarage
+      )
+      messageService?.post(appMessage)
+    }
+    
+    try? await offlineMapManager.clearAmbientCache()
+    
+    if case .remoteGeoGarage = chartViewModel.currentChartSource {
+      chartViewModel.switchChartSource(to: .openSeaMap)
+    }
   }
 
   func login(authService: GeoGarageAuthServiceProtocol, messageService: MessageService?) {

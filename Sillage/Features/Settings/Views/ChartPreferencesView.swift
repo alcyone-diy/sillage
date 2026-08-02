@@ -17,9 +17,10 @@ struct ChartPreferencesView: View {
   
   /// The central view model managing the map's state and data sources.
   @Environment(ChartViewModel.self) var chartViewModel
-  
   /// Injects the global design system theme.
   @Environment(\.marineTheme) private var marineTheme
+  
+  @Environment(AppEnvironment.self) private var appEnvironment
 
   /// Controls the presentation of the system file picker for importing charts.
   @State private var showingFileImporter = false
@@ -131,7 +132,7 @@ struct ChartPreferencesView: View {
 
       // MARK: - Accounts & Services
       Section(header: Text("Accounts & Services").marineFont(.headline)) {
-        NavigationLink(destination: GeoGarageLoginView()) {
+        NavigationLink(destination: GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)) {
           Text(chartViewModel.availableGeoGarageLayers.isEmpty ? "Login to GeoGarage" : "Manage GeoGarage Account")
             .marineFont(.body)
         }
