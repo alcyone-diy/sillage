@@ -97,6 +97,12 @@ final class ChartViewModel {
     }
   }
   
+  // MARK: - Map Scale
+  
+  var mapScale: Measurement<UnitLength>? = nil
+  
+  
+  
   // Heading Stabilization State moved to InstrumentDampingService
   
   
