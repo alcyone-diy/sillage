@@ -666,6 +666,18 @@ struct MapLibreView: UIViewRepresentable {
     
     var lastOpenSeaMapOverlayEnabled: Bool = false
     
+    func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+      let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
+      self.parent.viewModel.mapScale = Measurement(value: mpp, unit: UnitLength.meters)
+      self.parent.viewModel.zoomLevel = mapView.zoomLevel
+    }
+    
+    func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+      let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
+      self.parent.viewModel.mapScale = Measurement(value: mpp, unit: UnitLength.meters)
+      self.parent.viewModel.zoomLevel = mapView.zoomLevel
+    }
+    
     // Called when the map has finished loading its style
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
       Logger.chart.info("MapLibre successfully loaded the default style.")
