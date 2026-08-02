@@ -202,6 +202,8 @@ struct CommandPanelView: View {
           BarometerAlarmView(viewModel: barometerViewModel)
         case .anchorAlarm:
           AnchorAlarmView()
+        case .geoGarageLogin:
+          GeoGarageLoginView()
         }
       }
       .handleTrackRecordingErrors()

@@ -20,13 +20,13 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.shouldFailAuthenticate = true
-    let viewModel = GeoGarageLoginViewModel(authService: mockAuthService)
+    let viewModel = GeoGarageLoginViewModel()
 
     viewModel.username = "testuser"
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login()
+    viewModel.login(authService: mockAuthService, messageService: nil)
     
     // Await the task cleanly instead of polling
     await viewModel.loginTask?.value
@@ -50,12 +50,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     messageService.post(initialMessage)
     XCTAssertEqual(messageService.messages.count, 1)
 
-    let viewModel = GeoGarageLoginViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel()
     viewModel.username = "testuser"
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login()
+    viewModel.login(authService: mockAuthService, messageService: messageService)
 
     // Await the task cleanly instead of polling
     await viewModel.loginTask?.value
@@ -85,12 +85,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
 
     XCTAssertEqual(messageService.messages.count, 4)
 
-    let viewModel = GeoGarageLoginViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel()
     viewModel.username = "testuser"
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login()
+    viewModel.login(authService: mockAuthService, messageService: messageService)
 
     // Await the task cleanly
     await viewModel.loginTask?.value
@@ -111,12 +111,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
   func testSuccessfulLoginWithNilMessageServiceSucceedsWithoutCrash() async {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
-    let viewModel = GeoGarageLoginViewModel(authService: mockAuthService, messageService: nil)
+    let viewModel = GeoGarageLoginViewModel()
     viewModel.username = "testuser"
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login()
+    viewModel.login(authService: mockAuthService, messageService: nil)
 
     // Await the task cleanly
     await viewModel.loginTask?.value
@@ -132,12 +132,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.shouldFailAuthenticate = true
-    let viewModel = GeoGarageLoginViewModel(authService: mockAuthService, messageService: nil)
+    let viewModel = GeoGarageLoginViewModel()
     viewModel.username = "testuser"
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login()
+    viewModel.login(authService: mockAuthService, messageService: nil)
 
     // Await the task cleanly
     await viewModel.loginTask?.value
@@ -152,12 +152,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
   func testLoginWithEmptyUsernameDoesNotAttemptAuthOrCrash() async {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
-    let viewModel = GeoGarageLoginViewModel(authService: mockAuthService, messageService: nil)
+    let viewModel = GeoGarageLoginViewModel()
     viewModel.username = "   "
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login()
+    viewModel.login(authService: mockAuthService, messageService: nil)
 
     // Await task
     await viewModel.loginTask?.value
@@ -200,13 +200,13 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
       messageService: messageService
     )
 
-    let viewModel = GeoGarageLoginViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel()
     viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")]
     viewModel.isAuthorizationReady = true
     chartViewModel.updateGeoGarageLayers(viewModel.availableLayers)
 
     // Act
-    viewModel.logout()
+    viewModel.logout(authService: mockAuthService, messageService: messageService)
     chartViewModel.logoutGeoGarage()
 
     // Assert
@@ -232,12 +232,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     messageService.post(initialMessage)
     XCTAssertEqual(messageService.messages.count, 1)
 
-    let viewModel = GeoGarageLoginViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel()
     viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")]
     viewModel.isAuthorizationReady = true
 
     // Act
-    viewModel.logout()
+    viewModel.logout(authService: mockAuthService, messageService: messageService)
 
     // Assert
     XCTAssertTrue(viewModel.availableLayers.isEmpty)

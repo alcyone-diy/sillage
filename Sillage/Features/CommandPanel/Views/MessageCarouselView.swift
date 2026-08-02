@@ -117,6 +117,7 @@ struct MessageCardView: View {
   let message: AppMessage
   @Environment(MessageService.self) private var messageService
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(PanelManagerViewModel.self) private var panelViewModel
 
   var body: some View {
     VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
@@ -176,6 +177,9 @@ struct MessageCardView: View {
       }
     )
     .animation(nil, value: marineTheme.isGloveMode)
+    .onTapGesture {
+      panelViewModel.handle(intent: message.intent)
+    }
   }
   
   @ViewBuilder

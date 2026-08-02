@@ -21,9 +21,6 @@ struct ChartPreferencesView: View {
   /// Injects the global design system theme.
   @Environment(\.marineTheme) private var marineTheme
 
-  @Environment(GeoGarageAuthService.self) private var authService
-  @Environment(MessageService.self) private var messageService: MessageService?
-
   /// Controls the presentation of the system file picker for importing charts.
   @State private var showingFileImporter = false
 
@@ -134,7 +131,7 @@ struct ChartPreferencesView: View {
 
       // MARK: - Accounts & Services
       Section(header: Text("Accounts & Services").marineFont(.headline)) {
-        NavigationLink(destination: GeoGarageLoginView(authService: authService, messageService: messageService)) {
+        NavigationLink(destination: GeoGarageLoginView()) {
           Text(chartViewModel.availableGeoGarageLayers.isEmpty ? "Login to GeoGarage" : "Manage GeoGarage Account")
             .marineFont(.body)
         }

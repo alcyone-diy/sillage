@@ -29,8 +29,8 @@ final class GeoGarageLoginViewModel {
   var forceReauthentication: Bool = false
 
   var errorMessage: String?
-
-  var currentError: String? {
+  
+  func currentError(authService: GeoGarageAuthServiceProtocol) -> String? {
     if let errorMessage {
       return errorMessage
     }
@@ -40,15 +40,15 @@ final class GeoGarageLoginViewModel {
     return nil
   }
 
-  var savedUsername: String? {
+  func savedUsername(authService: GeoGarageAuthServiceProtocol) -> String? {
     authService.savedUsername
   }
   
-  var discoverURL: URL {
+  func discoverURL(authService: GeoGarageAuthServiceProtocol) -> URL {
     authService.discoverURL
   }
   
-  var accountManagementURL: URL {
+  func accountManagementURL(authService: GeoGarageAuthServiceProtocol) -> URL {
     authService.accountManagementURL
   }
 
@@ -56,30 +56,27 @@ final class GeoGarageLoginViewModel {
     KeychainManager.shared.retrieveToken(for: "geogarage_access_token") != nil
   }
 
-  var viewState: GeoGarageViewState {
+  func viewState(authService: GeoGarageAuthServiceProtocol) -> GeoGarageViewState {
+    let currentSavedUsername = savedUsername(authService: authService)
+    let currentErrorMsg = currentError(authService: authService)
     if isAuthenticated {
       if forceReauthentication {
-        return .reauthenticating(error: currentError ?? String(localized: "Authentication required"), username: savedUsername)
-      } else if let error = currentError {
-        return .authenticationError(error: error, username: savedUsername)
+        return .reauthenticating(error: currentErrorMsg ?? String(localized: "Authentication required"), username: currentSavedUsername)
+      } else if let error = currentErrorMsg {
+        return .authenticationError(error: error, username: currentSavedUsername)
       } else {
-        return .authenticated(username: savedUsername)
+        return .authenticated(username: currentSavedUsername)
       }
     } else {
-      return .unauthenticated(error: currentError)
+      return .unauthenticated(error: currentErrorMsg)
     }
   }
 
-  private let authService: GeoGarageAuthServiceProtocol
-  var messageService: MessageService?
   var loginTask: Task<Void, Never>?
 
-  init(authService: GeoGarageAuthServiceProtocol, messageService: MessageService? = nil) {
-    self.authService = authService
-    self.messageService = messageService
-  }
+  init() {}
 
-  func logout() {
+  func logout(authService: GeoGarageAuthServiceProtocol, messageService: MessageService?) {
     loginTask?.cancel()
     availableLayers = []
     isAuthorizationReady = false
@@ -89,7 +86,7 @@ final class GeoGarageLoginViewModel {
     messageService?.clear(category: .geoGarage)
   }
 
-  func login() {
+  func login(authService: GeoGarageAuthServiceProtocol, messageService: MessageService?) {
     loginTask?.cancel()
     loginTask = Task { [weak self] in
       self?.isLoading = true
@@ -104,7 +101,6 @@ final class GeoGarageLoginViewModel {
       }
 
       do {
-        guard let authService = self?.authService else { return }
         let response = try await authService.authenticate(username: username, password: password)
 
         // Save tokens securely
@@ -127,7 +123,7 @@ final class GeoGarageLoginViewModel {
         
         // Clear any previous authentication error messages
         self?.errorMessage = nil
-        self?.messageService?.clear(category: .geoGarage)
+        messageService?.clear(category: .geoGarage)
       } catch let error as AuthError {
         self?.errorMessage = error.localizedDescription
       } catch {

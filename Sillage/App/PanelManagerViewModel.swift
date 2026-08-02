@@ -31,6 +31,7 @@ public final class PanelManagerViewModel {
     case waypointDetail(String)
     case baroAlarm
     case anchorAlarm
+    case geoGarageLogin
   }
 
   /// The currently active panel visible to the user.
@@ -72,6 +73,21 @@ public final class PanelManagerViewModel {
   /// Resets the UI path to the root menu.
   private func resetCommandPath() {
     commandPath.removeAll()
+  }
+
+  // MARK: - Intent Routing
+  
+  public func handle(intent: AppMessageIntent) {
+    switch intent {
+    case .openSettings(let target):
+      if target == .geoGarage {
+        commandPath.append(.geoGarageLogin)
+      } else {
+        commandPath.append(.settings)
+      }
+    case .none:
+      break
+    }
   }
 
   // MARK: - Permission & Action Routing
