@@ -136,9 +136,11 @@ final class AppEnvironment {
       let anchorViewModel = AnchorViewModel(anchorService: anchorService)
       
       // d. ViewModels instantiation (injecting the ready Services)
+      let panelManagerViewModel = PanelManagerViewModel()
       let appViewModel = AppViewModel(
         preferencesService: preferencesService,
-        authService: geoGarageAuthService
+        authService: geoGarageAuthService,
+        panelManagerViewModel: panelManagerViewModel
       )
       let chartViewModel = ChartViewModel(
         positioningService: positioningService,
@@ -150,7 +152,6 @@ final class AppEnvironment {
         waypointService: waypointService,
         messageService: messageService
       )
-      let panelManagerViewModel = PanelManagerViewModel()
       let activeTrackViewModel = ActiveTrackViewModel(
         trackRecordingService: trackRecordingService,
         permissionService: permissionService

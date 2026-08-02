@@ -109,6 +109,6 @@ struct SettingsView: View {
 
 #Preview {
   SettingsView()
-    .environment(AppViewModel(preferencesService: PreferencesService()))
+    .environment(AppViewModel(preferencesService: PreferencesService(), panelManagerViewModel: PanelManagerViewModel()))
     .environment(\.marineTheme, .standard)
 }

@@ -30,6 +30,7 @@ struct SillageApp: App {
           }
         case .ready(let container):
           MainAppView()
+            .onAppear { appDelegate.appViewModel = container.appViewModel }
             .environment(container.appViewModel)
             .environment(container.chartViewModel)
             .environment(container.panelManagerViewModel)
