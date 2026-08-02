@@ -11,6 +11,7 @@
 import SwiftUI
 import MapLibre
 import OSLog
+import UserNotifications
 
 @main
 struct SillageApp: App {
@@ -60,6 +61,9 @@ struct SillageApp: App {
           await environment.bootstrap()
         }
       }
+      .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+        performTerminationWarning()
+      }
     }
     .onChange(of: scenePhase) { oldPhase, newPhase in
       if newPhase == .background {
@@ -79,6 +83,41 @@ struct SillageApp: App {
       }
     case .idle, .saving:
       return
+    }
+  }
+  
+  @MainActor
+  private func performTerminationWarning() {
+    Logger.system.info("performTerminationWarning called.")
+    guard case .ready(let container) = environment.state else { return }
+    let trackService = container.trackRecordingService
+    let isTracking: Bool = {
+      switch trackService.state {
+      case .recording, .paused, .waitingForFix: return true
+      case .idle, .saving: return false
+      }
+    }()
+    
+    let isAnchoring = container.anchorViewModel.status != .inactive
+    
+    if isTracking || isAnchoring {
+      let content = UNMutableNotificationContent()
+      content.title = String(localized: "Sillage Terminated")
+      content.body = String(localized: "The application has been closed by iOS. Active services (like tracking or anchor watch) have been stopped.")
+      content.sound = UNNotificationSound.default
+      
+      // Note: This XPC call to UNUserNotificationCenter suffers from a race condition 
+      // during a crash or OOM kill (willTerminate is not even called for OOM). 
+      // This is a "Best Effort" for explicit force-quits.
+      // A background watchdog is used for robust death detection.
+      let request = UNNotificationRequest(identifier: NotificationIntent.appTerminated.rawValue, content: content, trigger: nil)
+      UNUserNotificationCenter.current().add(request) { error in
+        if let error = error {
+          Logger.system.error("Failed to send termination warning: \(error.localizedDescription)")
+        } else {
+          Logger.system.info("Termination warning notification sent.")
+        }
+      }
     }
   }
 }

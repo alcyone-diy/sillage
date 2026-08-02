@@ -21,6 +21,7 @@ final class AnchorService {
   private var preferencesService: PreferencesServiceProtocol
   private let notificationService: NotificationService
   private let permissionService: PermissionServiceProtocol
+  private let backgroundMonitoringService: BackgroundMonitoringService
   
   private(set) var activeWatch: AnchorWatch?
   private(set) var status: AnchorStatus = .inactive
@@ -37,7 +38,7 @@ final class AnchorService {
   private(set) var currentDistance: Measurement<UnitLength>?
   private(set) var gpsAccuracy: Measurement<UnitLength>?
   
-  private var backgroundToken: (any BackgroundLocationToken)?
+  private var monitoringToken: (any BackgroundMonitoringToken)?
   
   private final class TaskCancellable: @unchecked Sendable {
     var task: Task<Void, Never>?
@@ -75,12 +76,14 @@ final class AnchorService {
     positioningService: PositioningService,
     preferencesService: PreferencesServiceProtocol,
     notificationService: NotificationService,
-    permissionService: PermissionServiceProtocol
+    permissionService: PermissionServiceProtocol,
+    backgroundMonitoringService: BackgroundMonitoringService
   ) {
     self.positioningService = positioningService
     self.preferencesService = preferencesService
     self.notificationService = notificationService
     self.permissionService = permissionService
+    self.backgroundMonitoringService = backgroundMonitoringService
     
     // Resume from persistent state
     self.activeWatch = preferencesService.savedAnchorWatch
@@ -100,10 +103,7 @@ final class AnchorService {
     self.isMuted = false
     persistState()
     
-    if backgroundToken == nil {
-      backgroundToken = positioningService.requestBackgroundLocation()
-    }
-    positioningService.requestDistanceFilter(Measurement(value: 1, unit: .meters), for: "AnchorWatch")
+    startMonitoringSession()
     
     notifyStateChange()
   }
@@ -129,10 +129,7 @@ final class AnchorService {
       _ = await permissionService.requestCriticalNotificationAuthorization()
     }
     
-    if backgroundToken == nil {
-      backgroundToken = positioningService.requestBackgroundLocation()
-    }
-    positioningService.requestDistanceFilter(Measurement(value: 1, unit: .meters), for: "AnchorWatch")
+    startMonitoringSession()
     
     notifyStateChange()
   }
@@ -149,6 +146,8 @@ final class AnchorService {
     degradedAlertTask = nil
     
     notificationService.clearAllNotifications()
+    monitoringToken?.invalidate()
+    monitoringToken = nil
     
     notifyStateChange()
   }
@@ -164,10 +163,9 @@ final class AnchorService {
     self.currentDistance = nil
     
     notificationService.clearAllNotifications()
+    monitoringToken?.invalidate()
+    monitoringToken = nil
     
-    backgroundToken?.invalidate()
-    backgroundToken = nil
-    positioningService.removeDistanceFilter(for: "AnchorWatch")
     isDegradedAlertSent = false
     
     notifyStateChange()
@@ -182,10 +180,23 @@ final class AnchorService {
   
   private func resumeWatch() {
     Logger.anchor.info("⚓️ Resuming anchor watch from persisted state.")
-    if backgroundToken == nil {
-      backgroundToken = positioningService.requestBackgroundLocation()
+    startMonitoringSession()
+  }
+  
+  private func startMonitoringSession() {
+    if monitoringToken == nil {
+      let watchdog = WatchdogConfiguration(
+        identifier: NotificationIntent.anchorWatchdog.rawValue,
+        title: String(localized: "⚠️ Sillage Inactive"),
+        body: String(localized: "Anchor alarm is active but the app has stopped receiving GPS updates."),
+        timeout: 300
+      )
+      monitoringToken = backgroundMonitoringService.startMonitoring(
+        ownerIdentifier: "AnchorWatch",
+        distanceFilter: Measurement(value: 1, unit: .meters),
+        watchdog: watchdog
+      )
     }
-    positioningService.requestDistanceFilter(Measurement(value: 1, unit: .meters), for: "AnchorWatch")
   }
   
   private func persistState() {
@@ -294,7 +305,7 @@ final class AnchorService {
       }
     }
     
+    
     notifyStateChange()
   }
-  
 }
