@@ -113,6 +113,26 @@ final class MockNotificationService: NotificationService {
   }
   
   func clearAllNotifications() {}
+  
+  func cancelNotification(identifier: String) {}
+  func checkIn(identifier: String, title: String, body: String, timeout: TimeInterval) async {}
+  func cancelWatchdog(identifier: String) async {}
+}
+
+@MainActor
+final class MockBackgroundMonitoringToken: BackgroundMonitoringToken {
+  var isInvalidated = false
+  func invalidate() { isInvalidated = true }
+}
+
+@MainActor
+final class MockBackgroundMonitoringService: BackgroundMonitoringService {
+  var requestedToken: MockBackgroundMonitoringToken?
+  func startMonitoring(ownerIdentifier: String, distanceFilter: Measurement<UnitLength>, watchdog: WatchdogConfiguration?) -> any BackgroundMonitoringToken {
+    let token = MockBackgroundMonitoringToken()
+    requestedToken = token
+    return token
+  }
 }
 
 @MainActor
@@ -154,6 +174,7 @@ final class AnchorServiceTests: XCTestCase {
   var mockPrefs: MockPreferencesService!
   var mockNotif: MockNotificationService!
   var mockPermission: MockPermissionService!
+  var mockMonitoring: MockBackgroundMonitoringService!
   
   override func setUp() {
     super.setUp()
@@ -161,7 +182,8 @@ final class AnchorServiceTests: XCTestCase {
     mockPrefs = MockPreferencesService()
     mockNotif = MockNotificationService()
     mockPermission = MockPermissionService()
-    service = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif, permissionService: mockPermission)
+    mockMonitoring = MockBackgroundMonitoringService()
+    service = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif, permissionService: mockPermission, backgroundMonitoringService: mockMonitoring)
   }
   
   func testAnchorService_rejectsInvalidAccuracy_MinusOne() async throws {
@@ -387,13 +409,13 @@ final class AnchorServiceTests: XCTestCase {
     mockPrefs.savedAnchorStatus = .dropped
     
     // Re-initialize a new service with these mock preferences
-    let newService = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif, permissionService: mockPermission)
+    let newService = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif, permissionService: mockPermission, backgroundMonitoringService: mockMonitoring)
     
     XCTAssertEqual(newService.status, .dropped)
     XCTAssertNotNil(newService.activeWatch)
     XCTAssertEqual(newService.activeWatch?.radius.value, 60)
     
     // Must also have requested background location to compute live distance
-    XCTAssertNotNil(mockGPS.requestedToken)
+    XCTAssertNotNil(mockMonitoring.requestedToken)
   }
 }
