@@ -77,13 +77,39 @@ final class AppViewModel {
     }
   }
 
+  private var deferredIntent: NotificationIntent?
+  var isReady: Bool = false
+
   @MainActor
   func handleNotification(identifier: String) {
-    if identifier.starts(with: "sillage.barometer") {
+    guard let intent = NotificationIntent(rawValue: identifier) else { return }
+    if isReady {
+      executeIntent(intent)
+    } else {
+      deferredIntent = intent
+    }
+  }
+
+  @MainActor
+  func processDeferredIntent() {
+    if let intent = deferredIntent {
+      executeIntent(intent)
+      deferredIntent = nil
+    }
+  }
+  
+  @MainActor
+  private func executeIntent(_ intent: NotificationIntent) {
+    switch intent {
+    case .barometerDrop:
       if panelManagerViewModel.commandPath.last != .baroAlarm {
         panelManagerViewModel.commandPath.append(.baroAlarm)
       }
-      panelManagerViewModel.openPanel(.command)
+    case .anchorDragging, .anchorGPSDegraded:
+      if panelManagerViewModel.commandPath.last != .anchorAlarm {
+        panelManagerViewModel.commandPath.append(.anchorAlarm)
+      }
     }
+    panelManagerViewModel.openPanel(.command)
   }
 }

@@ -40,7 +40,7 @@ final class DebugViewModel {
     try await notificationService.sendNotification(
       title: "DEBUG: Weather Alarm",
       body: "A rapid pressure drop has been detected (Debug).",
-      identifier: "sillage.barometer.debug",
+      identifier: NotificationIntent.barometerDrop.rawValue,
       delay: 5.0
     )
   }

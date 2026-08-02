@@ -268,7 +268,7 @@ public final class BarometricService {
       
       let title = "Weather Alarm: \(newAlarm.localizedName)"
       let body = "A rapid pressure drop has been detected. Prepare for worsening conditions."
-      let identifier = "sillage.barometer.\(String(describing: newAlarm))"
+      let identifier = NotificationIntent.barometerDrop.rawValue
       
       Task {
         do {
