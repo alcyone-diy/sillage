@@ -74,6 +74,7 @@ public struct AnchorAlarmView: View {
     }
     .marineListBackground()
     .navigationTitle("Anchor Alarm")
+    .navigationBarTitleDisplayMode(.inline)
     .onAppear {
       viewModel.isSetupModeActive = true
     }
