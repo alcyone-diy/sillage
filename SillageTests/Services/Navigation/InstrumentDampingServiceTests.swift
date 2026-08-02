@@ -122,8 +122,12 @@ struct InstrumentDampingServiceTests {
     }
     
     func requestAuthorization() {}
-    func startUpdatingLocation() {}
-    func stopUpdatingLocation() {}
+    private final class MockLocationUpdateToken: LocationUpdateToken {
+      func invalidate() {}
+    }
+    func requestLocationUpdates() -> any LocationUpdateToken {
+      return MockLocationUpdateToken()
+    }
     func requestBackgroundLocation() -> any BackgroundLocationToken { MockBackgroundToken() }
     func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {}
     func removeDistanceFilter(for identifier: String) {}

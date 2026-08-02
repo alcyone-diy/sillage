@@ -117,6 +117,59 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     self.locationManager.showsBackgroundLocationIndicator = false
   }
   
+  // MARK: - Foreground Update Tracking
+  
+  private var activeUpdateTokens = Set<UUID>()
+  
+  @MainActor
+  private final class LocationUpdateTokenImpl: LocationUpdateToken {
+    let id: UUID
+    private let onDeinit: @Sendable (UUID) -> Void
+    private var isInvalidated = false
+    
+    init(id: UUID, onDeinit: @escaping @Sendable (UUID) -> Void) {
+      self.id = id
+      self.onDeinit = onDeinit
+    }
+    
+    func invalidate() {
+      guard !isInvalidated else { return }
+      isInvalidated = true
+      onDeinit(id)
+    }
+    
+    nonisolated deinit {
+      onDeinit(id)
+    }
+  }
+  
+  func requestLocationUpdates() -> any LocationUpdateToken {
+    let tokenID = UUID()
+    let token = LocationUpdateTokenImpl(id: tokenID) { @Sendable [weak self] id in
+      guard let service = self else { return }
+      Task { @MainActor in
+        service.releaseUpdateToken(id: id)
+      }
+    }
+    
+    let wasEmpty = activeUpdateTokens.isEmpty
+    activeUpdateTokens.insert(tokenID)
+    
+    let status = locationManager.authorizationStatus
+    if wasEmpty && (status == .authorizedWhenInUse || status == .authorizedAlways) {
+      startUpdatingLocation()
+    }
+    
+    return token
+  }
+  
+  private func releaseUpdateToken(id: UUID) {
+    activeUpdateTokens.remove(id)
+    if activeUpdateTokens.isEmpty {
+      stopUpdatingLocation()
+    }
+  }
+  
   // MARK: - Background Activity Tracking
   
   private var activeBackgroundSessions = Set<UUID>()
@@ -217,11 +270,11 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     locationManager.requestWhenInUseAuthorization()
   }
   
-  func startUpdatingLocation() {
+  private func startUpdatingLocation() {
     locationManager.startUpdatingLocation()
   }
   
-  func stopUpdatingLocation() {
+  private func stopUpdatingLocation() {
     locationManager.stopUpdatingLocation()
   }
   
@@ -235,7 +288,9 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
       
       switch manager.authorizationStatus {
       case .authorizedWhenInUse, .authorizedAlways:
-        startUpdatingLocation()
+        if !activeUpdateTokens.isEmpty {
+          startUpdatingLocation()
+        }
       default:
         stopUpdatingLocation()
       }

@@ -34,8 +34,12 @@ struct TrackServiceTests {
     
     var lastKnownLocation: NavigationFix?
     func requestAuthorization() {}
-    func startUpdatingLocation() {}
-    func stopUpdatingLocation() {}
+    private final class MockLocationUpdateToken: LocationUpdateToken {
+      func invalidate() {}
+    }
+    func requestLocationUpdates() -> any LocationUpdateToken {
+      return MockLocationUpdateToken()
+    }
     func requestBackgroundLocation() -> any BackgroundLocationToken {
       return MockBackgroundLocationToken()
     }
