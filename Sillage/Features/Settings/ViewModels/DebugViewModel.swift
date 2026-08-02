@@ -10,13 +10,38 @@
 
 import Foundation
 import Observation
+import OSLog
 
 @Observable
 @MainActor
 final class DebugViewModel {
   
-  @MainActor
   func invalidateGeoGarageToken() {
     KeychainManager.shared.save(token: "invalid_debug_token", for: "geogarage_access_token")
+  }
+  
+  func scheduleDebugBarometerNotification(permissionService: PermissionServiceProtocol, notificationService: NotificationService) async throws {
+    // Check current status
+    let currentStatus = permissionService.notificationStatus
+    
+    if currentStatus == .denied {
+      throw NotificationError.permissionDenied
+    }
+    
+    // Request if not determined
+    if currentStatus != .authorized {
+      let granted = await permissionService.requestNotificationAuthorization()
+      guard granted else {
+        throw NotificationError.permissionDenied
+      }
+    }
+    
+    // Actually schedule
+    try await notificationService.sendNotification(
+      title: "DEBUG: Weather Alarm",
+      body: "A rapid pressure drop has been detected (Debug).",
+      identifier: "sillage.barometer.debug",
+      delay: 5.0
+    )
   }
 }

@@ -98,14 +98,14 @@ final class MockPreferencesService: PreferencesServiceProtocol {
 
 @MainActor
 final class MockNotificationService: NotificationService {
-  var notificationsSent = 0
+  var sentNotifications: [(title: String, body: String, identifier: String)] = []
   
-  func sendNotification(title: String, body: String, identifier: String) async {
-    notificationsSent += 1
+  func sendNotification(title: String, body: String, identifier: String, delay: TimeInterval? = nil) async throws {
+    sentNotifications.append((title, body, identifier))
   }
   
   func sendCriticalNotification(title: String, body: String, identifier: String) async {
-    notificationsSent += 1
+    sentNotifications.append((title, body, identifier))
   }
   
   func clearAllNotifications() {}
@@ -183,7 +183,7 @@ final class AnchorServiceTests: XCTestCase {
     
     // Status must still be .armed, NOT .dragging, because the fix was rejected
     XCTAssertEqual(service.status, .armed)
-    XCTAssertEqual(mockNotif.notificationsSent, 0)
+    XCTAssertEqual(mockNotif.sentNotifications.count, 0)
   }
   
   func testAnchorService_rejectsDegradedAccuracy_GreaterThanRadiusHalf() async throws {
@@ -208,7 +208,7 @@ final class AnchorServiceTests: XCTestCase {
     
     // Status must still be .armed, NOT .dragging
     XCTAssertEqual(service.status, .armed)
-    XCTAssertEqual(mockNotif.notificationsSent, 0)
+    XCTAssertEqual(mockNotif.sentNotifications.count, 0)
   }
   
   func testAnchorService_triggersAlarm_ValidAccuracy() async throws {
@@ -233,7 +233,7 @@ final class AnchorServiceTests: XCTestCase {
     
     // Status must change to dragging
     XCTAssertEqual(service.status, .dragging)
-    XCTAssertEqual(mockNotif.notificationsSent, 1)
+    XCTAssertEqual(mockNotif.sentNotifications.count, 1)
   }
   
   func testAnchorService_silenceAlarm_preventsNotifications_and_resetsOnReturn() async throws {
@@ -256,7 +256,7 @@ final class AnchorServiceTests: XCTestCase {
     try await Task.sleep(nanoseconds: 500_000_000)
     
     XCTAssertEqual(service.status, .dragging)
-    XCTAssertEqual(mockNotif.notificationsSent, 1)
+    XCTAssertEqual(mockNotif.sentNotifications.count, 1)
     
     // Silence the alarm
     service.silenceAlarm()
@@ -279,7 +279,7 @@ final class AnchorServiceTests: XCTestCase {
     
     // Notification shouldn't trigger again because it is muted (and already dragging)
     XCTAssertEqual(service.status, .dragging)
-    XCTAssertEqual(mockNotif.notificationsSent, 1)
+    XCTAssertEqual(mockNotif.sentNotifications.count, 1)
     
     // Return inside radius
     let returnFixCoord = CLLocationCoordinate2D(latitude: 45.0001, longitude: -1.0) // ~11m away
@@ -304,7 +304,7 @@ final class AnchorServiceTests: XCTestCase {
     try await Task.sleep(nanoseconds: 500_000_000)
     
     XCTAssertEqual(service.status, .dragging)
-    XCTAssertEqual(mockNotif.notificationsSent, 2) // Notification triggers again!
+    XCTAssertEqual(mockNotif.sentNotifications.count, 2) // Notification triggers again!
   }
   
   func testAnchorService_disarmRevertsToDropped_clearRevertsToInactive() async throws {
@@ -373,7 +373,7 @@ final class AnchorServiceTests: XCTestCase {
     
     // The status MUST remain .dropped and NO notification should be sent
     XCTAssertEqual(service.status, .dropped)
-    XCTAssertEqual(mockNotif.notificationsSent, 0)
+    XCTAssertEqual(mockNotif.sentNotifications.count, 0)
   }
   
   func testAnchorService_initialization_resumesDroppedStateCorrectly() async throws {

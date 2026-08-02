@@ -271,7 +271,11 @@ public final class BarometricService {
       let identifier = "sillage.barometer.\(String(describing: newAlarm))"
       
       Task {
-        await notificationService.sendNotification(title: title, body: body, identifier: identifier)
+        do {
+          try await notificationService.sendNotification(title: title, body: body, identifier: identifier, delay: nil)
+        } catch {
+          Logger.system.error("Failed to trigger barometer notification: \(error.localizedDescription, privacy: .public)")
+        }
       }
     } else if activeAlarm == WeatherAlarmLevel.none {
       lastNotifiedAlarmLevel = WeatherAlarmLevel.none
