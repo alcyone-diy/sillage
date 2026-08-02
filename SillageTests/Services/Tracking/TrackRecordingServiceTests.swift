@@ -20,9 +20,12 @@ struct TrackRecordingServiceTests {
   // MARK: - Mocks
   
   class MockBackgroundLocationToken: BackgroundLocationToken {
-    var invalidateCallCount = 0
+    let onInvalidate: (() -> Void)?
+    init(onInvalidate: (() -> Void)? = nil) {
+      self.onInvalidate = onInvalidate
+    }
     func invalidate() {
-      invalidateCallCount += 1
+      onInvalidate?()
     }
   }
 
@@ -42,23 +45,40 @@ struct TrackRecordingServiceTests {
     }
 
     private final class MockLocationUpdateToken: LocationUpdateToken {
-      func invalidate() {}
+      let onInvalidate: () -> Void
+      init(onInvalidate: @escaping () -> Void) {
+        self.onInvalidate = onInvalidate
+      }
+      func invalidate() {
+        onInvalidate()
+      }
     }
     
     var requestLocationUpdatesCallCount = 0
+    var locationUpdateTokenInvalidatedCount = 0
     func requestLocationUpdates() -> any LocationUpdateToken {
       requestLocationUpdatesCallCount += 1
-      return MockLocationUpdateToken()
+      return MockLocationUpdateToken { [weak self] in
+        self?.locationUpdateTokenInvalidatedCount += 1
+      }
     }
     
-    func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {}
-    func removeDistanceFilter(for identifier: String) {}
+    var requestedDistanceFilters: [String: Double] = [:]
+    func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {
+      requestedDistanceFilters[identifier] = distance.converted(to: .meters).value
+    }
+    func removeDistanceFilter(for identifier: String) {
+      requestedDistanceFilters.removeValue(forKey: identifier)
+    }
     
     var requestBackgroundLocationCallCount = 0
+    var backgroundLocationTokenInvalidatedCount = 0
     var lastToken: MockBackgroundLocationToken?
     func requestBackgroundLocation() -> any BackgroundLocationToken {
       requestBackgroundLocationCallCount += 1
-      let token = MockBackgroundLocationToken()
+      let token = MockBackgroundLocationToken { [weak self] in
+        self?.backgroundLocationTokenInvalidatedCount += 1
+      }
       lastToken = token
       return token
     }
@@ -462,5 +482,89 @@ struct TrackRecordingServiceTests {
     // The total distance should NOT include the artificial straight line between fix1 and fix2.
     // Because the segment was broken, distance should be 0.
     #expect(service.telemetry.totalDistanceOverGround?.value == 0)
+  }
+
+  // MARK: - Token and Filter Tests
+  
+  @Test("TrackRecording acquires UpdateToken and forces 0m distance filter")
+  func testTrackRecording_AcquiresUpdateToken_And_ForcesZeroFilter() async throws {
+    let mockPositioning = MockPositioningService()
+    let databaseManager = try makeDatabaseManager()
+    let mockPreferences = MockPreferencesService()
+    let mockMessages = MessageService()
+    
+    let service = TrackRecordingService(
+      positioningService: mockPositioning,
+      databaseManager: databaseManager,
+      preferencesService: mockPreferences,
+      messageService: mockMessages
+    )
+    
+    // Action
+    _ = try await service.startRecording()
+    
+    // Assertions
+    #expect(mockPositioning.requestLocationUpdatesCallCount == 1)
+    #expect(mockPositioning.requestedDistanceFilters["TrackRecording"] == 0.0)
+  }
+  
+  @Test("TrackRecording restores distance filter to 5m on first valid fix")
+  func testTrackRecording_RestoresDistanceFilter_OnFirstFix() async throws {
+    let mockPositioning = MockPositioningService()
+    let databaseManager = try makeDatabaseManager()
+    let mockPreferences = MockPreferencesService()
+    let mockMessages = MessageService()
+    
+    let service = TrackRecordingService(
+      positioningService: mockPositioning,
+      databaseManager: databaseManager,
+      preferencesService: mockPreferences,
+      messageService: mockMessages
+    )
+    
+    _ = try await service.startRecording()
+    #expect(service.state == .waitingForFix)
+    #expect(mockPositioning.requestedDistanceFilters["TrackRecording"] == 0.0)
+    
+    // Action: Inject a valid fix
+    let validFix = createNavigationFix(latitude: 45.0, longitude: -1.0)
+    mockPositioning.emit(fix: validFix)
+    
+    // Wait for the async task to process the fix
+    try await waitUntil { service.state == .recording }
+    
+    // Assertions
+    #expect(service.state == .recording)
+    #expect(mockPositioning.requestedDistanceFilters["TrackRecording"] == 5.0)
+  }
+  
+  @Test("TrackRecording releases tokens on stop")
+  func testTrackRecording_ReleasesTokens_OnStop() async throws {
+    let mockPositioning = MockPositioningService()
+    let databaseManager = try makeDatabaseManager()
+    let mockPreferences = MockPreferencesService()
+    let mockMessages = MessageService()
+    
+    let service = TrackRecordingService(
+      positioningService: mockPositioning,
+      databaseManager: databaseManager,
+      preferencesService: mockPreferences,
+      messageService: mockMessages
+    )
+    
+    _ = try await service.startRecording()
+    
+    // Get into recording state
+    let validFix = createNavigationFix(latitude: 45.0, longitude: -1.0)
+    mockPositioning.emit(fix: validFix)
+    try await waitUntil { service.state == .recording }
+    
+    // Action
+    _ = try await service.stopRecording()
+    
+    // Assertions
+    #expect(mockPositioning.locationUpdateTokenInvalidatedCount == 1)
+    #expect(mockPositioning.backgroundLocationTokenInvalidatedCount == 1)
+    #expect(mockPositioning.requestedDistanceFilters["TrackRecording"] == nil)
   }
 }

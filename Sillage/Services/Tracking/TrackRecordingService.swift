@@ -74,6 +74,7 @@ public final class TrackRecordingService {
   private let positioningService: PositioningService
   private let databaseManager: DatabaseManager
   private var locationUpdatesTask: TaskCancellable?
+  private var locationUpdateToken: (any LocationUpdateToken)?
   private var backgroundLocationToken: (any BackgroundLocationToken)?
   private var flushTask: TaskCancellable?
   
@@ -115,7 +116,11 @@ public final class TrackRecordingService {
     
     let service = self.positioningService
     self.backgroundLocationToken = service.requestBackgroundLocation()
-    service.requestDistanceFilter(Measurement(value: 5, unit: .meters), for: "TrackRecording")
+    self.locationUpdateToken = service.requestLocationUpdates()
+    
+    // We request kCLDistanceFilterNone (0 meters) temporarily so that CoreLocation 
+    // delivers an active fix immediately even if the vessel is stationary.
+    service.requestDistanceFilter(Measurement(value: 0, unit: .meters), for: "TrackRecording")
     
     startFlushTimer()
     
@@ -145,12 +150,14 @@ public final class TrackRecordingService {
     }
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
+    locationUpdateToken?.invalidate()
+    locationUpdateToken = nil
     backgroundLocationToken?.invalidate()
     backgroundLocationToken = nil
+    positioningService.removeDistanceFilter(for: "TrackRecording")
+    
     flushTask?.cancel()
     flushTask = nil
-    
-    positioningService.removeDistanceFilter(for: "TrackRecording")
     
     if let lastNavigationFix = telemetry.stop() {
       self.saveNavigationFix(lastNavigationFix)
@@ -202,12 +209,14 @@ public final class TrackRecordingService {
     telemetry.pause()
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
+    locationUpdateToken?.invalidate()
+    locationUpdateToken = nil
     backgroundLocationToken?.invalidate()
     backgroundLocationToken = nil
+    positioningService.removeDistanceFilter(for: "TrackRecording")
+    
     flushTask?.cancel()
     flushTask = nil
-    
-    positioningService.removeDistanceFilter(for: "TrackRecording")
     
     persistenceWriter?.flushAsync(telemetryUpdate: buildTelemetryUpdate())
     unflushedPointCount = 0
@@ -226,6 +235,7 @@ public final class TrackRecordingService {
     
     telemetry.resume()
     let service = self.positioningService
+    self.locationUpdateToken = service.requestLocationUpdates()
     self.backgroundLocationToken = service.requestBackgroundLocation()
     service.requestDistanceFilter(Measurement(value: 5, unit: .meters), for: "TrackRecording")
     
@@ -378,6 +388,9 @@ public final class TrackRecordingService {
     case .waitingForFix:
       state = .recording
       telemetry.resume()
+      
+      // Once we have our first point, restore the normal 5m distance filter
+      positioningService.requestDistanceFilter(Measurement(value: 5, unit: .meters), for: "TrackRecording")
       
       if currentSessionID == nil {
         let sessionID = UUID().uuidString

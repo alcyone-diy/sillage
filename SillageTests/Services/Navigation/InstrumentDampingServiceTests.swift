@@ -123,10 +123,21 @@ struct InstrumentDampingServiceTests {
     
     func requestAuthorization() {}
     private final class MockLocationUpdateToken: LocationUpdateToken {
-      func invalidate() {}
+      let onInvalidate: () -> Void
+      init(onInvalidate: @escaping () -> Void) {
+        self.onInvalidate = onInvalidate
+      }
+      func invalidate() {
+        onInvalidate()
+      }
     }
+    var requestLocationUpdatesCallCount = 0
+    var locationUpdateTokenInvalidatedCount = 0
     func requestLocationUpdates() -> any LocationUpdateToken {
-      return MockLocationUpdateToken()
+      requestLocationUpdatesCallCount += 1
+      return MockLocationUpdateToken { [weak self] in
+        self?.locationUpdateTokenInvalidatedCount += 1
+      }
     }
     func requestBackgroundLocation() -> any BackgroundLocationToken { MockBackgroundToken() }
     func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {}
@@ -476,5 +487,21 @@ struct InstrumentDampingServiceTests {
     
     service.stop()
     task2.cancel()
+  }
+
+  @Test("InstrumentDampingService Acquires and Releases LocationToken")
+  @MainActor
+  func testInstrumentDampingService_AcquiresAndReleasesLocationToken() async throws {
+    let mockPositioning = MockPositioningService()
+    let mockClock = MockClock()
+    let service = InstrumentDampingService(positioningService: mockPositioning, clock: mockClock)
+    
+    // Test start
+    service.start()
+    #expect(mockPositioning.requestLocationUpdatesCallCount == 1)
+    
+    // Test stop
+    service.stop()
+    #expect(mockPositioning.locationUpdateTokenInvalidatedCount == 1)
   }
 }

@@ -43,6 +43,7 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   private let dateProvider: @Sendable () -> Date
   
   @ObservationIgnored private var locationUpdatesTask: Task<Void, Never>?
+  @ObservationIgnored private var locationUpdateToken: (any LocationUpdateToken)?
   @ObservationIgnored private var stationaryDataTask: Task<Void, Error>?
   @ObservationIgnored private var gpsState: GPSState = .lost
   
@@ -95,6 +96,7 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   
   func start() {
     guard locationUpdatesTask == nil else { return }
+    locationUpdateToken = positioningService.requestLocationUpdates()
     locationUpdatesTask = Task { [weak self] in
       guard let stream = self?.positioningService.locationUpdates else { return }
       
@@ -119,6 +121,9 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   func stop() {
     locationUpdatesTask?.cancel()
     locationUpdatesTask = nil
+    
+    locationUpdateToken?.invalidate()
+    locationUpdateToken = nil
     
     stationaryDataTask?.cancel()
     stationaryDataTask = nil
