@@ -10,18 +10,32 @@
 
 import Foundation
 
+/// Errors that can occur during notification scheduling.
+public enum NotificationError: LocalizedError, Equatable {
+    case permissionDenied
+    case schedulingFailed(String)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .permissionDenied:
+            return "Notifications are disabled. Please enable them in Settings."
+        case .schedulingFailed(let message):
+            return "Failed to schedule notification: \(message)"
+        }
+    }
+}
+
 /// Defines the contract for sending local or remote notifications.
 public protocol NotificationService: Sendable {
   
-
   /// Sends a local notification to the user.
   /// - Parameters:
   ///   - title: The title of the notification.
   ///   - body: The body message.
   ///   - identifier: A unique identifier for the request. If a notification with the same identifier is already pending, it will be replaced.
-  func sendNotification(title: String, body: String, identifier: String) async
+  ///   - delay: Optional delay in seconds before the notification is triggered.
+  func sendNotification(title: String, body: String, identifier: String, delay: TimeInterval?) async throws
   
-
   /// Sends a critical local notification to the user (bypasses silent switch).
   /// - Parameters:
   ///   - title: The title of the notification.

@@ -41,6 +41,7 @@ final class AppEnvironment {
     let permissionService: PermissionService
     let offlineSelectionViewModel: OfflineSelectionViewModel
     let networkMonitorService: NetworkMonitorService
+    let notificationService: NotificationService
   }
   
   public init(metadata: AppMetadata? = nil) {
@@ -190,7 +191,8 @@ final class AppEnvironment {
         anchorViewModel: anchorViewModel,
         permissionService: permissionService,
         offlineSelectionViewModel: offlineSelectionViewModel,
-        networkMonitorService: networkMonitorService
+        networkMonitorService: networkMonitorService,
+        notificationService: notificationService
       )
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")

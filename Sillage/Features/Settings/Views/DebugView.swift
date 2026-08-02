@@ -19,6 +19,7 @@ struct DebugView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(AppEnvironment.self) private var appEnvironment
+  @Environment(PermissionService.self) private var permissionService
   
   @State private var viewModel = DebugViewModel()
   
@@ -135,6 +136,27 @@ struct DebugView: View {
         }
         .marineListCell()
       }
+      
+      Section(header: Text("Notification Testing")) {
+        Button {
+          Task {
+            if case .ready(let container) = appEnvironment.state {
+              do {
+                try await viewModel.scheduleDebugBarometerNotification(
+                  permissionService: permissionService,
+                  notificationService: container.notificationService
+                )
+              } catch {
+                activeError = AlertError(error: error)
+              }
+            }
+          }
+        } label: {
+          Text("Trigger Barometer Alarm (5s)")
+            .marineFont(.body)
+        }
+        .marineListCell()
+      }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .marineListBackground()
@@ -145,8 +167,17 @@ struct DebugView: View {
              get: { activeError != nil },
              set: { if !$0 { activeError = nil } }
            ),
-           presenting: activeError) { _ in
-      Button("OK", role: .cancel) { }
+           presenting: activeError) { alertError in
+      if let notifError = alertError.error as? NotificationError, notifError == .permissionDenied {
+        Button("Open Settings") {
+          if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+          }
+        }
+        Button("Cancel", role: .cancel) { }
+      } else {
+        Button("OK", role: .cancel) { }
+      }
     } message: { alertError in
       Text(alertError.error.localizedDescription)
     }

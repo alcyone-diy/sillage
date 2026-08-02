@@ -19,8 +19,12 @@ public struct LocalNotificationService: NotificationService {
   
 
   
-  public func sendNotification(title: String, body: String, identifier: String) async {
+  public func sendNotification(title: String, body: String, identifier: String, delay: TimeInterval? = nil) async throws {
     let center = UNUserNotificationCenter.current()
+    
+    // Idempotency: clear existing requests with the same identifier
+    center.removePendingNotificationRequests(withIdentifiers: [identifier])
+    
     let settings = await center.notificationSettings()
     
     guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
@@ -33,13 +37,21 @@ public struct LocalNotificationService: NotificationService {
     content.body = body
     content.sound = UNNotificationSound.default
     
-    let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+    let trigger: UNNotificationTrigger?
+    if let delay = delay, delay > 0 {
+      trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+    } else {
+      trigger = nil
+    }
+    
+    let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
     
     do {
       try await center.add(request)
       Logger.system.info("Successfully scheduled local notification: \(identifier)")
     } catch {
       Logger.system.error("Failed to schedule local notification \(identifier): \(error.localizedDescription)")
+      throw NotificationError.schedulingFailed(error.localizedDescription)
     }
   }
   
