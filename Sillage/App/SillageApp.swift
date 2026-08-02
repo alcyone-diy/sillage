@@ -30,7 +30,11 @@ struct SillageApp: App {
           }
         case .ready(let container):
           MainAppView()
-            .onAppear { appDelegate.appViewModel = container.appViewModel }
+            .onAppear { 
+              appDelegate.appViewModel = container.appViewModel
+              container.appViewModel.isReady = true
+              container.appViewModel.processDeferredIntent()
+            }
             .environment(container.appViewModel)
             .environment(container.chartViewModel)
             .environment(container.panelManagerViewModel)

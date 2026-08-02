@@ -231,7 +231,7 @@ final class AnchorService {
         await self.notificationService.sendCriticalNotification(
           title: String(localized: "⚠️ Monitoring Suspended"),
           body: String(localized: "Critical GPS accuracy. Anchor alarm is temporarily unreliable."),
-          identifier: "AnchorGPSDegraded"
+          identifier: NotificationIntent.anchorGPSDegraded.rawValue
         )
       }
     }
@@ -289,7 +289,7 @@ final class AnchorService {
         await self.notificationService.sendCriticalNotification(
           title: String(localized: "⚓️ DRAGGING ANCHOR!"),
           body: String(localized: "Vessel is out of the safe zone (\(Int(distance))m)."),
-          identifier: "AnchorDraggingAlarm"
+          identifier: NotificationIntent.anchorDragging.rawValue
         )
       }
     }
