@@ -422,6 +422,16 @@ struct MapLibreView: UIViewRepresentable {
       uiView.isRotateEnabled = true
     }
     
+    // Stop inertia cleanly when locking tracking mode without triggering delegate events
+    if context.coordinator.lastTrackingMode != trackingMode {
+      if context.coordinator.lastTrackingMode == .free && trackingMode != .free {
+        uiView.delegate = nil
+        uiView.setCamera(uiView.camera, animated: false)
+        uiView.delegate = context.coordinator
+      }
+      context.coordinator.lastTrackingMode = trackingMode
+    }
+    
     // Force tracking mode to none if it deviated, since tracking is explicitly handled in the viewModel
     if uiView.userTrackingMode != .none {
       uiView.userTrackingMode = .none
@@ -531,6 +541,7 @@ struct MapLibreView: UIViewRepresentable {
     var lastActiveTrackCount: Int?
     var lastActiveTrackTimestamp: Date?
     var lastDataStale: Bool?
+    var lastTrackingMode: ChartTrackingMode = .free
     
     init(_ parent: MapLibreView) {
       self.parent = parent
@@ -908,7 +919,8 @@ struct MapLibreView: UIViewRepresentable {
     
     func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       if shouldBreakTracking(for: reason) {
-        DispatchQueue.main.async {
+        Task { @MainActor [weak self] in
+          guard let self else { return }
           self.parent.viewModel.chartInteractedByUser()
         }
       }
@@ -961,7 +973,9 @@ struct MapLibreView: UIViewRepresentable {
     // Capture user's chart movements to break tracking ONLY when the movement stops, as requested
     // Also sync the final camera state back to the ViewModel so it knows where the chart is.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
-      DispatchQueue.main.async {
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        
         // Keep ViewModel state in sync with the chart.
         self.parent.viewModel.centerCoordinate = mapView.centerCoordinate
         self.parent.viewModel.zoomLevel = mapView.zoomLevel
