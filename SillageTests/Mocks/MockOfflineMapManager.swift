@@ -28,6 +28,8 @@ final class MockOfflineMapManager: OfflineMapManagerProtocol {
   var downloadProgress: Double = 0.0
   var isClearingCache: Bool = false
   var downloadedRegions: [OfflineRegionInfo] = []
+  var globalDownloadProgress: Double? = nil
+  var totalPendingDownloads: Int = 0
   
   func downloadRegion(bounds: GeographicBoundingBox, styleURL: URL, regionName: String) {
     isDownloading = true
