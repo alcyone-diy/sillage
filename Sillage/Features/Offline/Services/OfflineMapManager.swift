@@ -34,13 +34,15 @@ struct OfflineRegionInfo: Identifiable, Equatable, Sendable {
 public enum OfflineMapManagerError: LocalizedError {
   case encodingFailed
   case downloadInterrupted
+  case packNotFound(id: String)
   case unknown
   case sdkError(Error)
-  
+
   public var errorDescription: String? {
     switch self {
     case .encodingFailed: return String(localized: "Internal error encoding context.")
     case .downloadInterrupted: return String(localized: "Download interrupted.")
+    case .packNotFound(let id): return String(localized: "Offline chart not found (id: \(id)).")
     case .unknown: return String(localized: "An unknown error occurred.")
     case .sdkError(let error): return error.localizedDescription
     }
@@ -95,15 +97,9 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   private var activePack: MLNOfflinePack?
   private var packsObservation: NSKeyValueObservation?
 
-  /// Shared decoder — allocated once, reused on the `@MainActor` for all hot-path
-  /// JSON decoding (`loadExistingPacks`, `tryAutoResumeIfNeeded`).
+  /// Shared decoder — allocated once, reused on the `@MainActor` for all
+  /// JSON decoding (`loadExistingPacks`, `updateRegionSize`, `tryAutoResumeIfNeeded`).
   private let contextDecoder = JSONDecoder()
-
-  /// Maps a live `MLNOfflinePack` instance to its decoded `OfflinePackContext`.
-  /// Populated during `loadExistingPacks` so that `updateRegionSize` can resolve
-  /// a pack's identity with an O(1) lookup instead of a JSON decode on every
-  /// high-frequency `MLNOfflinePackProgressChanged` notification.
-  private var packContextCache: [ObjectIdentifier: OfflinePackContext] = [:]
 
   /// Set to `true` when `loadExistingPacks` encounters packs whose state is
   /// still `.unknown` (MapLibre DB not yet resolved). The global
@@ -156,15 +152,11 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   @MainActor func loadExistingPacks() {
     guard let packs = MLNOfflineStorage.shared.packs else { return }
     var regions: [OfflineRegionInfo] = []
-    var newCache: [ObjectIdentifier: OfflinePackContext] = [:]
     var nextPackToResume: (pack: MLNOfflinePack, context: OfflinePackContext)? = nil
     var hadUnknownStatePacks = false
 
     for pack in packs {
-      let contextData = pack.context
-      if let context = try? contextDecoder.decode(OfflinePackContext.self, from: contextData) {
-        newCache[ObjectIdentifier(pack)] = context
-
+      if let context = try? contextDecoder.decode(OfflinePackContext.self, from: pack.context) {
         let size = pack.progress.countOfBytesCompleted
         let expected = pack.progress.countOfResourcesExpected
         let completed = pack.progress.countOfResourcesCompleted
@@ -193,7 +185,6 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
         }
       }
     }
-    self.packContextCache = newCache
     self.downloadedRegions = regions
 
     // Auto-resume the next pack in the queue if none is currently active
@@ -214,7 +205,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     }
   }
   
-  /// Resumes the first incomplete, non-queued pack if no download is active.
+  /// Resumes the first incomplete pack if no download is active.
   /// Triggered once via `needsInitialAutoResume` after MapLibre resolves pack
   /// states from its async DB load (packs start as `.unknown` at boot).
   @MainActor
@@ -223,8 +214,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     guard let packs = MLNOfflineStorage.shared.packs else { return }
 
     for pack in packs {
-      // Use the in-memory cache — no JSON decode in this path.
-      guard let context = packContextCache[ObjectIdentifier(pack)] else { continue }
+      guard let context = try? contextDecoder.decode(OfflinePackContext.self, from: pack.context) else { continue }
       let expected = pack.progress.countOfResourcesExpected
       let completed = pack.progress.countOfResourcesCompleted
       let isComplete = pack.state == .complete || (expected > 0 && completed >= expected)
@@ -249,8 +239,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   }
   
   private func updateRegionSize(for pack: MLNOfflinePack) {
-    // O(1) lookup — no JSON decode on the high-frequency progress tick.
-    guard let context = packContextCache[ObjectIdentifier(pack)],
+    guard let context = try? contextDecoder.decode(OfflinePackContext.self, from: pack.context),
           let index = downloadedRegions.firstIndex(where: { $0.id == context.id }) else { return }
 
     let newSize = pack.progress.countOfBytesCompleted
@@ -266,27 +255,25 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     }
   }
   
-  nonisolated func deletePack(id: String) async throws {
-    let packToRemove: MLNOfflinePack? = await Task.detached {
-      guard let packs = MLNOfflineStorage.shared.packs else { return nil }
-      // Local decoder: JSONDecoder is not Sendable, so it cannot be captured
-      // from the @MainActor-isolated contextDecoder across the Task.detached boundary.
-      // Allocation cost is negligible for this infrequent deletion path.
-      let decoder = JSONDecoder()
-
-      for pack in packs {
-        let contextData = pack.context
-        if let context = try? decoder.decode(OfflinePackContext.self, from: contextData), context.id == id {
-          return pack
-        }
-      }
-      return nil
-    }.value
-    
-    guard let pack = packToRemove else {
-      throw OfflineMapManagerError.unknown
+  @MainActor
+  func deletePack(id: String) async throws {
+    guard let packs = MLNOfflineStorage.shared.packs else {
+      throw OfflineMapManagerError.packNotFound(id: id)
     }
-    
+
+    var packToRemove: MLNOfflinePack? = nil
+    for pack in packs {
+      if let context = try? contextDecoder.decode(OfflinePackContext.self, from: pack.context),
+         context.id == id {
+        packToRemove = pack
+        break
+      }
+    }
+
+    guard let pack = packToRemove else {
+      throw OfflineMapManagerError.packNotFound(id: id)
+    }
+
     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
       MLNOfflineStorage.shared.removePack(pack) { error in
         if let error = error {
@@ -296,8 +283,8 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
         }
       }
     }
-    
-    await loadExistingPacks()
+
+    loadExistingPacks()
   }
   
   func deleteAllPacks() async throws {
