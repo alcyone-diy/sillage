@@ -15,16 +15,12 @@ import OSLog
 import os
 import Observation
 
-private struct OfflinePackContext: Codable {
-  let id: String
-  let regionName: String
-}
 
 enum MapConstants {
   static let ambientCacheSize: UInt64 = 524_288_000
 }
 
-struct OfflineRegionInfo: Identifiable, Equatable {
+struct OfflineRegionInfo: Identifiable, Equatable, Sendable {
   let id: String
   let name: String
   let sizeInBytes: UInt64

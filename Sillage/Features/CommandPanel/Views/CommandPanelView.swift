@@ -270,7 +270,11 @@ struct CommandPanelView: View {
             Text("Offline Area")
               .foregroundStyle(isDisabled ? Color.secondary : Color.primary)
             
-            if chartViewModel.showOfflineAreaWarning {
+            if let progress = appEnvironment.offlineMapManager.globalDownloadProgress, appEnvironment.offlineMapManager.totalPendingDownloads > 0 {
+              ProgressView(value: progress)
+                .progressViewStyle(.linear)
+                .tint(.blue)
+            } else if chartViewModel.showOfflineAreaWarning {
               Text("Offline maps work only with GeoGarage")
                 .marineFont(.caption)
                 .foregroundStyle(.secondary)
