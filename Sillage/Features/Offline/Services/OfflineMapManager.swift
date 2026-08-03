@@ -179,8 +179,6 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   }
   
   func downloadRegion(bounds: GeographicBoundingBox, styleURL: URL, regionName: String) {
-    guard !isDownloading else { return }
-    
     isDownloading = true
     downloadError = nil
     
