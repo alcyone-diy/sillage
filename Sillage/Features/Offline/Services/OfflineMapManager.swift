@@ -123,7 +123,8 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     Task { [weak self] in
       for await notification in NotificationCenter.default.notifications(named: NSNotification.Name.MLNOfflinePackProgressChanged) {
         guard !Task.isCancelled else { break }
-        guard let self = self, let pack = notification.object as? MLNOfflinePack else { continue }
+        guard let self = self else { break }
+        guard let pack = notification.object as? MLNOfflinePack else { continue }
         Task { @MainActor [weak self] in
           self?.updateRegionSize(for: pack)
         }
@@ -141,18 +142,19 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       let contextData = pack.context
       if let context = try? decoder.decode(OfflinePackContext.self, from: contextData) {
         let size = pack.progress.countOfBytesCompleted
-        let isComplete = pack.state == .complete
         let expected = pack.progress.countOfResourcesExpected
         let completed = pack.progress.countOfResourcesCompleted
+        let isComplete = pack.state == .complete || (expected > 0 && completed >= expected)
         let progress = (!isComplete && expected > 0) ? Double(completed) / Double(expected) : nil
         
         regions.append(OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: size, isComplete: isComplete, progress: progress, expectedResources: expected, completedResources: completed, estimatedTimeRemaining: nil))
         
-        if pack.state != .complete {
+        if !isComplete {
           // Force MapLibre to recalculate the size from the database only for incomplete packs
           pack.requestProgress()
           
-          if pack.state != .invalid && nextPackToResume == nil {
+          let isVerifiablyIncomplete = (expected > 0 && completed < expected)
+          if (isVerifiablyIncomplete || pack.state == .invalid) && nextPackToResume == nil {
             nextPackToResume = (pack, context)
           }
         }
@@ -180,9 +182,9 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     
     if let index = downloadedRegions.firstIndex(where: { $0.id == context.id }) {
       let newSize = pack.progress.countOfBytesCompleted
-      let isComplete = pack.state == .complete
       let expected = pack.progress.countOfResourcesExpected
       let completed = pack.progress.countOfResourcesCompleted
+      let isComplete = pack.state == .complete || (expected > 0 && completed >= expected)
       let progress = (!isComplete && expected > 0) ? Double(completed) / Double(expected) : nil
       
       let newRegion = OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: newSize, isComplete: isComplete, progress: progress, expectedResources: expected, completedResources: completed, estimatedTimeRemaining: downloadedRegions[index].estimatedTimeRemaining)
