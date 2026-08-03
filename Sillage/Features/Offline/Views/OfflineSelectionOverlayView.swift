@@ -83,24 +83,22 @@ struct OfflineSelectionOverlayView: View {
               }
           }
           
-          if !viewModel.offlineMapManager.isDownloading {
-            VStack {
-              HStack {
-                Spacer()
-                Button(action: {
-                  viewModel.resetSelection()
-                }) {
-                  Image(systemName: "xmark")
-                    .font(.title3.weight(.bold))
-                    .foregroundColor(MarineTheme.Colors.textPrimary)
-                    .padding(MarineTheme.Spacing.small)
-                    .background(Circle().fill(MarineTheme.Colors.overlay))
-                }
-                .padding()
-                .padding(.top, MarineTheme.Spacing.large) // Safe area spacing if needed
-              }
+          VStack {
+            HStack {
               Spacer()
+              Button(action: {
+                viewModel.resetSelection()
+              }) {
+                Image(systemName: "xmark")
+                  .font(.title3.weight(.bold))
+                  .foregroundColor(MarineTheme.Colors.textPrimary)
+                  .padding(MarineTheme.Spacing.small)
+                  .background(Circle().fill(MarineTheme.Colors.overlay))
+              }
+              .padding()
+              .padding(.top, MarineTheme.Spacing.large) // Safe area spacing if needed
             }
+            Spacer()
           }
         }
         .onChange(of: geometry.size) { oldSize, newSize in
@@ -338,13 +336,7 @@ struct OfflineSelectionOverlayView: View {
   private var bottomPanel: some View {
     if let viewModel = viewModel {
       VStack(spacing: MarineTheme.Spacing.medium) {
-        if let error = viewModel.offlineMapManager.downloadError {
-          Text(error.localizedDescription)
-            .marineFont(.footnote)
-            .foregroundColor(MarineTheme.Colors.destructive)
-            .lineLimit(nil)
-            .multilineTextAlignment(.center)
-        } else if let area = viewModel.estimatedArea {
+        if let area = viewModel.estimatedArea {
           Text(area.marineFormatted)
             .marineFont(.title2)
             .foregroundColor(viewModel.isValidSize ? .primary : MarineTheme.Colors.destructive)
@@ -354,60 +346,20 @@ struct OfflineSelectionOverlayView: View {
             .foregroundColor(MarineTheme.Colors.textSecondary)
         }
         
-        if viewModel.offlineMapManager.isDownloadComplete {
-          VStack(spacing: MarineTheme.Spacing.medium) {
-            Text("Download complete")
-              .marineFont(.headline)
-              .foregroundColor(MarineTheme.Colors.accent)
-            
-            Button(action: {
-              viewModel.resetSelection()
-            }) {
-              Text("Close")
-                .marineFont(.headline)
-                .foregroundColor(.white)
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(MarineTheme.Colors.accent)
-                .cornerRadius(MarineTheme.Metrics.cornerRadius)
-            }
-            .buttonStyle(MarineButtonStyle())
-          }
-        } else if viewModel.offlineMapManager.isDownloading {
-          let manager = viewModel.offlineMapManager
-          HStack(spacing: MarineTheme.Spacing.medium) {
-            ProgressView(value: manager.downloadProgress, total: 1.0)
-              .progressViewStyle(LinearProgressViewStyle(tint: .white))
-              .animation(.easeInOut, value: manager.downloadProgress)
-            
-            Button(action: {
-              viewModel.cancelDownload()
-              viewModel.resetSelection()
-            }) {
-              Image(systemName: "xmark.circle.fill")
-                .foregroundColor(MarineTheme.Colors.destructive)
-                .imageScale(.large)
-            }
-          }
-          .padding()
-          .frame(maxWidth: .infinity)
-          .background(MarineTheme.Colors.accent)
-          .cornerRadius(MarineTheme.Metrics.cornerRadius)
-        } else {
-          Button(action: {
-            viewModel.startDownload(chartSource: chartViewModel?.currentChartSource)
-          }) {
-            Text("Download")
-              .marineFont(.headline)
-              .foregroundColor(.white)
-              .padding()
-              .frame(maxWidth: .infinity)
-              .background(viewModel.isValidSize ? MarineTheme.Colors.accent : MarineTheme.Colors.inactive)
-              .cornerRadius(MarineTheme.Metrics.cornerRadius)
-          }
-          .buttonStyle(MarineButtonStyle())
-          .disabled(!viewModel.isValidSize)
+        Button(action: {
+          viewModel.startDownload(chartSource: chartViewModel?.currentChartSource)
+          viewModel.isSelectionModeActive = false
+        }) {
+          Text("Download")
+            .marineFont(.headline)
+            .foregroundColor(.white)
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(viewModel.isValidSize ? MarineTheme.Colors.accent : MarineTheme.Colors.inactive)
+            .cornerRadius(MarineTheme.Metrics.cornerRadius)
         }
+        .buttonStyle(MarineButtonStyle())
+        .disabled(!viewModel.isValidSize)
       }
       .padding()
       .background(MarineTheme.Colors.panelBackground)

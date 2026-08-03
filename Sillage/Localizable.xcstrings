@@ -133,6 +133,9 @@
     "Allow Notifications" : {
 
     },
+    "An unknown error occurred." : {
+
+    },
     "Anchor Alarm" : {
 
     },
@@ -214,9 +217,6 @@
     "Clear Map Cache" : {
 
     },
-    "Close" : {
-
-    },
     "COG" : {
 
     },
@@ -251,6 +251,9 @@
 
     },
     "Debug" : {
+
+    },
+    "Default style URL is not available." : {
 
     },
     "Deg" : {
@@ -298,7 +301,7 @@
     "Download" : {
 
     },
-    "Download complete" : {
+    "Download interrupted." : {
 
     },
     "DRAGGING ALERT" : {
@@ -437,6 +440,9 @@
 
     },
     "Initializing Systems…" : {
+
+    },
+    "Internal error encoding context." : {
 
     },
     "Invalid Latitude" : {
