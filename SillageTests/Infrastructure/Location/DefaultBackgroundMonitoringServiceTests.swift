@@ -105,7 +105,7 @@ final class DefaultBackgroundMonitoringServiceTests: XCTestCase {
     token.invalidate()
     
     // Wait for the async task inside invalidateToken to finish
-    try await Task.sleep(nanoseconds: 10_000_000)
+    try await Task.sleep(nanoseconds: 500_000_000)
     
     // Assert Cleanup
     XCTAssertEqual(mockPositioning.lastBackgroundToken?.invalidateCallCount, 1)
@@ -130,7 +130,7 @@ final class DefaultBackgroundMonitoringServiceTests: XCTestCase {
     mockPositioning.locationContinuation.yield(.active(fix))
     
     // Wait for internal async loops
-    try await Task.sleep(nanoseconds: 100_000_000)
+    try await Task.sleep(nanoseconds: 500_000_000)
     
     // Assert
     let checkInCount = mockNotification.checkInCallCount

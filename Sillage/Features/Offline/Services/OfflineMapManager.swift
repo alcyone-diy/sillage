@@ -12,6 +12,7 @@ import Foundation
 import UIKit
 import MapLibre
 import OSLog
+import os
 import Observation
 
 private struct OfflinePackContext: Codable {
@@ -29,15 +30,31 @@ struct OfflineRegionInfo: Identifiable, Equatable {
   let sizeInBytes: UInt64
 }
 
+public enum OfflineMapManagerError: LocalizedError {
+  case encodingFailed
+  case downloadInterrupted
+  case unknown
+  case sdkError(Error)
+  
+  public var errorDescription: String? {
+    switch self {
+    case .encodingFailed: return String(localized: "Internal error encoding context.")
+    case .downloadInterrupted: return String(localized: "Download interrupted.")
+    case .unknown: return String(localized: "An unknown error occurred.")
+    case .sdkError(let error): return error.localizedDescription
+    }
+  }
+}
+
 @Observable
 @MainActor
-final class OfflineMapManager {
+public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Sendable {
   
   var isDownloading: Bool = false
   var isDownloadComplete: Bool = false
   var isClearingCache: Bool = false
   var downloadProgress: Double = 0.0
-  var downloadError: String? = nil
+  var downloadError: Error? = nil
   var downloadedRegions: [OfflineRegionInfo] = []
   
   private var progressObservationTask: Task<Void, Never>?
@@ -136,14 +153,12 @@ final class OfflineMapManager {
     
     for pack in packs {
       do {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        let _: Void = try await withTimeoutContinuation(timeoutSeconds: 2.0) { resume in
           MLNOfflineStorage.shared.removePack(pack) { error in
-            Task { @MainActor in
-              if let error = error {
-                continuation.resume(throwing: error)
-              } else {
-                continuation.resume(returning: ())
-              }
+            if let error = error {
+              resume(.failure(error))
+            } else {
+              resume(.success(()))
             }
           }
         }
@@ -176,7 +191,7 @@ final class OfflineMapManager {
     guard let contextData = try? JSONEncoder().encode(context) else {
       Logger.offline.error("Failed to encode offline region context")
       isDownloading = false
-      downloadError = "Internal error encoding context."
+      downloadError = OfflineMapManagerError.encodingFailed
       return
     }
     
@@ -185,14 +200,14 @@ final class OfflineMapManager {
         if let error = error {
           Logger.offline.error("Failed to add offline pack: \(error.localizedDescription, privacy: .public)")
           self?.isDownloading = false
-          self?.downloadError = "Unable to start download: \(error.localizedDescription)"
+          self?.downloadError = error
           return
         }
         
         guard let pack = pack else {
           Logger.offline.error("Failed to add offline pack: pack is nil")
           self?.isDownloading = false
-          self?.downloadError = "Unable to start download: Unknown error."
+          self?.downloadError = OfflineMapManagerError.unknown
           return
         }
         
@@ -309,7 +324,7 @@ final class OfflineMapManager {
   
   private func handlePackError(_ error: Error?) {
     self.isDownloading = false
-    self.downloadError = error?.localizedDescription ?? "An unknown error occurred."
+    self.downloadError = error ?? OfflineMapManagerError.unknown
     self.activePack = nil
     UIApplication.shared.isIdleTimerDisabled = false
     self.progressObservationTask?.cancel()
@@ -317,7 +332,7 @@ final class OfflineMapManager {
   
   private func handlePackInvalid() {
     self.isDownloading = false
-    self.downloadError = "Download interrupted."
+    self.downloadError = OfflineMapManagerError.downloadInterrupted
     self.activePack = nil
     UIApplication.shared.isIdleTimerDisabled = false
     self.errorObservationTask?.cancel()
@@ -351,16 +366,76 @@ final class OfflineMapManager {
     isClearingCache = true
     defer { isClearingCache = false }
     
-    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-      MLNOfflineStorage.shared.clearAmbientCache { @Sendable error in
-        if let error = error {
-          Logger.offline.error("Failed to clear ambient cache: \(error.localizedDescription, privacy: .public)")
-          continuation.resume(throwing: error)
-        } else {
-          Logger.offline.info("Ambient cache cleared successfully.")
-          continuation.resume(returning: ())
+    do {
+      let _: Void = try await withTimeoutContinuation(timeoutSeconds: 2.0) { resume in
+        MLNOfflineStorage.shared.clearAmbientCache { @Sendable error in
+          if let error = error {
+            resume(.failure(error))
+          } else {
+            resume(.success(()))
+          }
         }
       }
+      Logger.offline.info("Ambient cache cleared successfully.")
+    } catch {
+      Logger.offline.error("Failed to clear ambient cache: \(error.localizedDescription, privacy: .public)")
+      throw error
     }
+  }
+}
+
+/// A robust wrapper for `CheckedContinuation` specifically designed to mitigate a known flaw
+/// in the MapLibre SDK where completion handlers are occasionally dropped silently.
+/// 
+/// MapLibre's C++ core can sometimes destroy a block without executing it (e.g., when the ambient 
+/// cache is corrupted). If a Swift continuation is captured in that block and dropped, it triggers 
+/// a fatal `SIGABRT` (leaked continuation crash).
+///
+/// **Why an `actor`?**
+/// We use a Swift 6 `actor` (`ContinuationManager`) instead of a lock (`OSAllocatedUnfairLock`) 
+/// to manage the continuation. When a lock (which is a struct) is captured in an escaping closure 
+/// that goes into MapLibre's C++ boundary, Swift creates a copy of the struct. If the Swift task 
+/// environment is abruptly cancelled or torn down while C++ still holds that closure, it can cause 
+/// memory corruption (`EXC_BAD_ACCESS`). An `actor` provides native, safe memory isolation 
+/// without struct copying, completely eliminating this class of crashes.
+private actor ContinuationManager<T: Sendable> {
+  private var continuation: CheckedContinuation<T, Error>?
+  
+  init(_ continuation: CheckedContinuation<T, Error>) {
+    self.continuation = continuation
+  }
+  
+  func resume(with result: Result<T, Error>) {
+    if let cont = continuation {
+      cont.resume(with: result)
+      continuation = nil
+    }
+  }
+}
+
+private func withTimeoutContinuation<T: Sendable>(
+  timeoutSeconds: TimeInterval,
+  operation: @escaping @Sendable (@escaping @Sendable (Result<T, Error>) -> Void) -> Void
+) async throws -> T {
+  try await withCheckedThrowingContinuation { continuation in
+    let manager = ContinuationManager(continuation)
+    
+    let resume: @Sendable (Result<T, Error>) -> Void = { result in
+      Task {
+        await manager.resume(with: result)
+      }
+    }
+    
+    Task {
+      try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+      Logger.offline.error("MapLibre C++ callback timed out after \(timeoutSeconds, privacy: .public) seconds. Forcing continuation resumption.")
+      await manager.resume(with: .failure(NSError(
+        domain: "OfflineMapManager",
+        code: -998,
+        userInfo: [NSLocalizedDescriptionKey: "MapLibre operation timed out without calling the completion handler."]
+      )))
+    }
+    
+    operation(resume)
   }
 }

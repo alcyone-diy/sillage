@@ -74,9 +74,9 @@ final class GeoGarageLoginViewModel {
 
   var loginTask: Task<Void, Never>?
 
-  private let offlineMapManager: OfflineMapManager
+  private let offlineMapManager: OfflineMapManagerProtocol
 
-  init(offlineMapManager: OfflineMapManager) {
+  init(offlineMapManager: OfflineMapManagerProtocol) {
     self.offlineMapManager = offlineMapManager
   }
 

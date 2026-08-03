@@ -12,13 +12,25 @@ import Foundation
 import Observation
 import OSLog
 
+
+public enum OfflineMapDownloadError: LocalizedError, Equatable {
+  case missingDefaultStyleURL
+  
+  public var errorDescription: String? {
+    switch self {
+    case .missingDefaultStyleURL:
+      return String(localized: "Default style URL is not available.")
+    }
+  }
+}
+
 /// A service responsible for preparing and orchestrating offline map downloads.
 @Observable
 @MainActor
 final class OfflineMapDownloadService {
-  let offlineMapManager: OfflineMapManager
-
-  init(offlineMapManager: OfflineMapManager) {
+  let offlineMapManager: OfflineMapManagerProtocol
+  
+  init(offlineMapManager: OfflineMapManagerProtocol) {
     self.offlineMapManager = offlineMapManager
   }
 
@@ -34,7 +46,10 @@ final class OfflineMapDownloadService {
     if let source = chartSource, case .remoteGeoGarage(let clientID, let layerID) = source {
         styleURL = try await generateDynamicStyleJSON(forLayer: layerID, clientID: clientID)
     } else {
-        styleURL = AppConstants.Cartography.defaultStyleURL
+        guard let defaultURL = AppConstants.Cartography.defaultStyleURL else {
+            throw OfflineMapDownloadError.missingDefaultStyleURL
+        }
+        styleURL = defaultURL
     }
     
     offlineMapManager.downloadRegion(bounds: bounds, styleURL: styleURL, regionName: regionName)
@@ -45,7 +60,7 @@ final class OfflineMapDownloadService {
   ///   - layerID: The map layer ID.
   ///   - clientID: The authorization client ID.
   /// - Returns: A file URL pointing to the locally generated JSON style.
-  nonisolated func generateDynamicStyleJSON(forLayer layerID: String, clientID: String) async throws -> URL {
+  func generateDynamicStyleJSON(forLayer layerID: String, clientID: String) async throws -> URL {
     let jsonString = """
     {
       "version": 8,

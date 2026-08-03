@@ -13,11 +13,11 @@ import XCTest
 
 @MainActor
 final class OfflineMapDownloadServiceTests: XCTestCase {
-  var offlineMapManager: OfflineMapManager!
+  var offlineMapManager: MockOfflineMapManager!
   var offlineMapDownloadService: OfflineMapDownloadService!
 
   override func setUp() async throws {
-    offlineMapManager = OfflineMapManager()
+    offlineMapManager = MockOfflineMapManager()
     offlineMapDownloadService = OfflineMapDownloadService(offlineMapManager: offlineMapManager)
   }
 
