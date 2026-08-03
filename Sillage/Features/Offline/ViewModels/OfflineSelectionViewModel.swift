@@ -18,8 +18,8 @@ import OSLog
 @Observable
 @MainActor
 final class OfflineSelectionViewModel {
-  /// The underlying map manager handling the actual tile downloads.
   let offlineMapManager: OfflineMapManager
+  let offlineMapDownloadService: OfflineMapDownloadService
   
   /// The geographically accurate bounding box derived from the UI crop box.
   @ObservationIgnored private(set) var selectedBounds: GeographicBoundingBox?
@@ -45,10 +45,9 @@ final class OfflineSelectionViewModel {
   private var calculationTask: Task<Void, Never>?
   private let maxArea = AppConstants.Cartography.Offline.maxDownloadArea
   
-  /// Initializes the view model with a specified map manager.
-  /// - Parameter offlineMapManager: The manager that executes downloads.
-  init(offlineMapManager: OfflineMapManager) {
+  init(offlineMapManager: OfflineMapManager, offlineMapDownloadService: OfflineMapDownloadService) {
     self.offlineMapManager = offlineMapManager
+    self.offlineMapDownloadService = offlineMapDownloadService
   }
   
   /// Updates the geographical bounding box linked to the UI selection area.
@@ -89,72 +88,19 @@ final class OfflineSelectionViewModel {
   /// - Parameter chartSource: The active chart source to derive the specific style JSON or map layers for download.
   func startDownload(chartSource: ChartSource?) {
     guard let bounds = selectedBounds else { return }
-    let regionName = "Area - \(Date().formatted(.dateTime.day().month().year().hour().minute()))"
     
-    var styleURL = AppConstants.Cartography.defaultStyleURL
+    // UI reset MUST be synchronous on the MainActor BEFORE the async download process
+    isSelectionModeActive = false
+    selectedBounds = nil
+    cropRect = nil
+    calculationTask?.cancel()
     
-    if let source = chartSource, case .remoteGeoGarage(let clientID, let layerID) = source {
-        if let dynamicStyleURL = generateDynamicStyleJSON(forLayer: layerID, clientID: clientID) {
-            styleURL = dynamicStyleURL
-        } else {
-            Logger.offline.error("Failed to generate dynamic style for layer \(layerID, privacy: .public), falling back to default.")
-        }
-    }
-    
-    guard let finalStyleURL = styleURL else {
-      Logger.offline.error("Failed to retrieve style URL for offline region.")
-      return
-    }
-    
-    offlineMapManager.downloadRegion(bounds: bounds, styleURL: finalStyleURL, regionName: regionName)
-  }
-  
-  /// Generates a dynamic style JSON tailored for the selected remote GeoGarage layer.
-  /// - Parameters:
-  ///   - layerID: The map layer ID.
-  ///   - clientID: The authorization client ID.
-  /// - Returns: A file URL pointing to the locally generated JSON style.
-  private func generateDynamicStyleJSON(forLayer layerID: String, clientID: String) -> URL? {
-    let jsonString = """
-    {
-      "version": 8,
-      "name": "GeoGarage Raster - \(layerID)",
-      "sources": {
-        "geogarage-raster": {
-          "type": "raster",
-          "tiles": [
-            "https://tiles.geogarage.com/\(clientID)/\(layerID)/{z}/{x}/{y}.png"
-          ],
-          "tileSize": \(Int(AppConstants.Cartography.Tile.rasterTileSize)),
-          "maxzoom": 16
-        }
-      },
-      "layers": [
-        {
-          "id": "geogarage-layer",
-          "type": "raster",
-          "source": "geogarage-raster",
-          "minzoom": 0,
-          "maxzoom": 18
-        }
-      ]
-    }
-    """
-    
-    let fm = FileManager.default
-    guard let cachesDir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
-    let stylesDir = cachesDir.appendingPathComponent("DynamicStyles", isDirectory: true)
-    
-    do {
-      if !fm.fileExists(atPath: stylesDir.path) {
-        try fm.createDirectory(at: stylesDir, withIntermediateDirectories: true)
+    Task {
+      do {
+        try await offlineMapDownloadService.startDownload(bounds: bounds, chartSource: chartSource)
+      } catch {
+        Logger.offline.error("Failed to start offline download: \(error.localizedDescription, privacy: .public)")
       }
-      let fileURL = stylesDir.appendingPathComponent("geogarage-\(layerID).json")
-      try jsonString.write(to: fileURL, atomically: true, encoding: .utf8)
-      return fileURL
-    } catch {
-      Logger.offline.error("Failed to write dynamic style JSON: \(error.localizedDescription, privacy: .public)")
-      return nil
     }
   }
   
