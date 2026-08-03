@@ -176,6 +176,9 @@
     "App Information" : {
 
     },
+    "Are you sure you want to delete \"%@\"? This action cannot be undone." : {
+
+    },
     "Are you sure you want to delete this track? This action cannot be undone." : {
 
     },
@@ -279,6 +282,9 @@
 
     },
     "Delete" : {
+
+    },
+    "Delete Offline Chart?" : {
 
     },
     "Delete Track?" : {
