@@ -25,6 +25,8 @@ protocol OfflineMapManagerProtocol: Sendable {
   var downloadProgress: Double { get }
   var isClearingCache: Bool { get }
   var downloadedRegions: [OfflineRegionInfo] { get }
+  var globalDownloadProgress: Double? { get }
+  var totalPendingDownloads: Int { get }
   
   func downloadRegion(bounds: GeographicBoundingBox, styleURL: URL, regionName: String)
   func deletePack(id: String) async throws
