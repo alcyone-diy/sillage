@@ -22,8 +22,21 @@
     "'" : {
 
     },
+    "%@ - Pending" : {
+
+    },
     "%@ (MIT License)" : {
 
+    },
+    "%@ / %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ / %2$@"
+          }
+        }
+      }
     },
     "%@ needs 'Motion & Fitness' access to read your device's internal altimeter, enabling the weather alarm feature." : {
 
@@ -62,6 +75,12 @@
       "comment" : "Format for 3-hour barometric trend suffix"
     },
     "%@°" : {
+
+    },
+    "%lld downloads pending" : {
+
+    },
+    "%lld offline charts" : {
 
     },
     "%lldm" : {
@@ -749,6 +768,12 @@
 
     },
     "To alert you if your vessel drags anchor, %@ needs continuous background GPS access." : {
+
+    },
+    "Total size: %@" : {
+
+    },
+    "Total time: %@" : {
 
     },
     "Track" : {
