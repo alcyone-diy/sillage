@@ -21,6 +21,7 @@ final class AppEnvironment {
   public let metadata: AppMetadata
   public let bootDate: Date
   public let offlineMapManager: OfflineMapManager
+  public let offlineMapDownloadService: OfflineMapDownloadService
   
   struct AppContainer {
     let messageService: MessageService
@@ -49,6 +50,7 @@ final class AppEnvironment {
     self.bootDate = Date.now
     Self.setupMapLibreProtocol()
     self.offlineMapManager = OfflineMapManager()
+    self.offlineMapDownloadService = OfflineMapDownloadService(offlineMapManager: self.offlineMapManager)
   }
   
   func bootstrap() async {
@@ -167,7 +169,10 @@ final class AppEnvironment {
         preferencesService: preferencesService
       )
       
-      let offlineSelectionViewModel = OfflineSelectionViewModel(offlineMapManager: self.offlineMapManager)
+      let offlineSelectionViewModel = OfflineSelectionViewModel(
+        offlineMapManager: self.offlineMapManager,
+        offlineMapDownloadService: self.offlineMapDownloadService
+      )
       let networkMonitorService = NetworkMonitorService()
       await trackRecordingService.attemptRecoveryIfNeeded()
       
