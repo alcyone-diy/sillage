@@ -33,7 +33,7 @@ final class MockOfflineMapManager: OfflineMapManagerProtocol {
     isDownloading = true
   }
   
-  func deletePack(id: String) {
+  func deletePack(id: String) async throws {
     downloadedRegions.removeAll { $0.id == id }
   }
   

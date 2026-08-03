@@ -195,25 +195,35 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     }
   }
   
-  func deletePack(id: String) {
-    guard let packs = MLNOfflineStorage.shared.packs else { return }
-    let decoder = JSONDecoder()
-    
-    for pack in packs {
-      let contextData = pack.context
-      if let context = try? decoder.decode(OfflinePackContext.self, from: contextData), context.id == id {
-        MLNOfflineStorage.shared.removePack(pack) { [weak self] error in
-          Task { @MainActor [weak self] in
-            if let error = error {
-              Logger.offline.error("Failed to remove offline pack: \(error.localizedDescription, privacy: .public)")
-            } else {
-              self?.loadExistingPacks()
-            }
-          }
+  nonisolated func deletePack(id: String) async throws {
+    let packToRemove: MLNOfflinePack? = await Task.detached {
+      guard let packs = MLNOfflineStorage.shared.packs else { return nil }
+      let decoder = JSONDecoder()
+      
+      for pack in packs {
+        let contextData = pack.context
+        if let context = try? decoder.decode(OfflinePackContext.self, from: contextData), context.id == id {
+          return pack
         }
-        break
+      }
+      return nil
+    }.value
+    
+    guard let pack = packToRemove else {
+      throw OfflineMapManagerError.unknown
+    }
+    
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      MLNOfflineStorage.shared.removePack(pack) { error in
+        if let error = error {
+          continuation.resume(throwing: OfflineMapManagerError.sdkError(error))
+        } else {
+          continuation.resume()
+        }
       }
     }
+    
+    await loadExistingPacks()
   }
   
   func deleteAllPacks() async throws {

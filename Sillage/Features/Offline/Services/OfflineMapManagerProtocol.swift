@@ -27,7 +27,7 @@ protocol OfflineMapManagerProtocol: Sendable {
   var downloadedRegions: [OfflineRegionInfo] { get }
   
   func downloadRegion(bounds: GeographicBoundingBox, styleURL: URL, regionName: String)
-  func deletePack(id: String)
+  func deletePack(id: String) async throws
   func deleteAllPacks() async throws
   func cancelDownload()
   func reset()
