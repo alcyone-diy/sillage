@@ -98,16 +98,37 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     guard let packs = MLNOfflineStorage.shared.packs else { return }
     var regions: [OfflineRegionInfo] = []
     let decoder = JSONDecoder()
+    var nextPackToResume: (pack: MLNOfflinePack, context: OfflinePackContext)? = nil
+    
     for pack in packs {
       let contextData = pack.context
       if let context = try? decoder.decode(OfflinePackContext.self, from: contextData) {
         let size = pack.progress.countOfBytesCompleted
         regions.append(OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: size))
-        // Force MapLibre to recalculate the size from the database
-        pack.requestProgress()
+        
+        if pack.state != .complete {
+          // Force MapLibre to recalculate the size from the database only for incomplete packs
+          pack.requestProgress()
+          
+          if pack.state != .invalid && nextPackToResume == nil {
+            nextPackToResume = (pack, context)
+          }
+        }
       }
     }
     self.downloadedRegions = regions
+    
+    // Auto-resume the next pack in the queue if none is currently active
+    if self.activePack == nil, let next = nextPackToResume {
+      Logger.offline.info("Auto-resuming pack from queue: \(next.context.regionName, privacy: .public)")
+      self.activePack = next.pack
+      self.isDownloading = true
+      self.isDownloadComplete = false
+      self.downloadProgress = 0.0
+      self.updateIdleTimerState()
+      self.startObservingProgress()
+      next.pack.resume()
+    }
   }
   
   private func updateRegionSize(for pack: MLNOfflinePack) {
@@ -216,10 +237,17 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   
   private func handlePackAdded(_ pack: MLNOfflinePack, regionName: String) {
     Logger.offline.info("Successfully added offline pack for region: \(regionName, privacy: .public)")
+    
+    if self.activePack != nil {
+      Logger.offline.info("A download is already active, adding to queue.")
+      self.loadExistingPacks()
+      return
+    }
+    
     self.activePack = pack
     self.isDownloadComplete = false
     self.downloadError = nil
-    UIApplication.shared.isIdleTimerDisabled = true
+    self.updateIdleTimerState()
     pack.resume()
     
     self.startObservingProgress()
@@ -228,30 +256,44 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   func cancelDownload() {
     progressObservationTask?.cancel()
     errorObservationTask?.cancel()
+    progressObservationTask = nil
+    errorObservationTask = nil
     
     if let pack = activePack {
       pack.suspend()
-      MLNOfflineStorage.shared.removePack(pack) { error in
-        if let error = error {
-          Logger.offline.error("Failed to remove offline pack: \(error.localizedDescription, privacy: .public)")
+      
+      isDownloading = false
+      isDownloadComplete = false
+      activePack = nil
+      downloadProgress = 0.0
+      self.updateIdleTimerState()
+      
+      MLNOfflineStorage.shared.removePack(pack) { [weak self] error in
+        Task { @MainActor [weak self] in
+          if let error = error {
+            Logger.offline.error("Failed to remove offline pack: \(error.localizedDescription, privacy: .public)")
+          }
+          self?.loadExistingPacks()
         }
       }
+    } else {
+      isDownloading = false
+      isDownloadComplete = false
+      activePack = nil
+      downloadProgress = 0.0
+      self.updateIdleTimerState()
+      self.loadExistingPacks()
     }
-    
-    isDownloading = false
-    isDownloadComplete = false
-    activePack = nil
-    downloadProgress = 0.0
-    UIApplication.shared.isIdleTimerDisabled = false
-    
-    progressObservationTask = nil
-    errorObservationTask = nil
   }
   
   func reset() {
     isDownloadComplete = false
     downloadError = nil
     downloadProgress = 0.0
+  }
+  
+  private func updateIdleTimerState() {
+    UIApplication.shared.isIdleTimerDisabled = (self.activePack != nil)
   }
   
   private func startObservingProgress() {
@@ -324,7 +366,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.isDownloading = false
     self.downloadError = error ?? OfflineMapManagerError.unknown
     self.activePack = nil
-    UIApplication.shared.isIdleTimerDisabled = false
+    self.updateIdleTimerState()
     self.progressObservationTask?.cancel()
   }
   
@@ -332,18 +374,23 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.isDownloading = false
     self.downloadError = OfflineMapManagerError.downloadInterrupted
     self.activePack = nil
-    UIApplication.shared.isIdleTimerDisabled = false
+    self.updateIdleTimerState()
     self.errorObservationTask?.cancel()
   }
   
   private func handlePackComplete() {
     self.downloadProgress = 1.0
-    self.isDownloading = false
     self.isDownloadComplete = true
     self.activePack = nil
-    self.loadExistingPacks()
-    UIApplication.shared.isIdleTimerDisabled = false
     self.errorObservationTask?.cancel()
+    
+    // This will automatically pick up the next pack in the queue if one exists
+    self.loadExistingPacks()
+    
+    if self.activePack == nil {
+      self.isDownloading = false
+    }
+    self.updateIdleTimerState()
   }
   
   private func updateProgress(_ currentProgress: Double) {
