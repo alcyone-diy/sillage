@@ -94,6 +94,25 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   private var errorObservationTask: Task<Void, Never>?
   private var activePack: MLNOfflinePack?
   private var packsObservation: NSKeyValueObservation?
+
+  /// Shared decoder — allocated once, reused on the `@MainActor` for all hot-path
+  /// JSON decoding (`loadExistingPacks`, `tryAutoResumeIfNeeded`).
+  private let contextDecoder = JSONDecoder()
+
+  /// Maps a live `MLNOfflinePack` instance to its decoded `OfflinePackContext`.
+  /// Populated during `loadExistingPacks` so that `updateRegionSize` can resolve
+  /// a pack's identity with an O(1) lookup instead of a JSON decode on every
+  /// high-frequency `MLNOfflinePackProgressChanged` notification.
+  private var packContextCache: [ObjectIdentifier: OfflinePackContext] = [:]
+
+  /// Set to `true` when `loadExistingPacks` encounters packs whose state is
+  /// still `.unknown` (MapLibre DB not yet resolved). The global
+  /// `MLNOfflinePackProgressChanged` observer consumes this flag exactly once,
+  /// triggering `tryAutoResumeIfNeeded` when the first state resolves —
+  /// without running the check on every subsequent notification.
+  /// Explicit `@MainActor` annotation prevents concurrent mutation from
+  /// nonisolated contexts on this `@unchecked Sendable` class.
+  @MainActor private var needsInitialAutoResume: Bool = false
   
   init() {
     MLNOfflineStorage.shared.setMaximumAllowedMapboxTiles(UInt64.max)
@@ -116,6 +135,9 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     
     // Globally observe progress changes to update sizes of completed packs
     // when requestProgress() is called.
+    // The `needsInitialAutoResume` flag is consumed at most once here, after
+    // requestProgress() resolves a pack's state out of `.unknown`. This avoids
+    // running any logic on every high-frequency progress notification.
     Task { [weak self] in
       for await notification in NotificationCenter.default.notifications(named: NSNotification.Name.MLNOfflinePackProgressChanged) {
         guard !Task.isCancelled else { break }
@@ -123,41 +145,57 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
         guard let pack = notification.object as? MLNOfflinePack else { continue }
         Task { @MainActor [weak self] in
           self?.updateRegionSize(for: pack)
+          guard self?.needsInitialAutoResume == true else { return }
+          self?.needsInitialAutoResume = false
+          self?.tryAutoResumeIfNeeded()
         }
       }
     }
   }
   
-  func loadExistingPacks() {
+  @MainActor func loadExistingPacks() {
     guard let packs = MLNOfflineStorage.shared.packs else { return }
     var regions: [OfflineRegionInfo] = []
-    let decoder = JSONDecoder()
+    var newCache: [ObjectIdentifier: OfflinePackContext] = [:]
     var nextPackToResume: (pack: MLNOfflinePack, context: OfflinePackContext)? = nil
-    
+    var hadUnknownStatePacks = false
+
     for pack in packs {
       let contextData = pack.context
-      if let context = try? decoder.decode(OfflinePackContext.self, from: contextData) {
+      if let context = try? contextDecoder.decode(OfflinePackContext.self, from: contextData) {
+        newCache[ObjectIdentifier(pack)] = context
+
         let size = pack.progress.countOfBytesCompleted
         let expected = pack.progress.countOfResourcesExpected
         let completed = pack.progress.countOfResourcesCompleted
         let isComplete = pack.state == .complete || (expected > 0 && completed >= expected)
         let progress = (!isComplete && expected > 0) ? Double(completed) / Double(expected) : nil
-        
+
         regions.append(OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: size, isComplete: isComplete, progress: progress, expectedResources: expected, completedResources: completed, estimatedTimeRemaining: nil))
-        
+
         if !isComplete {
           // Force MapLibre to recalculate the size from the database only for incomplete packs
           pack.requestProgress()
-          
-          let isVerifiablyIncomplete = (expected > 0 && completed < expected)
-          if (isVerifiablyIncomplete || pack.state == .invalid) && nextPackToResume == nil {
-            nextPackToResume = (pack, context)
+
+          if pack.state == .unknown {
+            // State not yet resolved from the async DB load; requestProgress()
+            // will fire MLNOfflinePackProgressChanged once resolved, at which
+            // point needsInitialAutoResume triggers a one-shot resume check.
+            hadUnknownStatePacks = true
+          } else {
+            // State is already known — evaluate immediately.
+            let isVerifiablyIncomplete = (expected > 0 && completed < expected)
+            let isResumable = isVerifiablyIncomplete || pack.state == .inactive || pack.state == .invalid
+            if isResumable && nextPackToResume == nil {
+              nextPackToResume = (pack, context)
+            }
           }
         }
       }
     }
+    self.packContextCache = newCache
     self.downloadedRegions = regions
-    
+
     // Auto-resume the next pack in the queue if none is currently active
     if self.activePack == nil, let next = nextPackToResume {
       Logger.offline.info("Auto-resuming pack from queue: \(next.context.regionName, privacy: .public)")
@@ -169,33 +207,73 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       self.downloadResourcesPerSecond = 0.0
       self.startObservingProgress()
       next.pack.resume()
+    } else if self.activePack == nil && hadUnknownStatePacks {
+      // Some packs were still in .unknown state. Arm the flag so the global
+      // observer triggers a resume check as soon as the first state resolves.
+      self.needsInitialAutoResume = true
+    }
+  }
+  
+  /// Resumes the first incomplete, non-queued pack if no download is active.
+  /// Triggered once via `needsInitialAutoResume` after MapLibre resolves pack
+  /// states from its async DB load (packs start as `.unknown` at boot).
+  @MainActor
+  private func tryAutoResumeIfNeeded() {
+    guard activePack == nil, !isDownloading else { return }
+    guard let packs = MLNOfflineStorage.shared.packs else { return }
+
+    for pack in packs {
+      // Use the in-memory cache — no JSON decode in this path.
+      guard let context = packContextCache[ObjectIdentifier(pack)] else { continue }
+      let expected = pack.progress.countOfResourcesExpected
+      let completed = pack.progress.countOfResourcesCompleted
+      let isComplete = pack.state == .complete || (expected > 0 && completed >= expected)
+      guard !isComplete else { continue }
+
+      let isVerifiablyIncomplete = (expected > 0 && completed < expected)
+      let isResumable = isVerifiablyIncomplete || pack.state == .inactive || pack.state == .invalid
+
+      if isResumable {
+        Logger.offline.info("Auto-resuming pack from queue: \(context.regionName, privacy: .public)")
+        self.activePack = pack
+        self.isDownloading = true
+        self.isDownloadComplete = false
+        self.downloadProgress = 0.0
+        self.updateIdleTimerState()
+        self.downloadResourcesPerSecond = 0.0
+        self.startObservingProgress()
+        pack.resume()
+        return
+      }
     }
   }
   
   private func updateRegionSize(for pack: MLNOfflinePack) {
-    let decoder = JSONDecoder()
-    guard let context = try? decoder.decode(OfflinePackContext.self, from: pack.context) else { return }
-    
-    if let index = downloadedRegions.firstIndex(where: { $0.id == context.id }) {
-      let newSize = pack.progress.countOfBytesCompleted
-      let expected = pack.progress.countOfResourcesExpected
-      let completed = pack.progress.countOfResourcesCompleted
-      let isComplete = pack.state == .complete || (expected > 0 && completed >= expected)
-      let progress = (!isComplete && expected > 0) ? Double(completed) / Double(expected) : nil
-      
-      let newRegion = OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: newSize, isComplete: isComplete, progress: progress, expectedResources: expected, completedResources: completed, estimatedTimeRemaining: downloadedRegions[index].estimatedTimeRemaining)
-      
-      if downloadedRegions[index] != newRegion {
-        downloadedRegions[index] = newRegion
-      }
+    // O(1) lookup — no JSON decode on the high-frequency progress tick.
+    guard let context = packContextCache[ObjectIdentifier(pack)],
+          let index = downloadedRegions.firstIndex(where: { $0.id == context.id }) else { return }
+
+    let newSize = pack.progress.countOfBytesCompleted
+    let expected = pack.progress.countOfResourcesExpected
+    let completed = pack.progress.countOfResourcesCompleted
+    let isComplete = pack.state == .complete || (expected > 0 && completed >= expected)
+    let progress = (!isComplete && expected > 0) ? Double(completed) / Double(expected) : nil
+
+    let newRegion = OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: newSize, isComplete: isComplete, progress: progress, expectedResources: expected, completedResources: completed, estimatedTimeRemaining: downloadedRegions[index].estimatedTimeRemaining)
+
+    if downloadedRegions[index] != newRegion {
+      downloadedRegions[index] = newRegion
     }
   }
   
   nonisolated func deletePack(id: String) async throws {
     let packToRemove: MLNOfflinePack? = await Task.detached {
       guard let packs = MLNOfflineStorage.shared.packs else { return nil }
+      // Local decoder: JSONDecoder is not Sendable, so it cannot be captured
+      // from the @MainActor-isolated contextDecoder across the Task.detached boundary.
+      // Allocation cost is negligible for this infrequent deletion path.
       let decoder = JSONDecoder()
-      
+
       for pack in packs {
         let contextData = pack.context
         if let context = try? decoder.decode(OfflinePackContext.self, from: contextData), context.id == id {
