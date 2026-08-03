@@ -28,6 +28,11 @@ struct OfflineRegionInfo: Identifiable, Equatable {
   let id: String
   let name: String
   let sizeInBytes: UInt64
+  let isComplete: Bool
+  let progress: Double?
+  let expectedResources: UInt64
+  let completedResources: UInt64
+  let estimatedTimeRemaining: TimeInterval?
 }
 
 public enum OfflineMapManagerError: LocalizedError {
@@ -56,6 +61,38 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   var downloadProgress: Double = 0.0
   var downloadError: Error? = nil
   var downloadedRegions: [OfflineRegionInfo] = []
+  var downloadResourcesPerSecond: Double = 0.0
+  
+  var totalDownloadedSize: Int64 {
+    downloadedRegions.reduce(0) { $0 + Int64($1.sizeInBytes) }
+  }
+  
+  var activeDownloadIndex: Int? {
+    downloadedRegions.firstIndex(where: { !$0.isComplete })
+  }
+  
+  var totalPendingDownloads: Int {
+    downloadedRegions.filter { !$0.isComplete }.count
+  }
+  
+  var globalDownloadProgress: Double? {
+    let incomplete = downloadedRegions.filter { !$0.isComplete }
+    let expected = incomplete.reduce(0) { $0 + $1.expectedResources }
+    let completed = incomplete.reduce(0) { $0 + $1.completedResources }
+    guard expected > 0 else { return nil }
+    return Double(completed) / Double(expected)
+  }
+  
+  var totalEstimatedTimeRemaining: TimeInterval? {
+    guard downloadResourcesPerSecond > 0 else { return nil }
+    let incomplete = downloadedRegions.filter { !$0.isComplete }
+    let expected = incomplete.reduce(0) { $0 + $1.expectedResources }
+    let completed = incomplete.reduce(0) { $0 + $1.completedResources }
+    if expected > completed {
+      return Double(expected - completed) / downloadResourcesPerSecond
+    }
+    return nil
+  }
   
   private var progressObservationTask: Task<Void, Never>?
   private var errorObservationTask: Task<Void, Never>?
@@ -104,7 +141,12 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       let contextData = pack.context
       if let context = try? decoder.decode(OfflinePackContext.self, from: contextData) {
         let size = pack.progress.countOfBytesCompleted
-        regions.append(OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: size))
+        let isComplete = pack.state == .complete
+        let expected = pack.progress.countOfResourcesExpected
+        let completed = pack.progress.countOfResourcesCompleted
+        let progress = (!isComplete && expected > 0) ? Double(completed) / Double(expected) : nil
+        
+        regions.append(OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: size, isComplete: isComplete, progress: progress, expectedResources: expected, completedResources: completed, estimatedTimeRemaining: nil))
         
         if pack.state != .complete {
           // Force MapLibre to recalculate the size from the database only for incomplete packs
@@ -126,6 +168,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       self.isDownloadComplete = false
       self.downloadProgress = 0.0
       self.updateIdleTimerState()
+      self.downloadResourcesPerSecond = 0.0
       self.startObservingProgress()
       next.pack.resume()
     }
@@ -137,8 +180,15 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     
     if let index = downloadedRegions.firstIndex(where: { $0.id == context.id }) {
       let newSize = pack.progress.countOfBytesCompleted
-      if downloadedRegions[index].sizeInBytes != newSize {
-        downloadedRegions[index] = OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: newSize)
+      let isComplete = pack.state == .complete
+      let expected = pack.progress.countOfResourcesExpected
+      let completed = pack.progress.countOfResourcesCompleted
+      let progress = (!isComplete && expected > 0) ? Double(completed) / Double(expected) : nil
+      
+      let newRegion = OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: newSize, isComplete: isComplete, progress: progress, expectedResources: expected, completedResources: completed, estimatedTimeRemaining: downloadedRegions[index].estimatedTimeRemaining)
+      
+      if downloadedRegions[index] != newRegion {
+        downloadedRegions[index] = newRegion
       }
     }
   }
@@ -247,6 +297,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.activePack = pack
     self.isDownloadComplete = false
     self.downloadError = nil
+    self.downloadResourcesPerSecond = 0.0
     self.updateIdleTimerState()
     pack.resume()
     
@@ -266,6 +317,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       isDownloadComplete = false
       activePack = nil
       downloadProgress = 0.0
+      downloadResourcesPerSecond = 0.0
       self.updateIdleTimerState()
       
       MLNOfflineStorage.shared.removePack(pack) { [weak self] error in
@@ -281,6 +333,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       isDownloadComplete = false
       activePack = nil
       downloadProgress = 0.0
+      downloadResourcesPerSecond = 0.0
       self.updateIdleTimerState()
       self.loadExistingPacks()
     }
@@ -318,8 +371,10 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       self?.clearErrorTask()
     }
     
-    progressObservationTask = Task { [weak self] in
+    progressObservationTask = Task { @MainActor [weak self] in
       var lastProgress: Double = 0.0
+      var lastDate = Date()
+      var lastCompletedResources: UInt64? = nil
       
       for await notification in NotificationCenter.default.notifications(named: NSNotification.Name.MLNOfflinePackProgressChanged) {
         guard !Task.isCancelled else { break }
@@ -347,9 +402,34 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
         
         let progress = pack.progress
         let expected = Double(progress.countOfResourcesExpected)
+        let completedUInt = progress.countOfResourcesCompleted
         guard expected > 0 else { continue }
         
-        let completed = Double(progress.countOfResourcesCompleted)
+        if lastCompletedResources == nil {
+          lastCompletedResources = completedUInt
+          lastDate = Date()
+        } else {
+          let now = Date()
+          let timeDelta = now.timeIntervalSince(lastDate)
+          if timeDelta >= 1.0 {
+            if let lastCompleted = lastCompletedResources {
+              let delta = Double(completedUInt) - Double(lastCompleted)
+              if delta >= 0 {
+                let rps = delta / timeDelta
+                if self.downloadResourcesPerSecond == 0 {
+                  self.downloadResourcesPerSecond = rps
+                } else {
+                  self.downloadResourcesPerSecond = self.downloadResourcesPerSecond * 0.8 + rps * 0.2
+                }
+                self.recalculateETAs()
+              }
+            }
+            lastCompletedResources = completedUInt
+            lastDate = now
+          }
+        }
+        
+        let completed = Double(completedUInt)
         let currentProgress = completed / expected
         
         if currentProgress - lastProgress >= 0.01 {
@@ -395,6 +475,38 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   
   private func updateProgress(_ currentProgress: Double) {
     self.downloadProgress = currentProgress
+  }
+  
+  private func recalculateETAs() {
+    guard downloadResourcesPerSecond > 0 else { return }
+    
+    var updatedRegions = downloadedRegions
+    
+    for i in 0..<updatedRegions.count {
+      let region = updatedRegions[i]
+      if region.isComplete {
+        continue
+      }
+      
+      let expected = region.expectedResources
+      let completed = region.completedResources
+      
+      if expected > completed {
+        let remaining = expected - completed
+        let eta = Double(remaining) / downloadResourcesPerSecond
+        updatedRegions[i] = OfflineRegionInfo(
+          id: region.id,
+          name: region.name,
+          sizeInBytes: region.sizeInBytes,
+          isComplete: region.isComplete,
+          progress: region.progress,
+          expectedResources: region.expectedResources,
+          completedResources: region.completedResources,
+          estimatedTimeRemaining: eta
+        )
+      }
+    }
+    self.downloadedRegions = updatedRegions
   }
   
   private func clearErrorTask() {
