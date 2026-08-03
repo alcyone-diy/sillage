@@ -18,7 +18,7 @@ import OSLog
 @Observable
 @MainActor
 final class OfflineSelectionViewModel {
-  let offlineMapManager: OfflineMapManager
+  let offlineMapManager: OfflineMapManagerProtocol
   let offlineMapDownloadService: OfflineMapDownloadService
   
   /// The geographically accurate bounding box derived from the UI crop box.
@@ -45,7 +45,7 @@ final class OfflineSelectionViewModel {
   private var calculationTask: Task<Void, Never>?
   private let maxArea = AppConstants.Cartography.Offline.maxDownloadArea
   
-  init(offlineMapManager: OfflineMapManager, offlineMapDownloadService: OfflineMapDownloadService) {
+  init(offlineMapManager: OfflineMapManagerProtocol, offlineMapDownloadService: OfflineMapDownloadService) {
     self.offlineMapManager = offlineMapManager
     self.offlineMapDownloadService = offlineMapDownloadService
   }

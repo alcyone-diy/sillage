@@ -339,7 +339,7 @@ struct OfflineSelectionOverlayView: View {
     if let viewModel = viewModel {
       VStack(spacing: MarineTheme.Spacing.medium) {
         if let error = viewModel.offlineMapManager.downloadError {
-          Text(error)
+          Text(error.localizedDescription)
             .marineFont(.footnote)
             .foregroundColor(MarineTheme.Colors.destructive)
             .lineLimit(nil)

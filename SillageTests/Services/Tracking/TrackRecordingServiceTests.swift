@@ -501,7 +501,7 @@ struct TrackRecordingServiceTests {
     )
     
     // Action
-    _ = try await service.startRecording()
+    service.startRecording()
     
     // Assertions
     #expect(mockPositioning.requestLocationUpdatesCallCount == 1)
@@ -522,7 +522,7 @@ struct TrackRecordingServiceTests {
       messageService: mockMessages
     )
     
-    _ = try await service.startRecording()
+    service.startRecording()
     #expect(service.state == .waitingForFix)
     #expect(mockPositioning.requestedDistanceFilters["TrackRecording"] == 0.0)
     
@@ -552,7 +552,7 @@ struct TrackRecordingServiceTests {
       messageService: mockMessages
     )
     
-    _ = try await service.startRecording()
+    service.startRecording()
     
     // Get into recording state
     let validFix = createNavigationFix(latitude: 45.0, longitude: -1.0)

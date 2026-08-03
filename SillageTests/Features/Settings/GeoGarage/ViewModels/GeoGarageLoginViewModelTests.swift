@@ -20,13 +20,13 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.shouldFailAuthenticate = true
-    let viewModel = GeoGarageLoginViewModel()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
 
     viewModel.username = "testuser"
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: nil)
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
     
     // Await the task cleanly instead of polling
     await viewModel.loginTask?.value
@@ -50,7 +50,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     messageService.post(initialMessage)
     XCTAssertEqual(messageService.messages.count, 1)
 
-    let viewModel = GeoGarageLoginViewModel()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
     viewModel.username = "testuser"
     viewModel.password = "testpass"
 
@@ -85,7 +85,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
 
     XCTAssertEqual(messageService.messages.count, 4)
 
-    let viewModel = GeoGarageLoginViewModel()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
     viewModel.username = "testuser"
     viewModel.password = "testpass"
 
@@ -111,12 +111,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
   func testSuccessfulLoginWithNilMessageServiceSucceedsWithoutCrash() async {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
-    let viewModel = GeoGarageLoginViewModel()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
     viewModel.username = "testuser"
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: nil)
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
 
     // Await the task cleanly
     await viewModel.loginTask?.value
@@ -132,12 +132,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.shouldFailAuthenticate = true
-    let viewModel = GeoGarageLoginViewModel()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
     viewModel.username = "testuser"
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: nil)
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
 
     // Await the task cleanly
     await viewModel.loginTask?.value
@@ -152,12 +152,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
   func testLoginWithEmptyUsernameDoesNotAttemptAuthOrCrash() async {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
-    let viewModel = GeoGarageLoginViewModel()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
     viewModel.username = "   "
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: nil)
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
 
     // Await task
     await viewModel.loginTask?.value
@@ -201,14 +201,13 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
       messageService: messageService
     )
 
-    let viewModel = GeoGarageLoginViewModel()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
     viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")]
     viewModel.isAuthorizationReady = true
     chartViewModel.updateGeoGarageLayers(viewModel.availableLayers)
 
     // Act
-    viewModel.logout(authService: mockAuthService, messageService: messageService)
-    chartViewModel.logoutGeoGarage()
+    await viewModel.performLogout(authService: mockAuthService, messageService: messageService, chartViewModel: chartViewModel)
 
     // Assert
     XCTAssertTrue(viewModel.availableLayers.isEmpty)
@@ -233,12 +232,30 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     messageService.post(initialMessage)
     XCTAssertEqual(messageService.messages.count, 1)
 
-    let viewModel = GeoGarageLoginViewModel()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
     viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")]
     viewModel.isAuthorizationReady = true
 
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let chartViewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: nil,
+      messageService: messageService
+    )
+
     // Act
-    viewModel.logout(authService: mockAuthService, messageService: messageService)
+    await viewModel.performLogout(authService: mockAuthService, messageService: messageService, chartViewModel: chartViewModel)
 
     // Assert
     XCTAssertTrue(viewModel.availableLayers.isEmpty)

@@ -1,3 +1,13 @@
+//
+//  OfflineSelectionViewModelTests.swift
+//  Alcyone Sillage
+//
+//  Created by Alcyone on 2026-08-01.
+//  Copyright © 2026 Alcyone.
+//  This file is released under the MIT License.
+//  See LICENSE file in the project root for full license information.
+//
+
 import XCTest
 import CoreLocation
 @testable import Sillage
@@ -5,11 +15,11 @@ import CoreLocation
 @MainActor
 final class OfflineSelectionViewModelTests: XCTestCase {
   var viewModel: OfflineSelectionViewModel!
-  var offlineMapManager: OfflineMapManager!
+  var offlineMapManager: MockOfflineMapManager!
   var offlineMapDownloadService: OfflineMapDownloadService!
 
   override func setUp() async throws {
-    offlineMapManager = OfflineMapManager()
+    offlineMapManager = MockOfflineMapManager()
     offlineMapDownloadService = OfflineMapDownloadService(offlineMapManager: offlineMapManager)
     viewModel = OfflineSelectionViewModel(
       offlineMapManager: offlineMapManager,
