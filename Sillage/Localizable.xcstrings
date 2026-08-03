@@ -584,6 +584,9 @@
     "Offline Area" : {
 
     },
+    "Offline chart not found (id: %@)." : {
+
+    },
     "Offline Charts" : {
 
     },
