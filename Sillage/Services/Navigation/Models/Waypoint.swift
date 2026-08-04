@@ -13,6 +13,8 @@ import CoreLocation
 
 /// Domain model representing a Waypoint in the Navigation system.
 public struct Waypoint: Identifiable, Sendable, Equatable {
+  public static let defaultColorHex = "#007AFF"
+  
   public let id: String
   public let name: String
   public let description: String?

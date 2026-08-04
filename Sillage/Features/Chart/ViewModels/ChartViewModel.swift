@@ -257,15 +257,11 @@ final class ChartViewModel {
     let coordinate = waypoint.coordinate
     let feature = MLNPointFeature()
     feature.coordinate = coordinate
-    
-    var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
-    if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
-      attributes["colorHex"] = colorHex
-      attributes["color"] = UIColor(color)
-    } else {
-      attributes["color"] = UIColor(MarineTheme.Colors.primary)
-    }
-    feature.attributes = attributes
+    feature.attributes = [
+      "name": waypoint.name,
+      "id": waypoint.id,
+      "color": waypoint.validDisplayColorHex
+    ]
     
     self.goToWaypointID = id
     self.goToWaypointFeature = feature
@@ -303,14 +299,11 @@ final class ChartViewModel {
       let coordinate = waypoint.coordinate
       let feature = MLNPointFeature()
       feature.coordinate = coordinate
-      var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
-      if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
-        attributes["colorHex"] = colorHex
-        attributes["color"] = UIColor(color)
-      } else {
-        attributes["color"] = UIColor(MarineTheme.Colors.primary)
-      }
-      feature.attributes = attributes
+      feature.attributes = [
+        "name": waypoint.name,
+        "id": waypoint.id,
+        "color": waypoint.validDisplayColorHex
+      ]
       return feature
     }
     
@@ -340,15 +333,11 @@ final class ChartViewModel {
     // The waypoint still exists, update its data (color, name, position)
     let feature = MLNPointFeature()
     feature.coordinate = waypoint.coordinate
-    var attributes: [String: Any] = ["name": waypoint.name, "id": waypoint.id]
-    
-    if let colorHex = waypoint.colorHex, let color = Color(hex: colorHex) {
-      attributes["colorHex"] = colorHex
-      attributes["color"] = UIColor(color)
-    } else {
-      attributes["color"] = UIColor(MarineTheme.Colors.primary)
-    }
-    feature.attributes = attributes
+    feature.attributes = [
+      "name": waypoint.name,
+      "id": waypoint.id,
+      "color": waypoint.validDisplayColorHex
+    ]
     
     self.goToWaypointID = targetID
     self.goToWaypointFeature = feature

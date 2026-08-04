@@ -28,7 +28,7 @@ public final class WaypointDetailViewModel {
   
   public var activeError: Error?
   public var isSaving: Bool = false
-  public var color: Color = MarineTheme.Colors.primary
+  public var color: Color = Color(hex: Waypoint.defaultColorHex) ?? .blue
   public var isVisible: Bool = true
   public var isEditable: Bool
   
@@ -66,7 +66,7 @@ public final class WaypointDetailViewModel {
     self.isEditable = startEditable
     self.name = editingWaypoint.name
     self.description = editingWaypoint.description ?? ""
-    self.color = editingWaypoint.colorHex.flatMap { Color(hex: $0) } ?? MarineTheme.Colors.primary
+    self.color = editingWaypoint.displayColor
     self.isVisible = editingWaypoint.isVisible
     setCoordinate(editingWaypoint.coordinate)
   }
@@ -75,7 +75,7 @@ public final class WaypointDetailViewModel {
     guard let original = originalWaypoint else { return }
     self.name = original.name
     self.description = original.description ?? ""
-    self.color = original.colorHex.flatMap { Color(hex: $0) } ?? MarineTheme.Colors.primary
+    self.color = original.displayColor
     self.isVisible = original.isVisible
     setCoordinate(original.coordinate)
     self.isEditable = false
