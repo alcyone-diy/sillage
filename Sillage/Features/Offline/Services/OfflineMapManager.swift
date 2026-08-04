@@ -96,6 +96,9 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   private var errorObservationTask: Task<Void, Never>?
   private var activePack: MLNOfflinePack?
   private var packsObservation: NSKeyValueObservation?
+  /// Held while a download is active so iOS does not suspend the process
+  /// when the user backgrounds the app.
+  private var backgroundTaskToken: BackgroundTaskToken?
 
   /// Shared decoder — allocated once, reused on the `@MainActor` for all
   /// JSON decoding (`loadExistingPacks`, `updateRegionSize`, `tryAutoResumeIfNeeded`).
@@ -419,7 +422,16 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   }
   
   private func updateIdleTimerState() {
-    UIApplication.shared.isIdleTimerDisabled = (self.activePack != nil)
+    let isActive = (self.activePack != nil)
+    UIApplication.shared.isIdleTimerDisabled = isActive
+    if isActive {
+      if backgroundTaskToken == nil {
+        backgroundTaskToken = BackgroundTaskRunner.acquireToken(name: "OfflineMapDownload")
+      }
+    } else {
+      backgroundTaskToken?.invalidate()
+      backgroundTaskToken = nil
+    }
   }
   
   private func startObservingProgress() {
