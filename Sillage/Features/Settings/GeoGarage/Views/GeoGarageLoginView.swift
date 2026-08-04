@@ -61,7 +61,7 @@ struct GeoGarageLoginView: View {
       }
       .padding(.horizontal)
     }
-    .background(MarineTheme.Colors.panelBackground)
+    .background(marineTheme.colors.panelBackground)
     .navigationTitle(viewModel.isAuthenticated ? "GeoGarage Account" : "GeoGarage Login")
     .navigationBarTitleDisplayMode(.inline)
     .navigationBarBackButtonHidden(viewModel.isLoading)
@@ -69,10 +69,10 @@ struct GeoGarageLoginView: View {
     .overlay {
       if viewModel.isLoading {
         ZStack {
-          MarineTheme.Colors.overlay.ignoresSafeArea()
+          marineTheme.colors.overlay.ignoresSafeArea()
           ProgressView()
             .controlSize(.large)
-            .tint(MarineTheme.Colors.onPrimary)
+            .tint(marineTheme.colors.onPrimary)
         }
       }
     }
@@ -102,7 +102,7 @@ struct GeoGarageLoginView: View {
     VStack(spacing: MarineTheme.Spacing.large) {
       accountInfoView(username: username)
         .padding(MarineTheme.Spacing.medium)
-        .background(MarineTheme.Colors.surfaceBackground)
+        .background(marineTheme.colors.surfaceBackground)
         .cornerRadius(12)
       
       Button(action: initiateLogout) {
@@ -112,7 +112,7 @@ struct GeoGarageLoginView: View {
       
       Link("My Account", destination: viewModel.accountManagementURL(authService: authService))
         .buttonStyle(.borderless)
-        .tint(MarineTheme.Colors.primary)
+        .tint(marineTheme.colors.primary)
         .padding(.top, MarineTheme.Spacing.small)
     }
   }
@@ -124,10 +124,10 @@ struct GeoGarageLoginView: View {
       VStack(spacing: MarineTheme.Spacing.small) {
         Text("Authentication Error")
           .font(.headline)
-          .foregroundColor(MarineTheme.Colors.error)
+          .foregroundColor(marineTheme.colors.error)
         Text(error)
           .font(.footnote)
-          .foregroundColor(MarineTheme.Colors.error)
+          .foregroundColor(marineTheme.colors.error)
           .multilineTextAlignment(.center)
       }
 
@@ -155,10 +155,10 @@ struct GeoGarageLoginView: View {
       VStack(spacing: MarineTheme.Spacing.small) {
         Text("Re-authenticate")
           .font(.headline)
-          .foregroundColor(MarineTheme.Colors.error)
+          .foregroundColor(marineTheme.colors.error)
         Text(error)
           .font(.footnote)
-          .foregroundColor(MarineTheme.Colors.error)
+          .foregroundColor(marineTheme.colors.error)
           .multilineTextAlignment(.center)
       }
 
@@ -176,7 +176,7 @@ struct GeoGarageLoginView: View {
         Button("Cancel", role: .cancel) {
           viewModel.forceReauthentication = false
         }
-        .foregroundColor(MarineTheme.Colors.primary)
+        .foregroundColor(marineTheme.colors.primary)
         .padding(.vertical, MarineTheme.Spacing.small)
       }
     }
@@ -190,7 +190,7 @@ struct GeoGarageLoginView: View {
         if let error = error {
           Text(error)
             .marineFont(.body)
-            .foregroundColor(MarineTheme.Colors.destructive)
+            .foregroundColor(marineTheme.colors.destructive)
             .multilineTextAlignment(.center)
         }
         
@@ -210,7 +210,7 @@ struct GeoGarageLoginView: View {
         
         Link("Discover GeoGarage", destination: viewModel.discoverURL(authService: authService))
           .buttonStyle(.borderless)
-          .tint(MarineTheme.Colors.primary)
+          .tint(marineTheme.colors.primary)
           .padding(.top, MarineTheme.Spacing.large)
       }
     }.padding(.top, MarineTheme.Spacing.small)
@@ -242,7 +242,7 @@ struct GeoGarageLoginView: View {
     HStack(spacing: MarineTheme.Spacing.medium) {
       Image(systemName: "person.crop.circle.fill")
         .font(.system(size: 40))
-        .foregroundColor(MarineTheme.Colors.primary)
+        .foregroundColor(marineTheme.colors.primary)
       
       VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
         Text("Account Connected")
@@ -295,6 +295,8 @@ struct GeoGarageLoginView: View {
 // MARK: - Standard Button Style
 
 private struct MarinePrimaryButtonStyle: ButtonStyle {
+  @Environment(\.marineTheme) private var marineTheme
+
   let isDestructive: Bool
   let minHeight: CGFloat
 
@@ -303,8 +305,8 @@ private struct MarinePrimaryButtonStyle: ButtonStyle {
       .font(.headline)
       .fontWeight(.bold)
       .frame(maxWidth: .infinity, minHeight: minHeight)
-      .background(isDestructive ? MarineTheme.Colors.destructiveBackground : MarineTheme.Colors.primary)
-      .foregroundColor(isDestructive ? MarineTheme.Colors.error : MarineTheme.Colors.onPrimary)
+      .background(isDestructive ? marineTheme.colors.destructiveBackground : marineTheme.colors.primary)
+      .foregroundColor(isDestructive ? marineTheme.colors.error : marineTheme.colors.onPrimary)
       .cornerRadius(MarineTheme.Metrics.cornerRadius)
       .opacity(configuration.isPressed ? 0.7 : 1.0)
   }

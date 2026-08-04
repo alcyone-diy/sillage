@@ -16,7 +16,8 @@ import Charts
 public struct BarometerAlarmView: View {
     @Bindable var viewModel: BarometerViewModel
     @Environment(PermissionService.self) private var permissionService
-    
+    @Environment(\.marineTheme) private var marineTheme
+
     public init(viewModel: BarometerViewModel) {
         self.viewModel = viewModel
     }
@@ -35,7 +36,7 @@ public struct BarometerAlarmView: View {
                             } else {
                                 Text("Acquiring...")
                                     .marineFont(.body)
-                                    .foregroundColor(MarineTheme.Colors.textSecondary)
+                                    .foregroundColor(marineTheme.colors.textSecondary)
                             }
                         }
                         
@@ -84,7 +85,7 @@ public struct BarometerAlarmView: View {
                 }
                 .padding(.vertical, MarineTheme.Spacing.small)
             }
-            .listRowBackground(MarineTheme.Colors.surfaceBackground)
+            .listRowBackground(marineTheme.colors.surfaceBackground)
             
             // MARK: - Settings
             Section(header: Text("Configuration")) {
@@ -94,7 +95,7 @@ public struct BarometerAlarmView: View {
                         viewModel.requestToggleAlarm(isOn: newValue, in: permissionService)
                     }
                 ))
-                    .tint(MarineTheme.Colors.accent)
+                    .tint(marineTheme.colors.accent)
                 
                 if viewModel.isAlarmEnabled {
                     VStack(alignment: .leading, spacing: 6) {
@@ -107,7 +108,7 @@ public struct BarometerAlarmView: View {
                         
                         Text(viewModel.sensitivity.explanation)
                             .font(.caption)
-                            .foregroundColor(MarineTheme.Colors.textSecondary)
+                            .foregroundColor(marineTheme.colors.textSecondary)
                         
                         Text("Note: The alarm only works in the background if you are recording a track or the anchor alarm is active.")
                             .font(.caption)
@@ -123,7 +124,7 @@ public struct BarometerAlarmView: View {
                         Spacer()
                         Stepper(value: $viewModel.offsetValueForStepper, in: -50...50, step: 0.1) {
                             Text(String(format: "%+.1f hPa", viewModel.offsetValueForStepper))
-                                .foregroundColor(MarineTheme.Colors.accent)
+                                .foregroundColor(marineTheme.colors.accent)
                         }
                     }
                     if let raw = viewModel.rawPressureFormatted {
@@ -134,7 +135,7 @@ public struct BarometerAlarmView: View {
                 }
                 .padding(.vertical, 4)
             }
-            .listRowBackground(MarineTheme.Colors.surfaceBackground)
+            .listRowBackground(marineTheme.colors.surfaceBackground)
         }
         .marineListBackground()
         .navigationTitle("Barometer Alarm")
@@ -187,11 +188,11 @@ public struct BarometerAlarmView: View {
     private var alarmColor: Color {
         switch viewModel.alarmLevel {
         case .gale, .storm, .squall:
-            return MarineTheme.Colors.destructive
+            return marineTheme.colors.destructive
         case .vigilance:
-            return MarineTheme.Colors.warning
+            return marineTheme.colors.warning
         default:
-            return MarineTheme.Colors.primary
+            return marineTheme.colors.primary
         }
     }
 }

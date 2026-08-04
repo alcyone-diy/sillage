@@ -97,7 +97,7 @@ struct MessageCarouselView: View {
           HStack(spacing: MarineTheme.Spacing.small) {
             ForEach(messageService.messages) { message in
               Circle()
-                .fill(message.id == scrolledID ? MarineTheme.Colors.primary : Color.secondary.opacity(0.3))
+                .fill(message.id == scrolledID ? marineTheme.colors.primary : Color.secondary.opacity(0.3))
                 .frame(width: MarineTheme.Metrics.paginationDotSize, height: MarineTheme.Metrics.paginationDotSize)
             }
           }
@@ -167,7 +167,7 @@ struct MessageCardView: View {
         }
       }
     }
-    .shadow(color: MarineTheme.Colors.shadow, radius: MarineTheme.Metrics.shadowRadius, x: 0, y: MarineTheme.Metrics.shadowOffset)
+    .shadow(color: marineTheme.colors.shadow, radius: MarineTheme.Metrics.shadowRadius, x: 0, y: MarineTheme.Metrics.shadowOffset)
     .background(
       GeometryReader { geo in
         Color.clear.preference(

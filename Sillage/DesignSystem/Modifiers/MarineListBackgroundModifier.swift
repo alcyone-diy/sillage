@@ -11,10 +11,12 @@
 import SwiftUI
 
 struct MarineListBackgroundModifier: ViewModifier {
+  @Environment(\.marineTheme) private var marineTheme
+
   func body(content: Content) -> some View {
     content
       .scrollContentBackground(.hidden)
-      .background(MarineTheme.Colors.panelBackground)
+      .background(marineTheme.colors.panelBackground)
   }
 }
 

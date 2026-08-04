@@ -42,7 +42,7 @@ struct SettingsView: View {
                 if let progress = environment.offlineMapManager.globalDownloadProgress, environment.offlineMapManager.totalPendingDownloads > 0 {
                   ProgressView(value: progress)
                     .progressViewStyle(.linear)
-                    .tint(MarineTheme.Colors.accent)
+                    .tint(marineTheme.colors.accent)
                 }
               }
             } icon: {

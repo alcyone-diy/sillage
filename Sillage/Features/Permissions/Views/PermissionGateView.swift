@@ -172,6 +172,8 @@ struct PermissionGateView: View {
 }
 
 struct PrePermissionView: View {
+    @Environment(\.marineTheme) private var marineTheme
+
     let type: PermissionGateType
     let onAllow: () -> Void
     
@@ -191,7 +193,7 @@ struct PrePermissionView: View {
             }
             .scaledToFit()
             .frame(width: 80, height: 80)
-            .foregroundColor(MarineTheme.Colors.primary)
+            .foregroundColor(marineTheme.colors.primary)
             .padding(.bottom, 10)
             
             Text(type.title)
@@ -211,8 +213,8 @@ struct PrePermissionView: View {
                     .marineFont(.headline)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(MarineTheme.Colors.primary)
-                    .foregroundColor(MarineTheme.Colors.onPrimary)
+                    .background(marineTheme.colors.primary)
+                    .foregroundColor(marineTheme.colors.onPrimary)
                     .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
             .buttonStyle(MarineButtonStyle())

@@ -13,47 +13,76 @@ import SwiftUI
 struct MarineTheme {
   let minTouchTarget: CGFloat
   let isGloveMode: Bool
+  let colors: Colors
 
   struct Colors {
-    static let primary = Color.blue
-    static let accent = Color.blue // Alias for primary, matching user request
-    static let inactive = Color.gray
-    static let warning = Color.yellow
-    static let cancelAction = Color.orange
-    static let background = Color.black
-    static let overlay = Color.black.opacity(0.3)
-    static let primaryFaded = primary.opacity(0.4)
-    static let planningLine = primary.opacity(0.5)
-    static let shadow = Color.black.opacity(0.1)
-
-    // New colors
-    static let surfaceBackground = Color(uiColor: .secondarySystemGroupedBackground)
-    static let activeToggle = Color.cyan
-    static let textOnActive = Color.white
-    static let onPrimary = Color.white
-    static let textPrimary = Color.primary
-    static let textSecondary = Color.secondary
-    static let panelBackground = Color(uiColor: .systemGroupedBackground)
-    static let secondarySurface = Color(uiColor: .secondarySystemGroupedBackground)
-    static let destructive = Color(uiColor: .systemRed)
-    static let error = destructive // Alias for semantic usage
-    static let destructiveBackground = Color(uiColor: .systemRed).opacity(0.15)
-    static let disabledBackground = Color.gray.opacity(0.15)
-    static let border = Color(uiColor: .separator)
+    let primary: Color
+    let inactive: Color
+    let warning: Color
+    let cancelAction: Color
+    let background: Color
+    let overlay: Color
+    let shadow: Color
+    
+    let surfaceBackground: Color
+    let activeToggle: Color
+    let textOnActive: Color
+    let onPrimary: Color
+    let textPrimary: Color
+    let textSecondary: Color
+    let panelBackground: Color
+    let secondarySurface: Color
+    let destructive: Color
+    let destructiveBackground: Color
+    let disabledBackground: Color
+    let border: Color
 
     // Marine Navigation Vectors
-    static let vectorCOG = Color(red: 1.0, green: 0.0, blue: 1.0) // Magenta
-    static let vectorHDG = Color(UIColor { traitCollection in
-      traitCollection.userInterfaceStyle == .dark ? .systemYellow : .darkGray
-    }) // Amber for dark mode, dark gray for light mode
-    static let vectorTick = Color.black
+    let vectorCOG: Color
+    let vectorHDG: Color
+    let vectorTick: Color
     
     // Anchor & Safety
-    static let anchorArmed = Color(UIColor.systemGreen) // Will be adapted for night mode later
-    static let anchorDragging = Color(UIColor.systemRed)
-    static let anchorDropped = Color(red: 0.0, green: 1.0, blue: 1.0) // Cyan #00FFFF
-  }
+    let anchorArmed: Color
+    let anchorDragging: Color
+    let anchorDropped: Color
 
+    // Computed properties for derived colors and aliases
+    var accent: Color { primary }
+    var error: Color { destructive }
+    var primaryFaded: Color { primary.opacity(0.4) }
+    var planningLine: Color { primary.opacity(0.5) }
+  }
+  
+  static let dayColors = Colors(
+    primary: .blue,
+    inactive: .gray,
+    warning: .yellow,
+    cancelAction: .orange,
+    background: .black,
+    overlay: Color.black.opacity(0.3),
+    shadow: Color.black.opacity(0.1),
+    surfaceBackground: Color(uiColor: .secondarySystemGroupedBackground),
+    activeToggle: .cyan,
+    textOnActive: .white,
+    onPrimary: .white,
+    textPrimary: .primary,
+    textSecondary: .secondary,
+    panelBackground: Color(uiColor: .systemGroupedBackground),
+    secondarySurface: Color(uiColor: .secondarySystemGroupedBackground),
+    destructive: Color(uiColor: .systemRed),
+    destructiveBackground: Color(uiColor: .systemRed).opacity(0.15),
+    disabledBackground: Color.gray.opacity(0.15),
+    border: Color(uiColor: .separator),
+    vectorCOG: Color(red: 1.0, green: 0.0, blue: 1.0), // Magenta
+    vectorHDG: Color(UIColor { traitCollection in
+      traitCollection.userInterfaceStyle == .dark ? .systemYellow : .darkGray
+    }), // Amber for dark mode, dark gray for light mode
+    vectorTick: .black,
+    anchorArmed: Color(uiColor: .systemGreen), // Will be adapted for night mode later
+    anchorDragging: Color(uiColor: .systemRed),
+    anchorDropped: Color(red: 0.0, green: 1.0, blue: 1.0) // Cyan #00FFFF
+  )
 
   struct Metrics {
     let touchTarget: CGFloat
@@ -88,8 +117,8 @@ struct MarineTheme {
     static let gpsAccuracyLineWidth: Double = 1.0
   }
 
-  static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false)
-  static let gloveMode = MarineTheme(minTouchTarget: 66, isGloveMode: true)
+  static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false, colors: dayColors)
+  static let gloveMode = MarineTheme(minTouchTarget: 66, isGloveMode: true, colors: dayColors)
 
   func fontSettings(for style: MarineTextStyle) -> (size: Font.TextStyle, weight: Font.Weight?) {
     switch style {

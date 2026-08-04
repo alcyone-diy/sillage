@@ -159,7 +159,7 @@ struct ChartPreferencesView: View {
               .foregroundColor(.secondary)
           }
         }
-        .tint(MarineTheme.Colors.primary)
+        .tint(marineTheme.colors.primary)
         .marineListCell()
       }
     }

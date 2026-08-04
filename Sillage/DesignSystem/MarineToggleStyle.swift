@@ -28,10 +28,10 @@ struct MarineToggleStyle: ToggleStyle {
           .marineFont(.caption)
       }
       .frame(maxWidth: .infinity, minHeight: marineTheme.metrics.touchTarget)
-      .foregroundColor(configuration.isOn ? MarineTheme.Colors.textOnActive : MarineTheme.Colors.textSecondary)
+      .foregroundColor(configuration.isOn ? marineTheme.colors.textOnActive : marineTheme.colors.textSecondary)
       .background {
         if configuration.isOn {
-          MarineTheme.Colors.activeToggle
+          marineTheme.colors.activeToggle
         } else {
           CellBackgroundView()
         }
