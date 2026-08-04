@@ -12,7 +12,6 @@ import SwiftUI
 import CoreLocation
 
 struct ContentView: View {
-
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @Environment(\.verticalSizeClass) private var verticalSizeClass
   @Environment(AppViewModel.self) private var appViewModel
@@ -23,7 +22,8 @@ struct ContentView: View {
   @Environment(AnchorViewModel.self) private var anchorViewModel
   @Environment(PermissionService.self) private var permissionService
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
-  
+  @Environment(\.marineTheme) private var marineTheme
+
   @State private var localSheetPresented: Bool = false
   @State private var permissionGateType: PermissionGateType? = nil
 
@@ -280,8 +280,8 @@ struct ContentView: View {
 
   private func trackingBackgroundColor(for mode: ChartTrackingMode) -> Color {
     switch mode {
-    case .free: return MarineTheme.Colors.inactive
-    case .northUp, .courseUp: return MarineTheme.Colors.primary
+    case .free: return marineTheme.colors.inactive
+    case .northUp, .courseUp: return marineTheme.colors.primary
     }
   }
 

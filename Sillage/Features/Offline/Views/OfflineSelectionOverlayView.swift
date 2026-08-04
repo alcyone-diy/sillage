@@ -56,7 +56,7 @@ struct OfflineSelectionOverlayView: View {
         }()
         
         ZStack(alignment: .topLeading) {
-          MarineTheme.Colors.overlay
+          marineTheme.colors.overlay
             .ignoresSafeArea()
             .allowsHitTesting(false)
             .reverseMask {
@@ -66,7 +66,7 @@ struct OfflineSelectionOverlayView: View {
             }
             
           Rectangle()
-            .strokeBorder(MarineTheme.Colors.accent, lineWidth: MarineTheme.Metrics.borderWidth * 3.0)
+            .strokeBorder(marineTheme.colors.accent, lineWidth: MarineTheme.Metrics.borderWidth * 3.0)
             .frame(width: rect.width, height: rect.height)
             .position(x: rect.midX, y: rect.midY)
             .allowsHitTesting(false)
@@ -91,9 +91,9 @@ struct OfflineSelectionOverlayView: View {
               }) {
                 Image(systemName: "xmark")
                   .font(.title3.weight(.bold))
-                  .foregroundColor(MarineTheme.Colors.textPrimary)
+                  .foregroundColor(marineTheme.colors.textPrimary)
                   .padding(MarineTheme.Spacing.small)
-                  .background(Circle().fill(MarineTheme.Colors.overlay))
+                  .background(Circle().fill(marineTheme.colors.overlay))
               }
               .padding()
               .padding(.top, MarineTheme.Spacing.large) // Safe area spacing if needed
@@ -191,9 +191,9 @@ struct OfflineSelectionOverlayView: View {
         
       // Visual handle drawn over the touch target
       Circle()
-        .fill(MarineTheme.Colors.accent)
+        .fill(marineTheme.colors.accent)
         .frame(width: handleVisualSize, height: handleVisualSize)
-        .overlay(Circle().stroke(MarineTheme.Colors.panelBackground, lineWidth: MarineTheme.Metrics.borderWidth * 2.0))
+        .overlay(Circle().stroke(marineTheme.colors.panelBackground, lineWidth: MarineTheme.Metrics.borderWidth * 2.0))
     }
   }
   
@@ -339,11 +339,11 @@ struct OfflineSelectionOverlayView: View {
         if let area = viewModel.estimatedArea {
           Text(area.marineFormatted)
             .marineFont(.title2)
-            .foregroundColor(viewModel.isValidSize ? .primary : MarineTheme.Colors.destructive)
+            .foregroundColor(viewModel.isValidSize ? .primary : marineTheme.colors.destructive)
         } else {
           Text("Calculating area...")
             .marineFont(.body)
-            .foregroundColor(MarineTheme.Colors.textSecondary)
+            .foregroundColor(marineTheme.colors.textSecondary)
         }
         
         Button(action: {
@@ -355,14 +355,14 @@ struct OfflineSelectionOverlayView: View {
             .foregroundColor(.white)
             .padding()
             .frame(maxWidth: .infinity)
-            .background(viewModel.isValidSize ? MarineTheme.Colors.accent : MarineTheme.Colors.inactive)
+            .background(viewModel.isValidSize ? marineTheme.colors.accent : marineTheme.colors.inactive)
             .cornerRadius(MarineTheme.Metrics.cornerRadius)
         }
         .buttonStyle(MarineButtonStyle())
         .disabled(!viewModel.isValidSize)
       }
       .padding()
-      .background(MarineTheme.Colors.panelBackground)
+      .background(marineTheme.colors.panelBackground)
       .cornerRadius(MarineTheme.Metrics.cornerRadius)
       .padding()
       .padding(.bottom, MarineTheme.Spacing.medium)

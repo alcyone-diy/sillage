@@ -12,6 +12,7 @@ import SwiftUI
 
 struct PermissionDeniedView: View {
     @Environment(PermissionService.self) private var permissionService
+    @Environment(\.marineTheme) private var marineTheme
     let message: LocalizedStringResource
     
     var body: some View {
@@ -20,7 +21,7 @@ struct PermissionDeniedView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 60, height: 60)
-                .foregroundColor(MarineTheme.Colors.destructive)
+                .foregroundColor(marineTheme.colors.destructive)
             
             Text("Permission Required")
                 .marineFont(.title2)
@@ -39,8 +40,8 @@ struct PermissionDeniedView: View {
                     .marineFont(.headline)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(MarineTheme.Colors.primary)
-                    .foregroundColor(MarineTheme.Colors.onPrimary)
+                    .background(marineTheme.colors.primary)
+                    .foregroundColor(marineTheme.colors.onPrimary)
                     .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
             .buttonStyle(MarineButtonStyle())

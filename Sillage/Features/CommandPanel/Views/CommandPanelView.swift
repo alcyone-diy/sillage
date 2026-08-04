@@ -38,7 +38,7 @@ struct CommandPanelView: View {
     NavigationStack(path: $bindableViewModel.commandPath) {
       VStack(spacing: 0) {
         MessageCarouselView()
-          .background(MarineTheme.Colors.panelBackground)
+          .background(marineTheme.colors.panelBackground)
           
         List {
           // Zone 1: Quick Actions
@@ -57,10 +57,10 @@ struct CommandPanelView: View {
                   .marineFont(.caption)
               }
               .frame(maxWidth: .infinity, minHeight: marineTheme.metrics.touchTarget)
-              .foregroundColor(activeTrackViewModel.isRecording ? MarineTheme.Colors.textOnActive : MarineTheme.Colors.textSecondary)
+              .foregroundColor(activeTrackViewModel.isRecording ? marineTheme.colors.textOnActive : marineTheme.colors.textSecondary)
               .background {
                 if activeTrackViewModel.isRecording {
-                  MarineTheme.Colors.activeToggle
+                  marineTheme.colors.activeToggle
                 } else {
                   CellBackgroundView()
                 }

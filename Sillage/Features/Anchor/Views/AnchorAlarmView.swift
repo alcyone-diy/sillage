@@ -47,9 +47,9 @@ public struct AnchorAlarmView: View {
   
   private var statusColor: Color {
     switch viewModel.state {
-    case .setup: return MarineTheme.Colors.textSecondary
-    case .dropped: return MarineTheme.Colors.primary
-    case .armed(let dragging): return dragging ? MarineTheme.Colors.destructive : MarineTheme.Colors.vectorHDG
+    case .setup: return marineTheme.colors.textSecondary
+    case .dropped: return marineTheme.colors.primary
+    case .armed(let dragging): return dragging ? marineTheme.colors.destructive : marineTheme.colors.vectorHDG
     }
   }
   
@@ -64,13 +64,13 @@ public struct AnchorAlarmView: View {
           bodySection
           
           Divider()
-            .background(MarineTheme.Colors.surfaceBackground)
+            .background(marineTheme.colors.surfaceBackground)
           
           footerSection
         }
         .padding(.vertical, MarineTheme.Spacing.small)
       }
-      .listRowBackground(MarineTheme.Colors.surfaceBackground)
+      .listRowBackground(marineTheme.colors.surfaceBackground)
     }
     .marineListBackground()
     .navigationTitle("Anchor Alarm")
@@ -108,9 +108,9 @@ public struct AnchorAlarmView: View {
           Text(String(format: "GPS: %.0fm", accuracy))
         }
         .font(.caption.bold())
-        .foregroundColor(MarineTheme.Colors.warning)
+        .foregroundColor(marineTheme.colors.warning)
         .padding(MarineTheme.Spacing.small)
-        .background(MarineTheme.Colors.warning.opacity(0.2))
+        .background(marineTheme.colors.warning.opacity(0.2))
         .cornerRadius(MarineTheme.Metrics.cornerRadius)
       } else if let error = viewModel.anchorDropError {
         HStack(spacing: 6) {
@@ -118,9 +118,9 @@ public struct AnchorAlarmView: View {
           Text(error)
             .font(.subheadline.bold())
         }
-        .foregroundColor(MarineTheme.Colors.destructive)
+        .foregroundColor(marineTheme.colors.destructive)
         .padding(MarineTheme.Spacing.small)
-        .background(MarineTheme.Colors.destructiveBackground)
+        .background(marineTheme.colors.destructiveBackground)
         .cornerRadius(MarineTheme.Metrics.cornerRadius)
       }
     }
@@ -134,16 +134,16 @@ public struct AnchorAlarmView: View {
       HStack {
         Text("Anchor:")
           .font(.subheadline)
-          .foregroundColor(MarineTheme.Colors.textSecondary)
+          .foregroundColor(marineTheme.colors.textSecondary)
         Spacer()
         if let coord = viewModel.anchorCoordinate {
           Text(coord.formatted(.marineCoordinate))
             .font(.system(.subheadline, design: .monospaced).bold())
-            .foregroundColor(MarineTheme.Colors.textSecondary)
+            .foregroundColor(marineTheme.colors.textSecondary)
         } else {
           Text("--")
             .font(.system(.subheadline, design: .monospaced).bold())
-            .foregroundColor(MarineTheme.Colors.textSecondary)
+            .foregroundColor(marineTheme.colors.textSecondary)
         }
       }
       
@@ -153,17 +153,17 @@ public struct AnchorAlarmView: View {
         VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
           Text("Distance")
             .font(.subheadline)
-            .foregroundColor(MarineTheme.Colors.textSecondary)
+            .foregroundColor(marineTheme.colors.textSecondary)
           
           if let dist = viewModel.currentDistance {
             Text(Self.distanceFormatter.string(from: dist.converted(to: .meters)))
               .font(.system(.title, design: .default).monospacedDigit().bold())
-              .foregroundColor(isDragging ? MarineTheme.Colors.destructive : MarineTheme.Colors.primary)
+              .foregroundColor(isDragging ? marineTheme.colors.destructive : marineTheme.colors.primary)
               .frame(height: marineTheme.minTouchTarget)
           } else {
             Text("-- m")
               .font(.system(.title, design: .default).monospacedDigit().bold())
-              .foregroundColor(MarineTheme.Colors.primary)
+              .foregroundColor(marineTheme.colors.primary)
               .frame(height: marineTheme.minTouchTarget)
           }
         }
@@ -174,15 +174,15 @@ public struct AnchorAlarmView: View {
         VStack(alignment: .trailing, spacing: MarineTheme.Spacing.small) {
           Text("Radius")
             .font(.subheadline)
-            .foregroundColor(MarineTheme.Colors.textSecondary)
+            .foregroundColor(marineTheme.colors.textSecondary)
           
           HStack(spacing: MarineTheme.Spacing.small) {
             Button(action: { viewModel.decrementRadius() }) {
               Image(systemName: "minus")
                 .font(.title3.bold())
                 .frame(width: marineTheme.minTouchTarget, height: marineTheme.minTouchTarget)
-                .background(MarineTheme.Colors.disabledBackground)
-                .foregroundColor(MarineTheme.Colors.textSecondary)
+                .background(marineTheme.colors.disabledBackground)
+                .foregroundColor(marineTheme.colors.textSecondary)
                 .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
             .buttonStyle(MarineButtonStyle())
@@ -191,15 +191,15 @@ public struct AnchorAlarmView: View {
             
             Text(Self.distanceFormatter.string(from: viewModel.configuredRadius.converted(to: .meters)))
               .font(.system(.title, design: .default).monospacedDigit().bold())
-              .foregroundColor(MarineTheme.Colors.textSecondary)
+              .foregroundColor(marineTheme.colors.textSecondary)
               .frame(width: 90, alignment: .center)
               
             Button(action: { viewModel.incrementRadius() }) {
               Image(systemName: "plus")
                 .font(.title3.bold())
                 .frame(width: marineTheme.minTouchTarget, height: marineTheme.minTouchTarget)
-                .background(MarineTheme.Colors.disabledBackground)
-                .foregroundColor(MarineTheme.Colors.textSecondary)
+                .background(marineTheme.colors.disabledBackground)
+                .foregroundColor(marineTheme.colors.textSecondary)
                 .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
             .buttonStyle(MarineButtonStyle())
@@ -224,8 +224,8 @@ public struct AnchorAlarmView: View {
           Label("Drop Anchor", systemImage: "water.waves.and.arrow.down")
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(MarineTheme.Colors.primary)
-            .foregroundColor(MarineTheme.Colors.onPrimary)
+            .background(marineTheme.colors.primary)
+            .foregroundColor(marineTheme.colors.onPrimary)
             .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
         }
         .buttonStyle(MarineButtonStyle())
@@ -238,16 +238,16 @@ public struct AnchorAlarmView: View {
           Label("Arm Alarm", systemImage: "bell.fill")
             .font(.title3.bold())
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(MarineTheme.Colors.vectorHDG)
-            .foregroundColor(MarineTheme.Colors.onPrimary)
+            .background(marineTheme.colors.vectorHDG)
+            .foregroundColor(marineTheme.colors.onPrimary)
             .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
         }
         .buttonStyle(MarineButtonStyle())
         
         SlideActionButton(
-          trackColor: MarineTheme.Colors.disabledBackground,
-          thumbColor: MarineTheme.Colors.textSecondary,
-          textColor: MarineTheme.Colors.textSecondary,
+          customTrackColor: marineTheme.colors.disabledBackground,
+          customThumbColor: marineTheme.colors.textSecondary,
+          customTextColor: marineTheme.colors.textSecondary,
           title: "SLIDE TO CANCEL",
           action: {
             Logger.anchor.info("User requested to cancel drop")
@@ -267,15 +267,19 @@ public struct AnchorAlarmView: View {
 
 // MARK: - Slide Action Component
 fileprivate struct SlideActionButton: View {
+  @Environment(\.marineTheme) private var marineTheme
+
   var isDragging: Bool = false
-  var trackColor: Color = MarineTheme.Colors.destructiveBackground
-  var thumbColor: Color = MarineTheme.Colors.destructive
-  var textColor: Color = MarineTheme.Colors.destructive
+  var customTrackColor: Color?
+  var customThumbColor: Color?
+  var customTextColor: Color?
   let title: LocalizedStringKey
   let action: () -> Void
   
   @State private var offset: CGFloat = 0.0
-  @Environment(\.marineTheme) private var marineTheme
+  private var trackColor: Color { customTrackColor ?? marineTheme.colors.destructiveBackground }
+  private var thumbColor: Color { customThumbColor ?? marineTheme.colors.destructive }
+  private var textColor: Color { customTextColor ?? marineTheme.colors.destructive }
   
   var body: some View {
     GeometryReader { geo in
@@ -304,7 +308,7 @@ fileprivate struct SlideActionButton: View {
           
           Image(systemName: "chevron.right.2")
             .font(.title2.bold())
-            .foregroundColor(MarineTheme.Colors.onPrimary)
+            .foregroundColor(marineTheme.colors.onPrimary)
         }
         .offset(x: offset)
         .gesture(

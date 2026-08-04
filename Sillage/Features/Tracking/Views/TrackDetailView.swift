@@ -135,7 +135,7 @@ struct TrackDetailView: View {
             .fontWeight(.semibold)
             .foregroundColor(viewModel.canDelete ? .red : .gray)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(viewModel.canDelete ? MarineTheme.Colors.destructiveBackground : MarineTheme.Colors.disabledBackground)
+            .background(viewModel.canDelete ? marineTheme.colors.destructiveBackground : marineTheme.colors.disabledBackground)
             .cornerRadius(MarineTheme.Metrics.cornerRadius)
           }
           .buttonStyle(MarineButtonStyle())
@@ -203,15 +203,15 @@ struct TrackDetailView: View {
             }
             .font(.headline)
             .fontWeight(.semibold)
-            .foregroundColor(MarineTheme.Colors.onPrimary)
+            .foregroundColor(marineTheme.colors.onPrimary)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(isVisible ? MarineTheme.Colors.cancelAction : MarineTheme.Colors.primary)
+            .background(isVisible ? marineTheme.colors.cancelAction : marineTheme.colors.primary)
             .cornerRadius(MarineTheme.Metrics.cornerRadius)
           }
           .buttonStyle(MarineButtonStyle())
         }
         .padding(MarineTheme.Spacing.medium)
-        .background(MarineTheme.Colors.surfaceBackground)
+        .background(marineTheme.colors.surfaceBackground)
       }
     }
     .navigationTitle("Track Detail")

@@ -41,7 +41,7 @@ struct WaypointDetailView: View {
           Toggle("Show", isOn: $viewModel.isVisible)
             .marineFont(.body)
             .marineListCell()
-            .tint(MarineTheme.Colors.primary)
+            .tint(marineTheme.colors.primary)
             .onChange(of: viewModel.isVisible) { _, _ in
               if !viewModel.isEditable {
                 Task {
@@ -109,9 +109,9 @@ struct WaypointDetailView: View {
               }
               .font(.headline)
               .fontWeight(.semibold)
-              .foregroundColor(MarineTheme.Colors.onPrimary)
+              .foregroundColor(marineTheme.colors.onPrimary)
               .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-              .background(MarineTheme.Colors.destructive)
+              .background(marineTheme.colors.destructive)
               .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
             .buttonStyle(MarineButtonStyle())
@@ -126,9 +126,9 @@ struct WaypointDetailView: View {
                 }
                 .font(.headline)
                 .fontWeight(.semibold)
-                .foregroundColor(MarineTheme.Colors.onPrimary)
+                .foregroundColor(marineTheme.colors.onPrimary)
                 .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-                .background(MarineTheme.Colors.cancelAction)
+                .background(marineTheme.colors.cancelAction)
                 .cornerRadius(MarineTheme.Metrics.cornerRadius)
               }
               .buttonStyle(MarineButtonStyle())
@@ -142,9 +142,9 @@ struct WaypointDetailView: View {
                 }
                 .font(.headline)
                 .fontWeight(.semibold)
-                .foregroundColor(MarineTheme.Colors.onPrimary)
+                .foregroundColor(marineTheme.colors.onPrimary)
                 .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-                .background(MarineTheme.Colors.primary)
+                .background(marineTheme.colors.primary)
                 .cornerRadius(MarineTheme.Metrics.cornerRadius)
               }
               .buttonStyle(MarineButtonStyle())
@@ -152,7 +152,7 @@ struct WaypointDetailView: View {
           }
         }
         .padding(MarineTheme.Spacing.medium)
-        .background(MarineTheme.Colors.surfaceBackground)
+        .background(marineTheme.colors.surfaceBackground)
       }
     }
     .navigationTitle(viewModel.editingWaypointID == nil ? "New Waypoint" : (viewModel.isEditable ? "Edit Waypoint" : viewModel.name))

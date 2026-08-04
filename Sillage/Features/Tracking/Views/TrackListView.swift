@@ -17,6 +17,7 @@ struct TrackListView: View {
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManager
+  @Environment(\.marineTheme) private var marineTheme
   
   @State private var viewModel = TrackListViewModel()
   
@@ -45,7 +46,7 @@ struct TrackListView: View {
               } label: {
                 Label("Hide", systemImage: MarineIcon.track.rawValue)
               }
-              .tint(MarineTheme.Colors.cancelAction)
+              .tint(marineTheme.colors.cancelAction)
             } else {
               Button {
                 Task {
