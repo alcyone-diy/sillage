@@ -97,13 +97,7 @@ final class ChartViewModel {
   var visibleWaypointFeatures: MLNShapeCollectionFeature?
   var bearingLineFeature: MLNPolylineFeature?
   var goToWaypointID: String?
-  var anchorPointFeature: MLNPointFeature?
-  var anchorDroppedColor: UIColor?
-  var anchorRadiusFeature: MLNPolygonFeature?
-  var anchorRadiusColor: UIColor?
-  var anchorRadiusOpacity: Double?
-  var anchorRadiusDashPattern: [NSNumber]?
-  var anchorRadiusLineWidth: Double?
+  var anchorVisualState: AnchorVisualState?
   var displayedTrackSessionID: String? {
     didSet {
       preferencesService.displayedTrackSessionID = displayedTrackSessionID
@@ -445,71 +439,32 @@ final class ChartViewModel {
     let status = anchorService.status
     
     if status == .inactive {
-      if anchorViewModel.isSetupModeActive {
-        if let coord = instrumentDampingService.state?.coordinate {
-          // Setup Preview Point
-          let pointFeature = MLNPointFeature()
-          pointFeature.attributes = [
-            MapFeatureKey.type.rawValue: MapFeatureType.anchorPoint.rawValue,
-          ]
-          pointFeature.coordinate = coord
-          self.anchorPointFeature = pointFeature
-          self.anchorDroppedColor = UIColor(MarineTheme.Colors.anchorDropped).withAlphaComponent(0.5)
-          self.anchorRadiusFeature = nil
-        } else {
-          anchorPointFeature = nil
-          anchorRadiusFeature = nil
-        }
+      if anchorViewModel.isSetupModeActive,
+        let coord = instrumentDampingService.state?.coordinate {
+        anchorVisualState = AnchorVisualState(
+          status: .setup,
+          pointCoordinate: coord,
+          radius: nil,
+        )
       } else {
-        anchorPointFeature = nil
-        anchorRadiusFeature = nil
+        anchorVisualState = nil
       }
       return
     }
     
     guard let watch = anchorService.activeWatch else { return }
-    
-    // Setup Point
-    let pointFeature = MLNPointFeature()
-    pointFeature.attributes = [
-      MapFeatureKey.type.rawValue: MapFeatureType.anchorPoint.rawValue,
-    ]
-    pointFeature.coordinate = watch.coordinate
-    self.anchorPointFeature = pointFeature
-    self.anchorDroppedColor = UIColor(MarineTheme.Colors.anchorDropped)
-    
-    // Setup Radius Polygon
-    if let polygonCoords = watch.coordinate.circularPolygon(radius: watch.radius) {
-      var coords = polygonCoords
-      let polygonFeature = MLNPolygonFeature(coordinates: &coords, count: UInt(coords.count))
-      polygonFeature.attributes = [
-        MapFeatureKey.type.rawValue: MapFeatureType.anchorRadius.rawValue,
-      ]
-      self.anchorRadiusFeature = polygonFeature
-      
+    let visualStatus: AnchorVisualStatus
       switch status {
-      case .dropped:
-        polygonFeature.attributes[MapFeatureKey.status.rawValue] = MapAnchorStatus.dropped.rawValue
-        self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorDropped)
-        self.anchorRadiusOpacity = 0.0
-        self.anchorRadiusDashPattern = [4.0, 4.0]
-        self.anchorRadiusLineWidth = 3.0
-      case .armed:
-        polygonFeature.attributes[MapFeatureKey.status.rawValue] = MapAnchorStatus.armed.rawValue
-        self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorArmed)
-        self.anchorRadiusOpacity = 0.10
-        self.anchorRadiusDashPattern = nil
-        self.anchorRadiusLineWidth = 1.5
-      case .dragging:
-        polygonFeature.attributes[MapFeatureKey.status.rawValue] = MapAnchorStatus.dragging.rawValue
-        self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorDragging)
-        self.anchorRadiusOpacity = 0.25
-        self.anchorRadiusDashPattern = nil
-        self.anchorRadiusLineWidth = 1.5
-      case .inactive:
-        break
-      }
+      case .dropped: visualStatus = .dropped
+      case .armed:   visualStatus = .armed
+      case .dragging: visualStatus = .dragging
+      case .inactive: return
     }
+    anchorVisualState = AnchorVisualState(
+      status: visualStatus,
+      pointCoordinate: watch.coordinate,
+      radius: watch.radius
+    )
   }
   
   // MARK: - Location Handling

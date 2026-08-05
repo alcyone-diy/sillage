@@ -283,8 +283,6 @@ struct MapLibreView: UIViewRepresentable {
     let visibleWaypointFeatures = viewModel.visibleWaypointFeatures
     let goToWaypointFeature = viewModel.goToWaypointFeature
     let bearingLineFeature = viewModel.bearingLineFeature
-    let anchorPointFeature = viewModel.anchorPointFeature
-    let anchorRadiusFeature = viewModel.anchorRadiusFeature
     let isDataStale = viewModel.isDataStale
     let currentSource = viewModel.currentChartSource
     let isOpenSeaMapOverlayEnabled = viewModel.isOpenSeaMapOverlayEnabled
@@ -361,43 +359,19 @@ struct MapLibreView: UIViewRepresentable {
         }
       }
       
-      // Anchor Radius update
-      if anchorRadiusFeature !== context.coordinator.lastAnchorRadiusFeature {
+      // Anchor update
+      let currentVisualState = viewModel.anchorVisualState
+      if currentVisualState != context.coordinator.lastAnchorVisualState {
+        context.coordinator.lastAnchorVisualState = currentVisualState
+        let anchorFeatures = MapLibreFeatureFactory.createAnchorFeatures(from: currentVisualState)
         if let source = style.source(withIdentifier: MapLayer.anchorRadiusSourceID) as? MLNShapeSource {
-          source.shape = anchorRadiusFeature
-          context.coordinator.lastAnchorRadiusFeature = anchorRadiusFeature
+          source.shape = anchorFeatures.radiusFeature
         }
-      }
-      
-      if let anchorRadiusColor = viewModel.anchorRadiusColor, let anchorRadiusOpacity = viewModel.anchorRadiusOpacity {
-        if let layer = style.layer(withIdentifier: MapLayer.anchorRadiusLayerID) as? MLNFillStyleLayer {
-          layer.fillColor = NSExpression(forConstantValue: anchorRadiusColor)
-          layer.fillOpacity = NSExpression(forConstantValue: anchorRadiusOpacity)
-        }
-        if let strokeLayer = style.layer(withIdentifier: MapLayer.anchorRadiusStrokeLayerID) as? MLNLineStyleLayer {
-          strokeLayer.lineColor = NSExpression(forConstantValue: anchorRadiusColor)
-          if let dashPattern = viewModel.anchorRadiusDashPattern {
-            strokeLayer.lineDashPattern = NSExpression(forConstantValue: dashPattern)
-          } else {
-            strokeLayer.lineDashPattern = nil
-          }
-          if let width = viewModel.anchorRadiusLineWidth {
-            strokeLayer.lineWidth = NSExpression(forConstantValue: width)
-          }
-        }
-      }
-      
-      // Anchor Point update
-      if anchorPointFeature !== context.coordinator.lastAnchorPointFeature {
         if let source = style.source(withIdentifier: MapLayer.anchorPointSourceID) as? MLNShapeSource {
-          source.shape = anchorPointFeature
-          context.coordinator.lastAnchorPointFeature = anchorPointFeature
+          source.shape = anchorFeatures.pointFeature
         }
-      }
-      
-      if let anchorDroppedColor = viewModel.anchorDroppedColor {
-        if let layer = style.layer(withIdentifier: MapLayer.anchorPointLayerID) as? MLNSymbolStyleLayer {
-          layer.iconColor = NSExpression(forConstantValue: anchorDroppedColor)
+        if let status = currentVisualState?.status {
+          updateAnchorLayerStyles(in: style, for: status)
         }
       }
       
@@ -469,6 +443,58 @@ struct MapLibreView: UIViewRepresentable {
     // Disable compass interaction when in an automated tracking mode to prevent state conflicts
     uiView.compassView.isUserInteractionEnabled = (trackingMode != .courseUp)
   }
+
+  private func updateAnchorLayerStyles(in style: MLNStyle, for status: AnchorVisualStatus) {
+    if let pointLayer = style.layer(withIdentifier: MapLayer.anchorPointLayerID) as? MLNSymbolStyleLayer {
+      let pointColor: UIColor = (status == .setup)
+        ? UIColor(MarineTheme.Colors.anchorDropped).withAlphaComponent(0.5)
+        : UIColor(MarineTheme.Colors.anchorDropped)
+      
+      pointLayer.iconColor = NSExpression(forConstantValue: pointColor)
+    }
+    
+    // Configuration de la zone de rayon (Fill & Stroke)
+    guard let fillLayer = style.layer(withIdentifier: MapLayer.anchorRadiusLayerID) as? MLNFillStyleLayer,
+          let strokeLayer = style.layer(withIdentifier: MapLayer.anchorRadiusStrokeLayerID) as? MLNLineStyleLayer else {
+      return
+    }
+    
+    switch status {
+    case .setup:
+      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
+      strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      
+    case .dropped:
+      let color = UIColor(MarineTheme.Colors.anchorDropped)
+      fillLayer.fillColor = NSExpression(forConstantValue: color)
+      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
+      
+      strokeLayer.lineColor = NSExpression(forConstantValue: color)
+      strokeLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
+      strokeLayer.lineWidth = NSExpression(forConstantValue: 3.0)
+      strokeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
+      
+    case .armed:
+      let color = UIColor(MarineTheme.Colors.anchorArmed)
+      fillLayer.fillColor = NSExpression(forConstantValue: color)
+      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.10)
+      
+      strokeLayer.lineColor = NSExpression(forConstantValue: color)
+      strokeLayer.lineDashPattern = nil
+      strokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
+      strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
+      
+    case .dragging:
+      let color = UIColor(MarineTheme.Colors.anchorDragging)
+      fillLayer.fillColor = NSExpression(forConstantValue: color)
+      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.25)
+      
+      strokeLayer.lineColor = NSExpression(forConstantValue: color)
+      strokeLayer.lineDashPattern = nil
+      strokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
+      strokeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
+    }
+  }
   
   private func generateActiveTrackFeature(from points: ArraySlice<TrackPoint>) -> MLNShape? {
     guard points.count >= 2 else { return nil }
@@ -539,8 +565,7 @@ struct MapLibreView: UIViewRepresentable {
     var lastVisibleWaypointFeatures: MLNShape?
     var lastGoToWaypointFeature: MLNShape?
     var lastBearingLineFeature: MLNShape?
-    var lastAnchorPointFeature: MLNShape?
-    var lastAnchorRadiusFeature: MLNShape?
+    var lastAnchorVisualState: AnchorVisualState?
     
     var lastActiveTrackCount: Int?
     var lastActiveTrackTimestamp: Date?
@@ -750,14 +775,20 @@ struct MapLibreView: UIViewRepresentable {
         source.shape = parent.viewModel.bearingLineFeature
         lastBearingLineFeature = parent.viewModel.bearingLineFeature
       }
+      // Anchor features & styles initialization
+      let anchorVisualState = parent.viewModel.anchorVisualState
+      let anchorFeatures = MapLibreFeatureFactory.createAnchorFeatures(from: anchorVisualState)
+      
       if let source = style.source(withIdentifier: MapLayer.anchorRadiusSourceID) as? MLNShapeSource {
-        source.shape = parent.viewModel.anchorRadiusFeature
-        lastAnchorRadiusFeature = parent.viewModel.anchorRadiusFeature
+        source.shape = anchorFeatures.radiusFeature
       }
       if let source = style.source(withIdentifier: MapLayer.anchorPointSourceID) as? MLNShapeSource {
-        source.shape = parent.viewModel.anchorPointFeature
-        lastAnchorPointFeature = parent.viewModel.anchorPointFeature
+        source.shape = anchorFeatures.pointFeature
       }
+      if let status = anchorVisualState?.status {
+        parent.updateAnchorLayerStyles(in: style, for: status)
+      }
+      lastAnchorVisualState = anchorVisualState
       if let layer = style.layer(withIdentifier: MapLayer.vesselLayerID) as? MLNSymbolStyleLayer {
         let isStale = parent.viewModel.isDataStale
         layer.iconOpacity = NSExpression(forConstantValue: isStale ? 0.4 : 1.0)
