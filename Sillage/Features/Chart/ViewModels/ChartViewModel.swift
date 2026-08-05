@@ -258,9 +258,10 @@ final class ChartViewModel {
     let feature = MLNPointFeature()
     feature.coordinate = coordinate
     feature.attributes = [
-      "name": waypoint.name,
-      "id": waypoint.id,
-      "color": waypoint.validDisplayColorHex
+      MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
+      MapFeatureKey.id.rawValue: waypoint.id,
+      MapFeatureKey.name.rawValue: waypoint.name,
+      MapFeatureKey.color.rawValue: waypoint.validDisplayColorHex
     ]
     
     self.goToWaypointID = id
@@ -300,9 +301,10 @@ final class ChartViewModel {
       let feature = MLNPointFeature()
       feature.coordinate = coordinate
       feature.attributes = [
-        "name": waypoint.name,
-        "id": waypoint.id,
-        "color": waypoint.validDisplayColorHex
+        MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
+        MapFeatureKey.id.rawValue: waypoint.id,
+        MapFeatureKey.name.rawValue: waypoint.name,
+        MapFeatureKey.color.rawValue: waypoint.validDisplayColorHex
       ]
       return feature
     }
@@ -334,9 +336,10 @@ final class ChartViewModel {
     let feature = MLNPointFeature()
     feature.coordinate = waypoint.coordinate
     feature.attributes = [
-      "name": waypoint.name,
-      "id": waypoint.id,
-      "color": waypoint.validDisplayColorHex
+      MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
+      MapFeatureKey.id.rawValue: waypoint.id,
+      MapFeatureKey.name.rawValue: waypoint.name,
+      MapFeatureKey.color.rawValue: waypoint.validDisplayColorHex
     ]
     
     self.goToWaypointID = targetID
@@ -446,6 +449,9 @@ final class ChartViewModel {
         if let coord = instrumentDampingService.state?.coordinate {
           // Setup Preview Point
           let pointFeature = MLNPointFeature()
+          pointFeature.attributes = [
+            MapFeatureKey.type.rawValue: MapFeatureType.anchorPoint.rawValue,
+          ]
           pointFeature.coordinate = coord
           self.anchorPointFeature = pointFeature
           self.anchorDroppedColor = UIColor(MarineTheme.Colors.anchorDropped).withAlphaComponent(0.5)
@@ -465,6 +471,9 @@ final class ChartViewModel {
     
     // Setup Point
     let pointFeature = MLNPointFeature()
+    pointFeature.attributes = [
+      MapFeatureKey.type.rawValue: MapFeatureType.anchorPoint.rawValue,
+    ]
     pointFeature.coordinate = watch.coordinate
     self.anchorPointFeature = pointFeature
     self.anchorDroppedColor = UIColor(MarineTheme.Colors.anchorDropped)
@@ -473,20 +482,26 @@ final class ChartViewModel {
     if let polygonCoords = watch.coordinate.circularPolygon(radius: watch.radius) {
       var coords = polygonCoords
       let polygonFeature = MLNPolygonFeature(coordinates: &coords, count: UInt(coords.count))
+      polygonFeature.attributes = [
+        MapFeatureKey.type.rawValue: MapFeatureType.anchorRadius.rawValue,
+      ]
       self.anchorRadiusFeature = polygonFeature
       
       switch status {
       case .dropped:
+        polygonFeature.attributes[MapFeatureKey.status.rawValue] = MapAnchorStatus.dropped.rawValue
         self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorDropped)
         self.anchorRadiusOpacity = 0.0
         self.anchorRadiusDashPattern = [4.0, 4.0]
         self.anchorRadiusLineWidth = 3.0
       case .armed:
+        polygonFeature.attributes[MapFeatureKey.status.rawValue] = MapAnchorStatus.armed.rawValue
         self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorArmed)
         self.anchorRadiusOpacity = 0.10
         self.anchorRadiusDashPattern = nil
         self.anchorRadiusLineWidth = 1.5
       case .dragging:
+        polygonFeature.attributes[MapFeatureKey.status.rawValue] = MapAnchorStatus.dragging.rawValue
         self.anchorRadiusColor = UIColor(MarineTheme.Colors.anchorDragging)
         self.anchorRadiusOpacity = 0.25
         self.anchorRadiusDashPattern = nil
@@ -559,18 +574,16 @@ final class ChartViewModel {
     }
     let feature = MLNPointFeature()
     feature.coordinate = coordinate
-    var attributes: [String: Any] = [:]
-    
+    var attributes: [String: Any] = [
+      MapFeatureKey.type.rawValue: MapFeatureType.vessel.rawValue,
+    ]
     if let cog = state?.smoothedCOG {
-      attributes["course"] = cog.converted(to: .degrees).value
+      attributes[MapFeatureKey.course.rawValue] = cog.converted(to: .degrees).value
     }
-    
     // The vessel is grey if lost or stale
-    attributes["isStale"] = (self.gpsState == .lost || self.gpsState == .stale)
-    
+    attributes[MapFeatureKey.isStale.rawValue] = (self.gpsState == .lost || self.gpsState == .stale)
     // The vessel is tinted (e.g., orange) if the signal is degraded
-    attributes["isDegraded"] = (self.gpsState == .degraded)
-    
+    attributes[MapFeatureKey.isDegraded.rawValue] = (self.gpsState == .degraded)
     feature.attributes = attributes
     self.vesselFeature = feature
   }
@@ -602,20 +615,26 @@ final class ChartViewModel {
     
     var lineCoords = prediction.lineCoordinates
     let lineFeature = MLNPolylineFeature(coordinates: &lineCoords, count: UInt(lineCoords.count))
-    lineFeature.attributes = ["featureType": "vectorLine"]
+    lineFeature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.vectorLine.rawValue]
     shapes.append(lineFeature)
     
     for tick in prediction.majorTickCoordinates {
       let tickFeature = MLNPointFeature()
       tickFeature.coordinate = tick
-      tickFeature.attributes = ["featureType": "vectorTick", "isMajorTick": true]
+      tickFeature.attributes = [
+        MapFeatureKey.type.rawValue: MapFeatureType.vectorTick.rawValue,
+        MapFeatureKey.isMajorTick.rawValue: true,
+      ]
       shapes.append(tickFeature)
     }
     
     for tick in prediction.minorTickCoordinates {
       let tickFeature = MLNPointFeature()
       tickFeature.coordinate = tick
-      tickFeature.attributes = ["featureType": "vectorTick", "isMajorTick": false]
+      tickFeature.attributes = [
+        MapFeatureKey.type.rawValue: MapFeatureType.vectorTick.rawValue,
+        MapFeatureKey.isMajorTick.rawValue: false,
+      ]
       shapes.append(tickFeature)
     }
     
@@ -930,9 +949,13 @@ final class ChartViewModel {
     }
     var coordinates = [current, waypoint]
     let feature = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
-    if let color = goToWaypointFeature?.attributes["color"] {
-      feature.attributes = ["color": color]
+    var attributes: [String: Any] = [
+      MapFeatureKey.type.rawValue: MapFeatureType.bearingLine.rawValue
+    ]
+    if let color = goToWaypointFeature?.attributes[MapFeatureKey.color.rawValue] {
+      attributes[MapFeatureKey.color.rawValue] = color
     }
+    feature.attributes = attributes
     bearingLineFeature = feature
   }
 }
