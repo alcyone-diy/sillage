@@ -571,7 +571,8 @@ struct MapLibreView: UIViewRepresentable {
       let touchRect = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
       let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: ["goto-waypoint-layer", "visible-waypoints-layer"])
       
-      if let feature = features.first as? MLNPointFeature, let id = feature.attributes["id"] as? String {
+      if let feature = features.first as? MLNPointFeature,
+         let id = feature.attributes[MapFeatureKey.id.rawValue] as? String {
         let isSelected = self.parent.viewModel.goToWaypointID == id
         
         let actionTitle = isSelected ? String(localized: "Deselect") : String(localized: "Select")
