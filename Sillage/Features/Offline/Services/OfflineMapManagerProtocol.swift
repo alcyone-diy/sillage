@@ -22,7 +22,7 @@ protocol OfflineMapManagerProtocol: Sendable {
   var isDownloading: Bool { get }
   var isDownloadComplete: Bool { get }
   var downloadError: Error? { get }
-  var downloadProgress: Double { get }
+  var downloadProgress: Double? { get }
   var isClearingCache: Bool { get }
   var downloadedRegions: [OfflineRegionInfo] { get }
   var globalDownloadProgress: Double? { get }
