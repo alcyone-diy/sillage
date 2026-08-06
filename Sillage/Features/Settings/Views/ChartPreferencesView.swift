@@ -12,7 +12,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// A view that allows the user to manage chart settings, including selecting
-/// the active map source (local or remote), importing new offline charts, and toggling overlays.
+/// the active map source (local or remote) and importing new offline charts.
 struct ChartPreferencesView: View {
   
   /// The central view model managing the map's state and data sources.
@@ -144,22 +144,6 @@ struct ChartPreferencesView: View {
         }
         .marineFont(.body)
         .foregroundColor(.primary)
-        .marineListCell()
-      }
-
-      // MARK: - Maritime Layers Section
-      Section(header: Text("Maritime Layers").marineFont(.headline)) {
-        Toggle(isOn: $chartViewModel.isOpenSeaMapOverlayEnabled) {
-          VStack(alignment: .leading, spacing: 4) {
-            Text("OpenSeaMap Seamarks")
-              .marineFont(.body)
-              .foregroundColor(.primary)
-            Text("Navigational markers overlay. Zoom in (level 10+) on coasts to see marks.")
-              .marineFont(.subheadline)
-              .foregroundColor(.secondary)
-          }
-        }
-        .tint(marineTheme.colors.primary)
         .marineListCell()
       }
     }

@@ -117,10 +117,8 @@ struct MapStyleController {
     let rasterLayer = MLNRasterStyleLayer(identifier: layerID, source: rasterSource)
     insertLayer(rasterLayer, identifier: .baseRaster, into: style)
 
-    // 5. Re-apply OpenSeaMap overlay if enabled
-    if isOverlayEnabled {
-      updateOpenSeaMapOverlay(isEnabled: true, in: style)
-    }
+    // 5. Update OpenSeaMap overlay according to isOverlayEnabled state
+    updateOpenSeaMapOverlay(isEnabled: isOverlayEnabled, in: style)
   }
 
   /// Toggles the OpenSeaMap seamarks overlay layer.

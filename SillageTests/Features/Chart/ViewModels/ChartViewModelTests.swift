@@ -421,5 +421,56 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 0, "logoutGeoGarage should clear .geoGarage messages in MessageService")
     _ = viewModel
   }
+
+  func testSwitchChartSourceToOpenSeaMapEnablesSeamarksOverlay() async {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    viewModel.switchChartSource(to: .openSeaMap)
+
+    XCTAssertTrue(viewModel.isOpenSeaMapOverlayEnabled, "OpenSeaMap seamark overlay must be automatically enabled when switching to OpenSeaMap chart source")
+    XCTAssertTrue(preferencesService.isOpenSeaMapOverlayEnabled)
+  }
+
+  func testSwitchChartSourceToGeoGarageDisablesSeamarksOverlay() async {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    viewModel.switchChartSource(to: .openSeaMap)
+    XCTAssertTrue(viewModel.isOpenSeaMapOverlayEnabled)
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "test_layer"))
+    XCTAssertFalse(viewModel.isOpenSeaMapOverlayEnabled, "OpenSeaMap seamark overlay must be automatically disabled when switching away from OpenSeaMap chart source")
+    XCTAssertFalse(preferencesService.isOpenSeaMapOverlayEnabled)
+  }
 }
+
 

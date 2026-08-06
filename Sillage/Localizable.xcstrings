@@ -539,9 +539,6 @@
     "Marine Raster Chart" : {
 
     },
-    "Maritime Layers" : {
-
-    },
     "Maritime Navigation Warning" : {
 
     },
@@ -564,9 +561,6 @@
 
     },
     "Navigation" : {
-
-    },
-    "Navigational markers overlay. Zoom in (level 10+) on coasts to see marks." : {
 
     },
     "Network error: %@" : {
@@ -615,9 +609,6 @@
 
     },
     "OpenSeaMap (ODbL)" : {
-
-    },
-    "OpenSeaMap Seamarks" : {
 
     },
     "Operation in progress. Please wait." : {
