@@ -69,7 +69,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   var isDownloading: Bool = false
   var isDownloadComplete: Bool = false
   var isClearingCache: Bool = false
-  var downloadProgress: Double = 0.0
+  var downloadProgress: Double? = nil
   var downloadError: Error? = nil
   var downloadedRegions: [OfflineRegionInfo] = []
   var downloadResourcesPerSecond: Double = 0.0
@@ -137,16 +137,28 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     }
     
     // Globally observe progress changes to update sizes of completed packs
-    // when requestProgress() is called. If no download is active, evaluation
-    // auto-resumes any incomplete pack as soon as its state resolves from DB.
+    // when requestProgress() is called. High-frequency background notifications are throttled
+    // to protect MainActor runloop, and auto-resume is only evaluated when no download is active.
     Task { [weak self] in
+      var lastNotificationDate = Date.distantPast
+
       for await notification in NotificationCenter.default.notifications(named: NSNotification.Name.MLNOfflinePackProgressChanged) {
         guard !Task.isCancelled else { break }
         guard let self = self else { break }
         guard let pack = notification.object as? MLNOfflinePack else { continue }
+
+        let now = Date()
+        let isComplete = pack.state == .complete
+        // Throttle high-frequency progress notifications on background thread before jumping to MainActor
+        guard isComplete || now.timeIntervalSince(lastNotificationDate) >= 0.5 else { continue }
+        lastNotificationDate = now
+
         Task { @MainActor [weak self] in
-          self?.updateRegionSize(for: pack)
-          self?.tryAutoResumeIfNeeded()
+          guard let self = self else { return }
+          self.updateRegionSize(for: pack)
+          if !self.isDownloading && self.activePack == nil {
+            self.tryAutoResumeIfNeeded()
+          }
         }
       }
     }
@@ -191,8 +203,9 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     if self.activePack == nil, let next = nextPackToResume {
       let expected = next.pack.progress.countOfResourcesExpected
       let completed = next.pack.progress.countOfResourcesCompleted
-      let initialProgress = (expected > 0) ? Double(completed) / Double(expected) : 0.0
+      let initialProgress = (expected > 0) ? Double(completed) / Double(expected) : nil
 
+      Logger.offline.info("Auto-resuming pack from queue: \(next.context.regionName, privacy: .public)")
       self.activePack = next.pack
       self.isDownloading = true
       self.isDownloadComplete = false
@@ -213,7 +226,6 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     guard let packs = MLNOfflineStorage.shared.packs else { return }
 
     for pack in packs {
-      guard let context = try? contextDecoder.decode(OfflinePackContext.self, from: pack.context) else { continue }
       let expected = pack.progress.countOfResourcesExpected
       let completed = pack.progress.countOfResourcesCompleted
       let state = pack.state
@@ -222,18 +234,21 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
 
       let isVerifiablyIncomplete = (expected > 0 && completed < expected)
       let isResumable = isVerifiablyIncomplete || state == .inactive || state == .invalid
+      guard isResumable else { continue }
 
-      if isResumable {
-        self.activePack = pack
-        self.isDownloading = true
-        self.isDownloadComplete = false
-        self.downloadProgress = (expected > 0) ? Double(completed) / Double(expected) : 0.0
-        self.updateIdleTimerState()
-        self.downloadResourcesPerSecond = 0.0
-        self.startObservingProgress()
-        pack.resume()
-        return
-      }
+      // Defer JSON decoding until the pack is verifiably resumable and selected
+      guard let context = try? contextDecoder.decode(OfflinePackContext.self, from: pack.context) else { continue }
+
+      Logger.offline.info("Auto-resuming pack from queue: \(context.regionName, privacy: .public)")
+      self.activePack = pack
+      self.isDownloading = true
+      self.isDownloadComplete = false
+      self.downloadProgress = (expected > 0) ? Double(completed) / Double(expected) : nil
+      self.updateIdleTimerState()
+      self.downloadResourcesPerSecond = 0.0
+      self.startObservingProgress()
+      pack.resume()
+      return
     }
   }
   
@@ -392,7 +407,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       isDownloading = false
       isDownloadComplete = false
       activePack = nil
-      downloadProgress = 0.0
+      downloadProgress = nil
       downloadResourcesPerSecond = 0.0
       self.updateIdleTimerState()
       
@@ -408,7 +423,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       isDownloading = false
       isDownloadComplete = false
       activePack = nil
-      downloadProgress = 0.0
+      downloadProgress = nil
       downloadResourcesPerSecond = 0.0
       self.updateIdleTimerState()
       self.loadExistingPacks()
@@ -418,7 +433,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   func reset() {
     isDownloadComplete = false
     downloadError = nil
-    downloadProgress = 0.0
+    downloadProgress = nil
   }
   
   private func updateIdleTimerState() {

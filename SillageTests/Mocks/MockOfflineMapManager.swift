@@ -25,7 +25,7 @@ final class MockOfflineMapManager: OfflineMapManagerProtocol {
   var isDownloading: Bool = false
   var isDownloadComplete: Bool = false
   var downloadError: Error? = nil
-  var downloadProgress: Double = 0.0
+  var downloadProgress: Double? = nil
   var isClearingCache: Bool = false
   var downloadedRegions: [OfflineRegionInfo] = []
   var globalDownloadProgress: Double? = nil
@@ -53,7 +53,7 @@ final class MockOfflineMapManager: OfflineMapManagerProtocol {
     isDownloading = false
     isDownloadComplete = false
     downloadError = nil
-    downloadProgress = 0.0
+    downloadProgress = nil
   }
   
 
