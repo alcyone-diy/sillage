@@ -30,4 +30,6 @@ extension Logger {
   nonisolated static let offline = Logger(subsystem: subsystem, category: "Offline")
   nonisolated static let messaging = Logger(subsystem: subsystem, category: "Messaging")
   nonisolated static let navigation = Logger(subsystem: subsystem, category: "Navigation")
+  nonisolated static let mapStyle = Logger(subsystem: subsystem, category: "MapStyle")
 }
+
