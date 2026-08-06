@@ -40,6 +40,7 @@ final class OfflineMapDownloadService {
   ///   - chartSource: The active chart source to derive the specific style JSON or map layers for download.
   func startDownload(bounds: GeographicBoundingBox, chartSource: ChartSource?) async throws {
     let regionName = "Area - \(Date().formatted(.dateTime.day().month().year().hour().minute()))"
+    Logger.offline.info("OfflineMapDownloadService: startDownload requested for '\(regionName, privacy: .public)'")
     
     let styleURL: URL
     
@@ -47,6 +48,7 @@ final class OfflineMapDownloadService {
         styleURL = try await generateDynamicStyleJSON(forLayer: layerID, clientID: clientID)
     } else {
         guard let defaultURL = AppConstants.Cartography.defaultStyleURL else {
+            Logger.offline.error("OfflineMapDownloadService: missing default style URL")
             throw OfflineMapDownloadError.missingDefaultStyleURL
         }
         styleURL = defaultURL

@@ -49,6 +49,19 @@ public enum OfflineMapManagerError: LocalizedError {
   }
 }
 
+extension MLNOfflinePackState {
+  fileprivate var debugDescription: String {
+    switch self {
+    case .unknown: return "unknown"
+    case .inactive: return "inactive"
+    case .active: return "active"
+    case .complete: return "complete"
+    case .invalid: return "invalid"
+    @unknown default: return "raw(\(rawValue))"
+    }
+  }
+}
+
 @Observable
 @MainActor
 public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Sendable {
@@ -104,15 +117,6 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   /// JSON decoding (`loadExistingPacks`, `updateRegionSize`, `tryAutoResumeIfNeeded`).
   private let contextDecoder = JSONDecoder()
 
-  /// Set to `true` when `loadExistingPacks` encounters packs whose state is
-  /// still `.unknown` (MapLibre DB not yet resolved). The global
-  /// `MLNOfflinePackProgressChanged` observer consumes this flag exactly once,
-  /// triggering `tryAutoResumeIfNeeded` when the first state resolves —
-  /// without running the check on every subsequent notification.
-  /// Explicit `@MainActor` annotation prevents concurrent mutation from
-  /// nonisolated contexts on this `@unchecked Sendable` class.
-  @MainActor private var needsInitialAutoResume: Bool = false
-  
   init() {
     MLNOfflineStorage.shared.setMaximumAllowedMapboxTiles(UInt64.max)
     MLNOfflineStorage.shared.setMaximumAmbientCacheSize(UInt(MapConstants.ambientCacheSize), withCompletionHandler: { error in
@@ -133,10 +137,8 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     }
     
     // Globally observe progress changes to update sizes of completed packs
-    // when requestProgress() is called.
-    // The `needsInitialAutoResume` flag is consumed at most once here, after
-    // requestProgress() resolves a pack's state out of `.unknown`. This avoids
-    // running any logic on every high-frequency progress notification.
+    // when requestProgress() is called. If no download is active, evaluation
+    // auto-resumes any incomplete pack as soon as its state resolves from DB.
     Task { [weak self] in
       for await notification in NotificationCenter.default.notifications(named: NSNotification.Name.MLNOfflinePackProgressChanged) {
         guard !Task.isCancelled else { break }
@@ -144,8 +146,6 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
         guard let pack = notification.object as? MLNOfflinePack else { continue }
         Task { @MainActor [weak self] in
           self?.updateRegionSize(for: pack)
-          guard self?.needsInitialAutoResume == true else { return }
-          self?.needsInitialAutoResume = false
           self?.tryAutoResumeIfNeeded()
         }
       }
@@ -156,14 +156,14 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     guard let packs = MLNOfflineStorage.shared.packs else { return }
     var regions: [OfflineRegionInfo] = []
     var nextPackToResume: (pack: MLNOfflinePack, context: OfflinePackContext)? = nil
-    var hadUnknownStatePacks = false
 
     for pack in packs {
       if let context = try? contextDecoder.decode(OfflinePackContext.self, from: pack.context) {
         let size = pack.progress.countOfBytesCompleted
         let expected = pack.progress.countOfResourcesExpected
         let completed = pack.progress.countOfResourcesCompleted
-        let isComplete = pack.state == .complete || (expected > 0 && completed >= expected)
+        let state = pack.state
+        let isComplete = state == .complete || (expected > 0 && completed >= expected)
         let progress = (!isComplete && expected > 0) ? Double(completed) / Double(expected) : nil
 
         regions.append(OfflineRegionInfo(id: context.id, name: context.regionName, sizeInBytes: size, isComplete: isComplete, progress: progress, expectedResources: expected, completedResources: completed, estimatedTimeRemaining: nil))
@@ -172,45 +172,41 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
           // Force MapLibre to recalculate the size from the database only for incomplete packs
           pack.requestProgress()
 
-          if pack.state == .unknown {
-            // State not yet resolved from the async DB load; requestProgress()
-            // will fire MLNOfflinePackProgressChanged once resolved, at which
-            // point needsInitialAutoResume triggers a one-shot resume check.
-            hadUnknownStatePacks = true
-          } else {
+          if state != .unknown {
             // State is already known — evaluate immediately.
             let isVerifiablyIncomplete = (expected > 0 && completed < expected)
-            let isResumable = isVerifiablyIncomplete || pack.state == .inactive || pack.state == .invalid
+            let isResumable = isVerifiablyIncomplete || state == .inactive || state == .invalid
             if isResumable && nextPackToResume == nil {
               nextPackToResume = (pack, context)
             }
           }
         }
+      } else {
+        Logger.offline.error("loadExistingPacks: failed to decode OfflinePackContext")
       }
     }
     self.downloadedRegions = regions
 
     // Auto-resume the next pack in the queue if none is currently active
     if self.activePack == nil, let next = nextPackToResume {
-      Logger.offline.info("Auto-resuming pack from queue: \(next.context.regionName, privacy: .public)")
+      let expected = next.pack.progress.countOfResourcesExpected
+      let completed = next.pack.progress.countOfResourcesCompleted
+      let initialProgress = (expected > 0) ? Double(completed) / Double(expected) : 0.0
+
       self.activePack = next.pack
       self.isDownloading = true
       self.isDownloadComplete = false
-      self.downloadProgress = 0.0
+      self.downloadProgress = initialProgress
       self.updateIdleTimerState()
       self.downloadResourcesPerSecond = 0.0
       self.startObservingProgress()
       next.pack.resume()
-    } else if self.activePack == nil && hadUnknownStatePacks {
-      // Some packs were still in .unknown state. Arm the flag so the global
-      // observer triggers a resume check as soon as the first state resolves.
-      self.needsInitialAutoResume = true
     }
   }
   
   /// Resumes the first incomplete pack if no download is active.
-  /// Triggered once via `needsInitialAutoResume` after MapLibre resolves pack
-  /// states from its async DB load (packs start as `.unknown` at boot).
+  /// Evaluated whenever MapLibre resolves pack states from its async DB load
+  /// or when an active pack finishes downloading.
   @MainActor
   private func tryAutoResumeIfNeeded() {
     guard activePack == nil, !isDownloading else { return }
@@ -220,18 +216,18 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       guard let context = try? contextDecoder.decode(OfflinePackContext.self, from: pack.context) else { continue }
       let expected = pack.progress.countOfResourcesExpected
       let completed = pack.progress.countOfResourcesCompleted
-      let isComplete = pack.state == .complete || (expected > 0 && completed >= expected)
+      let state = pack.state
+      let isComplete = state == .complete || (expected > 0 && completed >= expected)
       guard !isComplete else { continue }
 
       let isVerifiablyIncomplete = (expected > 0 && completed < expected)
-      let isResumable = isVerifiablyIncomplete || pack.state == .inactive || pack.state == .invalid
+      let isResumable = isVerifiablyIncomplete || state == .inactive || state == .invalid
 
       if isResumable {
-        Logger.offline.info("Auto-resuming pack from queue: \(context.regionName, privacy: .public)")
         self.activePack = pack
         self.isDownloading = true
         self.isDownloadComplete = false
-        self.downloadProgress = 0.0
+        self.downloadProgress = (expected > 0) ? Double(completed) / Double(expected) : 0.0
         self.updateIdleTimerState()
         self.downloadResourcesPerSecond = 0.0
         self.startObservingProgress()
@@ -326,6 +322,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   }
   
   func downloadRegion(bounds: GeographicBoundingBox, styleURL: URL, regionName: String) {
+    Logger.offline.info("downloadRegion requested for '\(regionName, privacy: .public)' (SW: \(bounds.southWest.latitude, privacy: .public),\(bounds.southWest.longitude, privacy: .public) NE: \(bounds.northEast.latitude, privacy: .public),\(bounds.northEast.longitude, privacy: .public)), styleURL: '\(styleURL.absoluteString, privacy: .public)'")
     isDownloading = true
     downloadError = nil
     
@@ -334,7 +331,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     
     let context = OfflinePackContext(id: UUID().uuidString, regionName: regionName)
     guard let contextData = try? JSONEncoder().encode(context) else {
-      Logger.offline.error("Failed to encode offline region context")
+      Logger.offline.error("Failed to encode offline region context for '\(regionName, privacy: .public)'")
       isDownloading = false
       downloadError = OfflineMapManagerError.encodingFailed
       return
@@ -343,14 +340,14 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     MLNOfflineStorage.shared.addPack(for: region, withContext: contextData) { [weak self] pack, error in
       Task { @MainActor [weak self] in
         if let error = error {
-          Logger.offline.error("Failed to add offline pack: \(error.localizedDescription, privacy: .public)")
+          Logger.offline.error("Failed to add offline pack for '\(regionName, privacy: .public)': \(error.localizedDescription, privacy: .public)")
           self?.isDownloading = false
           self?.downloadError = error
           return
         }
         
         guard let pack = pack else {
-          Logger.offline.error("Failed to add offline pack: pack is nil")
+          Logger.offline.error("Failed to add offline pack for '\(regionName, privacy: .public)': pack is nil")
           self?.isDownloading = false
           self?.downloadError = OfflineMapManagerError.unknown
           return
@@ -362,10 +359,10 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   }
   
   private func handlePackAdded(_ pack: MLNOfflinePack, regionName: String) {
-    Logger.offline.info("Successfully added offline pack for region: \(regionName, privacy: .public)")
+    Logger.offline.info("Successfully added offline pack for region: \(regionName, privacy: .public), state: \(pack.state.debugDescription, privacy: .public)")
     
     if self.activePack != nil {
-      Logger.offline.info("A download is already active, adding to queue.")
+      Logger.offline.info("A download is already active, adding '\(regionName, privacy: .public)' to queue.")
       self.loadExistingPacks()
       return
     }
@@ -375,18 +372,21 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.downloadError = nil
     self.downloadResourcesPerSecond = 0.0
     self.updateIdleTimerState()
+    Logger.offline.info("Resuming newly added pack: \(regionName, privacy: .public)")
     pack.resume()
     
     self.startObservingProgress()
   }
   
   func cancelDownload() {
+    Logger.offline.info("cancelDownload requested")
     progressObservationTask?.cancel()
     errorObservationTask?.cancel()
     progressObservationTask = nil
     errorObservationTask = nil
     
     if let pack = activePack {
+      Logger.offline.info("Suspending and removing active pack on cancellation")
       pack.suspend()
       
       isDownloading = false
@@ -448,7 +448,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
               self.activePack != nil else { continue }
         
         let error = notification.userInfo?[MLNOfflinePackUserInfoKey.error] as? Error
-        Logger.offline.error("Offline pack encountered an error: \(error?.localizedDescription ?? "", privacy: .public)")
+        Logger.offline.error("Offline pack error notification received: \(error?.localizedDescription ?? "unknown", privacy: .public)")
         pack.suspend()
         self.handlePackError(error)
         break
