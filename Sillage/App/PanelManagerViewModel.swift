@@ -32,6 +32,7 @@ public final class PanelManagerViewModel {
     case baroAlarm
     case anchorAlarm
     case geoGarageLogin
+    case offlineCharts
   }
 
   /// The currently active panel visible to the user.
