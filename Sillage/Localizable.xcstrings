@@ -95,7 +95,13 @@
     "⚓️ DRAGGING ANCHOR!" : {
 
     },
+    "⚠️" : {
+
+    },
     "⚠️ Monitoring Suspended" : {
+
+    },
+    "⚠️ Offline maps require GeoGarage. Switch to GeoGarage in Chart Preferences to download offline charts." : {
 
     },
     "⚠️ Sillage Inactive" : {
@@ -326,13 +332,10 @@
     "Download" : {
 
     },
-    "Download Area" : {
-
-    },
     "Download interrupted." : {
 
     },
-    "Download map regions for offline navigation." : {
+    "Downloaded Charts" : {
 
     },
     "DRAGGING ALERT" : {
@@ -417,6 +420,9 @@
 
     },
     "GeoGarage Marine Chart" : {
+
+    },
+    "GeoGarage Required" : {
 
     },
     "GeoGarage Terms of Use" : {
@@ -572,7 +578,7 @@
     "No GPS fix available." : {
 
     },
-    "No offline charts" : {
+    "No Offline Charts" : {
 
     },
     "No saved tracks yet" : {
@@ -594,6 +600,9 @@
 
     },
     "Offline Maps Error" : {
+
+    },
+    "Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences." : {
 
     },
     "OK" : {
@@ -750,6 +759,9 @@
 
     },
     "System Information" : {
+
+    },
+    "Tap '+' to select an area on the chart to download." : {
 
     },
     "The application has been closed by iOS. Active services (like tracking or anchor watch) have been stopped." : {

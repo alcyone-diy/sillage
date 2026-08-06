@@ -25,29 +25,48 @@ struct OfflineRegionsManagerView: View {
   
   @State private var regionToDelete: RegionToDelete?
   
+  private var isOfflineAreaDisabled: Bool {
+    offlineSelectionViewModel.isSelectionModeActive || !chartViewModel.isOfflineAreaEnabled
+  }
+  
   var body: some View {
     Group {
       if environment.offlineMapManager.downloadedRegions.isEmpty {
         ContentUnavailableView {
-          Label("No offline charts", systemImage: "map.slash")
+          Label("No Offline Charts", systemImage: "map.slash")
         } description: {
-          Text("Download map regions for offline navigation.")
-        } actions: {
-          Button {
-            offlineSelectionViewModel.isSelectionModeActive = true
-            panelManagerViewModel.closePanel()
-          } label: {
-            Text("Download Area")
+          if chartViewModel.showOfflineAreaWarning {
+            Text("⚠️ Offline maps require GeoGarage. Switch to GeoGarage in Chart Preferences to download offline charts.")
+          } else {
+            Text("Tap '+' to select an area on the chart to download.")
           }
-          .disabled(chartViewModel.isOfflineAreaEnabled == false)
         }
       } else {
         List {
-          Section {
-            OfflineRegionsHeaderView()
+          if chartViewModel.showOfflineAreaWarning {
+            Section {
+              HStack(alignment: .top, spacing: 12) {
+                Text("⚠️")
+                  .font(.title2)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                  Text("GeoGarage Required")
+                    .marineFont(.headline)
+                    .foregroundStyle(.primary)
+                  
+                  Text("Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences.")
+                    .marineFont(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .marineListCell()
+            }
           }
           
           Section {
+            OfflineRegionsHeaderView()
+            
             let activeDownloadIndex = environment.offlineMapManager.activeDownloadIndex
             
             ForEach(Array(environment.offlineMapManager.downloadedRegions.enumerated()), id: \.element.id) { index, region in
@@ -63,6 +82,8 @@ struct OfflineRegionsManagerView: View {
                   .tint(.red)
                 }
             }
+          } header: {
+            Text("Downloaded Charts")
           }
           .animation(.default, value: environment.offlineMapManager.downloadedRegions)
         }
@@ -80,7 +101,7 @@ struct OfflineRegionsManagerView: View {
         } label: {
           Image(systemName: "plus")
         }
-        .disabled(chartViewModel.isOfflineAreaEnabled == false)
+        .disabled(isOfflineAreaDisabled)
       }
     }
     .alert(
