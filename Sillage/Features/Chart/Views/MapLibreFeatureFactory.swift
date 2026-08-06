@@ -44,4 +44,116 @@ enum MapLibreFeatureFactory {
     
     return AnchorFeatures(pointFeature: pointFeature, radiusFeature: radiusFeature)
   }
+  
+  static func createVesselFeature(from state: VesselVisualState?) -> MLNPointFeature? {
+    guard let state = state else { return nil }
+    let feature = MLNPointFeature()
+    feature.coordinate = state.coordinate
+    var attributes: [String: Any] = [
+      MapFeatureKey.type.rawValue: MapFeatureType.vessel.rawValue,
+      MapFeatureKey.isStale.rawValue: state.isStale,
+      MapFeatureKey.isDegraded.rawValue: state.isDegraded
+    ]
+    if let course = state.course {
+      attributes[MapFeatureKey.course.rawValue] = course.converted(to: .degrees).value
+    }
+    feature.attributes = attributes
+    return feature
+  }
+
+  static func createHeadingVectorFeature(from data: HeadingVectorData?) -> MLNShapeCollectionFeature? {
+    guard let data = data else { return nil }
+    var shapes: [MLNShape] = []
+    
+    var lineCoords = data.lineCoordinates
+    let lineFeature = MLNPolylineFeature(coordinates: &lineCoords, count: UInt(lineCoords.count))
+    lineFeature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.vectorLine.rawValue]
+    shapes.append(lineFeature)
+    
+    for tick in data.majorTickCoordinates {
+      let tickFeature = MLNPointFeature()
+      tickFeature.coordinate = tick
+      tickFeature.attributes = [
+        MapFeatureKey.type.rawValue: MapFeatureType.vectorTick.rawValue,
+        MapFeatureKey.isMajorTick.rawValue: true,
+      ]
+      shapes.append(tickFeature)
+    }
+    
+    for tick in data.minorTickCoordinates {
+      let tickFeature = MLNPointFeature()
+      tickFeature.coordinate = tick
+      tickFeature.attributes = [
+        MapFeatureKey.type.rawValue: MapFeatureType.vectorTick.rawValue,
+        MapFeatureKey.isMajorTick.rawValue: false,
+      ]
+      shapes.append(tickFeature)
+    }
+    
+    return MLNShapeCollectionFeature(shapes: shapes)
+  }
+
+  static func createAccuracyFeature(from state: GpsAccuracyVisualState?) -> MLNPolygonFeature? {
+    guard let state = state, !state.coordinates.isEmpty else { return nil }
+    var coords = state.coordinates
+    let feature = MLNPolygonFeature(coordinates: &coords, count: UInt(coords.count))
+    return feature
+  }
+
+  static func createSavedTrackFeature(from state: SavedTrackVisualState?) -> MLNShape? {
+    guard let state = state, !state.segments.isEmpty else { return nil }
+    if state.segments.count == 1 {
+      var coordinates = state.segments[0]
+      return MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
+    } else {
+      let polylines = state.segments.map { coords -> MLNPolyline in
+        var mutableCoords = coords
+        return MLNPolyline(coordinates: &mutableCoords, count: UInt(mutableCoords.count))
+      }
+      return MLNMultiPolylineFeature(polylines: polylines)
+    }
+  }
+
+  static func createGoToWaypointFeature(from state: WaypointVisualState?) -> MLNPointFeature? {
+    guard let state = state else { return nil }
+    let feature = MLNPointFeature()
+    feature.coordinate = state.coordinate
+    feature.attributes = [
+      MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
+      MapFeatureKey.id.rawValue: state.id,
+      MapFeatureKey.name.rawValue: state.name,
+      MapFeatureKey.color.rawValue: state.colorHex
+    ]
+    return feature
+  }
+
+  static func createVisibleWaypointsFeature(from states: [WaypointVisualState]) -> MLNShapeCollectionFeature? {
+    guard !states.isEmpty else { return nil }
+    let features: [MLNPointFeature] = states.map { waypoint in
+      let feature = MLNPointFeature()
+      feature.coordinate = waypoint.coordinate
+      feature.attributes = [
+        MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
+        MapFeatureKey.id.rawValue: waypoint.id,
+        MapFeatureKey.name.rawValue: waypoint.name,
+        MapFeatureKey.color.rawValue: waypoint.colorHex
+      ]
+      return feature
+    }
+    return MLNShapeCollectionFeature(shapes: features)
+  }
+
+  static func createBearingLineFeature(from state: BearingLineVisualState?) -> MLNPolylineFeature? {
+    guard let state = state, state.coordinates.count >= 2 else { return nil }
+    var coordinates = state.coordinates
+    let feature = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
+    var attributes: [String: Any] = [
+      MapFeatureKey.type.rawValue: MapFeatureType.bearingLine.rawValue
+    ]
+    if let color = state.colorHex {
+      attributes[MapFeatureKey.color.rawValue] = color
+    }
+    feature.attributes = attributes
+    return feature
+  }
 }

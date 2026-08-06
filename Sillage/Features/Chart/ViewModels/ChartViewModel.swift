@@ -12,13 +12,12 @@ import Foundation
 import CoreLocation
 import SwiftUI
 import Observation
-import MapLibre
 import OSLog
 
 /// Represents a camera movement instruction to be consumed by the UI layer.
 enum CameraMoveEvent {
   case center(coordinate: CLLocationCoordinate2D, zoom: Double?, heading: Measurement<UnitAngle>?)
-  case fitBounds(bounds: MLNCoordinateBounds, padding: UIEdgeInsets)
+  case fitBounds(bounds: GeographicBoundingBox, padding: UIEdgeInsets)
 }
 
 /// The central state manager for the chart interface.
@@ -87,15 +86,15 @@ final class ChartViewModel {
   
   var bearingToWaypoint: Measurement<UnitAngle>? = nil
   
-  // MARK: - Chart Features (Annotations)
+  // MARK: - Chart Visual States (Annotations)
   
-  var vesselFeature: MLNPointFeature?
-  var headingVectorFeature: MLNShapeCollectionFeature?
-  var gpsAccuracyFeature: MLNPolygonFeature?
-  var savedTrackFeature: MLNShape?
-  var goToWaypointFeature: MLNPointFeature?
-  var visibleWaypointFeatures: MLNShapeCollectionFeature?
-  var bearingLineFeature: MLNPolylineFeature?
+  var vesselVisualState: VesselVisualState?
+  var headingVectorData: HeadingVectorData?
+  var gpsAccuracyVisualState: GpsAccuracyVisualState?
+  var savedTrackVisualState: SavedTrackVisualState?
+  var goToWaypointVisualState: WaypointVisualState?
+  var visibleWaypointVisualStates: [WaypointVisualState] = []
+  var bearingLineVisualState: BearingLineVisualState?
   var goToWaypointID: String?
   var anchorVisualState: AnchorVisualState?
   var displayedTrackSessionID: String? {
@@ -107,10 +106,6 @@ final class ChartViewModel {
   // MARK: - Map Scale
   
   var mapScale: Measurement<UnitLength>? = nil
-  
-  
-  
-  // Heading Stabilization State moved to InstrumentDampingService
   
   
   // MARK: - Private Services & Tasks
@@ -241,7 +236,7 @@ final class ChartViewModel {
           let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == id }) else {
       // 2. Safe fallback: Total reset if invalid or nil
       self.goToWaypointID = nil
-      self.goToWaypointFeature = nil
+      self.goToWaypointVisualState = nil
       self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
       self.updateBearingLine(state: self.instrumentDampingService.state)
       return
@@ -249,17 +244,15 @@ final class ChartViewModel {
     
     // 3. Application of the valid state
     let coordinate = waypoint.coordinate
-    let feature = MLNPointFeature()
-    feature.coordinate = coordinate
-    feature.attributes = [
-      MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
-      MapFeatureKey.id.rawValue: waypoint.id,
-      MapFeatureKey.name.rawValue: waypoint.name,
-      MapFeatureKey.color.rawValue: waypoint.validDisplayColorHex
-    ]
+    let visualState = WaypointVisualState(
+      id: waypoint.id,
+      name: waypoint.name,
+      coordinate: waypoint.coordinate,
+      colorHex: waypoint.validDisplayColorHex
+    )
     
     self.goToWaypointID = id
-    self.goToWaypointFeature = feature
+    self.goToWaypointVisualState = visualState
     self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
     self.updateBearingLine(state: self.instrumentDampingService.state)
     self.trackingMode = .free
@@ -272,9 +265,9 @@ final class ChartViewModel {
       let minLon = min(coordinate.longitude, boatCoordinate.longitude)
       let maxLon = max(coordinate.longitude, boatCoordinate.longitude)
       
-      let bounds = MLNCoordinateBounds(
-        sw: CLLocationCoordinate2D(latitude: minLat, longitude: minLon),
-        ne: CLLocationCoordinate2D(latitude: maxLat, longitude: maxLon)
+      let bounds = GeographicBoundingBox(
+        southWest: CLLocationCoordinate2D(latitude: minLat, longitude: minLon),
+        northEast: CLLocationCoordinate2D(latitude: maxLat, longitude: maxLon)
       )
       
       // Use padding to ensure points are not hidden behind UI panels
@@ -289,21 +282,15 @@ final class ChartViewModel {
   }
   
   private func handleWaypointsChange(waypoints: [Waypoint]) {
-    let features: [MLNPointFeature] = waypoints.compactMap { waypoint in
+    self.visibleWaypointVisualStates = waypoints.compactMap { waypoint in
       guard waypoint.isVisible else { return nil }
-      let coordinate = waypoint.coordinate
-      let feature = MLNPointFeature()
-      feature.coordinate = coordinate
-      feature.attributes = [
-        MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
-        MapFeatureKey.id.rawValue: waypoint.id,
-        MapFeatureKey.name.rawValue: waypoint.name,
-        MapFeatureKey.color.rawValue: waypoint.validDisplayColorHex
-      ]
-      return feature
+      return WaypointVisualState(
+        id: waypoint.id,
+        name: waypoint.name,
+        coordinate: waypoint.coordinate,
+        colorHex: waypoint.validDisplayColorHex
+      )
     }
-    
-    self.visibleWaypointFeatures = features.isEmpty ? nil : MLNShapeCollectionFeature(shapes: features)
     
     // Check the persistence of the current target waypoint
     // Note: We read the intent from waypointService instead of self.goToWaypointID
@@ -311,7 +298,7 @@ final class ChartViewModel {
     // as handleGoToWaypointChange might have temporarily purged the state if waypoints were not yet loaded.
     guard let targetID = waypointService?.goToWaypointID else {
       self.goToWaypointID = nil
-      self.goToWaypointFeature = nil
+      self.goToWaypointVisualState = nil
       self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
       self.updateBearingLine(state: self.instrumentDampingService.state)
       return
@@ -320,24 +307,20 @@ final class ChartViewModel {
     guard let waypoint = waypoints.first(where: { $0.id == targetID }) else {
       // The target waypoint no longer exists (deleted), cancel navigation
       self.goToWaypointID = nil
-      self.goToWaypointFeature = nil
+      self.goToWaypointVisualState = nil
       self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
       self.updateBearingLine(state: self.instrumentDampingService.state)
       return
     }
     
     // The waypoint still exists, update its data (color, name, position)
-    let feature = MLNPointFeature()
-    feature.coordinate = waypoint.coordinate
-    feature.attributes = [
-      MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
-      MapFeatureKey.id.rawValue: waypoint.id,
-      MapFeatureKey.name.rawValue: waypoint.name,
-      MapFeatureKey.color.rawValue: waypoint.validDisplayColorHex
-    ]
-    
     self.goToWaypointID = targetID
-    self.goToWaypointFeature = feature
+    self.goToWaypointVisualState = WaypointVisualState(
+      id: waypoint.id,
+      name: waypoint.name,
+      coordinate: waypoint.coordinate,
+      colorHex: waypoint.validDisplayColorHex
+    )
     self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
     self.updateBearingLine(state: self.instrumentDampingService.state)
   }
@@ -489,7 +472,7 @@ final class ChartViewModel {
     
   }
   
-   private func handleInstrumentState(_ state: InstrumentState) {
+  private func handleInstrumentState(_ state: InstrumentState) {
     // Extracted directly from InstrumentState as the single source of truth
     self.currentCoordinate = state.coordinate
     self.horizontalAccuracy = state.horizontalAccuracy
@@ -504,6 +487,7 @@ final class ChartViewModel {
     // Batched map refresh invoked after all data is safely assigned
     refreshMapFeatures(state: state)
   }
+  
   private func refreshMapFeatures(state: InstrumentState? = nil) {
     let safeState = state ?? instrumentDampingService.state
     
@@ -524,23 +508,15 @@ final class ChartViewModel {
 
   private func updateVesselFeature(state: InstrumentState?) {
     guard let coordinate = state?.coordinate else {
-      self.vesselFeature = nil
+      self.vesselVisualState = nil
       return
     }
-    let feature = MLNPointFeature()
-    feature.coordinate = coordinate
-    var attributes: [String: Any] = [
-      MapFeatureKey.type.rawValue: MapFeatureType.vessel.rawValue,
-    ]
-    if let cog = state?.smoothedCOG {
-      attributes[MapFeatureKey.course.rawValue] = cog.converted(to: .degrees).value
-    }
-    // The vessel is grey if lost or stale
-    attributes[MapFeatureKey.isStale.rawValue] = (self.gpsState == .lost || self.gpsState == .stale)
-    // The vessel is tinted (e.g., orange) if the signal is degraded
-    attributes[MapFeatureKey.isDegraded.rawValue] = (self.gpsState == .degraded)
-    feature.attributes = attributes
-    self.vesselFeature = feature
+    self.vesselVisualState = VesselVisualState(
+      coordinate: coordinate,
+      course: state?.smoothedCOG,
+      isStale: (self.gpsState == .lost || self.gpsState == .stale),
+      isDegraded: (self.gpsState == .degraded)
+    )
   }
 
   private func updateHeadingVector(state: InstrumentState?) {
@@ -548,65 +524,33 @@ final class ChartViewModel {
           let sog = state?.smoothedSOG,
           let cog = state?.smoothedCOG,
           let startCoordinate = state?.coordinate else {
-      self.headingVectorFeature = nil
+      self.headingVectorData = nil
       return
     }
     
     let timeHorizonSeconds = preferencesService.cogVectorTimeHorizon.converted(to: .seconds).value
     let generateTicks = preferencesService.isCOGVectorTicksEnabled
     
-    guard let prediction = HeadingVectorPredictor.predict(
+    self.headingVectorData = HeadingVectorPredictor.predict(
       startCoordinate: startCoordinate,
       sog: sog,
       cog: cog,
       timeHorizonSeconds: timeHorizonSeconds,
       generateTicks: generateTicks
-    ) else {
-      self.headingVectorFeature = nil
-      return
-    }
-    
-    var shapes: [MLNShape] = []
-    
-    var lineCoords = prediction.lineCoordinates
-    let lineFeature = MLNPolylineFeature(coordinates: &lineCoords, count: UInt(lineCoords.count))
-    lineFeature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.vectorLine.rawValue]
-    shapes.append(lineFeature)
-    
-    for tick in prediction.majorTickCoordinates {
-      let tickFeature = MLNPointFeature()
-      tickFeature.coordinate = tick
-      tickFeature.attributes = [
-        MapFeatureKey.type.rawValue: MapFeatureType.vectorTick.rawValue,
-        MapFeatureKey.isMajorTick.rawValue: true,
-      ]
-      shapes.append(tickFeature)
-    }
-    
-    for tick in prediction.minorTickCoordinates {
-      let tickFeature = MLNPointFeature()
-      tickFeature.coordinate = tick
-      tickFeature.attributes = [
-        MapFeatureKey.type.rawValue: MapFeatureType.vectorTick.rawValue,
-        MapFeatureKey.isMajorTick.rawValue: false,
-      ]
-      shapes.append(tickFeature)
-    }
-    
-    self.headingVectorFeature = MLNShapeCollectionFeature(shapes: shapes)
+    )
   }
 
   private func updateAccuracyFeature(state: InstrumentState?) {
     guard let accuracy = state?.horizontalAccuracy?.converted(to: .meters).value, let coordinate = state?.coordinate else {
-      self.gpsAccuracyFeature = nil
+      self.gpsAccuracyVisualState = nil
       return
     }
     let accuracyMeasurement = Measurement(value: accuracy, unit: UnitLength.meters)
-    guard var accuracyCoords = coordinate.circularPolygon(radius: accuracyMeasurement) else {
-      self.gpsAccuracyFeature = nil
+    guard let accuracyCoords = coordinate.circularPolygon(radius: accuracyMeasurement) else {
+      self.gpsAccuracyVisualState = nil
       return
     }
-    self.gpsAccuracyFeature = MLNPolygonFeature(coordinates: &accuracyCoords, count: UInt(accuracyCoords.count))
+    self.gpsAccuracyVisualState = GpsAccuracyVisualState(coordinates: accuracyCoords)
   }
   
   // MARK: - Chart State Management
@@ -718,13 +662,13 @@ final class ChartViewModel {
     let points = try await trackService.fetchTrackPoints(for: sessionID)
     guard !points.isEmpty else { return }
     
-    let (feature, bounds) = await Task.detached(priority: .userInitiated) {
+    let (visualState, bounds) = await Task.detached(priority: .userInitiated) {
       return await Self.processTrackData(points)
     }.value
     
-    guard let feature = feature else { return }
+    guard let visualState = visualState else { return }
     
-    self.savedTrackFeature = feature
+    self.savedTrackVisualState = visualState
     self.displayedTrackSessionID = sessionID
     
     if centerOnTrack {
@@ -744,15 +688,13 @@ final class ChartViewModel {
   }
   
   func clearSavedTrack() {
-    self.savedTrackFeature = nil
+    self.savedTrackVisualState = nil
     self.displayedTrackSessionID = nil
   }
   
-  private static func processTrackData(_ points: [TrackPoint]) -> (MLNShape?, MLNCoordinateBounds?) {
+  private static func processTrackData(_ points: [TrackPoint]) -> (SavedTrackVisualState?, GeographicBoundingBox?) {
     guard points.count >= 2 else { return (nil, nil) }
     
-    // TODO: Implement Douglas-Peucker algorithm for accurate geographical simplification
-    // Rudimentary simplification/downsampling to avoid OOM on massive tracks
     let strideCount = max(1, points.count / 10000)
     
     var minLat = 90.0, maxLat = -90.0
@@ -765,7 +707,6 @@ final class ChartViewModel {
     var crossesAntimeridian = false
     
     for (index, point) in points.enumerated() {
-      // Keep first point, last point, and every Nth point
       if index % strideCount != 0 && index != 0 && index != points.count - 1 {
         continue
       }
@@ -799,31 +740,17 @@ final class ChartViewModel {
     
     guard !segments.isEmpty else { return (nil, nil) }
     
-    let shape: MLNShape?
-    if segments.count == 1 {
-      var coordinates = segments[0]
-      shape = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
-    } else {
-      let polylines = segments.map { coords -> MLNPolyline in
-        var mutableCoords = coords
-        return MLNPolyline(coordinates: &mutableCoords, count: UInt(mutableCoords.count))
-      }
-      shape = MLNMultiPolylineFeature(polylines: polylines)
-    }
-    
-    let bounds: MLNCoordinateBounds?
+    let bounds: GeographicBoundingBox?
     if crossesAntimeridian {
-      // TODO: Handle antimeridian bounding box computation properly. 
-      // For now, block bounds creation to prevent a global zoom out.
       bounds = nil
     } else {
-      bounds = MLNCoordinateBounds(
-        sw: CLLocationCoordinate2D(latitude: minLat, longitude: minLon),
-        ne: CLLocationCoordinate2D(latitude: maxLat, longitude: maxLon)
+      bounds = GeographicBoundingBox(
+        southWest: CLLocationCoordinate2D(latitude: minLat, longitude: minLon),
+        northEast: CLLocationCoordinate2D(latitude: maxLat, longitude: maxLon)
       )
     }
     
-    return (shape, bounds)
+    return (SavedTrackVisualState(segments: segments), bounds)
   }
 
   // MARK: - Persistence
@@ -889,8 +816,9 @@ final class ChartViewModel {
       }
     }
   }
+  
   private func updateBearingToWaypoint(state: InstrumentState?) {
-    guard let current = state?.coordinate, let waypoint = goToWaypointFeature?.coordinate else {
+    guard let current = state?.coordinate, let waypoint = goToWaypointVisualState?.coordinate else {
       bearingToWaypoint = nil
       return
     }
@@ -898,19 +826,13 @@ final class ChartViewModel {
   }
   
   private func updateBearingLine(state: InstrumentState?) {
-    guard let current = state?.coordinate, let waypoint = goToWaypointFeature?.coordinate else {
-      bearingLineFeature = nil
+    guard let current = state?.coordinate, let waypoint = goToWaypointVisualState?.coordinate else {
+      bearingLineVisualState = nil
       return
     }
-    var coordinates = [current, waypoint]
-    let feature = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
-    var attributes: [String: Any] = [
-      MapFeatureKey.type.rawValue: MapFeatureType.bearingLine.rawValue
-    ]
-    if let color = goToWaypointFeature?.attributes[MapFeatureKey.color.rawValue] {
-      attributes[MapFeatureKey.color.rawValue] = color
-    }
-    feature.attributes = attributes
-    bearingLineFeature = feature
+    bearingLineVisualState = BearingLineVisualState(
+      coordinates: [current, waypoint],
+      colorHex: goToWaypointVisualState?.colorHex
+    )
   }
 }
