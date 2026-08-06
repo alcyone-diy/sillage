@@ -171,13 +171,13 @@ struct MapLibreView: UIViewRepresentable {
       let headingLayer = MLNLineStyleLayer(identifier: MapLayer.headingLayerID, source: headingSource)
       headingLayer.predicate = NSPredicate(format: "featureType == 'vectorLine'")
       headingLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.ChartMetrics.headingLineWidth)
-      headingLayer.lineColor = NSExpression(forConstantValue: UIColor(marineTheme.colors.vectorCOG))
+      headingLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.vectorCOG))
       style.addLayer(headingLayer)
       
       let headingTickLayer = MLNCircleStyleLayer(identifier: MapLayer.headingTickLayerID, source: headingSource)
       headingTickLayer.predicate = NSPredicate(format: "featureType == 'vectorTick'")
       headingTickLayer.circleRadius = NSExpression(format: "TERNARY(isMajorTick == YES, 4.0, 2.0)")
-      headingTickLayer.circleColor = NSExpression(forConstantValue: UIColor(marineTheme.colors.vectorTick))
+      headingTickLayer.circleColor = NSExpression(forConstantValue: UIColor(theme.colors.vectorTick))
       headingTickLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.0)
       headingTickLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.systemBackground)
       style.insertLayer(headingTickLayer, above: headingLayer)
@@ -215,7 +215,7 @@ struct MapLibreView: UIViewRepresentable {
       
       let anchorPointLayer = MLNSymbolStyleLayer(identifier: MapLayer.anchorPointLayerID, source: anchorPointSource)
       anchorPointLayer.iconImageName = NSExpression(forConstantValue: "anchor-icon")
-      anchorPointLayer.iconColor = NSExpression(forConstantValue: UIColor(marineTheme.colors.anchorDropped))
+      anchorPointLayer.iconColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
       anchorPointLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
       anchorPointLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
       anchorPointLayer.iconScale = NSExpression(forConstantValue: 1.0)
@@ -371,7 +371,7 @@ struct MapLibreView: UIViewRepresentable {
           source.shape = anchorFeatures.pointFeature
         }
         if let status = currentVisualState?.status {
-          updateAnchorLayerStyles(in: style, for: status)
+          updateAnchorLayerStyles(in: style, for: status, with: marineTheme)
         }
       }
       
@@ -444,11 +444,11 @@ struct MapLibreView: UIViewRepresentable {
     uiView.compassView.isUserInteractionEnabled = (trackingMode != .courseUp)
   }
 
-  private func updateAnchorLayerStyles(in style: MLNStyle, for status: AnchorVisualStatus) {
+  private func updateAnchorLayerStyles(in style: MLNStyle, for status: AnchorVisualStatus, with theme: MarineTheme) {
     if let pointLayer = style.layer(withIdentifier: MapLayer.anchorPointLayerID) as? MLNSymbolStyleLayer {
       let pointColor: UIColor = (status == .setup)
-        ? UIColor(marineTheme.colors.anchorDropped).withAlphaComponent(0.5)
-        : UIColor(marineTheme.colors.anchorDropped)
+        ? UIColor(theme.colors.anchorDropped).withAlphaComponent(0.5)
+        : UIColor(theme.colors.anchorDropped)
       
       pointLayer.iconColor = NSExpression(forConstantValue: pointColor)
     }
@@ -465,7 +465,7 @@ struct MapLibreView: UIViewRepresentable {
       strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
       
     case .dropped:
-      let color = UIColor(marineTheme.colors.anchorDropped)
+      let color = UIColor(theme.colors.anchorDropped)
       fillLayer.fillColor = NSExpression(forConstantValue: color)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
       
@@ -475,7 +475,7 @@ struct MapLibreView: UIViewRepresentable {
       strokeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
       
     case .armed:
-      let color = UIColor(marineTheme.colors.anchorArmed)
+      let color = UIColor(theme.colors.anchorArmed)
       fillLayer.fillColor = NSExpression(forConstantValue: color)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.10)
       
@@ -485,7 +485,7 @@ struct MapLibreView: UIViewRepresentable {
       strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
       
     case .dragging:
-      let color = UIColor(marineTheme.colors.anchorDragging)
+      let color = UIColor(theme.colors.anchorDragging)
       fillLayer.fillColor = NSExpression(forConstantValue: color)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.25)
       
@@ -551,7 +551,6 @@ struct MapLibreView: UIViewRepresentable {
   
   @MainActor
   class Coordinator: NSObject, MLNMapViewDelegate, UIPopoverPresentationControllerDelegate {
-    @Environment(\.marineTheme) private var marineTheme
     var parent: MapLibreView
     private var streamTask: Task<Void, Never>?
     private var pendingBoundsUpdateTask: Task<Void, Never>?
@@ -725,7 +724,7 @@ struct MapLibreView: UIViewRepresentable {
       Logger.chart.info("MapLibre successfully loaded the default style.")
       
       // Add vessel cursor image
-      if let image = VesselGraphicsFactory.createVesselImage(size: MarineTheme.ChartMetrics.vesselCursorBaseSize, color: UIColor(marineTheme.colors.accent)) {
+      if let image = VesselGraphicsFactory.createVesselImage(size: MarineTheme.ChartMetrics.vesselCursorBaseSize, color: UIColor(parent.marineTheme.colors.accent)) {
         style.setImage(image, forName: "vessel-cursor")
       }
       
@@ -787,7 +786,7 @@ struct MapLibreView: UIViewRepresentable {
         source.shape = anchorFeatures.pointFeature
       }
       if let status = anchorVisualState?.status {
-        parent.updateAnchorLayerStyles(in: style, for: status)
+        parent.updateAnchorLayerStyles(in: style, for: status, with: parent.marineTheme)
       }
       lastAnchorVisualState = anchorVisualState
       if let layer = style.layer(withIdentifier: MapLayer.vesselLayerID) as? MLNSymbolStyleLayer {
