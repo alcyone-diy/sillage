@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import UIKit
 import Observation
 import OSLog
 
@@ -44,4 +45,58 @@ final class DebugViewModel {
       delay: 5.0
     )
   }
+  
+  func scheduleDebugAnchorNotification(
+    permissionService: PermissionServiceProtocol,
+    notificationService: NotificationService,
+    anchorService: AnchorService
+  ) async throws {
+    let granted = await permissionService.requestCriticalNotificationAuthorization()
+    guard granted else {
+      throw NotificationError.permissionDenied
+    }
+    
+    anchorService.alarmAudioService.prepareAudioSession()
+    
+    await notificationService.sendCriticalNotification(
+      title: "⚓️ DRAGGING ANCHOR! (Debug)",
+      body: "Vessel is out of the safe zone (42m / 30m max).",
+      identifier: NotificationIntent.anchorDragging.rawValue,
+      delay: 5.0
+    )
+    
+    Task { @MainActor [weak anchorService] in
+      var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+      bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "DebugAnchorAlarm") {
+        if bgTaskID != .invalid {
+          UIApplication.shared.endBackgroundTask(bgTaskID)
+          bgTaskID = .invalid
+        }
+      }
+      
+      defer {
+        if bgTaskID != .invalid {
+          UIApplication.shared.endBackgroundTask(bgTaskID)
+          bgTaskID = .invalid
+        }
+      }
+      
+      do {
+        try await Task.sleep(nanoseconds: 5_000_000_000)
+        guard let anchorService = anchorService else { return }
+        anchorService.simulateDebugDragging()
+        anchorService.alarmAudioService.startSiren()
+      } catch {
+        Logger.anchor.info("Debug anchor alarm task cancelled: \(error.localizedDescription)")
+      }
+    }
+  }
+
+
+
+
+
+
+
 }
+

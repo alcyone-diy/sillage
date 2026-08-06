@@ -66,7 +66,21 @@ struct ContentView: View {
           // Top Marine Dashboard
           marineDashboard
 
+          if anchorViewModel.status == .dragging && anchorViewModel.isAlertSilenced {
+            AnchoringStatusCapsuleView(anchorViewModel: anchorViewModel) {
+              if panelManagerViewModel.commandPath.last != .anchorAlarm {
+                panelManagerViewModel.commandPath.append(.anchorAlarm)
+              }
+              panelManagerViewModel.openPanel(.command)
+            }
+            .padding(.horizontal)
+            .transition(.move(edge: .top).combined(with: .opacity))
+          }
+
+
+
           Spacer()
+
 
           // Bottom Floating Action Buttons
           HStack(alignment: .bottom) {
@@ -175,7 +189,7 @@ struct ContentView: View {
       } // End of Main ZStack
     .fullScreenCover(
       isPresented: Binding(
-        get: { anchorViewModel.status == .dragging },
+        get: { anchorViewModel.status == .dragging && !anchorViewModel.isAlertSilenced },
         set: { _ in }
       )
     ) {
@@ -183,6 +197,7 @@ struct ContentView: View {
         .environment(anchorViewModel)
         .environment(\.marineTheme, appViewModel.marineTheme)
     }
+
     .onChange(of: permissionService.locationStatus) { _, status in
       if status == .authorized {
         panelManagerViewModel.finalizePendingLocationAction()
@@ -191,6 +206,13 @@ struct ContentView: View {
         activeTrackViewModel.pendingPermissionGate = nil
       }
     }
+    .onChange(of: anchorViewModel.status) { _, status in
+      if status == .dragging {
+        panelManagerViewModel.closePanel()
+      }
+    }
+
+
     .background {
       Color.clear.alert(
         isPresented: Bindable(appViewModel).showImportError,
@@ -362,3 +384,79 @@ struct ContentView: View {
       .padding(.top, 10)
   }
 }
+
+// MARK: - iOS 18 Dynamic Island Style Anchor Status Capsule
+private struct AnchoringStatusCapsuleView: View {
+  let anchorViewModel: AnchorViewModel
+  let onManageTap: () -> Void
+  @State private var isPulsing = false
+
+  var body: some View {
+    Button(action: onManageTap) {
+      HStack(spacing: 12) {
+        // Pulsing Red Status Indicator Dot
+        ZStack {
+          Circle()
+            .fill(Color.red.opacity(0.35))
+            .frame(width: 22, height: 22)
+            .scaleEffect(isPulsing ? 1.4 : 1.0)
+            .opacity(isPulsing ? 0.0 : 0.8)
+          
+          Circle()
+            .fill(Color.red)
+            .frame(width: 10, height: 10)
+        }
+
+        VStack(alignment: .leading, spacing: 1) {
+          Text("Anchor Dragging")
+            .font(.system(size: 14, weight: .bold, design: .rounded))
+            .foregroundColor(.primary)
+
+          if let dist = anchorViewModel.currentDistance {
+            let distMeters = Int(dist.converted(to: .meters).value)
+            Text("\(distMeters)m out of zone")
+              .font(.system(size: 11, weight: .semibold, design: .monospaced))
+              .foregroundColor(.secondary)
+          }
+        }
+
+        Spacer()
+
+        // Compact Glass Action Pill
+        HStack(spacing: 5) {
+          Image(systemName: "slider.horizontal.3")
+            .font(.system(size: 12, weight: .bold))
+          Text("Manage")
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.08))
+        .clipShape(Capsule())
+        .foregroundColor(.primary)
+      }
+      .padding(.horizontal, 16)
+      .padding(.vertical, 10)
+      .background(.ultraThinMaterial)
+      .clipShape(Capsule())
+      .overlay(
+        Capsule()
+          .stroke(
+            LinearGradient(
+              colors: [Color.red.opacity(0.9), Color.orange.opacity(0.4)],
+              startPoint: .leading,
+              endPoint: .trailing
+            ),
+            lineWidth: 1.5
+          )
+      )
+      .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
+    }
+    .onAppear {
+      withAnimation(Animation.easeOut(duration: 1.2).repeatForever(autoreverses: false)) {
+        isPulsing = true
+      }
+    }
+  }
+}
+

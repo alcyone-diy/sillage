@@ -11,6 +11,7 @@
 import UIKit
 import UserNotifications
 import MapLibre
+import OSLog
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     
@@ -51,28 +52,35 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         if #available(iOS 14.0, *) {
-            completionHandler([.banner, .sound, .badge])
+            completionHandler([.banner, .list, .sound, .badge])
         } else {
             completionHandler([.alert, .sound, .badge])
         }
     }
     
-    // Handles the user tapping on a notification
+    // Handles the user tapping on a notification or pressing an action button
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let identifier = response.notification.request.identifier
+        let actionIdentifier = response.actionIdentifier
+        let targetIdentifier = (actionIdentifier != UNNotificationDefaultActionIdentifier && actionIdentifier != UNNotificationDismissActionIdentifier) ? actionIdentifier : identifier
         
-        if let appViewModel = self.appViewModel {
-            Task { @MainActor in
-                appViewModel.handleNotification(identifier: identifier)
+        Task { @MainActor [weak self] in
+            guard let self = self else {
+                completionHandler()
+                return
             }
-        } else {
-            self.pendingNotificationID = identifier
+            
+            if let appViewModel = self.appViewModel {
+                appViewModel.handleNotification(identifier: targetIdentifier)
+            } else {
+                self.pendingNotificationID = targetIdentifier
+            }
+            
+            completionHandler()
         }
-        
-        completionHandler()
     }
 }

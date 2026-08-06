@@ -156,7 +156,29 @@ struct DebugView: View {
             .marineFont(.body)
         }
         .marineListCell()
+        
+        Button {
+          Task {
+            if case .ready(let container) = appEnvironment.state {
+              do {
+                try await viewModel.scheduleDebugAnchorNotification(
+                  permissionService: permissionService,
+                  notificationService: container.notificationService,
+                  anchorService: container.anchorService
+                )
+
+              } catch {
+                activeError = AlertError(error: error)
+              }
+            }
+          }
+        } label: {
+          Text("Trigger Anchor Dragging Alarm (5s)")
+            .marineFont(.body)
+        }
+        .marineListCell()
       }
+
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .marineListBackground()

@@ -22,8 +22,9 @@ final class DefaultBackgroundMonitoringServiceTests: XCTestCase {
     var cancelWatchdogCallCount = 0
     
     func sendNotification(title: String, body: String, identifier: String, delay: TimeInterval?) async throws {}
-    func sendCriticalNotification(title: String, body: String, identifier: String) async {}
+    func sendCriticalNotification(title: String, body: String, identifier: String, delay: TimeInterval?) async {}
     func clearAllNotifications() {}
+
     func cancelNotification(identifier: String) {}
     
     func checkIn(identifier: String, title: String, body: String, timeout: TimeInterval) async {

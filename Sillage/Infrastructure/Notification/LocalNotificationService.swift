@@ -34,10 +34,27 @@ public struct LocalNotificationService: NotificationService {
   
   private let throttler = WatchdogThrottler()
   
-  public init() {}
+  public init() {
+    registerNotificationCategories()
+  }
   
+  private func registerNotificationCategories() {
+    let silenceAction = UNNotificationAction(
+      identifier: NotificationIntent.anchorActionSilence.rawValue,
+      title: String(localized: "🔇 Silence"),
+      options: [.authenticationRequired]
+    )
+    
+    let anchorDraggingCategory = UNNotificationCategory(
+      identifier: NotificationIntent.anchorDragging.rawValue,
+      actions: [silenceAction],
+      intentIdentifiers: [],
+      options: [.customDismissAction]
+    )
+    
+    UNUserNotificationCenter.current().setNotificationCategories([anchorDraggingCategory])
+  }
 
-  
   public func sendNotification(title: String, body: String, identifier: String, delay: TimeInterval? = nil) async throws {
     let center = UNUserNotificationCenter.current()
     
@@ -54,6 +71,7 @@ public struct LocalNotificationService: NotificationService {
     let content = UNMutableNotificationContent()
     content.title = title
     content.body = body
+    content.categoryIdentifier = identifier
     content.sound = UNNotificationSound.default
     
     let trigger: UNNotificationTrigger?
@@ -74,9 +92,7 @@ public struct LocalNotificationService: NotificationService {
     }
   }
   
-
-  
-  public func sendCriticalNotification(title: String, body: String, identifier: String) async {
+  public func sendCriticalNotification(title: String, body: String, identifier: String, delay: TimeInterval? = nil) async {
     let center = UNUserNotificationCenter.current()
     let settings = await center.notificationSettings()
     
@@ -88,9 +104,22 @@ public struct LocalNotificationService: NotificationService {
     let content = UNMutableNotificationContent()
     content.title = title
     content.body = body
-    content.sound = UNNotificationSound.defaultCritical
+    content.categoryIdentifier = identifier
     
-    let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+    if settings.criticalAlertSetting == .enabled {
+      content.sound = UNNotificationSound.defaultCritical
+    } else {
+      content.sound = UNNotificationSound.default
+    }
+    
+    let trigger: UNNotificationTrigger?
+    if let delay = delay, delay > 0 {
+      trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+    } else {
+      trigger = nil
+    }
+    
+    let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
     
     do {
       try await center.add(request)

@@ -86,6 +86,9 @@
     "%lldm" : {
 
     },
+    "%lldm out of zone" : {
+
+    },
     "°" : {
 
     },
@@ -105,6 +108,9 @@
 
     },
     "⚠️ Sillage Inactive" : {
+
+    },
+    "🔇 Silence" : {
 
     },
     "1 hr" : {
@@ -168,6 +174,9 @@
 
     },
     "Anchor Alerts" : {
+
+    },
+    "Anchor Dragging" : {
 
     },
     "Anchor Dropped" : {
@@ -524,6 +533,9 @@
     "Low" : {
       "comment" : "Low sensitivity"
     },
+    "Manage" : {
+
+    },
     "Manage GeoGarage Account" : {
 
     },
@@ -804,6 +816,9 @@
 
     },
     "Tracks" : {
+
+    },
+    "Trigger Anchor Dragging Alarm (5s)" : {
 
     },
     "Trigger Barometer Alarm (5s)" : {

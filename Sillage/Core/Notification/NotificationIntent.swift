@@ -16,4 +16,6 @@ public enum NotificationIntent: String {
     case anchorGPSDegraded = "sillage.anchor.gps_degraded"
     case appTerminated = "sillage.app.terminated"
     case anchorWatchdog = "sillage.anchor.watchdog"
+    case anchorActionSilence = "sillage.anchor.action.silence"
 }
+

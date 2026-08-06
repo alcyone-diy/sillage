@@ -203,9 +203,17 @@ final class PermissionService: PermissionServiceProtocol {
             self.notificationStatus = granted ? .authorized : .denied
             return granted
         } catch {
-            Logger.system.error("Failed to request critical notification auth: \(error.localizedDescription, privacy: .public)")
-            self.notificationStatus = .denied
-            return false
+            Logger.system.warning("Failed critical notification auth request (likely missing entitlement): \(error.localizedDescription, privacy: .public). Falling back to standard notifications.")
+            do {
+                let center = UNUserNotificationCenter.current()
+                let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+                self.notificationStatus = granted ? .authorized : .denied
+                return granted
+            } catch {
+                Logger.system.error("Failed standard notification auth fallback: \(error.localizedDescription, privacy: .public)")
+                self.notificationStatus = .denied
+                return false
+            }
         }
     }
     

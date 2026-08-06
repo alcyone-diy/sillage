@@ -36,6 +36,7 @@ struct SillageApp: App {
               container.appViewModel.isReady = true
               container.appViewModel.processDeferredIntent()
             }
+
             .environment(container.appViewModel)
             .environment(container.chartViewModel)
             .environment(container.panelManagerViewModel)
