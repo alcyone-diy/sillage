@@ -156,4 +156,45 @@ enum MapLibreFeatureFactory {
     feature.attributes = attributes
     return feature
   }
+
+
+  static func createActiveTrackFeature(from points: ArraySlice<TrackPoint>) -> MLNShape? {
+
+    guard points.count >= 2 else { return nil }
+    
+    var segments: [[CLLocationCoordinate2D]] = []
+    var currentSegment: [CLLocationCoordinate2D] = []
+    currentSegment.reserveCapacity(points.count)
+    var currentSegmentIndex: Int?
+    
+    for point in points {
+      if let currentIdx = currentSegmentIndex, currentIdx != point.segmentIndex {
+        if currentSegment.count >= 2 {
+          segments.append(currentSegment)
+        }
+        currentSegment = []
+        currentSegment.reserveCapacity(points.count)
+      }
+      currentSegmentIndex = point.segmentIndex
+      currentSegment.append(point.coordinate)
+    }
+    
+    if currentSegment.count >= 2 {
+      segments.append(currentSegment)
+    }
+    
+    guard !segments.isEmpty else { return nil }
+    
+    if segments.count == 1 {
+      var coordinates = segments[0]
+      return MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
+    } else {
+      let polylines = segments.map { coords -> MLNPolyline in
+        var mutableCoords = coords
+        return MLNPolyline(coordinates: &mutableCoords, count: UInt(mutableCoords.count))
+      }
+      return MLNMultiPolylineFeature(polylines: polylines)
+    }
+  }
 }
+

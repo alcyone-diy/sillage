@@ -79,105 +79,8 @@ struct MapLibreView: UIViewRepresentable {
   @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel: OfflineSelectionViewModel?
   var viewModel: ChartViewModel
   
-  private enum MapLayer {
-    static let activeTrackLayerID = "active-track-layer"
-    static let activeTrackSourceID = "active-track-source"
-    static let anchorPointLayerID = "anchor-point-layer"
-    static let anchorPointSourceID = "anchor-point-source"
-    static let anchorRadiusLayerID = "anchor-radius-layer"
-    static let anchorRadiusSourceID = "anchor-radius-source"
-    static let anchorRadiusStrokeLayerID = "anchor-radius-stroke-layer"
-    static let baseRasterLayerID = "base-raster-layer"
-    static let baseRasterSourceID = "base-raster-source"
-    static let bearingLineLayerID = "bearing-line-layer"
-    static let bearingLineSourceID = "bearing-line-source"
-    static let goToWaypointLayerID = "goto-waypoint-layer"
-    static let goToWaypointSourceID = "goto-waypoint-source"
-    static let gpsAccuracyLayerID = "gps-accuracy-layer"
-    static let gpsAccuracySourceID = "gps-accuracy-source"
-    static let gpsAccuracyStrokeLayerID = "gps-accuracy-stroke-layer"
-    static let headingLayerID = "heading-vector-layer"
-    static let headingSourceID = "heading-vector-source"
-    static let headingTickLayerID = "heading-vector-tick-layer"
-    static let savedTrackLayerID = "saved-track-layer"
-    static let savedTrackSourceID = "saved-track-source"
-    static let vesselLayerID = "vessel-layer"
-    static let vesselSourceID = "vessel-source"
-    static let visibleWaypointsLayerID = "visible-waypoints-layer"
-    static let visibleWaypointsSourceID = "visible-waypoints-source"
-  }
-  
-  private func ensureVesselLayersExist(in style: MLNStyle, with theme: MarineTheme) {
-    if style.source(withIdentifier: MapLayer.activeTrackSourceID) == nil {
-      let activeTrackSource = MLNShapeSource(identifier: MapLayer.activeTrackSourceID, shape: nil, options: nil)
-      style.addSource(activeTrackSource)
-      let activeTrackLayer = MLNLineStyleLayer(identifier: MapLayer.activeTrackLayerID, source: activeTrackSource)
-      activeTrackLayer.lineWidth = NSExpression(forConstantValue: 4.0)
-      activeTrackLayer.lineColor = NSExpression(forConstantValue: UIColor.systemRed)
-      style.addLayer(activeTrackLayer)
-      
-      let savedTrackSource = MLNShapeSource(identifier: MapLayer.savedTrackSourceID, shape: nil, options: nil)
-      style.addSource(savedTrackSource)
-      let savedTrackLayer = MLNLineStyleLayer(identifier: MapLayer.savedTrackLayerID, source: savedTrackSource)
-      savedTrackLayer.lineWidth = NSExpression(forConstantValue: 4.0)
-      savedTrackLayer.lineColor = NSExpression(forConstantValue: UIColor.systemBlue)
-      style.insertLayer(savedTrackLayer, below: activeTrackLayer)
-      
-      let goToWaypointSource = MLNShapeSource(identifier: MapLayer.goToWaypointSourceID, shape: nil, options: nil)
-      style.addSource(goToWaypointSource)
-      let goToWaypointLayer = MLNCircleStyleLayer(identifier: MapLayer.goToWaypointLayerID, source: goToWaypointSource)
-      goToWaypointLayer.circleRadius = NSExpression(forConstantValue: 8.0)
-      goToWaypointLayer.circleColor = NSExpression(forKeyPath: "color")
-      goToWaypointLayer.circleStrokeWidth = NSExpression(forConstantValue: 2.0)
-      goToWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
-      style.insertLayer(goToWaypointLayer, below: activeTrackLayer)
-      
-      let bearingLineSource = MLNShapeSource(identifier: MapLayer.bearingLineSourceID, shape: nil, options: nil)
-      style.addSource(bearingLineSource)
-      let bearingLineLayer = MLNLineStyleLayer(identifier: MapLayer.bearingLineLayerID, source: bearingLineSource)
-      bearingLineLayer.lineWidth = NSExpression(forConstantValue: 1.5)
-      bearingLineLayer.lineColor = NSExpression(forKeyPath: "color")
-      bearingLineLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
-      style.insertLayer(bearingLineLayer, below: goToWaypointLayer)
-      
-      let visibleWaypointsSource = MLNShapeSource(identifier: MapLayer.visibleWaypointsSourceID, shape: nil, options: nil)
-      style.addSource(visibleWaypointsSource)
-      let visibleWaypointsLayer = MLNCircleStyleLayer(identifier: MapLayer.visibleWaypointsLayerID, source: visibleWaypointsSource)
-      visibleWaypointsLayer.circleRadius = NSExpression(forConstantValue: 6.0)
-      visibleWaypointsLayer.circleColor = NSExpression(forKeyPath: "color")
-      visibleWaypointsLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.5)
-      visibleWaypointsLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
-      style.insertLayer(visibleWaypointsLayer, below: goToWaypointLayer)
-      
-      let anchorRadiusSource = MLNShapeSource(identifier: MapLayer.anchorRadiusSourceID, shape: nil, options: nil)
-      style.addSource(anchorRadiusSource)
-      
-      let anchorRadiusLayer = MLNFillStyleLayer(identifier: MapLayer.anchorRadiusLayerID, source: anchorRadiusSource)
-      anchorRadiusLayer.fillColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
-      anchorRadiusLayer.fillOpacity = NSExpression(forConstantValue: 0.15)
-      style.addLayer(anchorRadiusLayer)
-      
-      let anchorRadiusStrokeLayer = MLNLineStyleLayer(identifier: MapLayer.anchorRadiusStrokeLayerID, source: anchorRadiusSource)
-      anchorRadiusStrokeLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
-      anchorRadiusStrokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
-      anchorRadiusStrokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
-      style.insertLayer(anchorRadiusStrokeLayer, above: anchorRadiusLayer)
-      
-      let anchorPointSource = MLNShapeSource(identifier: MapLayer.anchorPointSourceID, shape: nil, options: nil)
-      style.addSource(anchorPointSource)
-      
-      let anchorPointLayer = MLNSymbolStyleLayer(identifier: MapLayer.anchorPointLayerID, source: anchorPointSource)
-      anchorPointLayer.iconImageName = NSExpression(forConstantValue: "anchor-icon")
-      anchorPointLayer.iconColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
-      anchorPointLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
-      anchorPointLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
-      anchorPointLayer.iconScale = NSExpression(forConstantValue: 1.0)
-      style.insertLayer(anchorPointLayer, above: anchorRadiusStrokeLayer)
-    }
-  }
-
-  
   func makeUIView(context: Context) -> MLNMapView {
+
     // Initialization of the MapLibre view without a frame
     let mapView = MLNMapView(frame: .zero)
     
@@ -268,60 +171,42 @@ struct MapLibreView: UIViewRepresentable {
       let currentActiveCount = activeTrackPoints.count
       let currentActiveTimestamp = activeTrackPoints.last?.timestamp
       if currentActiveCount != context.coordinator.lastActiveTrackCount || currentActiveTimestamp != context.coordinator.lastActiveTrackTimestamp {
-        if let source = style.source(withIdentifier: MapLayer.activeTrackSourceID) as? MLNShapeSource {
-          source.shape = generateActiveTrackFeature(from: activeTrackPoints)
-          context.coordinator.lastActiveTrackCount = currentActiveCount
-          context.coordinator.lastActiveTrackTimestamp = currentActiveTimestamp
-        }
+        MapStyleController.updateActiveTrack(points: activeTrackPoints, in: style, theme: marineTheme)
+        context.coordinator.lastActiveTrackCount = currentActiveCount
+        context.coordinator.lastActiveTrackTimestamp = currentActiveTimestamp
       }
       
       // Saved track feature update
       if savedTrackVisualState != context.coordinator.lastSavedTrackVisualState {
-        if let source = style.source(withIdentifier: MapLayer.savedTrackSourceID) as? MLNShapeSource {
-          source.shape = MapLibreFeatureFactory.createSavedTrackFeature(from: savedTrackVisualState)
-          context.coordinator.lastSavedTrackVisualState = savedTrackVisualState
-        }
+        MapStyleController.updateSavedTrack(state: savedTrackVisualState, in: style, theme: marineTheme)
+        context.coordinator.lastSavedTrackVisualState = savedTrackVisualState
       }
       
       // Displayed waypoints feature update
       if visibleWaypointVisualStates != context.coordinator.lastVisibleWaypointVisualStates {
-        if let source = style.source(withIdentifier: MapLayer.visibleWaypointsSourceID) as? MLNShapeSource {
-          source.shape = MapLibreFeatureFactory.createVisibleWaypointsFeature(from: visibleWaypointVisualStates)
-          context.coordinator.lastVisibleWaypointVisualStates = visibleWaypointVisualStates
-        }
+        MapStyleController.updateVisibleWaypoints(states: visibleWaypointVisualStates, in: style, theme: marineTheme)
+        context.coordinator.lastVisibleWaypointVisualStates = visibleWaypointVisualStates
       }
       
       // GoTo waypoint feature update
       if goToWaypointVisualState != context.coordinator.lastGoToWaypointVisualState {
-        if let source = style.source(withIdentifier: MapLayer.goToWaypointSourceID) as? MLNShapeSource {
-          source.shape = MapLibreFeatureFactory.createGoToWaypointFeature(from: goToWaypointVisualState)
-          context.coordinator.lastGoToWaypointVisualState = goToWaypointVisualState
-        }
+        MapStyleController.updateGoToWaypoint(state: goToWaypointVisualState, in: style, theme: marineTheme)
+        context.coordinator.lastGoToWaypointVisualState = goToWaypointVisualState
       }
       
       // Bearing Line feature update
       if bearingLineVisualState != context.coordinator.lastBearingLineVisualState {
-        if let source = style.source(withIdentifier: MapLayer.bearingLineSourceID) as? MLNShapeSource {
-          source.shape = MapLibreFeatureFactory.createBearingLineFeature(from: bearingLineVisualState)
-          context.coordinator.lastBearingLineVisualState = bearingLineVisualState
-        }
+        MapStyleController.updateBearingLine(state: bearingLineVisualState, in: style, theme: marineTheme)
+        context.coordinator.lastBearingLineVisualState = bearingLineVisualState
       }
       
       // Anchor update
       let currentVisualState = viewModel.anchorVisualState
       if currentVisualState != context.coordinator.lastAnchorVisualState {
         context.coordinator.lastAnchorVisualState = currentVisualState
-        let anchorFeatures = MapLibreFeatureFactory.createAnchorFeatures(from: currentVisualState)
-        if let source = style.source(withIdentifier: MapLayer.anchorRadiusSourceID) as? MLNShapeSource {
-          source.shape = anchorFeatures.radiusFeature
-        }
-        if let source = style.source(withIdentifier: MapLayer.anchorPointSourceID) as? MLNShapeSource {
-          source.shape = anchorFeatures.pointFeature
-        }
-        if let status = currentVisualState?.status {
-          updateAnchorLayerStyles(in: style, for: status, with: marineTheme)
-        }
+        MapStyleController.updateAnchor(state: currentVisualState, in: style, theme: marineTheme)
       }
+
       
       // Data Stale state update (Opacity)
       if isDataStale != context.coordinator.lastDataStale {
@@ -395,95 +280,7 @@ struct MapLibreView: UIViewRepresentable {
     uiView.compassView.isUserInteractionEnabled = (trackingMode != .courseUp)
   }
 
-  private func updateAnchorLayerStyles(in style: MLNStyle, for status: AnchorVisualStatus, with theme: MarineTheme) {
-    if let pointLayer = style.layer(withIdentifier: MapLayer.anchorPointLayerID) as? MLNSymbolStyleLayer {
-      let pointColor: UIColor = (status == .setup)
-        ? UIColor(theme.colors.anchorDropped).withAlphaComponent(0.5)
-        : UIColor(theme.colors.anchorDropped)
-      
-      pointLayer.iconColor = NSExpression(forConstantValue: pointColor)
-    }
-    
-    // Configuration de la zone de rayon (Fill & Stroke)
-    guard let fillLayer = style.layer(withIdentifier: MapLayer.anchorRadiusLayerID) as? MLNFillStyleLayer,
-          let strokeLayer = style.layer(withIdentifier: MapLayer.anchorRadiusStrokeLayerID) as? MLNLineStyleLayer else {
-      return
-    }
-    
-    switch status {
-    case .setup:
-      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
-      strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
-      
-    case .dropped:
-      let color = UIColor(theme.colors.anchorDropped)
-      fillLayer.fillColor = NSExpression(forConstantValue: color)
-      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
-      
-      strokeLayer.lineColor = NSExpression(forConstantValue: color)
-      strokeLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
-      strokeLayer.lineWidth = NSExpression(forConstantValue: 3.0)
-      strokeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
-      
-    case .armed:
-      let color = UIColor(theme.colors.anchorArmed)
-      fillLayer.fillColor = NSExpression(forConstantValue: color)
-      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.10)
-      
-      strokeLayer.lineColor = NSExpression(forConstantValue: color)
-      strokeLayer.lineDashPattern = nil
-      strokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
-      strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
-      
-    case .dragging:
-      let color = UIColor(theme.colors.anchorDragging)
-      fillLayer.fillColor = NSExpression(forConstantValue: color)
-      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.25)
-      
-      strokeLayer.lineColor = NSExpression(forConstantValue: color)
-      strokeLayer.lineDashPattern = nil
-      strokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
-      strokeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
-    }
-  }
-  
-  private func generateActiveTrackFeature(from points: ArraySlice<TrackPoint>) -> MLNShape? {
-    guard points.count >= 2 else { return nil }
-    
-    var segments: [[CLLocationCoordinate2D]] = []
-    var currentSegment: [CLLocationCoordinate2D] = []
-    currentSegment.reserveCapacity(points.count)
-    var currentSegmentIndex: Int?
-    
-    for point in points {
-      if let currentIdx = currentSegmentIndex, currentIdx != point.segmentIndex {
-        if currentSegment.count >= 2 {
-          segments.append(currentSegment)
-        }
-        currentSegment = []
-        currentSegment.reserveCapacity(points.count)
-      }
-      currentSegmentIndex = point.segmentIndex
-      currentSegment.append(point.coordinate)
-    }
-    
-    if currentSegment.count >= 2 {
-      segments.append(currentSegment)
-    }
-    
-    guard !segments.isEmpty else { return nil }
-    
-    if segments.count == 1 {
-      var coordinates = segments[0]
-      return MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
-    } else {
-      let polylines = segments.map { coords -> MLNPolyline in
-        var mutableCoords = coords
-        return MLNPolyline(coordinates: &mutableCoords, count: UInt(mutableCoords.count))
-      }
-      return MLNMultiPolylineFeature(polylines: polylines)
-    }
-  }
+
   
   func makeCoordinator() -> Coordinator {
     Coordinator(self)
@@ -549,7 +346,8 @@ struct MapLibreView: UIViewRepresentable {
       let point = sender.location(in: mapView)
       
       let touchRect = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
-      let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: [MapLayer.goToWaypointLayerID, MapLayer.visibleWaypointsLayerID])
+      let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: [MapLayerIdentifier.goToWaypoint.rawValue, MapLayerIdentifier.visibleWaypoints.rawValue])
+
       
       if let feature = features.first as? MLNPointFeature,
          let id = feature.attributes[MapFeatureKey.id.rawValue] as? String {
@@ -709,48 +507,36 @@ struct MapLibreView: UIViewRepresentable {
       MapStyleController.updateVessel(state: vesselState, in: style, theme: parent.marineTheme)
       lastVesselVisualState = vesselState
 
-      if let source = style.source(withIdentifier: MapLayer.activeTrackSourceID) as? MLNShapeSource {
-        source.shape = parent.generateActiveTrackFeature(from: parent.trackRecordingService.trackPoints)
-        lastActiveTrackCount = parent.trackRecordingService.trackPoints.count
-        lastActiveTrackTimestamp = parent.trackRecordingService.trackPoints.last?.timestamp
-      }
-      if let source = style.source(withIdentifier: MapLayer.savedTrackSourceID) as? MLNShapeSource {
-        let state = parent.viewModel.savedTrackVisualState
-        source.shape = MapLibreFeatureFactory.createSavedTrackFeature(from: state)
-        lastSavedTrackVisualState = state
-      }
-      if let source = style.source(withIdentifier: MapLayer.visibleWaypointsSourceID) as? MLNShapeSource {
-        let states = parent.viewModel.visibleWaypointVisualStates
-        source.shape = MapLibreFeatureFactory.createVisibleWaypointsFeature(from: states)
-        lastVisibleWaypointVisualStates = states
-      }
-      if let source = style.source(withIdentifier: MapLayer.goToWaypointSourceID) as? MLNShapeSource {
-        let state = parent.viewModel.goToWaypointVisualState
-        source.shape = MapLibreFeatureFactory.createGoToWaypointFeature(from: state)
-        lastGoToWaypointVisualState = state
-      }
-      if let source = style.source(withIdentifier: MapLayer.bearingLineSourceID) as? MLNShapeSource {
-        let state = parent.viewModel.bearingLineVisualState
-        source.shape = MapLibreFeatureFactory.createBearingLineFeature(from: state)
-        lastBearingLineVisualState = state
-      }
-      // Anchor features & styles initialization
+      MapStyleController.ensureNavigationLayersExist(in: style, theme: parent.marineTheme)
+
+      MapStyleController.updateActiveTrack(points: parent.trackRecordingService.trackPoints, in: style, theme: parent.marineTheme)
+      lastActiveTrackCount = parent.trackRecordingService.trackPoints.count
+      lastActiveTrackTimestamp = parent.trackRecordingService.trackPoints.last?.timestamp
+
+      let savedState = parent.viewModel.savedTrackVisualState
+      MapStyleController.updateSavedTrack(state: savedState, in: style, theme: parent.marineTheme)
+      lastSavedTrackVisualState = savedState
+
+      let visibleStates = parent.viewModel.visibleWaypointVisualStates
+      MapStyleController.updateVisibleWaypoints(states: visibleStates, in: style, theme: parent.marineTheme)
+      lastVisibleWaypointVisualStates = visibleStates
+
+      let goToState = parent.viewModel.goToWaypointVisualState
+      MapStyleController.updateGoToWaypoint(state: goToState, in: style, theme: parent.marineTheme)
+      lastGoToWaypointVisualState = goToState
+
+      let bearingState = parent.viewModel.bearingLineVisualState
+      MapStyleController.updateBearingLine(state: bearingState, in: style, theme: parent.marineTheme)
+      lastBearingLineVisualState = bearingState
+
       let anchorVisualState = parent.viewModel.anchorVisualState
-      let anchorFeatures = MapLibreFeatureFactory.createAnchorFeatures(from: anchorVisualState)
-      
-      if let source = style.source(withIdentifier: MapLayer.anchorRadiusSourceID) as? MLNShapeSource {
-        source.shape = anchorFeatures.radiusFeature
-      }
-      if let source = style.source(withIdentifier: MapLayer.anchorPointSourceID) as? MLNShapeSource {
-        source.shape = anchorFeatures.pointFeature
-      }
-      if let status = anchorVisualState?.status {
-        parent.updateAnchorLayerStyles(in: style, for: status, with: parent.marineTheme)
-      }
+      MapStyleController.updateAnchor(state: anchorVisualState, in: style, theme: parent.marineTheme)
       lastAnchorVisualState = anchorVisualState
+
       let isStale = parent.viewModel.isDataStale
       MapStyleController.updateDataStaleState(isStale: isStale, in: style)
       lastDataStale = isStale
+
 
       
       // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
