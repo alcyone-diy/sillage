@@ -253,6 +253,7 @@ struct MapLibreView: UIViewRepresentable {
        let style = uiView.style {
       MapStyleController.updateChartSource(currentSource, in: style, isOverlayEnabled: isOpenSeaMapOverlayEnabled)
       context.coordinator.lastChartSource = currentSource
+      context.coordinator.lastOpenSeaMapOverlayEnabled = isOpenSeaMapOverlayEnabled
       uiView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, direction: viewModel.chartDirection.converted(to: .degrees).value, animated: false)
     }
     

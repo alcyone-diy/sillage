@@ -571,6 +571,7 @@ final class ChartViewModel {
       if let maxZ = metadata.maxZoom { self.maxZoom = maxZ }
       
       resetToDefaultsIfNeeded(defaultZoom: metadata.defaultZoom ?? 10.0, defaultCenter: metadata.center)
+      self.isOpenSeaMapOverlayEnabled = false
       
     case .remoteGeoGarage(_, let layerID):
       preferencesService.savedChartSource = "remoteGeoGarage"
@@ -582,6 +583,7 @@ final class ChartViewModel {
       self.maxZoom = 20.0
       
       resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: instrumentDampingService.state?.coordinate)
+      self.isOpenSeaMapOverlayEnabled = false
       
     case .openSeaMap:
       preferencesService.savedChartSource = "openSeaMap"
@@ -591,6 +593,7 @@ final class ChartViewModel {
       self.maxZoom = 18.0
       
       resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: instrumentDampingService.state?.coordinate)
+      self.isOpenSeaMapOverlayEnabled = true
     }
   }
   
