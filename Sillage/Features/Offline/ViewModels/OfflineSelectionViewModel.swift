@@ -87,7 +87,12 @@ final class OfflineSelectionViewModel {
   /// Initiates the offline map download using the current geographic bounding box.
   /// - Parameter chartSource: The active chart source to derive the specific style JSON or map layers for download.
   func startDownload(chartSource: ChartSource?) {
-    guard let bounds = selectedBounds else { return }
+    guard let bounds = selectedBounds else {
+      Logger.offline.warning("OfflineSelectionViewModel: startDownload called but selectedBounds is nil")
+      return
+    }
+    
+    Logger.offline.info("OfflineSelectionViewModel: user requested startDownload")
     
     // UI reset MUST be synchronous on the MainActor BEFORE the async download process
     isSelectionModeActive = false
@@ -115,6 +120,7 @@ final class OfflineSelectionViewModel {
   
   /// Cancels any active offline map download process.
   func cancelDownload() {
+    Logger.offline.info("OfflineSelectionViewModel: cancelDownload called by user")
     offlineMapManager.cancelDownload()
   }
 }
