@@ -26,7 +26,6 @@ struct CommandPanelView: View {
   @Environment(PermissionService.self) private var permissionService
   
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
-  @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
   
   @State private var permissionGateType: PermissionGateType? = nil
   
@@ -132,7 +131,26 @@ struct CommandPanelView: View {
         }
         
         Section(header: Text("Navigation")) {
-          offlineAreaButton
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.offlineCharts) {
+            HStack {
+              Label {
+                VStack(alignment: .leading, spacing: 4) {
+                  Text("Offline Charts").foregroundStyle(.primary)
+                  if let progress = appEnvironment.offlineMapManager.globalDownloadProgress, appEnvironment.offlineMapManager.totalPendingDownloads > 0 {
+                    ProgressView(value: progress)
+                      .progressViewStyle(.linear)
+                      .tint(.blue)
+                  }
+                }
+              } icon: {
+                Image(systemName: "square.and.arrow.down.on.square").foregroundStyle(.blue)
+              }
+              .marineFont(.body)
+              Spacer()
+            }
+          }
+          .animation(.default, value: appEnvironment.offlineMapManager.totalPendingDownloads > 0)
+          .marineListCell()
 
           NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
             Label {
@@ -205,6 +223,8 @@ struct CommandPanelView: View {
           AnchorAlarmView()
         case .geoGarageLogin:
           GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)
+        case .offlineCharts:
+          OfflineRegionsManagerView()
         }
       }
       .handleTrackRecordingErrors()
@@ -254,43 +274,5 @@ struct CommandPanelView: View {
         }
       }
     }
-  }
-
-  @ViewBuilder
-  private var offlineAreaButton: some View {
-    let isDisabled = offlineSelectionViewModel.isSelectionModeActive || !chartViewModel.isOfflineAreaEnabled
-
-    Button {
-      offlineSelectionViewModel.isSelectionModeActive = true
-      viewModel.closePanel()
-    } label: {
-      HStack {
-        Label {
-          VStack(alignment: .leading, spacing: 4) {
-            Text("Offline Area")
-              .foregroundStyle(isDisabled ? Color.secondary : Color.primary)
-            
-            if let progress = appEnvironment.offlineMapManager.globalDownloadProgress, appEnvironment.offlineMapManager.totalPendingDownloads > 0 {
-              ProgressView(value: progress)
-                .progressViewStyle(.linear)
-                .tint(.blue)
-            } else if chartViewModel.showOfflineAreaWarning {
-              Text("Offline maps work only with GeoGarage")
-                .marineFont(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-          }
-        } icon: {
-          Image(systemName: "square.and.arrow.down")
-            .foregroundStyle(isDisabled ? Color.secondary : Color.blue)
-        }
-        .marineFont(.body)
-        Spacer()
-      }
-    }
-    .tint(.primary)
-    .marineListCell()
-    .disabled(isDisabled)
   }
 }

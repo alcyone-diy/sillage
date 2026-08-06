@@ -33,29 +33,6 @@ struct SettingsView: View {
         .marineListCell()
       }
       
-      Section(header: Text("Storage & Charts")) {
-        NavigationLink(destination: OfflineRegionsManagerView()) {
-          HStack {
-            Label {
-              VStack(alignment: .leading, spacing: 4) {
-                Text("Offline Charts")
-                if let progress = environment.offlineMapManager.globalDownloadProgress, environment.offlineMapManager.totalPendingDownloads > 0 {
-                  ProgressView(value: progress)
-                    .progressViewStyle(.linear)
-                    .tint(marineTheme.colors.accent)
-                }
-              }
-            } icon: {
-              Image(systemName: "square.and.arrow.down.on.square")
-            }
-            .marineFont(.body)
-            Spacer()
-          }
-        }
-        .animation(.default, value: environment.offlineMapManager.totalPendingDownloads > 0)
-        .marineListCell()
-      }
-      
       Section(header: Text("Navigation")) {
         NavigationLink(destination: COGPreferencesView()) {
           Label("Predictor Vector", systemImage: "location.north.line.fill")

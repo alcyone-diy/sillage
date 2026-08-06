@@ -326,7 +326,13 @@
     "Download" : {
 
     },
+    "Download Area" : {
+
+    },
     "Download interrupted." : {
+
+    },
+    "Download map regions for offline navigation." : {
 
     },
     "DRAGGING ALERT" : {
@@ -581,9 +587,6 @@
     "Notification Testing" : {
 
     },
-    "Offline Area" : {
-
-    },
     "Offline chart not found (id: %@)." : {
 
     },
@@ -591,9 +594,6 @@
 
     },
     "Offline Maps Error" : {
-
-    },
-    "Offline maps work only with GeoGarage" : {
 
     },
     "OK" : {
@@ -735,9 +735,6 @@
 
     },
     "Stop Track Recording" : {
-
-    },
-    "Storage & Charts" : {
 
     },
     "Storm Warning" : {

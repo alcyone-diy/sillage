@@ -13,6 +13,9 @@ import os
 
 struct OfflineRegionsManagerView: View {
   @Environment(AppEnvironment.self) private var environment
+  @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
+  @Environment(ChartViewModel.self) private var chartViewModel
+  @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
   @Environment(\.marineTheme) private var marineTheme
   
   fileprivate struct RegionToDelete: Identifiable, Equatable {
@@ -25,7 +28,19 @@ struct OfflineRegionsManagerView: View {
   var body: some View {
     Group {
       if environment.offlineMapManager.downloadedRegions.isEmpty {
-        ContentUnavailableView("No offline charts", systemImage: "map.slash")
+        ContentUnavailableView {
+          Label("No offline charts", systemImage: "map.slash")
+        } description: {
+          Text("Download map regions for offline navigation.")
+        } actions: {
+          Button {
+            offlineSelectionViewModel.isSelectionModeActive = true
+            panelManagerViewModel.closePanel()
+          } label: {
+            Text("Download Area")
+          }
+          .disabled(chartViewModel.isOfflineAreaEnabled == false)
+        }
       } else {
         List {
           Section {
@@ -57,6 +72,17 @@ struct OfflineRegionsManagerView: View {
     }
     .navigationTitle("Offline Charts")
     .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button {
+          offlineSelectionViewModel.isSelectionModeActive = true
+          panelManagerViewModel.closePanel()
+        } label: {
+          Image(systemName: "plus")
+        }
+        .disabled(chartViewModel.isOfflineAreaEnabled == false)
+      }
+    }
     .alert(
       "Delete Offline Chart?",
       isPresented: Binding(
