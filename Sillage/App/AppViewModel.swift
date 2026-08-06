@@ -32,6 +32,7 @@ final class AppViewModel {
   private let chartImportService: ChartImportService
   private let authService: GeoGarageAuthService?
   private let panelManagerViewModel: PanelManagerViewModel
+  var anchorService: AnchorService?
 
   var importError: ChartImportError?
   var showImportError: Bool = false
@@ -56,12 +57,14 @@ final class AppViewModel {
     preferencesService: PreferencesServiceProtocol,
     chartImportService: ChartImportService? = nil,
     authService: GeoGarageAuthService? = nil,
-    panelManagerViewModel: PanelManagerViewModel
+    panelManagerViewModel: PanelManagerViewModel,
+    anchorService: AnchorService? = nil
   ) {
     self.preferencesService = preferencesService
     self.chartImportService = chartImportService ?? ChartImportService()
     self.authService = authService
     self.panelManagerViewModel = panelManagerViewModel
+    self.anchorService = anchorService
     self.isGloveModeEnabled = preferencesService.gloveModeEnabled
   }
 
@@ -101,6 +104,10 @@ final class AppViewModel {
   @MainActor
   private func executeIntent(_ intent: NotificationIntent) {
     switch intent {
+    case .anchorActionSilence:
+      Logger.anchor.info("⚓️ Silence action handled by AppViewModel.")
+      anchorService?.silenceAlarm()
+      return
     case .barometerDrop:
       if panelManagerViewModel.commandPath.last != .baroAlarm {
         panelManagerViewModel.commandPath.append(.baroAlarm)
@@ -112,6 +119,8 @@ final class AppViewModel {
     case .appTerminated:
       break
     }
+
     panelManagerViewModel.openPanel(.command)
   }
+
 }

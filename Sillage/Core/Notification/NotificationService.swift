@@ -41,7 +41,8 @@ public protocol NotificationService: Sendable {
   ///   - title: The title of the notification.
   ///   - body: The body message.
   ///   - identifier: A unique identifier for the request.
-  func sendCriticalNotification(title: String, body: String, identifier: String) async
+  ///   - delay: Optional delay in seconds before the notification is triggered.
+  func sendCriticalNotification(title: String, body: String, identifier: String, delay: TimeInterval?) async
   
   /// Clears all pending and delivered notifications from the notification center.
   func clearAllNotifications()
@@ -56,4 +57,10 @@ public protocol NotificationService: Sendable {
   
   /// Cancels a pending watchdog notification.
   func cancelWatchdog(identifier: String) async
+}
+
+public extension NotificationService {
+  func sendCriticalNotification(title: String, body: String, identifier: String) async {
+    await sendCriticalNotification(title: title, body: body, identifier: identifier, delay: nil)
+  }
 }

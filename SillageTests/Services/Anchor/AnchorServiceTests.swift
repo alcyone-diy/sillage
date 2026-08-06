@@ -108,9 +108,10 @@ final class MockNotificationService: NotificationService {
     sentNotifications.append((title, body, identifier))
   }
   
-  func sendCriticalNotification(title: String, body: String, identifier: String) async {
+  func sendCriticalNotification(title: String, body: String, identifier: String, delay: TimeInterval? = nil) async {
     sentNotifications.append((title, body, identifier))
   }
+
   
   func clearAllNotifications() {}
   

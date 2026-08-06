@@ -148,8 +148,10 @@ final class AppEnvironment {
       let appViewModel = AppViewModel(
         preferencesService: preferencesService,
         authService: geoGarageAuthService,
-        panelManagerViewModel: panelManagerViewModel
+        panelManagerViewModel: panelManagerViewModel,
+        anchorService: anchorService
       )
+
       let chartViewModel = ChartViewModel(
         positioningService: positioningService,
         instrumentDampingService: instrumentDampingService,

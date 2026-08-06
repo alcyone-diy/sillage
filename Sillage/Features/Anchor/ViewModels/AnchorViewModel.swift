@@ -191,6 +191,12 @@ final class AnchorViewModel {
     anchorService.silenceAlarm()
   }
   
+  func unSilenceAlert() {
+    Logger.anchor.info("Unsilencing anchor alert from ViewModel.")
+    anchorService.unSilenceAlarm()
+  }
+
+  
   deinit {
     stateUpdateTask?.cancel()
   }

@@ -50,16 +50,14 @@ public final class PanelManagerViewModel {
     }
   }
 
-  /// Closes any active panel and resets the UI path state after the animation completes.
+  /// Closes any active panel and resets the UI path state.
   public func closePanel() {
-    // iOS 17+ native completion handler
+    resetCommandPath()
     withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
       activePanel = .none
-    } completion: {
-      // Clean up the UI path only AFTER the panel is completely off-screen
-      self.resetCommandPath()
     }
   }
+
 
   /// Toggles the visibility of the specified panel.
   /// If it is already active, it is closed. Otherwise, it is opened.

@@ -35,18 +35,23 @@ struct AnchorAlertView: View {
         // Critical Alert Header
         VStack(spacing: 16) {
           Image(systemName: "exclamationmark.triangle.fill")
-            .font(.system(size: 80, weight: .heavy))
+            .font(.system(size: 64, weight: .heavy))
             .foregroundColor(.white)
           
           Text("DRAGGING ANCHOR")
-            .font(.system(size: 40, weight: .black, design: .default))
+            .font(.system(size: 32, weight: .black, design: .default))
             .foregroundColor(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .padding(.horizontal, 16)
             .multilineTextAlignment(.center)
         }
         
         // Telemetry Data
         VStack(spacing: 24) {
-          HStack(spacing: 40) {
+          HStack(spacing: 0) {
+            Spacer()
+            
             // Speed (SOG)
             VStack(spacing: 8) {
               Text("SOG")
@@ -56,14 +61,19 @@ struct AnchorAlertView: View {
               if let sog = anchorViewModel.sog {
                 let knots = sog.converted(to: .knots).value
                 Text(String(format: "%.1f kts", knots))
-                  .font(.system(size: 40, weight: .bold, design: .monospaced))
+                  .font(.system(size: 32, weight: .bold, design: .monospaced))
+                  .lineLimit(1)
+                  .minimumScaleFactor(0.6)
                   .foregroundColor(.white)
               } else {
                 Text("--")
-                  .font(.system(size: 40, weight: .bold, design: .monospaced))
+                  .font(.system(size: 32, weight: .bold, design: .monospaced))
+                  .lineLimit(1)
                   .foregroundColor(.white)
               }
             }
+            
+            Spacer()
             
             // Distance
             VStack(spacing: 8) {
@@ -74,14 +84,19 @@ struct AnchorAlertView: View {
               if let dist = anchorViewModel.currentDistance {
                 let distMeters = dist.converted(to: .meters).value
                 Text("\(Int(distMeters))m")
-                  .font(.system(size: 40, weight: .bold, design: .monospaced))
+                  .font(.system(size: 32, weight: .bold, design: .monospaced))
+                  .lineLimit(1)
+                  .minimumScaleFactor(0.6)
                   .foregroundColor(.white)
               } else {
                 Text("--")
-                  .font(.system(size: 40, weight: .bold, design: .monospaced))
+                  .font(.system(size: 32, weight: .bold, design: .monospaced))
+                  .lineLimit(1)
                   .foregroundColor(.white)
               }
             }
+            
+            Spacer()
             
             // Limit
             VStack(spacing: 8) {
@@ -91,14 +106,20 @@ struct AnchorAlertView: View {
               
               let radiusMeters = anchorViewModel.configuredRadius.converted(to: .meters).value
               Text("\(Int(radiusMeters))m")
-                .font(.system(size: 40, weight: .bold, design: .monospaced))
+                .font(.system(size: 32, weight: .bold, design: .monospaced))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundColor(.white)
             }
+            
+            Spacer()
           }
         }
-        .padding(32)
+        .padding(.vertical, 24)
+        .padding(.horizontal, 16)
         .background(Color.black.opacity(0.5))
         .cornerRadius(20)
+
         
         Spacer()
         

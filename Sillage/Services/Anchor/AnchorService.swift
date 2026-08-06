@@ -22,6 +22,7 @@ final class AnchorService {
   private let notificationService: NotificationService
   private let permissionService: PermissionServiceProtocol
   private let backgroundMonitoringService: BackgroundMonitoringService
+  let alarmAudioService = AlarmAudioService()
   
   private(set) var activeWatch: AnchorWatch?
   private(set) var status: AnchorStatus = .inactive
@@ -145,6 +146,7 @@ final class AnchorService {
     degradedAlertTask?.cancel()
     degradedAlertTask = nil
     
+    alarmAudioService.stopSiren()
     notificationService.clearAllNotifications()
     monitoringToken?.invalidate()
     monitoringToken = nil
@@ -162,6 +164,7 @@ final class AnchorService {
     persistState()
     self.currentDistance = nil
     
+    alarmAudioService.stopSiren()
     notificationService.clearAllNotifications()
     monitoringToken?.invalidate()
     monitoringToken = nil
@@ -174,9 +177,18 @@ final class AnchorService {
   func silenceAlarm() {
     Logger.anchor.info("⚓️ Silencing anchor alarm notifications.")
     isMuted = true
+    alarmAudioService.stopSiren()
     notificationService.clearAllNotifications()
     notifyStateChange()
   }
+
+  func unSilenceAlarm() {
+    Logger.anchor.info("⚓️ Unsilencing anchor alarm notifications.")
+    isMuted = false
+    notifyStateChange()
+  }
+
+
   
   private func resumeWatch() {
     Logger.anchor.info("⚓️ Resuming anchor watch from persisted state.")
@@ -248,6 +260,8 @@ final class AnchorService {
     }
   }
   
+  private let evaluator = AnchorEvaluator()
+
   private func processLocationFix(_ fix: NavigationFix) {
     self.latestFix = fix
     self.gpsAccuracy = fix.horizontalAccuracy
@@ -256,37 +270,36 @@ final class AnchorService {
     
     let anchorLocation = CLLocation(latitude: watch.coordinate.latitude, longitude: watch.coordinate.longitude)
     let fixLocation = CLLocation(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude)
+    self.currentDistance = Measurement(value: fixLocation.distance(from: anchorLocation), unit: UnitLength.meters)
     
-    let distanceInMeters = fixLocation.distance(from: anchorLocation)
-    let radiusInMeters = watch.radius.converted(to: .meters).value
+    let evaluationResult = evaluator.evaluate(fix: fix, watch: watch, currentStatus: status)
     
-    self.currentDistance = Measurement(value: distanceInMeters, unit: .meters)
-    
-    // Strict Anti-False-Positive Filter:
-    // Only trust the GPS if its horizontal accuracy is strictly positive and less than or equal to half the configured radius.
-    let accuracyInMeters = fix.horizontalAccuracy.converted(to: .meters).value
-    let requiredAccuracy = radiusInMeters / 2.0
-    
-    if accuracyInMeters <= 0 || accuracyInMeters > requiredAccuracy {
-      Logger.anchor.warning("⚓️ Poor GPS accuracy (\(accuracyInMeters, privacy: .public)m). Required: > 0 and <= \(requiredAccuracy, privacy: .public)m. Skipping anchor watch evaluation to prevent false positive.")
-      return
-    }
-    
-    if distanceInMeters > radiusInMeters {
-      if status == .armed {
-        triggerAlarm(distance: distanceInMeters, radius: radiusInMeters)
-      }
-    } else {
-      if status == .dragging {
-        Logger.anchor.info("⚓️ Vessel returned within anchor radius.")
+    switch evaluationResult {
+    case .maintainState:
+      break
+      
+    case .triggerAlarm(let distance, let radius):
+      triggerAlarm(
+        distance: distance.converted(to: UnitLength.meters).value,
+        radius: radius.converted(to: UnitLength.meters).value
+      )
+      
+    case .autoResolveAlarm(let reason):
+      switch reason {
+      case .vesselReturnedInCircle(let distance):
+        Logger.anchor.info("⚓️ Vessel returned within anchor radius (\(Int(distance.value))m). Auto-resolving alarm.")
         status = .armed
         isMuted = false
+        alarmAudioService.stopSiren()
+        notificationService.clearAllNotifications()
         persistState()
       }
     }
-    
+
     notifyStateChange()
   }
+
+
   
   private func triggerAlarm(distance: Double, radius: Double) {
     Logger.anchor.fault("🚨 ANCHOR DRAGGING! Distance: \(distance, privacy: .public)m, Radius: \(radius, privacy: .public)m")
@@ -295,7 +308,8 @@ final class AnchorService {
     persistState()
     
     if !isMuted {
-      Task { [weak self] in
+      alarmAudioService.startSiren()
+      Task { @MainActor [weak self] in
         guard let self = self else { return }
         await self.notificationService.sendCriticalNotification(
           title: String(localized: "⚓️ DRAGGING ANCHOR!"),
@@ -304,8 +318,35 @@ final class AnchorService {
         )
       }
     }
+
+
     
     
     notifyStateChange()
   }
+  
+  func simulateDebugDragging() {
+    Logger.anchor.fault("🚨 Debug dragging simulation triggered!")
+    self.status = .dragging
+    self.isMuted = false
+    
+    // Offset simulated anchor coordinate from current GPS location so real GPS fixes compute distance > radius
+    if let currentCoord = latestFix?.coordinate {
+      let offsetLat = currentCoord.latitude + 0.0015 // ~165 meters north
+      self.activeWatch = AnchorWatch(
+        coordinate: CLLocationCoordinate2D(latitude: offsetLat, longitude: currentCoord.longitude),
+        radius: Measurement(value: 30, unit: .meters)
+      )
+    } else {
+      self.activeWatch = AnchorWatch(
+        coordinate: CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621),
+        radius: Measurement(value: 30, unit: .meters)
+      )
+    }
+    self.currentDistance = Measurement(value: 165, unit: .meters)
+    persistState()
+    notifyStateChange()
+  }
 }
+
+
