@@ -336,7 +336,7 @@ struct ContentView: View {
               .foregroundColor(.white)
           }
           
-          if chartViewModel.goToWaypointFeature != nil {
+          if chartViewModel.goToWaypointVisualState != nil {
             VStack {
               Text("BTW")
                 .marineFont(.instrumentLabel)
