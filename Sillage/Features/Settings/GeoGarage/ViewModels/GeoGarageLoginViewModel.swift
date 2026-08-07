@@ -53,7 +53,7 @@ final class GeoGarageLoginViewModel {
   }
 
   var isAuthenticated: Bool {
-    KeychainManager.shared.retrieveToken(for: "geogarage_access_token") != nil
+    KeychainManager.shared.retrieveTokenSync(for: "geogarage_access_token") != nil
   }
 
   func viewState(authService: GeoGarageAuthServiceProtocol) -> GeoGarageViewState {
@@ -137,8 +137,8 @@ final class GeoGarageLoginViewModel {
         let response = try await authService.authenticate(username: username, password: password)
 
         // Save tokens securely
-        KeychainManager.shared.save(token: response.access_token, for: "geogarage_access_token")
-        KeychainManager.shared.save(token: response.refresh_token, for: "geogarage_refresh_token")
+        await KeychainManager.shared.save(token: response.access_token, for: "geogarage_access_token")
+        await KeychainManager.shared.save(token: response.refresh_token, for: "geogarage_refresh_token")
 
         // Save username for display
         authService.savedUsername = username

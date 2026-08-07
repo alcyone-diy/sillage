@@ -79,9 +79,9 @@ struct MarineTheme {
       traitCollection.userInterfaceStyle == .dark ? .systemYellow : .darkGray
     }), // Amber for dark mode, dark gray for light mode
     vectorTick: .black,
-    anchorArmed: Color(uiColor: .systemGreen), // Will be adapted for night mode later
-    anchorDragging: Color(uiColor: .systemRed),
-    anchorDropped: Color(red: 0.0, green: 1.0, blue: 1.0) // Cyan #00FFFF
+    anchorArmed: Color(red: 0.17, green: 0.24, blue: 0.31), // Navy / Slate #2C3E50
+    anchorDragging: Color(red: 0.90, green: 0.11, blue: 0.14), // Alert Red #E61C24
+    anchorDropped: Color(red: 1.0, green: 0.80, blue: 0.0) // Maritime Yellow #FFCC00
   )
 
   struct Metrics {

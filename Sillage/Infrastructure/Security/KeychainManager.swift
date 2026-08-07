@@ -12,13 +12,28 @@ import Foundation
 import Security
 
 /// A lightweight, robust manager for securely storing and retrieving items in the iOS Keychain.
-struct KeychainManager {
+struct KeychainManager: Sendable {
   static let shared = KeychainManager()
 
   private init() {}
 
-  /// Saves a token to the Keychain for a specific account. Updates the item if it already exists.
-  func save(token: String, for account: String) {
+  /// Saves a token to the Keychain asynchronously.
+  func save(token: String, for account: String) async {
+    saveSync(token: token, for: account)
+  }
+
+  /// Retrieves a token from the Keychain asynchronously.
+  func retrieveToken(for account: String) async -> String? {
+    retrieveTokenSync(for: account)
+  }
+
+  /// Deletes a token from the Keychain asynchronously.
+  func deleteToken(for account: String) async {
+    deleteTokenSync(for: account)
+  }
+
+  /// Saves a token to the Keychain synchronously for non-async contexts.
+  func saveSync(token: String, for account: String) {
     guard let data = token.data(using: .utf8) else { return }
 
     let query: [String: Any] = [
@@ -45,8 +60,8 @@ struct KeychainManager {
     }
   }
 
-  /// Retrieves a token from the Keychain for a specific account.
-  func retrieveToken(for account: String) -> String? {
+  /// Retrieves a token from the Keychain synchronously for non-async contexts.
+  func retrieveTokenSync(for account: String) -> String? {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrAccount as String: account,
@@ -64,8 +79,8 @@ struct KeychainManager {
     return nil
   }
 
-  /// Deletes a token from the Keychain for a specific account.
-  func deleteToken(for account: String) {
+  /// Deletes a token from the Keychain synchronously for non-async contexts.
+  func deleteTokenSync(for account: String) {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrAccount as String: account

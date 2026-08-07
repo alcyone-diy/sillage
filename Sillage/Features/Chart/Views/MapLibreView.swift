@@ -479,11 +479,8 @@ struct MapLibreView: UIViewRepresentable {
         style.setImage(image, forName: "vessel-cursor")
       }
       
-      // Add anchor icon
-      let anchorConfig = UIImage.SymbolConfiguration(weight: .heavy)
-      if let anchorImage = UIImage(systemName: "anchor", withConfiguration: anchorConfig)?.withRenderingMode(.alwaysTemplate) {
-        style.setImage(anchorImage, forName: "anchor-icon")
-      }
+      // Register all 4 anchor status icons once in MapLibre style
+      MapStyleController.ensureAnchorImagesExist(in: style, theme: parent.marineTheme)
       
       if let currentSource = parent.viewModel.currentChartSource {
         MapStyleController.updateChartSource(currentSource, in: style, isOverlayEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled)

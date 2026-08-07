@@ -63,22 +63,21 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   }
 
   func bootstrap() async {
-    let task = Task.detached(priority: .userInitiated) {
-      guard let token = KeychainManager.shared.retrieveToken(for: "geogarage_access_token"),
+    let hasToken = await Task.detached(priority: .userInitiated) {
+      guard let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token"),
             !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         return false
       }
       return true
-    }
-    let hasToken = await task.value
+    }.value
 
     self.isGeoGarageAuthenticated = hasToken
     _ = await layerRepository.loadCachedLayers()
   }
 
   func logout() async {
-    KeychainManager.shared.deleteToken(for: "geogarage_access_token")
-    KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
+    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+    await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
     self.authError = nil
     self.savedUsername = nil
     self.isGeoGarageAuthenticated = false

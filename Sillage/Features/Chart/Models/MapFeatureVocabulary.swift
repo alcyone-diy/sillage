@@ -26,6 +26,7 @@ enum MapFeatureKey: String {
 enum MapFeatureType: String {
   case anchorPoint = "anchorPoint"
   case anchorRadius = "anchorRadius"
+  case anchorRode = "anchorRode"
   case bearingLine = "bearingLine"
   case vectorLine = "vectorLine"
   case vectorTick = "vectorTick"

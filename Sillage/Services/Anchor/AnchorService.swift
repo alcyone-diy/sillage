@@ -82,17 +82,18 @@ final class AnchorService {
     notificationService: NotificationService,
     permissionService: PermissionServiceProtocol,
     backgroundMonitoringService: BackgroundMonitoringService,
-    stateStore: AnchorStateStoreProtocol = AnchorStateStore()
+    stateStore: AnchorStateStoreProtocol? = nil
   ) {
+    let resolvedStore = stateStore ?? AnchorStateStore()
     self.positioningService = positioningService
     self.preferencesService = preferencesService
     self.notificationService = notificationService
     self.permissionService = permissionService
     self.backgroundMonitoringService = backgroundMonitoringService
-    self.stateStore = stateStore
+    self.stateStore = resolvedStore
     
     // Resume from persistent state
-    let session = stateStore.loadSession()
+    let session = resolvedStore.loadSession()
     self.activeWatch = session.activeWatch
     self.status = session.status
     self.triggerReason = session.triggerReason
