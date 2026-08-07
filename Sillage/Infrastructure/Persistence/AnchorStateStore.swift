@@ -48,7 +48,7 @@ public final class AnchorStateStore: AnchorStateStoreProtocol, @unchecked Sendab
   private let stateLock: OSAllocatedUnfairLock<AnchorSessionData>
   private let diskWriter = DiskWriter()
 
-  public init(fileManager: FileManager = .default) {
+  public init(fileManager: FileManager = FileManager()) {
     let urls = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
     let appSupportDir = urls.first?.appendingPathComponent("Sillage", isDirectory: true) ?? fileManager.temporaryDirectory
     

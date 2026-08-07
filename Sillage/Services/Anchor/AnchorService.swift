@@ -75,6 +75,7 @@ final class AnchorService {
     }
   }
   
+  @MainActor
   init(
     positioningService: PositioningService,
     preferencesService: PreferencesServiceProtocol,
