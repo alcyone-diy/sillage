@@ -15,6 +15,7 @@ import OSLog
 
 public enum AnchorState: Equatable {
   case setup
+  case droppedPendingPosition
   case dropped
   case armed(isDragging: Bool)
 }
@@ -37,7 +38,22 @@ final class AnchorViewModel {
   private(set) var configuredRadius: Measurement<UnitLength>
   private(set) var anchorDropError: String?
   
-  var isSetupModeActive: Bool = false
+  /// Technical Design Choice: Lifecycle-bound location update token control
+  /// When setup mode is activated by the UI (`onAppear`), `startSetupLocationUpdates()` requests location updates.
+  /// When deactivated (`onDisappear`), `stopSetupLocationUpdates()` releases the token, preventing high-frequency GPS battery drain.
+  var isSetupModeActive: Bool = false {
+    didSet {
+      if isSetupModeActive {
+        anchorService.startSetupLocationUpdates()
+      } else {
+        anchorService.stopSetupLocationUpdates()
+      }
+    }
+  }
+  
+  var initialAccuracy: Measurement<UnitLength>? {
+    anchorService.activeWatch?.initialAccuracy
+  }
   
   var isGPSAccuracyDegraded: Bool {
     guard let accuracy = gpsAccuracy?.converted(to: .meters).value else { return false }
@@ -75,6 +91,8 @@ final class AnchorViewModel {
       return .armed(isDragging: true)
     case .dropped:
       return .dropped
+    case .droppedPendingPosition:
+      return .droppedPendingPosition
     case .inactive:
       return .setup
     }
@@ -133,24 +151,21 @@ final class AnchorViewModel {
   
   // MARK: - User Intents
   
+  /// Performs an anchor drop at any time using the best available fix (enforcing 60s TTL).
+  /// If GPS fix is unavailable (nil), transitions to `.droppedPendingPosition` state until the first GPS fix arrives.
   func dropAnchor() {
-    guard let fix = anchorService.latestFix else {
-      self.anchorDropError = String(localized: "No GPS fix available.")
-      Logger.anchor.warning("Cannot drop anchor: No GPS fix available.")
-      return
-    }
+    let fix = anchorService.bestAvailableFix
+    self.anchorDropError = nil
     
-    let accuracy = fix.horizontalAccuracy.converted(to: .meters).value
-    if accuracy > 20.0 {
-      self.anchorDropError = String(localized: "Poor GPS accuracy: \(Int(accuracy))m")
-      Logger.anchor.warning("Poor GPS accuracy (\(accuracy)m) when dropping anchor.")
+    if let fix = fix {
+      self.anchorCoordinate = fix.coordinate
+      Logger.anchor.info("Anchor drop requested with available fix at (\(fix.coordinate.latitude, privacy: .public), \(fix.coordinate.longitude, privacy: .public)).")
+      anchorService.drop(coordinate: fix.coordinate, radius: configuredRadius)
     } else {
-      self.anchorDropError = nil
+      self.anchorCoordinate = nil
+      Logger.anchor.warning("Anchor drop requested without immediate GPS fix. Pending position lock.")
+      anchorService.drop(coordinate: nil, radius: configuredRadius)
     }
-    
-    self.anchorCoordinate = fix.coordinate
-    anchorService.drop(coordinate: fix.coordinate, radius: configuredRadius)
-    Logger.anchor.info("Anchor dropped at current location. Ready to arm.")
   }
   
   func cancelDrop() {
@@ -184,7 +199,7 @@ final class AnchorViewModel {
   
   func armAlarm() {
     guard let coord = anchorCoordinate else {
-      Logger.anchor.warning("Cannot arm alarm: Anchor has not been dropped yet.")
+      Logger.anchor.warning("Cannot arm alarm: Anchor position has not locked yet.")
       return
     }
     Logger.anchor.info("Arming anchor alarm from ViewModel.")
@@ -221,7 +236,6 @@ final class AnchorViewModel {
     anchorService.unSilenceAlarm()
   }
 
-  
   deinit {
     stateUpdateTask?.cancel()
   }

@@ -40,6 +40,7 @@ public struct AnchorAlarmView: View {
   private var statusText: LocalizedStringKey {
     switch viewModel.state {
     case .setup: return "Setup"
+    case .droppedPendingPosition: return "Waiting for GPS Fix..."
     case .dropped: return "Anchor Dropped"
     case .armed(let dragging): return dragging ? "DRAGGING ALERT" : "Alarm Armed"
     }
@@ -48,6 +49,7 @@ public struct AnchorAlarmView: View {
   private var statusColor: Color {
     switch viewModel.state {
     case .setup: return marineTheme.colors.textSecondary
+    case .droppedPendingPosition: return marineTheme.colors.warning
     case .dropped: return marineTheme.colors.primary
     case .armed(let dragging): return dragging ? marineTheme.colors.destructive : marineTheme.colors.vectorHDG
     }
@@ -102,7 +104,19 @@ public struct AnchorAlarmView: View {
         .foregroundColor(statusColor)
         .frame(maxWidth: .infinity, alignment: .center)
       
-      if isDragging, let reasonDesc = viewModel.triggerReasonDescription {
+      if case .droppedPendingPosition = viewModel.state {
+        HStack(spacing: 6) {
+          ProgressView()
+            .tint(marineTheme.colors.warning)
+          Text("Anchor dropped. Position will lock automatically on first GPS fix.")
+            .font(.caption.bold())
+            .multilineTextAlignment(.center)
+        }
+        .foregroundColor(marineTheme.colors.warning)
+        .padding(MarineTheme.Spacing.small)
+        .background(marineTheme.colors.warning.opacity(0.2))
+        .cornerRadius(MarineTheme.Metrics.cornerRadius)
+      } else if isDragging, let reasonDesc = viewModel.triggerReasonDescription {
         HStack(spacing: 6) {
           Image(systemName: "exclamationmark.triangle.fill")
           Text(reasonDesc)
@@ -112,6 +126,16 @@ public struct AnchorAlarmView: View {
         .foregroundColor(marineTheme.colors.destructive)
         .padding(MarineTheme.Spacing.small)
         .background(marineTheme.colors.destructiveBackground)
+        .cornerRadius(MarineTheme.Metrics.cornerRadius)
+      } else if let initialAcc = viewModel.initialAccuracy?.converted(to: .meters).value, initialAcc > 15.0 {
+        HStack(spacing: 4) {
+          Image(systemName: "info.circle.fill")
+          Text(String(format: "Anchor dropped with degraded accuracy (±%.0fm)", initialAcc))
+        }
+        .font(.caption.bold())
+        .foregroundColor(marineTheme.colors.warning)
+        .padding(MarineTheme.Spacing.small)
+        .background(marineTheme.colors.warning.opacity(0.2))
         .cornerRadius(MarineTheme.Metrics.cornerRadius)
       } else if viewModel.isGPSAccuracyDegraded, let accuracy = viewModel.gpsAccuracy?.converted(to: .meters).value {
         HStack(spacing: 4) {
@@ -241,6 +265,33 @@ public struct AnchorAlarmView: View {
         }
         .buttonStyle(MarineButtonStyle())
         
+      case .droppedPendingPosition:
+        Button(action: {
+          Logger.anchor.info("User requested to arm alarm while position is pending")
+          viewModel.requestArmAlarm(in: permissionService)
+        }) {
+          Label("Arm Alarm", systemImage: "bell.fill")
+            .font(.title3.bold())
+            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+            .background(marineTheme.colors.vectorHDG)
+            .foregroundColor(marineTheme.colors.onPrimary)
+            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
+        }
+        .buttonStyle(MarineButtonStyle())
+        .disabled(viewModel.anchorCoordinate == nil)
+        .opacity(viewModel.anchorCoordinate == nil ? 0.5 : 1.0)
+        
+        SlideActionButton(
+          customTrackColor: marineTheme.colors.disabledBackground,
+          customThumbColor: marineTheme.colors.textSecondary,
+          customTextColor: marineTheme.colors.textSecondary,
+          title: "SLIDE TO CANCEL",
+          action: {
+            Logger.anchor.info("User requested to cancel pending drop")
+            viewModel.cancelDrop()
+          }
+        )
+
       case .dropped:
         Button(action: {
           Logger.anchor.info("User requested to arm alarm")
