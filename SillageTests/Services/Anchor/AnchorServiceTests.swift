@@ -545,4 +545,81 @@ final class AnchorServiceTests: XCTestCase {
     XCTAssertEqual(service.status, .dropped)
     XCTAssertEqual(service.activeWatch?.coordinate?.latitude, 49.0)
   }
+  
+  func testAnchorService_adjustAnchorPosition_updatesCoordinate_clearsInitialAccuracy_andRecalculatesDistance() async throws {
+    let initialFix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),
+      horizontalAccuracy: Measurement(value: 30.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    
+    // 1. Drop anchor with initial accuracy 30m
+    service.drop(coordinate: initialFix.coordinate, radius: Measurement(value: 50, unit: .meters))
+    mockGPS.simulateFix(initialFix)
+    try await Task.sleep(nanoseconds: 500_000_000)
+    
+    XCTAssertEqual(service.status, .dropped)
+    
+    // 2. Adjust anchor position manually
+    let newCoord = CLLocationCoordinate2D(latitude: 45.0005, longitude: -1.0)
+    service.adjustAnchorPosition(to: newCoord)
+    
+    // Verify coordinate updated
+    XCTAssertEqual(service.activeWatch?.coordinate?.latitude, 45.0005)
+    // Verify initialAccuracy reset to nil
+    XCTAssertNil(service.activeWatch?.initialAccuracy)
+    // Verify status maintained
+    XCTAssertEqual(service.status, .dropped)
+    // Verify distance recalculated immediately
+    XCTAssertNotNil(service.currentDistance)
+  }
+  
+  func testAnchorService_adjustAnchorPosition_whenArmed_maintainsArmedStatus_andRecalculatesDistance() async throws {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    service.arm(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    
+    let fix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 45.0001, longitude: -1.0),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    mockGPS.simulateFix(fix)
+    try await Task.sleep(nanoseconds: 500_000_000)
+    
+    XCTAssertEqual(service.status, .armed)
+    
+    // Adjust position while armed
+    let adjustedCoord = CLLocationCoordinate2D(latitude: 45.0002, longitude: -1.0)
+    service.adjustAnchorPosition(to: adjustedCoord)
+    
+    XCTAssertEqual(service.status, .armed, "Status must remain .armed after manual adjustment")
+    XCTAssertEqual(service.activeWatch?.coordinate?.latitude, 45.0002)
+    XCTAssertNil(service.activeWatch?.initialAccuracy)
+    XCTAssertNotNil(service.currentDistance)
+  }
+
+  func testAnchorService_adjustAnchorPosition_whenNoGPSFix_updatesCoordinate_andLeavesDistanceNil() async throws {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    service.drop(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    
+    XCTAssertEqual(service.status, .dropped)
+    
+    // Adjust position without any incoming GPS fix
+    let adjustedCoord = CLLocationCoordinate2D(latitude: 45.001, longitude: -1.0)
+    service.adjustAnchorPosition(to: adjustedCoord)
+    
+    XCTAssertEqual(service.activeWatch?.coordinate?.latitude, 45.001)
+    XCTAssertNil(service.activeWatch?.initialAccuracy)
+    XCTAssertNil(service.currentDistance)
+  }
 }
+
+

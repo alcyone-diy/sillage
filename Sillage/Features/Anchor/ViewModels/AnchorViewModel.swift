@@ -38,6 +38,10 @@ final class AnchorViewModel {
   private(set) var configuredRadius: Measurement<UnitLength>
   private(set) var anchorDropError: String?
   
+  /// Indicates whether the UI is currently in manual anchor position adjustment mode.
+  var isAdjustingAnchor: Bool = false
+
+  
   /// Technical Design Choice: Lifecycle-bound location update token control
   /// When setup mode is activated by the UI (`onAppear`), `startSetupLocationUpdates()` requests location updates.
   /// When deactivated (`onDisappear`), `stopSetupLocationUpdates()` releases the token, preventing high-frequency GPS battery drain.
@@ -235,6 +239,27 @@ final class AnchorViewModel {
     Logger.anchor.info("Unsilencing anchor alert from ViewModel.")
     anchorService.unSilenceAlarm()
   }
+
+  /// Technical Design Choice: Domain Isolation for Position Adjustment
+  /// `AnchorViewModel` manages the UI mode flag and forwards confirmed coordinates to `AnchorService`.
+  /// It does not perform map telemetry math (distance/bearing to map center), keeping it strictly decoupled from ChartViewModel.
+  func startAdjustingAnchor() {
+    Logger.anchor.info("Starting manual anchor position adjustment mode.")
+    self.isAdjustingAnchor = true
+  }
+
+  func confirmAdjustAnchor(to newCoordinate: CLLocationCoordinate2D) {
+    Logger.anchor.info("Confirming manual anchor position adjustment to (\(newCoordinate.latitude, privacy: .public), \(newCoordinate.longitude, privacy: .public)).")
+    self.anchorCoordinate = newCoordinate
+    anchorService.adjustAnchorPosition(to: newCoordinate)
+    self.isAdjustingAnchor = false
+  }
+
+  func cancelAdjustAnchor() {
+    Logger.anchor.info("Canceling manual anchor position adjustment.")
+    self.isAdjustingAnchor = false
+  }
+
 
   deinit {
     stateUpdateTask?.cancel()

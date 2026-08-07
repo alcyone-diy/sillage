@@ -13,9 +13,11 @@ import OSLog
 
 public struct AnchorAlarmView: View {
   @Environment(AnchorViewModel.self) private var viewModel
-  
+  @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
+  @Environment(PanelManagerViewModel.self) private var panelManagerViewModel: PanelManagerViewModel?
   @Environment(\.marineTheme) private var marineTheme
   @Environment(PermissionService.self) private var permissionService
+
 
   
   private static let distanceFormatter: MeasurementFormatter = {
@@ -306,6 +308,8 @@ public struct AnchorAlarmView: View {
         }
         .buttonStyle(MarineButtonStyle())
         
+        adjustPositionButton
+        
         SlideActionButton(
           customTrackColor: marineTheme.colors.disabledBackground,
           customThumbColor: marineTheme.colors.textSecondary,
@@ -318,12 +322,41 @@ public struct AnchorAlarmView: View {
         )
         
       case .armed:
+        adjustPositionButton
+        
         SlideActionButton(isDragging: isDragging, title: "SLIDE TO DISARM", action: {
           Logger.anchor.info("User requested to disarm alarm")
           viewModel.disarmAlarm()
         })
       }
     }
+  }
+  
+  @ViewBuilder
+  private var adjustPositionButton: some View {
+    Button(action: {
+      Logger.anchor.info("User requested to adjust anchor position")
+      chartViewModel?.trackingMode = .free
+      if let coord = viewModel.anchorCoordinate {
+        chartViewModel?.centerOnAnchor(coordinate: coord)
+      } else if let vesselCoord = chartViewModel?.currentCoordinate {
+        chartViewModel?.centerOnAnchor(coordinate: vesselCoord)
+      }
+      viewModel.startAdjustingAnchor()
+      panelManagerViewModel?.closePanel()
+    }) {
+      Label("Adjust Position", systemImage: "scope")
+        .font(.headline)
+        .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+        .background(marineTheme.colors.surfaceBackground)
+        .foregroundColor(marineTheme.colors.primary)
+        .overlay(
+          RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius)
+            .stroke(marineTheme.colors.primary, lineWidth: 1.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
+    }
+    .buttonStyle(MarineButtonStyle())
   }
 }
 

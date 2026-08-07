@@ -180,6 +180,31 @@ final class AnchorService {
     persistState()
     notifyStateChange()
   }
+  
+  /// Technical Design Choice: Manual Anchor Position Adjustment
+  /// Re-instantiates `activeWatch` with the new coordinate, recalculates distance immediately,
+  /// and resets `initialAccuracy` to `nil` as manual human confirmation guarantees position accuracy.
+  func adjustAnchorPosition(to newCoordinate: CLLocationCoordinate2D) {
+    guard let watch = activeWatch else { return }
+    Logger.anchor.info("⚓️ Manually adjusting anchor position to (\(newCoordinate.latitude, privacy: .public), \(newCoordinate.longitude, privacy: .public))")
+    
+    self.activeWatch = AnchorWatch(
+      coordinate: newCoordinate,
+      radius: watch.radius,
+      initialAccuracy: nil,
+      createdAt: watch.createdAt
+    )
+    
+    if let fix = latestFix {
+      let anchorLocation = CLLocation(latitude: newCoordinate.latitude, longitude: newCoordinate.longitude)
+      let fixLocation = CLLocation(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude)
+      self.currentDistance = Measurement(value: fixLocation.distance(from: anchorLocation), unit: UnitLength.meters)
+    }
+    
+    persistState()
+    notifyStateChange()
+  }
+
 
   func arm(coordinate: CLLocationCoordinate2D, radius: Measurement<UnitLength>) {
     Logger.anchor.info("⚓️ Arming anchor watch at (\(coordinate.latitude, privacy: .public), \(coordinate.longitude, privacy: .public)). Radius: \(radius.value, privacy: .public) \(radius.unit.symbol, privacy: .public)")
