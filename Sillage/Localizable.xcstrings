@@ -13,6 +13,9 @@
     "-- m" : {
 
     },
+    "---°" : {
+
+    },
     "--:--:--" : {
 
     },
@@ -146,6 +149,9 @@
     "Active Track" : {
 
     },
+    "Adjust Position" : {
+
+    },
     "Alarm Armed" : {
 
     },
@@ -233,6 +239,9 @@
     "Barometer Alarm" : {
 
     },
+    "BEARING" : {
+
+    },
     "BTW" : {
 
     },
@@ -276,6 +285,9 @@
 
     },
     "Configuration" : {
+
+    },
+    "Confirm" : {
 
     },
     "Corrupt GeoGarage Token" : {
@@ -351,6 +363,9 @@
 
     },
     "Downloaded Charts" : {
+
+    },
+    "Drag map to adjust anchor position" : {
 
     },
     "DRAGGING ALERT" : {

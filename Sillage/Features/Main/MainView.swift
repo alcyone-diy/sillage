@@ -61,62 +61,68 @@ struct ContentView: View {
         
         OfflineSelectionOverlayView()
 
-        // UI Overlay
-        VStack {
-          // Top Marine Dashboard
-          marineDashboard
+        if anchorViewModel.isAdjustingAnchor {
+          AnchorAdjustOverlayView()
+            .transition(.opacity)
+        }
 
-          if anchorViewModel.status == .dragging && anchorViewModel.isAlertSilenced {
-            AnchoringStatusCapsuleView(anchorViewModel: anchorViewModel) {
-              if panelManagerViewModel.commandPath.last != .anchorAlarm {
-                panelManagerViewModel.commandPath.append(.anchorAlarm)
-              }
-              panelManagerViewModel.openPanel(.command)
-            }
-            .padding(.horizontal)
-            .transition(.move(edge: .top).combined(with: .opacity))
-          }
+        // UI Overlay (Focus Mode: Hidden completely during anchor position adjustment)
+        if !anchorViewModel.isAdjustingAnchor {
+          VStack {
+            // Top Marine Dashboard
+            marineDashboard
 
-
-
-          Spacer()
-
-
-          // Bottom Floating Action Buttons
-          HStack(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 16) {
-              MapScaleView(mapScale: chartViewModel.mapScale, zoomLevel: chartViewModel.zoomLevel)
-                .padding(.leading, 8)
-                
-              // Recenter Button
-              Button(action: {
-                if let gate = panelManagerViewModel.executeOrRequestPermission(
-                    type: .location(trigger: .mapTracking),
-                    in: permissionService,
-                    action: { [weak chartViewModel] in
-                        chartViewModel?.toggleTrackingMode()
-                    }
-                ) {
-                    permissionGateType = gate
+            if anchorViewModel.status == .dragging && anchorViewModel.isAlertSilenced {
+              AnchoringStatusCapsuleView(anchorViewModel: anchorViewModel) {
+                if panelManagerViewModel.commandPath.last != .anchorAlarm {
+                  panelManagerViewModel.commandPath.append(.anchorAlarm)
                 }
-              }) {
-                Image(marineIcon: trackingIconName(for: chartViewModel.trackingMode))
-                  .marineFont(.title3)
-                  .foregroundColor(.white)
+                panelManagerViewModel.openPanel(.command)
               }
-              .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: chartViewModel.trackingMode)))
-              .padding()
-              .padding(.bottom, 30) // Clears bottom safe area
+              .padding(.horizontal)
+              .transition(.move(edge: .top).combined(with: .opacity))
             }
 
             Spacer()
 
-            // Command Panel Button
-            CommandButtonView()
-              .padding()
-              .padding(.bottom, 30) // Clears bottom safe area
+            // Bottom Floating Action Buttons
+            HStack(alignment: .bottom) {
+              VStack(alignment: .leading, spacing: 16) {
+                MapScaleView(mapScale: chartViewModel.mapScale, zoomLevel: chartViewModel.zoomLevel)
+                  .padding(.leading, 8)
+                  
+                // Recenter Button
+                Button(action: {
+                  if let gate = panelManagerViewModel.executeOrRequestPermission(
+                      type: .location(trigger: .mapTracking),
+                      in: permissionService,
+                      action: { [weak chartViewModel] in
+                          chartViewModel?.toggleTrackingMode()
+                      }
+                  ) {
+                      permissionGateType = gate
+                  }
+                }) {
+                  Image(marineIcon: trackingIconName(for: chartViewModel.trackingMode))
+                    .marineFont(.title3)
+                    .foregroundColor(.white)
+                }
+                .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: chartViewModel.trackingMode)))
+                .padding()
+                .padding(.bottom, 30) // Clears bottom safe area
+              }
+
+              Spacer()
+
+              // Command Panel Button
+              CommandButtonView()
+                .padding()
+                .padding(.bottom, 30) // Clears bottom safe area
+            }
           }
         }
+
+
 
         // 2. Custom Drawers (For iPad and iPhone Landscape)
         if !useNativeSheet && panelManagerViewModel.activePanel != .none {

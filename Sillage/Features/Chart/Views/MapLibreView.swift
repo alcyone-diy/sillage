@@ -343,7 +343,13 @@ struct MapLibreView: UIViewRepresentable {
     @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
       // Only trigger at the start of the gesture to prevent multiple openings
       guard sender.state == .began else { return }
+      
+      /// Technical Design Choice: Disable contextual gesture during anchor position adjustment
+      /// Prevents long-press waypoint popover creation while the user is actively aiming with the crosshair.
+      guard !parent.viewModel.anchorViewModel.isAdjustingAnchor else { return }
+      
       guard let mapView = sender.view as? MLNMapView else { return }
+
       let point = sender.location(in: mapView)
       
       let touchRect = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
