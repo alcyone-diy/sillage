@@ -144,7 +144,8 @@ final class ChartViewModelTests: XCTestCase {
 
     // Act
     let newLayer = GeoGarageLayer(layer: "layer1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")
-    viewModel.updateGeoGarageLayers([newLayer])
+    mockAuthService.availableLayers = [newLayer]
+    viewModel.clearGeoGarageMessages()
 
     // Assert
     XCTAssertEqual(messageService.messages.count, 0, "Calling updateGeoGarageLayers should clear .geoGarage messages in MessageService")
@@ -238,8 +239,7 @@ final class ChartViewModelTests: XCTestCase {
     )
 
     // Act
-    let newLayer = GeoGarageLayer(layer: "layer1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")
-    viewModel.updateGeoGarageLayers([newLayer])
+    viewModel.clearGeoGarageMessages()
 
     // Assert
     XCTAssertEqual(messageService.messages.count, 2, "Only .geoGarage messages should be removed, non-geoGarage messages must remain")
@@ -338,7 +338,7 @@ final class ChartViewModelTests: XCTestCase {
     )
 
     // Act
-    viewModel.updateGeoGarageLayers([])
+    viewModel.clearGeoGarageMessages()
 
     // Assert
     XCTAssertTrue(viewModel.availableGeoGarageLayers.isEmpty)
@@ -369,11 +369,10 @@ final class ChartViewModelTests: XCTestCase {
     )
 
     // Act & Assert (Should not crash when messageService is nil)
-    viewModel.updateGeoGarageLayers([])
-    XCTAssertTrue(viewModel.availableGeoGarageLayers.isEmpty)
-
+    viewModel.clearGeoGarageMessages()
     let layer = GeoGarageLayer(layer: "layer1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")
-    viewModel.updateGeoGarageLayers([layer])
+    mockAuthService.availableLayers = [layer]
+    viewModel.clearGeoGarageMessages()
     XCTAssertEqual(viewModel.availableGeoGarageLayers.count, 1)
     _ = viewModel
   }
@@ -411,10 +410,12 @@ final class ChartViewModelTests: XCTestCase {
     )
 
     let layer = GeoGarageLayer(layer: "layer1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")
-    viewModel.updateGeoGarageLayers([layer])
+    mockAuthService.availableLayers = [layer]
+    viewModel.clearGeoGarageMessages()
 
     // Act
     viewModel.logoutGeoGarage()
+    try? await Task.sleep(for: .milliseconds(50))
 
     // Assert
     XCTAssertTrue(viewModel.availableGeoGarageLayers.isEmpty)

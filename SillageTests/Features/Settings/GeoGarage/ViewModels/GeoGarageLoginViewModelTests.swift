@@ -204,7 +204,8 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
     viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")]
     viewModel.isAuthorizationReady = true
-    chartViewModel.updateGeoGarageLayers(viewModel.availableLayers)
+    mockAuthService.availableLayers = viewModel.availableLayers
+    chartViewModel.clearGeoGarageMessages()
 
     // Act
     await viewModel.performLogout(authService: mockAuthService, messageService: messageService, chartViewModel: chartViewModel)

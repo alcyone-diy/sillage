@@ -9,23 +9,34 @@
 //
 
 import Foundation
+import Observation
+import OSLog
 
 @MainActor
 protocol GeoGarageAuthServiceProtocol: AnyObject {
+  var isGeoGarageAuthenticated: Bool { get }
+  var availableLayers: [GeoGarageLayer] { get }
   var authError: Error? { get set }
   var savedUsername: String? { get set }
   var discoverURL: URL { get }
   var accountManagementURL: URL { get }
+  func bootstrap() async
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse
   func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse
-  func logout()
+  func logout() async
 }
 
 @Observable
 @MainActor
 final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
+  var isGeoGarageAuthenticated: Bool = false
+  var availableLayers: [GeoGarageLayer] {
+    layerRepository.layers
+  }
+
   var authError: Error? = nil
   private var preferencesService: PreferencesServiceProtocol
+  private let layerRepository: GeoGarageLayerRepositoryProtocol
   
   var savedUsername: String? {
     get { preferencesService.geoGarageUsername }
@@ -38,15 +49,39 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   private let endpoint = URL(string: "https://accounts.geogarage.com/o/token/")!
   private let settingsEndpoint = URL(string: "https://accounts.geogarage.com/api/account/settings")!
 
-  init(preferencesService: PreferencesServiceProtocol) {
+  init(
+    preferencesService: PreferencesServiceProtocol,
+    layerRepository: GeoGarageLayerRepositoryProtocol
+  ) {
     self.preferencesService = preferencesService
+    self.layerRepository = layerRepository
   }
 
-  func logout() {
+  init(preferencesService: PreferencesServiceProtocol) {
+    self.preferencesService = preferencesService
+    self.layerRepository = GeoGarageLayerRepository()
+  }
+
+  func bootstrap() async {
+    let hasToken = await Task.detached(priority: .userInitiated) {
+      guard let token = KeychainManager.shared.retrieveToken(for: "geogarage_access_token"),
+            !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        return false
+      }
+      return true
+    }.value
+
+    self.isGeoGarageAuthenticated = hasToken
+    _ = await layerRepository.loadCachedLayers()
+  }
+
+  func logout() async {
     KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
     self.authError = nil
     self.savedUsername = nil
+    self.isGeoGarageAuthenticated = false
+    await layerRepository.clearCache()
   }
 
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse {
@@ -83,6 +118,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
       do {
         let successResponse = try JSONDecoder().decode(AuthSuccessResponse.self, from: data)
         self.authError = nil
+        self.isGeoGarageAuthenticated = true
         return successResponse
       } catch {
         throw AuthError.invalidResponse
@@ -110,6 +146,10 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     do {
       (data, response) = try await URLSession.shared.data(for: request)
     } catch {
+      let cached = layerRepository.layers
+      if !cached.isEmpty {
+        return GeoGarageSettingsResponse(layers: cached)
+      }
       throw AuthError.networkError(error)
     }
 
@@ -121,6 +161,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
       do {
         let settingsResponse = try JSONDecoder().decode(GeoGarageSettingsResponse.self, from: data)
         self.authError = nil
+        await layerRepository.saveLayers(settingsResponse.layers)
         return settingsResponse
       } catch {
         throw AuthError.invalidResponse

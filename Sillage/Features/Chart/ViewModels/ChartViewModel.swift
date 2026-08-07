@@ -36,7 +36,13 @@ final class ChartViewModel {
   
   // MARK: - Chart Sources Data
   
-  var availableGeoGarageLayers: [GeoGarageLayer] = []
+  var availableGeoGarageLayers: [GeoGarageLayer] {
+    authService.availableLayers
+  }
+  
+  var isGeoGarageAuthenticated: Bool {
+    authService.isGeoGarageAuthenticated
+  }
   
   /// Represents locally stored MBTiles files.
   /// This array is automatically kept in sync with the file system by the ChartStorageService.
@@ -338,16 +344,16 @@ final class ChartViewModel {
     }
   }
   
-  func updateGeoGarageLayers(_ layers: [GeoGarageLayer]) {
-    self.availableGeoGarageLayers = layers
+  func clearGeoGarageMessages() {
     self.messageService?.clear(category: .geoGarage)
   }
   
   func logoutGeoGarage() {
     silentFetchTask?.cancel()
-    authService.logout()
-    self.availableGeoGarageLayers = []
-    self.messageService?.clear(category: .geoGarage)
+    Task { [weak self] in
+      await self?.authService.logout()
+      self?.messageService?.clear(category: .geoGarage)
+    }
   }
   
   /// Authenticates with GeoGarage in the background using stored credentials to populate available layers.
@@ -362,8 +368,8 @@ final class ChartViewModel {
     silentFetchTask = TaskCancellable(Task { [weak self] in
       do {
         guard let authService = self?.authService else { return }
-        let settings = try await authService.fetchAccountSettings(accessToken: accessToken)
-        self?.updateGeoGarageLayers(settings.layers)
+        _ = try await authService.fetchAccountSettings(accessToken: accessToken)
+        self?.clearGeoGarageMessages()
       } catch {
         self?.handleGeoGarageAuthError(error)
       }

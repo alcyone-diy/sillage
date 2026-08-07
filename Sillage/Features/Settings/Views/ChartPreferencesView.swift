@@ -133,7 +133,7 @@ struct ChartPreferencesView: View {
       // MARK: - Accounts & Services
       Section(header: Text("Accounts & Services").marineFont(.headline)) {
         NavigationLink(destination: GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)) {
-          Text(chartViewModel.availableGeoGarageLayers.isEmpty ? "Login to GeoGarage" : "Manage GeoGarage Account")
+          Text(chartViewModel.isGeoGarageAuthenticated ? "Manage GeoGarage Account" : "Login to GeoGarage")
             .marineFont(.body)
         }
         .marineListCell()
