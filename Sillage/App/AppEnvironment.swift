@@ -127,6 +127,7 @@ final class AppEnvironment {
       observeWaypointGoTo()
 
       let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService)
+      await geoGarageAuthService.bootstrap()
       
       let backgroundMonitoringService = DefaultBackgroundMonitoringService(
         positioningService: positioningService,

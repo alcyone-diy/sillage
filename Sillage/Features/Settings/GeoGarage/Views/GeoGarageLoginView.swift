@@ -78,7 +78,7 @@ struct GeoGarageLoginView: View {
     }
     .onChange(of: viewModel.isAuthorizationReady) { oldState, isReady in
       if isReady {
-        chartViewModel.updateGeoGarageLayers(viewModel.availableLayers)
+        chartViewModel.clearGeoGarageMessages()
         if let firstLayer = viewModel.availableLayers.first {
           chartViewModel.switchChartSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: firstLayer.layer))
         }

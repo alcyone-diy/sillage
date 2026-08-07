@@ -95,7 +95,7 @@ final class GeoGarageLoginViewModel {
     isAuthorizationReady = false
     errorMessage = nil
     forceReauthentication = false
-    authService.logout()
+    await authService.logout()
     messageService?.clear(category: .geoGarage)
     chartViewModel.logoutGeoGarage()
     
