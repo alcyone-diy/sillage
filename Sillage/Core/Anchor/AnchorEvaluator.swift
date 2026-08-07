@@ -38,9 +38,12 @@ public struct AnchorEvaluator {
     watch: AnchorWatch,
     currentStatus: AnchorStatus
   ) -> AnchorEvaluationResult {
+    guard let targetCoordinate = watch.coordinate else {
+      return .maintainState
+    }
     let anchorLocation = CLLocation(
-      latitude: watch.coordinate.latitude,
-      longitude: watch.coordinate.longitude
+      latitude: targetCoordinate.latitude,
+      longitude: targetCoordinate.longitude
     )
     let fixLocation = CLLocation(
       latitude: fix.coordinate.latitude,

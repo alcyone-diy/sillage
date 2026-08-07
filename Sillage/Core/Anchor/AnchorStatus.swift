@@ -12,6 +12,7 @@ import Foundation
 
 public enum AnchorStatus: String, Codable, Sendable, Equatable {
   case inactive
+  case droppedPendingPosition
   case dropped
   case armed
   case dragging

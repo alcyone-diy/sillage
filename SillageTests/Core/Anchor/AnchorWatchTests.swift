@@ -28,8 +28,8 @@ final class AnchorWatchTests: XCTestCase {
     let decoder = JSONDecoder()
     let decodedModel = try decoder.decode(AnchorWatch.self, from: data)
     
-    XCTAssertEqual(decodedModel.coordinate.latitude, 45.0)
-    XCTAssertEqual(decodedModel.coordinate.longitude, -1.0)
+    XCTAssertEqual(decodedModel.coordinate?.latitude, 45.0)
+    XCTAssertEqual(decodedModel.coordinate?.longitude, -1.0)
     XCTAssertEqual(decodedModel.radius.value, 50.0)
     XCTAssertEqual(decodedModel.radius.unit, .meters)
     XCTAssertEqual(decodedModel.createdAt, date)
@@ -37,7 +37,7 @@ final class AnchorWatchTests: XCTestCase {
   }
   
   func testAnchorStatusSerialization() throws {
-    let statuses: [AnchorStatus] = [.inactive, .armed, .dragging]
+    let statuses: [AnchorStatus] = [.inactive, .droppedPendingPosition, .dropped, .armed, .dragging]
     
     let encoder = JSONEncoder()
     let decoder = JSONDecoder()

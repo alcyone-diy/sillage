@@ -443,10 +443,14 @@ final class ChartViewModel {
       return
     }
     
-    guard let watch = anchorService.activeWatch else { return }
+    guard let watch = anchorService.activeWatch, let targetCoordinate = watch.coordinate else {
+      anchorVisualState = nil
+      return
+    }
     let visualStatus: AnchorVisualStatus
     switch status {
     case .dropped: visualStatus = .dropped
+    case .droppedPendingPosition: visualStatus = .setup
     case .armed:   visualStatus = .armed
     case .dragging: visualStatus = .dragging
     case .inactive: return
@@ -466,7 +470,7 @@ final class ChartViewModel {
     
     anchorVisualState = AnchorVisualState(
       status: visualStatus,
-      pointCoordinate: watch.coordinate,
+      pointCoordinate: targetCoordinate,
       radius: watch.radius,
       vesselCoordinate: throttledVesselCoord
     )

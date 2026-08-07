@@ -185,6 +185,9 @@
     "Anchor Dropped" : {
 
     },
+    "Anchor dropped. Position will lock automatically on first GPS fix." : {
+
+    },
     "Anchor Watch GPS" : {
 
     },
@@ -600,9 +603,6 @@
     "No active recording to stop." : {
 
     },
-    "No GPS fix available." : {
-
-    },
     "No Offline Charts" : {
 
     },
@@ -655,9 +655,6 @@
 
     },
     "Points" : {
-
-    },
-    "Poor GPS accuracy: %lldm" : {
 
     },
     "Position" : {
@@ -876,6 +873,9 @@
     },
     "W" : {
       "comment" : "West cardinal point"
+    },
+    "Waiting for GPS Fix..." : {
+
     },
     "WARNING: %@ is an electronic navigational aid designed for situational awareness only. It must not be used as the primary means of navigation. This application does not replace official government charts, official notices to mariners, or prudent seamanship. The captain of the vessel assumes all responsibility and liability for the safety of the ship and its crew. Never rely on a single source of information and always maintain a proper visual lookout." : {
 

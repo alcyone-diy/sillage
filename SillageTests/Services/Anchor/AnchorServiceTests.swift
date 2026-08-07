@@ -386,7 +386,7 @@ final class AnchorServiceTests: XCTestCase {
     service.disarm()
     XCTAssertEqual(service.status, .dropped, "Disarming should revert status to .dropped")
     XCTAssertNotNil(service.activeWatch, "Disarming should keep the active watch (coordinate and radius)")
-    XCTAssertEqual(service.activeWatch?.coordinate.latitude, 45.0)
+    XCTAssertEqual(service.activeWatch?.coordinate?.latitude, 45.0)
     
     // 4. Clear anchor drop
     service.clear()
@@ -406,7 +406,7 @@ final class AnchorServiceTests: XCTestCase {
     // Assert status hasn't changed, but radius has
     XCTAssertEqual(service.status, .dropped)
     XCTAssertEqual(service.activeWatch?.radius.value, 100)
-    XCTAssertEqual(service.activeWatch?.coordinate.latitude, 45.0)
+    XCTAssertEqual(service.activeWatch?.coordinate?.latitude, 45.0)
   }
   
   func testAnchorService_droppedState_updatesDistanceButNeverTriggersAlarm() async throws {
@@ -464,5 +464,85 @@ final class AnchorServiceTests: XCTestCase {
     
     // Must also have requested background location to compute live distance
     XCTAssertNotNil(mockMonitoring.requestedToken)
+  }
+  
+  func testAnchorService_bestAvailableFix_enforces60sTTL() async throws {
+    // 1. Setup lastKnownLocation older than 60 seconds (e.g. 120 seconds old)
+    let oldDate = Date().addingTimeInterval(-120)
+    let oldFix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 47.0, longitude: -2.0),
+      horizontalAccuracy: Measurement(value: 10, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: oldDate
+    )
+    mockGPS.lastKnownLocation = oldFix
+    
+    // Assert bestAvailableFix returns nil because fix is expired (120s > 60s)
+    XCTAssertNil(service.bestAvailableFix)
+    
+    // 2. Setup fresh lastKnownLocation (30 seconds old)
+    let freshDate = Date().addingTimeInterval(-30)
+    let freshFix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 47.0, longitude: -2.0),
+      horizontalAccuracy: Measurement(value: 10, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: freshDate
+    )
+    mockGPS.lastKnownLocation = freshFix
+    
+    // Assert bestAvailableFix returns freshFix
+    XCTAssertEqual(service.bestAvailableFix?.coordinate.latitude, 47.0)
+  }
+  
+  func testAnchorService_dropWithoutFix_transitionsToDroppedPendingPosition_andFulfillsOnFirstFix() async throws {
+    // 1. Drop anchor when no GPS fix is available
+    mockGPS.lastKnownLocation = nil
+    service.drop(coordinate: nil, radius: Measurement(value: 40, unit: .meters))
+    
+    // Status must be .droppedPendingPosition and coordinate must be nil
+    XCTAssertEqual(service.status, .droppedPendingPosition)
+    XCTAssertNil(service.activeWatch?.coordinate)
+    
+    // 2. Simulate first incoming GPS fix
+    let firstFixCoord = CLLocationCoordinate2D(latitude: 48.0, longitude: -3.0)
+    let firstFix = NavigationFix(
+      coordinate: firstFixCoord,
+      horizontalAccuracy: Measurement(value: 18.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    mockGPS.simulateFix(firstFix)
+    try await Task.sleep(nanoseconds: 500_000_000)
+    
+    // Status must now be .dropped with coordinate locked
+    XCTAssertEqual(service.status, .dropped)
+    XCTAssertEqual(service.activeWatch?.coordinate?.latitude, 48.0)
+    XCTAssertEqual(service.activeWatch?.initialAccuracy?.value, 18.0)
+  }
+  
+  func testAnchorService_dropWithDegradedAccuracy_persistsInitialAccuracy() async throws {
+    let degradedFix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 49.0, longitude: -4.0),
+      horizontalAccuracy: Measurement(value: 65.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    
+    service.drop(coordinate: degradedFix.coordinate, radius: Measurement(value: 50, unit: .meters))
+    
+    XCTAssertEqual(service.status, .dropped)
+    XCTAssertEqual(service.activeWatch?.coordinate?.latitude, 49.0)
   }
 }

@@ -41,7 +41,28 @@ final class AnchorService {
   private(set) var currentDistance: Measurement<UnitLength>?
   private(set) var gpsAccuracy: Measurement<UnitLength>?
   
+  /// Returns the best available navigation fix for anchor operations.
+  /// Technical Design Choice: Enforces a strict 60-second Time-To-Live (TTL) freshness check on `lastKnownLocation`.
+  /// If `latestFix` is missing and `lastKnownLocation` is older than 60 seconds, it is rejected (returns `nil`)
+  /// to prevent anchoring at an obsolete location miles away.
+  var bestAvailableFix: NavigationFix? {
+    if let latest = latestFix {
+      return latest
+    }
+    if let lastKnown = positioningService.lastKnownLocation {
+      let ageInSeconds = Date().timeIntervalSince(lastKnown.timestamp)
+      if ageInSeconds <= 60.0 {
+        Logger.anchor.info("⚓️ Utilizing fresh lastKnownLocation (age: \(ageInSeconds, privacy: .public)s <= 60s)")
+        return lastKnown
+      } else {
+        Logger.anchor.warning("⚓️ Rejecting lastKnownLocation due to TTL expiration: \(ageInSeconds, privacy: .public)s > 60s")
+      }
+    }
+    return nil
+  }
+  
   private var monitoringToken: (any BackgroundMonitoringToken)?
+  @ObservationIgnored private var setupLocationToken: (any LocationUpdateToken)?
   
   private final class TaskCancellable: @unchecked Sendable {
     var task: Task<Void, Never>?
@@ -105,31 +126,66 @@ final class AnchorService {
     startListeningToGPS()
   }
   
-  func drop(coordinate: CLLocationCoordinate2D, radius: Measurement<UnitLength>) {
-    Logger.anchor.info("⚓️ Dropping anchor at \(coordinate.latitude), \(coordinate.longitude)")
-    self.activeWatch = AnchorWatch(coordinate: coordinate, radius: radius)
-    self.status = .dropped
+  /// Technical Design Choice: Resource & Lifecycle Management
+  /// Requests a foreground `LocationUpdateToken` when setup UI is active, preventing continuous high-frequency GPS drain
+  /// when the user is not actively viewing or setting up an anchor.
+  func startSetupLocationUpdates() {
+    guard setupLocationToken == nil else { return }
+    Logger.anchor.info("⚓️ Starting setup location updates for Anchor UI")
+    setupLocationToken = positioningService.requestLocationUpdates()
+  }
+
+  func stopSetupLocationUpdates() {
+    guard setupLocationToken != nil else { return }
+    Logger.anchor.info("⚓️ Stopping setup location updates for Anchor UI")
+    setupLocationToken?.invalidate()
+    setupLocationToken = nil
+  }
+  
+  /// Drops anchor using the provided coordinate or best available fix.
+  /// If no fix is available at drop time, enters `.droppedPendingPosition` state until the first GPS fix arrives.
+  func drop(coordinate: CLLocationCoordinate2D? = nil, radius: Measurement<UnitLength>) {
+    let fixToUse = (coordinate != nil) ? nil : bestAvailableFix
+    let resolvedCoordinate = coordinate ?? fixToUse?.coordinate
+    let resolvedAccuracy = fixToUse?.horizontalAccuracy
+    
+    if let coord = resolvedCoordinate {
+      let accuracyValue = resolvedAccuracy?.converted(to: .meters).value ?? 0.0
+      Logger.anchor.info("⚓️ Dropping anchor at (\(coord.latitude, privacy: .public), \(coord.longitude, privacy: .public)) with accuracy \(accuracyValue, privacy: .public)m")
+      self.activeWatch = AnchorWatch(coordinate: coord, radius: radius, initialAccuracy: resolvedAccuracy)
+      self.status = .dropped
+    } else {
+      Logger.anchor.warning("⚓️ No GPS fix available at drop time. Transitioning to pending position state (.droppedPendingPosition)")
+      self.activeWatch = AnchorWatch(coordinate: nil, radius: radius, initialAccuracy: nil)
+      self.status = .droppedPendingPosition
+    }
+    
     self.triggerReason = nil
     self.isMuted = false
     persistState()
     
     startMonitoringSession()
-    
     notifyStateChange()
   }
   
   func update(radius: Measurement<UnitLength>) {
     guard let watch = activeWatch else { return }
-    Logger.anchor.info("⚓️ Updating anchor radius to \(radius.value) \(radius.unit.symbol)")
-    self.activeWatch = AnchorWatch(coordinate: watch.coordinate, radius: radius)
+    Logger.anchor.info("⚓️ Updating anchor radius to \(radius.value, privacy: .public) \(radius.unit.symbol, privacy: .public)")
+    self.activeWatch = AnchorWatch(
+      coordinate: watch.coordinate,
+      radius: radius,
+      initialAccuracy: watch.initialAccuracy,
+      createdAt: watch.createdAt
+    )
     persistState()
     notifyStateChange()
   }
 
   func arm(coordinate: CLLocationCoordinate2D, radius: Measurement<UnitLength>) {
-    Logger.anchor.info("⚓️ Arming anchor watch. Radius: \(radius.value) \(radius.unit.symbol)")
+    Logger.anchor.info("⚓️ Arming anchor watch at (\(coordinate.latitude, privacy: .public), \(coordinate.longitude, privacy: .public)). Radius: \(radius.value, privacy: .public) \(radius.unit.symbol, privacy: .public)")
     
-    let watch = AnchorWatch(coordinate: coordinate, radius: radius)
+    let initialAcc = activeWatch?.initialAccuracy ?? gpsAccuracy
+    let watch = AnchorWatch(coordinate: coordinate, radius: radius, initialAccuracy: initialAcc)
     self.activeWatch = watch
     self.status = .armed
     self.triggerReason = nil
@@ -141,7 +197,6 @@ final class AnchorService {
     }
     
     startMonitoringSession()
-    
     notifyStateChange()
   }
   
@@ -181,6 +236,7 @@ final class AnchorService {
     monitoringToken?.invalidate()
     monitoringToken = nil
     
+    stopSetupLocationUpdates()
     isDegradedAlertSent = false
     
     notifyStateChange()
@@ -199,8 +255,6 @@ final class AnchorService {
     isMuted = false
     notifyStateChange()
   }
-
-
   
   private func resumeWatch() {
     Logger.anchor.info("⚓️ Resuming anchor watch from persisted state.")
@@ -284,9 +338,25 @@ final class AnchorService {
     self.latestFix = fix
     self.gpsAccuracy = fix.horizontalAccuracy
     
-    guard let watch = activeWatch, status != .inactive else { return }
+    // Technical Design Choice: Auto-fulfill pending position drop on first incoming GPS fix
+    if status == .droppedPendingPosition, let watch = activeWatch {
+      let accuracyMeters = fix.horizontalAccuracy.converted(to: .meters).value
+      Logger.anchor.info("⚓️ Acquired first GPS fix for pending anchor drop at (\(fix.coordinate.latitude, privacy: .public), \(fix.coordinate.longitude, privacy: .public)) with accuracy \(accuracyMeters, privacy: .public)m")
+      
+      self.activeWatch = AnchorWatch(
+        coordinate: fix.coordinate,
+        radius: watch.radius,
+        initialAccuracy: fix.horizontalAccuracy,
+        createdAt: watch.createdAt
+      )
+      self.status = .dropped
+      persistState()
+      notifyStateChange()
+    }
     
-    let anchorLocation = CLLocation(latitude: watch.coordinate.latitude, longitude: watch.coordinate.longitude)
+    guard let watch = activeWatch, let anchorCoord = watch.coordinate, status != .inactive, status != .droppedPendingPosition else { return }
+    
+    let anchorLocation = CLLocation(latitude: anchorCoord.latitude, longitude: anchorCoord.longitude)
     let fixLocation = CLLocation(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude)
     self.currentDistance = Measurement(value: fixLocation.distance(from: anchorLocation), unit: UnitLength.meters)
     
@@ -302,7 +372,7 @@ final class AnchorService {
     case .autoResolveAlarm(let reason):
       switch reason {
       case .vesselReturnedInCircle(let distance):
-        Logger.anchor.info("⚓️ Vessel returned within anchor radius (\(Int(distance.value))m). Auto-resolving alarm.")
+        Logger.anchor.info("⚓️ Vessel returned within anchor radius (\(Int(distance.value), privacy: .public)m). Auto-resolving alarm.")
         status = .armed
         triggerReason = nil
         isMuted = false
@@ -315,8 +385,6 @@ final class AnchorService {
     notifyStateChange()
   }
 
-
-  
   private func triggerAlarm(reason: AnchorTriggerReason) {
     Logger.anchor.fault("🚨 ANCHOR ALARM TRIGGERED! Reason: \(String(describing: reason), privacy: .public)")
     
@@ -348,12 +416,14 @@ final class AnchorService {
       let offsetLat = currentCoord.latitude + 0.0015 // ~165 meters north
       self.activeWatch = AnchorWatch(
         coordinate: CLLocationCoordinate2D(latitude: offsetLat, longitude: currentCoord.longitude),
-        radius: Measurement(value: 30, unit: .meters)
+        radius: Measurement(value: 30, unit: .meters),
+        initialAccuracy: Measurement(value: 5, unit: .meters)
       )
     } else {
       self.activeWatch = AnchorWatch(
         coordinate: CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621),
-        radius: Measurement(value: 30, unit: .meters)
+        radius: Measurement(value: 30, unit: .meters),
+        initialAccuracy: Measurement(value: 5, unit: .meters)
       )
     }
     self.currentDistance = Measurement(value: 165, unit: .meters)
