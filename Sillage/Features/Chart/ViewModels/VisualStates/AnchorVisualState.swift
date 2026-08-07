@@ -11,7 +11,7 @@
 import Foundation
 import CoreLocation
 
-enum AnchorVisualStatus: Equatable {
+enum AnchorVisualStatus: String, Equatable {
   case setup
   case dropped
   case armed
@@ -22,4 +22,5 @@ struct AnchorVisualState: Equatable {
   let status: AnchorVisualStatus
   let pointCoordinate: CLLocationCoordinate2D
   let radius: Measurement<UnitLength>?
+  let vesselCoordinate: CLLocationCoordinate2D?
 }

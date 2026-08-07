@@ -18,7 +18,7 @@ import OSLog
 final class DebugViewModel {
   
   func invalidateGeoGarageToken() {
-    KeychainManager.shared.save(token: "invalid_debug_token", for: "geogarage_access_token")
+    KeychainManager.shared.saveSync(token: "invalid_debug_token", for: "geogarage_access_token")
   }
   
   func scheduleDebugBarometerNotification(permissionService: PermissionServiceProtocol, notificationService: NotificationService) async throws {

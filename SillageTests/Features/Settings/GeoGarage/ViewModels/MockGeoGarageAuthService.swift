@@ -48,8 +48,8 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
   }
 
   func logout() async {
-    KeychainManager.shared.deleteToken(for: "geogarage_access_token")
-    KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
+    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+    await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
     self.authError = nil
     self.savedUsername = nil
     self.isGeoGarageAuthenticated = false

@@ -26,6 +26,7 @@ enum MapLayerIdentifier: String, CaseIterable, Comparable {
   case goToWaypoint = "goto-waypoint-layer"
   case anchorRadiusFill = "anchor-radius-layer"
   case anchorRadiusStroke = "anchor-radius-stroke-layer"
+  case anchorRodeLine = "anchor-rode-layer"
   case anchorPoint = "anchor-point-layer"
   case headingLine = "heading-vector-layer"
   case headingTick = "heading-vector-tick-layer"
@@ -53,6 +54,7 @@ enum MapSourceIdentifier: String, CaseIterable {
   case heading = "heading-vector-source"
   case vessel = "vessel-source"
   case anchorRadius = "anchor-radius-source"
+  case anchorRode = "anchor-rode-source"
   case anchorPoint = "anchor-point-source"
 }
 
@@ -237,10 +239,25 @@ struct MapStyleController {
     }
   }
 
+  /// Ensures all 4 anchor status icons are registered in the MapLibre style stack.
+  static func ensureAnchorImagesExist(in style: MLNStyle, theme: MarineTheme) {
+    let anchorStatuses: [AnchorVisualStatus] = [.setup, .dropped, .armed, .dragging]
+    for status in anchorStatuses {
+      let imageName = "anchor-icon-\(status.rawValue)"
+      if style.image(forName: imageName) == nil {
+        if let image = AnchorGraphicsFactory.createAnchorImage(for: status, theme: theme) {
+          style.setImage(image, forName: imageName)
+          Logger.mapStyle.debug("Registered anchor icon '\(imageName, privacy: .public)' in MapLibre style")
+        }
+      }
+    }
+  }
+
   // MARK: - Navigation Layers (Tracks, Waypoints, Bearing Line, Anchor)
 
   /// Ensures navigation sources and layers (active track, saved track, waypoints, bearing line, anchor) exist.
   static func ensureNavigationLayersExist(in style: MLNStyle, theme: MarineTheme) {
+    ensureAnchorImagesExist(in: style, theme: theme)
     if style.source(withIdentifier: MapSourceIdentifier.activeTrack.rawValue) == nil {
       // 1. Active Track
       let activeTrackSource = MLNShapeSource(identifier: MapSourceIdentifier.activeTrack.rawValue, shape: nil, options: nil)
@@ -292,7 +309,7 @@ struct MapStyleController {
       goToWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       insertLayer(goToWaypointLayer, identifier: .goToWaypoint, into: style)
 
-      // 6. Anchor Radius Fill, Stroke & Symbol Point
+      // 6. Anchor Radius Fill, Stroke, Rode Line & Symbol Point
       let anchorRadiusSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorRadius.rawValue, shape: nil, options: nil)
       style.addSource(anchorRadiusSource)
 
@@ -307,15 +324,25 @@ struct MapStyleController {
       anchorRadiusStrokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
       insertLayer(anchorRadiusStrokeLayer, identifier: .anchorRadiusStroke, into: style)
 
+      let anchorRodeSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorRode.rawValue, shape: nil, options: nil)
+      style.addSource(anchorRodeSource)
+
+      let anchorRodeLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorRodeLine.rawValue, source: anchorRodeSource)
+      anchorRodeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
+      anchorRodeLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
+      anchorRodeLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
+      anchorRodeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
+      insertLayer(anchorRodeLayer, identifier: .anchorRodeLine, into: style)
+
       let anchorPointSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorPoint.rawValue, shape: nil, options: nil)
       style.addSource(anchorPointSource)
 
       let anchorPointLayer = MLNSymbolStyleLayer(identifier: MapLayerIdentifier.anchorPoint.rawValue, source: anchorPointSource)
-      anchorPointLayer.iconImageName = NSExpression(forConstantValue: "anchor-icon")
-      anchorPointLayer.iconColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
+      anchorPointLayer.iconImageName = NSExpression(forConstantValue: "anchor-icon-dropped")
       anchorPointLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
       anchorPointLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
       anchorPointLayer.iconScale = NSExpression(forConstantValue: 1.0)
+      anchorPointLayer.iconOpacity = NSExpression(forConstantValue: 1.0)
       insertLayer(anchorPointLayer, identifier: .anchorPoint, into: style)
     }
   }
@@ -367,6 +394,9 @@ struct MapStyleController {
     if let source = style.source(withIdentifier: MapSourceIdentifier.anchorRadius.rawValue) as? MLNShapeSource {
       source.shape = anchorFeatures.radiusFeature
     }
+    if let source = style.source(withIdentifier: MapSourceIdentifier.anchorRode.rawValue) as? MLNShapeSource {
+      source.shape = anchorFeatures.rodeLineFeature
+    }
     if let source = style.source(withIdentifier: MapSourceIdentifier.anchorPoint.rawValue) as? MLNShapeSource {
       source.shape = anchorFeatures.pointFeature
     }
@@ -375,54 +405,77 @@ struct MapStyleController {
     }
   }
 
-  /// Updates fill and stroke styles for the anchor radius and point layers based on status.
+  /// Updates fill and stroke styles for the anchor radius, rode line, and point layers based on status.
   private static func updateAnchorLayerStyles(in style: MLNStyle, for status: AnchorVisualStatus, with theme: MarineTheme) {
     if let pointLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorPoint.rawValue) as? MLNSymbolStyleLayer {
-      let pointColor: UIColor = (status == .setup)
-        ? UIColor(theme.colors.anchorDropped).withAlphaComponent(0.5)
-        : UIColor(theme.colors.anchorDropped)
-      pointLayer.iconColor = NSExpression(forConstantValue: pointColor)
+      pointLayer.iconImageName = NSExpression(forConstantValue: "anchor-icon-\(status.rawValue)")
     }
 
     guard let fillLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorRadiusFill.rawValue) as? MLNFillStyleLayer,
-          let strokeLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorRadiusStroke.rawValue) as? MLNLineStyleLayer else {
+          let strokeLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorRadiusStroke.rawValue) as? MLNLineStyleLayer,
+          let rodeLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorRodeLine.rawValue) as? MLNLineStyleLayer else {
       return
+    }
+
+    let statusColor: UIColor
+    switch status {
+    case .setup:
+      statusColor = UIColor(theme.colors.anchorDropped).withAlphaComponent(0.6)
+    case .dropped:
+      statusColor = UIColor(theme.colors.anchorDropped)
+    case .armed:
+      statusColor = UIColor(theme.colors.anchorArmed)
+    case .dragging:
+      statusColor = UIColor(theme.colors.anchorDragging)
     }
 
     switch status {
     case .setup:
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
       strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
 
     case .dropped:
-      let color = UIColor(theme.colors.anchorDropped)
-      fillLayer.fillColor = NSExpression(forConstantValue: color)
+      fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
 
-      strokeLayer.lineColor = NSExpression(forConstantValue: color)
+      strokeLayer.lineColor = NSExpression(forConstantValue: statusColor)
       strokeLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
       strokeLayer.lineWidth = NSExpression(forConstantValue: 3.0)
       strokeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
 
+      rodeLayer.lineColor = NSExpression(forConstantValue: statusColor)
+      rodeLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
+      rodeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
+      rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
+
     case .armed:
-      let color = UIColor(theme.colors.anchorArmed)
-      fillLayer.fillColor = NSExpression(forConstantValue: color)
+      fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.10)
 
-      strokeLayer.lineColor = NSExpression(forConstantValue: color)
+      strokeLayer.lineColor = NSExpression(forConstantValue: statusColor)
       strokeLayer.lineDashPattern = nil
       strokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
       strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
 
+      rodeLayer.lineColor = NSExpression(forConstantValue: statusColor)
+      rodeLayer.lineDashPattern = NSExpression(forConstantValue: [6.0, 3.0])
+      rodeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
+      rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.9)
+
     case .dragging:
-      let color = UIColor(theme.colors.anchorDragging)
-      fillLayer.fillColor = NSExpression(forConstantValue: color)
+      fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.25)
 
-      strokeLayer.lineColor = NSExpression(forConstantValue: color)
+      strokeLayer.lineColor = NSExpression(forConstantValue: statusColor)
       strokeLayer.lineDashPattern = nil
-      strokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
+      strokeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
       strokeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
+
+      rodeLayer.lineColor = NSExpression(forConstantValue: statusColor)
+      rodeLayer.lineDashPattern = nil
+      rodeLayer.lineWidth = NSExpression(forConstantValue: 3.0)
+      rodeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
     }
   }
 }

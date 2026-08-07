@@ -358,7 +358,7 @@ final class ChartViewModel {
   
   /// Authenticates with GeoGarage in the background using stored credentials to populate available layers.
   private func silentlyFetchGeoGarageLayers() {
-    guard let accessToken = KeychainManager.shared.retrieveToken(for: "geogarage_access_token"), !accessToken.trimmingCharacters(in: .whitespaces).isEmpty else {
+    guard let accessToken = KeychainManager.shared.retrieveTokenSync(for: "geogarage_access_token"), !accessToken.trimmingCharacters(in: .whitespaces).isEmpty else {
       Task { @MainActor [weak self] in
         self?.authService.authError = nil
       }
@@ -424,16 +424,18 @@ final class ChartViewModel {
     observeSetupMode()
   }
   
-  private func handleAnchorStateChange() {
+  private func handleAnchorStateChange(vesselCoord: CLLocationCoordinate2D? = nil) {
     let status = anchorService.status
+    let currentVesselCoord = vesselCoord ?? currentCoordinate ?? instrumentDampingService.state?.coordinate
     
     if status == .inactive {
       if anchorViewModel.isSetupModeActive,
-        let coord = instrumentDampingService.state?.coordinate {
+        let coord = currentVesselCoord {
         anchorVisualState = AnchorVisualState(
           status: .setup,
           pointCoordinate: coord,
           radius: nil,
+          vesselCoordinate: nil
         )
       } else {
         anchorVisualState = nil
@@ -443,16 +445,30 @@ final class ChartViewModel {
     
     guard let watch = anchorService.activeWatch else { return }
     let visualStatus: AnchorVisualStatus
-      switch status {
-      case .dropped: visualStatus = .dropped
-      case .armed:   visualStatus = .armed
-      case .dragging: visualStatus = .dragging
-      case .inactive: return
+    switch status {
+    case .dropped: visualStatus = .dropped
+    case .armed:   visualStatus = .armed
+    case .dragging: visualStatus = .dragging
+    case .inactive: return
     }
+    
+    let throttledVesselCoord: CLLocationCoordinate2D? = {
+      guard let newCoord = currentVesselCoord else { return nil }
+      if let oldCoord = anchorVisualState?.vesselCoordinate {
+        let oldLoc = CLLocation(latitude: oldCoord.latitude, longitude: oldCoord.longitude)
+        let newLoc = CLLocation(latitude: newCoord.latitude, longitude: newCoord.longitude)
+        if newLoc.distance(from: oldLoc) < 3.0 {
+          return oldCoord
+        }
+      }
+      return newCoord
+    }()
+    
     anchorVisualState = AnchorVisualState(
       status: visualStatus,
       pointCoordinate: watch.coordinate,
-      radius: watch.radius
+      radius: watch.radius,
+      vesselCoordinate: throttledVesselCoord
     )
   }
   
@@ -502,6 +518,7 @@ final class ChartViewModel {
     updateVesselFeature(state: safeState)
     updateHeadingVector(state: safeState)
     updateAccuracyFeature(state: safeState)
+    handleAnchorStateChange(vesselCoord: safeState?.coordinate)
     
     if trackingMode != .free, let coordinate = safeState?.coordinate {
       let heading = (trackingMode == .courseUp) ? safeState?.smoothedCOG : nil

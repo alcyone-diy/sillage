@@ -14,13 +14,14 @@ import MapLibre
 struct AnchorFeatures {
   let pointFeature: MLNPointFeature?
   let radiusFeature: MLNPolygonFeature?
+  let rodeLineFeature: MLNPolylineFeature?
 }
 
 @MainActor
 enum MapLibreFeatureFactory {
   static func createAnchorFeatures(from state: AnchorVisualState?) -> AnchorFeatures {
     guard let state else {
-      return AnchorFeatures(pointFeature: nil, radiusFeature: nil)
+      return AnchorFeatures(pointFeature: nil, radiusFeature: nil, rodeLineFeature: nil)
     }
     
     let pointFeature = MLNPointFeature()
@@ -42,7 +43,20 @@ enum MapLibreFeatureFactory {
       return feature
     }()
     
-    return AnchorFeatures(pointFeature: pointFeature, radiusFeature: radiusFeature)
+    let rodeLineFeature: MLNPolylineFeature? = {
+      guard let vesselCoord = state.vesselCoordinate,
+            state.status == .dropped || state.status == .armed || state.status == .dragging else {
+        return nil
+      }
+      var coords: [CLLocationCoordinate2D] = [vesselCoord, state.pointCoordinate]
+      let feature = MLNPolylineFeature(coordinates: &coords, count: 2)
+      feature.attributes = [
+        MapFeatureKey.type.rawValue: MapFeatureType.anchorRode.rawValue,
+      ]
+      return feature
+    }()
+    
+    return AnchorFeatures(pointFeature: pointFeature, radiusFeature: radiusFeature, rodeLineFeature: rodeLineFeature)
   }
   
   static func createVesselFeature(from state: VesselVisualState?) -> MLNPointFeature? {
