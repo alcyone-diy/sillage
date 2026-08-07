@@ -17,7 +17,7 @@ print("🛡 Checking Alcyone Sillage source files for dynamic license headers...
 
 while let filePath = enumerator.nextObject() as? String {
     // Exclusion stricte des dossiers non-sources
-    if filePath.hasSuffix(".swift") && !filePath.contains("Pods") && !filePath.contains(".build") && !filePath.contains(".git") {
+    if filePath.hasSuffix(".swift") && !filePath.contains("Pods") && !filePath.contains(".build") && !filePath.contains(".git") && !filePath.contains(".derivedData") {
         let fullPath = URL(fileURLWithPath: currentPath).appendingPathComponent(filePath)
         let fileName = fullPath.lastPathComponent
         
