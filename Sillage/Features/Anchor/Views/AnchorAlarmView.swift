@@ -39,21 +39,12 @@ public struct AnchorAlarmView: View {
     return false
   }
   
-  private var statusText: LocalizedStringKey {
+  private var navigationTitleText: LocalizedStringKey {
     switch viewModel.state {
-    case .setup: return "Setup"
-    case .droppedPendingPosition: return "Waiting for GPS Fix..."
+    case .setup: return "Anchor Setup"
+    case .droppedPendingPosition: return "Waiting for GPS..."
     case .dropped: return "Anchor Dropped"
     case .armed(let dragging): return dragging ? "DRAGGING ALERT" : "Alarm Armed"
-    }
-  }
-  
-  private var statusColor: Color {
-    switch viewModel.state {
-    case .setup: return marineTheme.colors.textSecondary
-    case .droppedPendingPosition: return marineTheme.colors.warning
-    case .dropped: return marineTheme.colors.primary
-    case .armed(let dragging): return dragging ? marineTheme.colors.destructive : marineTheme.colors.vectorHDG
     }
   }
   
@@ -63,7 +54,9 @@ public struct AnchorAlarmView: View {
     Form {
       Section {
         VStack(spacing: MarineTheme.Spacing.large) {
-          headerSection
+          if hasHeaderAlerts {
+            headerSection
+          }
           
           bodySection
           
@@ -77,7 +70,8 @@ public struct AnchorAlarmView: View {
       .listRowBackground(marineTheme.colors.surfaceBackground)
     }
     .marineListBackground()
-    .navigationTitle("Anchor Alarm")
+    .listSectionSpacing(.compact)
+    .navigationTitle(navigationTitleText)
     .navigationBarTitleDisplayMode(.inline)
     .onAppear {
       viewModel.isSetupModeActive = true
@@ -97,68 +91,74 @@ public struct AnchorAlarmView: View {
     }
   }
   
-  // MARK: - 1. HEADER (Status & Alerts)
+  // MARK: - 1. HEADER (Alerts)
+  private var hasHeaderAlerts: Bool {
+    if case .droppedPendingPosition = viewModel.state { return true }
+    if isDragging && viewModel.triggerReasonDescription != nil { return true }
+    if let initialAcc = viewModel.initialAccuracy?.converted(to: .meters).value, initialAcc > 15.0 { return true }
+    if viewModel.isGPSAccuracyDegraded && viewModel.gpsAccuracy != nil { return true }
+    if viewModel.anchorDropError != nil { return true }
+    return false
+  }
+
   @ViewBuilder
   private var headerSection: some View {
-    VStack(spacing: MarineTheme.Spacing.small) {
-      Text(statusText)
-        .font(.headline)
-        .foregroundColor(statusColor)
-        .frame(maxWidth: .infinity, alignment: .center)
-      
-      if case .droppedPendingPosition = viewModel.state {
-        HStack(spacing: 6) {
-          ProgressView()
-            .tint(marineTheme.colors.warning)
-          Text("Anchor dropped. Position will lock automatically on first GPS fix.")
-            .font(.caption.bold())
-            .multilineTextAlignment(.center)
+    if hasHeaderAlerts {
+      VStack(spacing: MarineTheme.Spacing.small) {
+        if case .droppedPendingPosition = viewModel.state {
+          HStack(spacing: 6) {
+            ProgressView()
+              .tint(marineTheme.colors.warning)
+            Text("Anchor dropped. Position will lock automatically on first GPS fix.")
+              .font(.caption.bold())
+              .multilineTextAlignment(.center)
+          }
+          .foregroundColor(marineTheme.colors.warning)
+          .padding(MarineTheme.Spacing.small)
+          .background(marineTheme.colors.warning.opacity(0.2))
+          .cornerRadius(MarineTheme.Metrics.cornerRadius)
+        } else if isDragging, let reasonDesc = viewModel.triggerReasonDescription {
+          HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(reasonDesc)
+              .font(.subheadline.bold())
+              .multilineTextAlignment(.center)
+          }
+          .foregroundColor(marineTheme.colors.destructive)
+          .padding(MarineTheme.Spacing.small)
+          .background(marineTheme.colors.destructiveBackground)
+          .cornerRadius(MarineTheme.Metrics.cornerRadius)
+        } else if let initialAcc = viewModel.initialAccuracy?.converted(to: .meters).value, initialAcc > 15.0 {
+          HStack(spacing: 4) {
+            Image(systemName: "info.circle.fill")
+            Text(String(format: "Anchor dropped with degraded accuracy (±%.0fm)", initialAcc))
+          }
+          .font(.caption.bold())
+          .foregroundColor(marineTheme.colors.warning)
+          .padding(MarineTheme.Spacing.small)
+          .background(marineTheme.colors.warning.opacity(0.2))
+          .cornerRadius(MarineTheme.Metrics.cornerRadius)
+        } else if viewModel.isGPSAccuracyDegraded, let accuracy = viewModel.gpsAccuracy?.converted(to: .meters).value {
+          HStack(spacing: 4) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(String(format: "GPS: %.0fm", accuracy))
+          }
+          .font(.caption.bold())
+          .foregroundColor(marineTheme.colors.warning)
+          .padding(MarineTheme.Spacing.small)
+          .background(marineTheme.colors.warning.opacity(0.2))
+          .cornerRadius(MarineTheme.Metrics.cornerRadius)
+        } else if let error = viewModel.anchorDropError {
+          HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(error)
+              .font(.subheadline.bold())
+          }
+          .foregroundColor(marineTheme.colors.destructive)
+          .padding(MarineTheme.Spacing.small)
+          .background(marineTheme.colors.destructiveBackground)
+          .cornerRadius(MarineTheme.Metrics.cornerRadius)
         }
-        .foregroundColor(marineTheme.colors.warning)
-        .padding(MarineTheme.Spacing.small)
-        .background(marineTheme.colors.warning.opacity(0.2))
-        .cornerRadius(MarineTheme.Metrics.cornerRadius)
-      } else if isDragging, let reasonDesc = viewModel.triggerReasonDescription {
-        HStack(spacing: 6) {
-          Image(systemName: "exclamationmark.triangle.fill")
-          Text(reasonDesc)
-            .font(.subheadline.bold())
-            .multilineTextAlignment(.center)
-        }
-        .foregroundColor(marineTheme.colors.destructive)
-        .padding(MarineTheme.Spacing.small)
-        .background(marineTheme.colors.destructiveBackground)
-        .cornerRadius(MarineTheme.Metrics.cornerRadius)
-      } else if let initialAcc = viewModel.initialAccuracy?.converted(to: .meters).value, initialAcc > 15.0 {
-        HStack(spacing: 4) {
-          Image(systemName: "info.circle.fill")
-          Text(String(format: "Anchor dropped with degraded accuracy (±%.0fm)", initialAcc))
-        }
-        .font(.caption.bold())
-        .foregroundColor(marineTheme.colors.warning)
-        .padding(MarineTheme.Spacing.small)
-        .background(marineTheme.colors.warning.opacity(0.2))
-        .cornerRadius(MarineTheme.Metrics.cornerRadius)
-      } else if viewModel.isGPSAccuracyDegraded, let accuracy = viewModel.gpsAccuracy?.converted(to: .meters).value {
-        HStack(spacing: 4) {
-          Image(systemName: "exclamationmark.triangle.fill")
-          Text(String(format: "GPS: %.0fm", accuracy))
-        }
-        .font(.caption.bold())
-        .foregroundColor(marineTheme.colors.warning)
-        .padding(MarineTheme.Spacing.small)
-        .background(marineTheme.colors.warning.opacity(0.2))
-        .cornerRadius(MarineTheme.Metrics.cornerRadius)
-      } else if let error = viewModel.anchorDropError {
-        HStack(spacing: 6) {
-          Image(systemName: "exclamationmark.triangle.fill")
-          Text(error)
-            .font(.subheadline.bold())
-        }
-        .foregroundColor(marineTheme.colors.destructive)
-        .padding(MarineTheme.Spacing.small)
-        .background(marineTheme.colors.destructiveBackground)
-        .cornerRadius(MarineTheme.Metrics.cornerRadius)
       }
     }
   }
