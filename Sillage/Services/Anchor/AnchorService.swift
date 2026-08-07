@@ -22,10 +22,12 @@ final class AnchorService {
   private let notificationService: NotificationService
   private let permissionService: PermissionServiceProtocol
   private let backgroundMonitoringService: BackgroundMonitoringService
+  private let stateStore: AnchorStateStoreProtocol
   let alarmAudioService = AlarmAudioService()
   
   private(set) var activeWatch: AnchorWatch?
   private(set) var status: AnchorStatus = .inactive
+  private(set) var triggerReason: AnchorTriggerReason?
   private(set) var isMuted: Bool = false
   private(set) var isSensorDegraded: Bool = false
   private var isDegradedAlertSent: Bool = false
@@ -78,17 +80,21 @@ final class AnchorService {
     preferencesService: PreferencesServiceProtocol,
     notificationService: NotificationService,
     permissionService: PermissionServiceProtocol,
-    backgroundMonitoringService: BackgroundMonitoringService
+    backgroundMonitoringService: BackgroundMonitoringService,
+    stateStore: AnchorStateStoreProtocol = AnchorStateStore()
   ) {
     self.positioningService = positioningService
     self.preferencesService = preferencesService
     self.notificationService = notificationService
     self.permissionService = permissionService
     self.backgroundMonitoringService = backgroundMonitoringService
+    self.stateStore = stateStore
     
     // Resume from persistent state
-    self.activeWatch = preferencesService.savedAnchorWatch
-    self.status = preferencesService.savedAnchorStatus
+    let session = stateStore.loadSession()
+    self.activeWatch = session.activeWatch
+    self.status = session.status
+    self.triggerReason = session.triggerReason
     
     if self.status != .inactive {
       resumeWatch()
@@ -101,6 +107,7 @@ final class AnchorService {
     Logger.anchor.info("⚓️ Dropping anchor at \(coordinate.latitude), \(coordinate.longitude)")
     self.activeWatch = AnchorWatch(coordinate: coordinate, radius: radius)
     self.status = .dropped
+    self.triggerReason = nil
     self.isMuted = false
     persistState()
     
@@ -123,6 +130,7 @@ final class AnchorService {
     let watch = AnchorWatch(coordinate: coordinate, radius: radius)
     self.activeWatch = watch
     self.status = .armed
+    self.triggerReason = nil
     self.isMuted = false
     persistState()
     
@@ -139,6 +147,7 @@ final class AnchorService {
     Logger.anchor.info("⚓️ Disarming anchor watch (reverting to dropped state).")
     
     self.status = .dropped
+    self.triggerReason = nil
     self.isMuted = false
     self.isSensorDegraded = false
     persistState()
@@ -159,6 +168,7 @@ final class AnchorService {
     
     self.activeWatch = nil
     self.status = .inactive
+    self.triggerReason = nil
     self.isMuted = false
     self.isSensorDegraded = false
     persistState()
@@ -212,8 +222,12 @@ final class AnchorService {
   }
   
   private func persistState() {
-    preferencesService.savedAnchorWatch = activeWatch
-    preferencesService.savedAnchorStatus = status
+    let session = AnchorSessionData(
+      activeWatch: activeWatch,
+      status: status,
+      triggerReason: triggerReason
+    )
+    stateStore.saveSession(session)
   }
   
   private func startListeningToGPS() {
@@ -232,7 +246,9 @@ final class AnchorService {
           self?.handleDegradedGPS()
           self?.processLocationFix(fix)
         case .lost:
-          break
+          if self?.status == .armed {
+            self?.triggerAlarm(reason: .gpsSignalLost)
+          }
         }
       }
     }
@@ -278,17 +294,15 @@ final class AnchorService {
     case .maintainState:
       break
       
-    case .triggerAlarm(let distance, let radius):
-      triggerAlarm(
-        distance: distance.converted(to: UnitLength.meters).value,
-        radius: radius.converted(to: UnitLength.meters).value
-      )
+    case .triggerAlarm(let reason):
+      triggerAlarm(reason: reason)
       
     case .autoResolveAlarm(let reason):
       switch reason {
       case .vesselReturnedInCircle(let distance):
         Logger.anchor.info("⚓️ Vessel returned within anchor radius (\(Int(distance.value))m). Auto-resolving alarm.")
         status = .armed
+        triggerReason = nil
         isMuted = false
         alarmAudioService.stopSiren()
         notificationService.clearAllNotifications()
@@ -301,10 +315,11 @@ final class AnchorService {
 
 
   
-  private func triggerAlarm(distance: Double, radius: Double) {
-    Logger.anchor.fault("🚨 ANCHOR DRAGGING! Distance: \(distance, privacy: .public)m, Radius: \(radius, privacy: .public)m")
+  private func triggerAlarm(reason: AnchorTriggerReason) {
+    Logger.anchor.fault("🚨 ANCHOR ALARM TRIGGERED! Reason: \(String(describing: reason), privacy: .public)")
     
-    status = .dragging
+    self.triggerReason = reason
+    self.status = .dragging
     persistState()
     
     if !isMuted {
@@ -313,21 +328,17 @@ final class AnchorService {
         guard let self = self else { return }
         await self.notificationService.sendCriticalNotification(
           title: String(localized: "⚓️ DRAGGING ANCHOR!"),
-          body: String(localized: "Vessel is out of the safe zone (\(Int(distance))m)."),
+          body: String(localized: "Anchor alarm triggered."),
           identifier: NotificationIntent.anchorDragging.rawValue
         )
       }
     }
-
-
-    
     
     notifyStateChange()
   }
   
   func simulateDebugDragging() {
     Logger.anchor.fault("🚨 Debug dragging simulation triggered!")
-    self.status = .dragging
     self.isMuted = false
     
     // Offset simulated anchor coordinate from current GPS location so real GPS fixes compute distance > radius
@@ -344,9 +355,6 @@ final class AnchorService {
       )
     }
     self.currentDistance = Measurement(value: 165, unit: .meters)
-    persistState()
-    notifyStateChange()
+    triggerAlarm(reason: .debugSimulation)
   }
 }
-
-

@@ -95,8 +95,6 @@ final class MockPreferencesService: PreferencesServiceProtocol {
   var baroAlarmSensitivity: BaroAlarmSensitivity = .medium
   var barometerOffset: Measurement<UnitPressure> = Measurement(value: 0, unit: .hectopascals)
   
-  var savedAnchorWatch: AnchorWatch?
-  var savedAnchorStatus: AnchorStatus = .inactive
   var savedAnchorRadius: Measurement<UnitLength> = Measurement(value: 25.0, unit: .meters)
 }
 
@@ -167,6 +165,12 @@ final class MockPermissionService: PermissionServiceProtocol {
         requestMotionAuthorizationCalled = true
     }
 }
+final class MockAnchorStateStore: AnchorStateStoreProtocol, @unchecked Sendable {
+  var session = AnchorSessionData()
+  func loadSession() -> AnchorSessionData { session }
+  func saveSession(_ session: AnchorSessionData) { self.session = session }
+}
+
 @MainActor
 final class AnchorServiceTests: XCTestCase {
   
@@ -176,6 +180,7 @@ final class AnchorServiceTests: XCTestCase {
   var mockNotif: MockNotificationService!
   var mockPermission: MockPermissionService!
   var mockMonitoring: MockBackgroundMonitoringService!
+  var mockStateStore: MockAnchorStateStore!
   
   override func setUp() {
     super.setUp()
@@ -184,14 +189,22 @@ final class AnchorServiceTests: XCTestCase {
     mockNotif = MockNotificationService()
     mockPermission = MockPermissionService()
     mockMonitoring = MockBackgroundMonitoringService()
-    service = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif, permissionService: mockPermission, backgroundMonitoringService: mockMonitoring)
+    mockStateStore = MockAnchorStateStore()
+    service = AnchorService(
+      positioningService: mockGPS,
+      preferencesService: mockPrefs,
+      notificationService: mockNotif,
+      permissionService: mockPermission,
+      backgroundMonitoringService: mockMonitoring,
+      stateStore: mockStateStore
+    )
   }
   
-  func testAnchorService_rejectsInvalidAccuracy_MinusOne() async throws {
+  func testAnchorService_triggersAlarm_InvalidAccuracy_MinusOne() async throws {
     let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
     service.arm(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
     
-    // Simulate a fix OUTSIDE the radius (e.g. 100m away) but with INVALID accuracy (-1)
+    // Simulate a fix with INVALID accuracy (-1) while armed
     let badFixCoord = CLLocationCoordinate2D(latitude: 45.001, longitude: -1.0)
     let badFix = NavigationFix(
       coordinate: badFixCoord,
@@ -208,16 +221,16 @@ final class AnchorServiceTests: XCTestCase {
     // Wait for the async task to process the fix
     try await Task.sleep(nanoseconds: 500_000_000) // 100ms
     
-    // Status must still be .armed, NOT .dragging, because the fix was rejected
-    XCTAssertEqual(service.status, .armed)
-    XCTAssertEqual(mockNotif.sentNotifications.count, 0)
+    // Status must change to .dragging with .gpsSignalLost trigger reason
+    XCTAssertEqual(service.status, .dragging)
+    XCTAssertEqual(service.triggerReason, .gpsSignalLost)
   }
   
-  func testAnchorService_rejectsDegradedAccuracy_GreaterThanRadiusHalf() async throws {
+  func testAnchorService_triggersAlarm_PoorAccuracy() async throws {
     let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
     service.arm(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
     
-    // Simulate a fix OUTSIDE the radius (e.g. 100m away) but with DEGRADED accuracy (> 25m)
+    // Simulate a fix with DEGRADED accuracy (> 25m) while armed
     let degradedFixCoord = CLLocationCoordinate2D(latitude: 45.001, longitude: -1.0)
     let degradedFix = NavigationFix(
       coordinate: degradedFixCoord,
@@ -233,9 +246,14 @@ final class AnchorServiceTests: XCTestCase {
     
     try await Task.sleep(nanoseconds: 500_000_000) // 100ms
     
-    // Status must still be .armed, NOT .dragging
-    XCTAssertEqual(service.status, .armed)
-    XCTAssertEqual(mockNotif.sentNotifications.count, 0)
+    // Status must change to dragging with poorAccuracy reason
+    XCTAssertEqual(service.status, .dragging)
+    if case .poorAccuracy(let acc, let req) = service.triggerReason {
+      XCTAssertEqual(acc.value, 26.0)
+      XCTAssertEqual(req.value, 25.0)
+    } else {
+      XCTFail("Expected .poorAccuracy trigger reason")
+    }
   }
   
   func testAnchorService_triggersAlarm_ValidAccuracy() async throws {
@@ -260,7 +278,24 @@ final class AnchorServiceTests: XCTestCase {
     
     // Status must change to dragging
     XCTAssertEqual(service.status, .dragging)
+    if case .distanceExceeded(_, let rad) = service.triggerReason {
+      XCTAssertEqual(rad.value, 50.0)
+    } else {
+      XCTFail("Expected .distanceExceeded trigger reason")
+    }
     XCTAssertEqual(mockNotif.sentNotifications.count, 1)
+  }
+
+  func testAnchorService_triggersAlarm_GPSSignalLost() async throws {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    service.arm(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    
+    struct GPSTestError: Error {}
+    mockGPS.locationContinuation.yield(.lost(GPSTestError()))
+    try await Task.sleep(nanoseconds: 500_000_000)
+    
+    XCTAssertEqual(service.status, .dragging)
+    XCTAssertEqual(service.triggerReason, .gpsSignalLost)
   }
   
   func testAnchorService_silenceAlarm_preventsNotifications_and_resetsOnReturn() async throws {
@@ -404,13 +439,24 @@ final class AnchorServiceTests: XCTestCase {
   }
   
   func testAnchorService_initialization_resumesDroppedStateCorrectly() async throws {
-    // Setup preferences to simulate an app launch with an existing "dropped" anchor
+    // Setup stateStore to simulate an app launch with an existing "dropped" anchor
     let savedCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
-    mockPrefs.savedAnchorWatch = AnchorWatch(coordinate: savedCoord, radius: Measurement(value: 60, unit: .meters))
-    mockPrefs.savedAnchorStatus = .dropped
+    let stateStore = MockAnchorStateStore()
+    stateStore.session = AnchorSessionData(
+      activeWatch: AnchorWatch(coordinate: savedCoord, radius: Measurement(value: 60, unit: .meters)),
+      status: .dropped,
+      triggerReason: nil
+    )
     
-    // Re-initialize a new service with these mock preferences
-    let newService = AnchorService(positioningService: mockGPS, preferencesService: mockPrefs, notificationService: mockNotif, permissionService: mockPermission, backgroundMonitoringService: mockMonitoring)
+    // Re-initialize a new service with this mock state store
+    let newService = AnchorService(
+      positioningService: mockGPS,
+      preferencesService: mockPrefs,
+      notificationService: mockNotif,
+      permissionService: mockPermission,
+      backgroundMonitoringService: mockMonitoring,
+      stateStore: stateStore
+    )
     
     XCTAssertEqual(newService.status, .dropped)
     XCTAssertNotNil(newService.activeWatch)

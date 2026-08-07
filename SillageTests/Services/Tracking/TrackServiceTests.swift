@@ -87,8 +87,6 @@ struct TrackServiceTests {
     var baroAlarmSensitivity: BaroAlarmSensitivity = .medium
     var barometerOffset: Measurement<UnitPressure> = Measurement(value: 0, unit: .hectopascals)
     
-    var savedAnchorWatch: AnchorWatch?
-    var savedAnchorStatus: AnchorStatus = .inactive
     var savedAnchorRadius: Measurement<UnitLength> = Measurement(value: 25.0, unit: .meters)
   }
   

@@ -31,6 +31,7 @@ final class AnchorViewModel {
   private(set) var sog: Measurement<UnitSpeed>?
   private(set) var gpsAccuracy: Measurement<UnitLength>?
   private(set) var status: AnchorStatus = .inactive
+  private(set) var triggerReason: AnchorTriggerReason?
   private(set) var isAlertSilenced: Bool = false
   
   private(set) var configuredRadius: Measurement<UnitLength>
@@ -41,6 +42,29 @@ final class AnchorViewModel {
   var isGPSAccuracyDegraded: Bool {
     guard let accuracy = gpsAccuracy?.converted(to: .meters).value else { return false }
     return accuracy > 15.0
+  }
+
+  var triggerReasonDescription: String? {
+    guard let reason = triggerReason else { return nil }
+    let formatStyle = Measurement<UnitLength>.FormatStyle.measurement(
+      width: .abbreviated,
+      usage: .asProvided,
+      numberFormatStyle: .number.precision(.fractionLength(0))
+    )
+    switch reason {
+    case .distanceExceeded(let distance, let radius):
+      let distStr = distance.formatted(formatStyle)
+      let radStr = radius.formatted(formatStyle)
+      return String(localized: "Safety radius exceeded (\(distStr) / \(radStr))")
+    case .poorAccuracy(let accuracy, let requiredAccuracy):
+      let accStr = accuracy.formatted(formatStyle)
+      let reqStr = requiredAccuracy.formatted(formatStyle)
+      return String(localized: "Insufficient GPS accuracy (\(accStr), required <= \(reqStr))")
+    case .gpsSignalLost:
+      return String(localized: "GPS signal lost")
+    case .debugSimulation:
+      return String(localized: "Manual debug simulation")
+    }
   }
   
   var state: AnchorState {
@@ -96,6 +120,7 @@ final class AnchorViewModel {
     self.sog = anchorService.latestFix?.speedOverGround
     self.gpsAccuracy = anchorService.gpsAccuracy
     self.status = anchorService.status
+    self.triggerReason = anchorService.triggerReason
     
     if let watch = anchorService.activeWatch {
       self.anchorCoordinate = watch.coordinate

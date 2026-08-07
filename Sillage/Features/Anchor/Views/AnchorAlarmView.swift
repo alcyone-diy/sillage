@@ -102,7 +102,18 @@ public struct AnchorAlarmView: View {
         .foregroundColor(statusColor)
         .frame(maxWidth: .infinity, alignment: .center)
       
-      if viewModel.isGPSAccuracyDegraded, let accuracy = viewModel.gpsAccuracy?.converted(to: .meters).value {
+      if isDragging, let reasonDesc = viewModel.triggerReasonDescription {
+        HStack(spacing: 6) {
+          Image(systemName: "exclamationmark.triangle.fill")
+          Text(reasonDesc)
+            .font(.subheadline.bold())
+            .multilineTextAlignment(.center)
+        }
+        .foregroundColor(marineTheme.colors.destructive)
+        .padding(MarineTheme.Spacing.small)
+        .background(marineTheme.colors.destructiveBackground)
+        .cornerRadius(MarineTheme.Metrics.cornerRadius)
+      } else if viewModel.isGPSAccuracyDegraded, let accuracy = viewModel.gpsAccuracy?.converted(to: .meters).value {
         HStack(spacing: 4) {
           Image(systemName: "exclamationmark.triangle.fill")
           Text(String(format: "GPS: %.0fm", accuracy))
