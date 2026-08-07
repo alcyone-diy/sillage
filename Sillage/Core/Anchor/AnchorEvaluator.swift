@@ -15,7 +15,7 @@ import os
 /// The domain evaluation result specifying whether to trigger, resolve, or maintain an anchor alarm.
 public enum AnchorEvaluationResult: Equatable {
   case maintainState
-  case triggerAlarm(distance: Measurement<UnitLength>, radius: Measurement<UnitLength>)
+  case triggerAlarm(reason: AnchorTriggerReason)
   case autoResolveAlarm(reason: ResolutionReason)
 
   public enum ResolutionReason: Equatable {
@@ -38,8 +38,6 @@ public struct AnchorEvaluator {
     watch: AnchorWatch,
     currentStatus: AnchorStatus
   ) -> AnchorEvaluationResult {
-
-
     let anchorLocation = CLLocation(
       latitude: watch.coordinate.latitude,
       longitude: watch.coordinate.longitude
@@ -52,15 +50,25 @@ public struct AnchorEvaluator {
     let distanceInMeters = fixLocation.distance(from: anchorLocation)
     let radiusInMeters = watch.radius.converted(to: .meters).value
 
-    // 1. Strict Anti-False-Positive GPS Accuracy Filter:
-    // Only evaluate if accuracy is valid and within half the configured radius.
     let accuracyInMeters = fix.horizontalAccuracy.converted(to: .meters).value
     let requiredAccuracy = radiusInMeters / 2.0
+    let requiredAccuracyMeasurement = Measurement(value: requiredAccuracy, unit: UnitLength.meters)
 
-    if accuracyInMeters <= 0 || accuracyInMeters > requiredAccuracy {
+    if accuracyInMeters > requiredAccuracy {
       Logger.anchor.warning(
-        "⚓️ Poor GPS accuracy (\(accuracyInMeters, privacy: .public)m). Required: <= \(requiredAccuracy, privacy: .public)m. Skipping evaluation."
+        "⚓️ Poor GPS accuracy (\(accuracyInMeters, privacy: .public)m). Required: <= \(requiredAccuracy, privacy: .public)m."
       )
+      if currentStatus == .armed {
+        return .triggerAlarm(reason: .poorAccuracy(accuracy: fix.horizontalAccuracy, requiredAccuracy: requiredAccuracyMeasurement))
+      }
+      return .maintainState
+    }
+
+    if accuracyInMeters <= 0 {
+      Logger.anchor.warning("⚓️ Invalid GPS accuracy (\(accuracyInMeters, privacy: .public)m).")
+      if currentStatus == .armed {
+        return .triggerAlarm(reason: .gpsSignalLost)
+      }
       return .maintainState
     }
 
@@ -69,7 +77,7 @@ public struct AnchorEvaluator {
     // 2. State Transition Rules:
     if distanceInMeters > radiusInMeters {
       if currentStatus == .armed {
-        return .triggerAlarm(distance: currentDistance, radius: watch.radius)
+        return .triggerAlarm(reason: .distanceExceeded(distance: currentDistance, radius: watch.radius))
       }
     } else {
       if currentStatus == .dragging {

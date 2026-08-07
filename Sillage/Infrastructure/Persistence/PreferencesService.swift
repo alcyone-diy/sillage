@@ -46,8 +46,6 @@ protocol PreferencesServiceProtocol {
   var barometerOffset: Measurement<UnitPressure> { get set }
   
   // MARK: - Anchor Watch Settings
-  var savedAnchorWatch: AnchorWatch? { get set }
-  var savedAnchorStatus: AnchorStatus { get set }
   var savedAnchorRadius: Measurement<UnitLength> { get set }
 }
 
@@ -76,8 +74,6 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let baroAlarmSensitivityKey = "baroAlarmSensitivity"
   @ObservationIgnored private let barometerOffsetHPaKey = "barometerOffsetHPa"
   
-  @ObservationIgnored private let savedAnchorWatchDataKey = "savedAnchorWatchData"
-  @ObservationIgnored private let savedAnchorStatusKey = "savedAnchorStatus"
   @ObservationIgnored private let savedAnchorRadiusMetersKey = "savedAnchorRadiusMeters"
 
   @ObservationIgnored private let defaults = UserDefaults.standard
@@ -188,30 +184,6 @@ class PreferencesService: PreferencesServiceProtocol {
     set { rawBarometerOffsetHPa = newValue.converted(to: .hectopascals).value }
   }
   
-  var savedAnchorWatch: AnchorWatch? {
-    get {
-      guard let data = defaults.data(forKey: savedAnchorWatchDataKey) else { return nil }
-      return try? JSONDecoder().decode(AnchorWatch.self, from: data)
-    }
-    set {
-      if let newValue = newValue {
-        let data = try? JSONEncoder().encode(newValue)
-        defaults.set(data, forKey: savedAnchorWatchDataKey)
-      } else {
-        defaults.removeObject(forKey: savedAnchorWatchDataKey)
-      }
-    }
-  }
-
-  private var rawAnchorStatus: String {
-    didSet { defaults.set(rawAnchorStatus, forKey: savedAnchorStatusKey) }
-  }
-  
-  var savedAnchorStatus: AnchorStatus {
-    get { AnchorStatus(rawValue: rawAnchorStatus) ?? .inactive }
-    set { rawAnchorStatus = newValue.rawValue }
-  }
-  
   private var rawAnchorRadiusMeters: Double {
     didSet { defaults.set(rawAnchorRadiusMeters, forKey: savedAnchorRadiusMetersKey) }
   }
@@ -247,7 +219,6 @@ class PreferencesService: PreferencesServiceProtocol {
     self.rawBaroAlarmSensitivity = defaults.string(forKey: baroAlarmSensitivityKey) ?? BaroAlarmSensitivity.medium.rawValue
     self.rawBarometerOffsetHPa = defaults.object(forKey: barometerOffsetHPaKey) as? Double ?? 0.0
     
-    self.rawAnchorStatus = defaults.string(forKey: savedAnchorStatusKey) ?? AnchorStatus.inactive.rawValue
     self.rawAnchorRadiusMeters = defaults.object(forKey: savedAnchorRadiusMetersKey) as? Double ?? 25.0
   }
 

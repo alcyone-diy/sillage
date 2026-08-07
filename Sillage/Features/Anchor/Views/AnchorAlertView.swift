@@ -45,6 +45,17 @@ struct AnchorAlertView: View {
             .minimumScaleFactor(0.5)
             .padding(.horizontal, 16)
             .multilineTextAlignment(.center)
+
+          if let reasonDesc = anchorViewModel.triggerReasonDescription {
+            Text(reasonDesc)
+              .font(.system(size: 18, weight: .bold))
+              .foregroundColor(.white)
+              .padding(.horizontal, 16)
+              .padding(.vertical, 8)
+              .background(Color.black.opacity(0.4))
+              .cornerRadius(12)
+              .multilineTextAlignment(.center)
+          }
         }
         
         // Telemetry Data

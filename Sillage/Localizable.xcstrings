@@ -173,6 +173,9 @@
     "Anchor alarm is active but the app has stopped receiving GPS updates." : {
 
     },
+    "Anchor alarm triggered." : {
+
+    },
     "Anchor Alerts" : {
 
     },
@@ -452,6 +455,9 @@
     "GPS Information" : {
 
     },
+    "GPS signal lost" : {
+
+    },
     "GPS State" : {
 
     },
@@ -487,6 +493,16 @@
     },
     "Initializing Systems…" : {
 
+    },
+    "Insufficient GPS accuracy (%@, required <= %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Insufficient GPS accuracy (%1$@, required <= %2$@)"
+          }
+        }
+      }
     },
     "Internal error encoding context." : {
 
@@ -537,6 +553,9 @@
 
     },
     "Manage GeoGarage Account" : {
+
+    },
+    "Manual debug simulation" : {
 
     },
     "Map Cache" : {
@@ -682,6 +701,16 @@
     },
     "Safety & Legal" : {
 
+    },
+    "Safety radius exceeded (%@ / %@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Safety radius exceeded (%1$@ / %2$@)"
+          }
+        }
+      }
     },
     "Saved Tracks" : {
 
@@ -840,9 +869,6 @@
 
     },
     "Version" : {
-
-    },
-    "Vessel is out of the safe zone (%lldm)." : {
 
     },
     "Vigilance" : {
