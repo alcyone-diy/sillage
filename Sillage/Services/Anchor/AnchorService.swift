@@ -175,7 +175,8 @@ final class AnchorService {
       coordinate: watch.coordinate,
       radius: radius,
       initialAccuracy: watch.initialAccuracy,
-      createdAt: watch.createdAt
+      createdAt: watch.createdAt,
+      evitementHistory: watch.evitementHistory
     )
     persistState()
     notifyStateChange()
@@ -192,7 +193,8 @@ final class AnchorService {
       coordinate: newCoordinate,
       radius: watch.radius,
       initialAccuracy: nil,
-      createdAt: watch.createdAt
+      createdAt: watch.createdAt,
+      evitementHistory: watch.evitementHistory
     )
     
     if let fix = latestFix {
@@ -210,7 +212,13 @@ final class AnchorService {
     Logger.anchor.info("⚓️ Arming anchor watch at (\(coordinate.latitude, privacy: .public), \(coordinate.longitude, privacy: .public)). Radius: \(radius.value, privacy: .public) \(radius.unit.symbol, privacy: .public)")
     
     let initialAcc = activeWatch?.initialAccuracy ?? gpsAccuracy
-    let watch = AnchorWatch(coordinate: coordinate, radius: radius, initialAccuracy: initialAcc)
+    let currentHistory = activeWatch?.evitementHistory ?? []
+    let watch = AnchorWatch(
+      coordinate: coordinate,
+      radius: radius,
+      initialAccuracy: initialAcc,
+      evitementHistory: currentHistory
+    )
     self.activeWatch = watch
     self.status = .armed
     self.triggerReason = nil
@@ -303,6 +311,9 @@ final class AnchorService {
   }
   
   private func persistState() {
+    debouncePersistTask?.cancel()
+    debouncePersistTask = nil
+    
     let session = AnchorSessionData(
       activeWatch: activeWatch,
       status: status,
@@ -310,6 +321,7 @@ final class AnchorService {
     )
     stateStore.saveSession(session)
   }
+
   
   private func startListeningToGPS() {
     locationUpdateTask.task?.cancel()
@@ -387,6 +399,12 @@ final class AnchorService {
     
     let evaluationResult = evaluator.evaluate(fix: fix, watch: watch, currentStatus: status)
     
+    // Record evitement swing point if vessel moved spatially >= 2m in dropped, armed, or dragging status
+    if status == .dropped || status == .armed || status == .dragging {
+      recordEvitementPointIfNeeded(fix: fix)
+    }
+
+
     switch evaluationResult {
     case .maintainState:
       break
@@ -409,6 +427,54 @@ final class AnchorService {
 
     notifyStateChange()
   }
+
+  // MARK: - Evitement History & Debounced Persistence
+
+  private static let minEvitementDistanceThreshold = Measurement(value: 2.0, unit: UnitLength.meters)
+  private var debouncePersistTask: Task<Void, Never>?
+
+  /// Records a vessel location fix into activeWatch.evitementHistory if purely spatial filtering conditions are met.
+  /// Technical Design Choice: Purely spatial sampling (>= 2m movement) ensures stationary vessels do not exhaust
+  /// the circular buffer over long anchorage periods. Updates in-memory state immediately for live map rendering,
+  /// while disk persistence is debounced asynchronously to ensure eventual consistency even if movement stops.
+  private func recordEvitementPointIfNeeded(fix: NavigationFix) {
+    guard var watch = activeWatch, (status == .dropped || status == .armed || status == .dragging) else { return }
+
+    
+    let newCoord = fix.coordinate
+    if let lastPoint = watch.evitementHistory.last {
+      let lastLocation = CLLocation(latitude: lastPoint.coordinate.latitude, longitude: lastPoint.coordinate.longitude)
+      let newLocation = CLLocation(latitude: newCoord.latitude, longitude: newCoord.longitude)
+      let deltaDistance = Measurement(value: newLocation.distance(from: lastLocation), unit: UnitLength.meters)
+      
+      // Purely spatial filter: strictly require moving >= 2 meters
+      guard deltaDistance >= Self.minEvitementDistanceThreshold else {
+        return
+      }
+    }
+
+    let sample = AnchorEvitementPoint(coordinate: newCoord, timestamp: fix.timestamp)
+    watch.appendEvitementPoint(sample)
+    self.activeWatch = watch
+    
+    schedulePersistState()
+  }
+
+  /// Schedules a debounced disk save task (5 minutes) if a persistence task is not already pending.
+  /// Technical Design Choice: Ensures that state is deterministically flushed to disk after movement stops,
+  /// without swamping disk I/O on every 2-meter position update.
+  private func schedulePersistState() {
+    guard debouncePersistTask == nil else { return }
+    
+    debouncePersistTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .seconds(300))
+      guard !Task.isCancelled else { return }
+      self?.persistState()
+      self?.debouncePersistTask = nil
+    }
+  }
+
+
 
   private func triggerAlarm(reason: AnchorTriggerReason) {
     Logger.anchor.fault("🚨 ANCHOR ALARM TRIGGERED! Reason: \(String(describing: reason), privacy: .public)")

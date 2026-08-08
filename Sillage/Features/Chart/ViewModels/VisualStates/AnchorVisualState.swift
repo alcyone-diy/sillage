@@ -23,4 +23,20 @@ struct AnchorVisualState: Equatable {
   let pointCoordinate: CLLocationCoordinate2D
   let radius: Measurement<UnitLength>?
   let vesselCoordinate: CLLocationCoordinate2D?
+  let evitementCoordinates: [CLLocationCoordinate2D]
+
+  init(
+    status: AnchorVisualStatus,
+    pointCoordinate: CLLocationCoordinate2D,
+    radius: Measurement<UnitLength>?,
+    vesselCoordinate: CLLocationCoordinate2D?,
+    evitementCoordinates: [CLLocationCoordinate2D] = []
+  ) {
+    self.status = status
+    self.pointCoordinate = pointCoordinate
+    self.radius = radius
+    self.vesselCoordinate = vesselCoordinate
+    self.evitementCoordinates = evitementCoordinates
+  }
 }
+
