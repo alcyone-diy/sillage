@@ -45,49 +45,20 @@ public struct AnchorAdjustOverlayView: View {
 
   @ViewBuilder
   private var bottomControlPanel: some View {
-    VStack(spacing: MarineTheme.Spacing.medium) {
-      Text("Drag map to adjust anchor position")
-        .font(.subheadline.bold())
-        .foregroundColor(marineTheme.colors.textSecondary)
-        .multilineTextAlignment(.center)
-
-      HStack(spacing: MarineTheme.Spacing.medium) {
-        // Cancel Button
-        Button(action: {
-          Logger.anchor.info("User canceled anchor position adjustment")
-          anchorViewModel.cancelAdjustAnchor()
-          panelManagerViewModel?.openPanel(.command)
-        }) {
-          Label("Cancel", systemImage: "xmark")
-            .font(.headline.bold())
-            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(marineTheme.colors.surfaceBackground)
-            .foregroundColor(marineTheme.colors.textSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
-        }
-        .buttonStyle(MarineButtonStyle())
-
-        // Confirm Button
-        Button(action: {
-          let newCoordinate = chartViewModel.centerCoordinate
-          Logger.anchor.info("User confirmed new anchor coordinate at (\(newCoordinate.latitude, privacy: .public), \(newCoordinate.longitude, privacy: .public))")
-          anchorViewModel.confirmAdjustAnchor(to: newCoordinate)
-          panelManagerViewModel?.openPanel(.command)
-        }) {
-          Label("Confirm", systemImage: "checkmark")
-            .font(.headline.bold())
-            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(marineTheme.colors.vectorHDG)
-            .foregroundColor(marineTheme.colors.onPrimary)
-            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
-        }
-        .buttonStyle(MarineButtonStyle())
+    MarineActionConfirmationCard(
+      title: "Drag map to adjust anchor position",
+      onCancel: {
+        Logger.anchor.info("User canceled anchor position adjustment")
+        anchorViewModel.cancelAdjustAnchor()
+        panelManagerViewModel?.openPanel(.command)
+      },
+      onConfirm: {
+        let newCoordinate = chartViewModel.centerCoordinate
+        Logger.anchor.info("User confirmed new anchor coordinate at (\(newCoordinate.latitude, privacy: .public), \(newCoordinate.longitude, privacy: .public))")
+        anchorViewModel.confirmAdjustAnchor(to: newCoordinate)
+        panelManagerViewModel?.openPanel(.command)
       }
-    }
-    .padding(MarineTheme.Spacing.medium)
-    .background(Material.ultraThinMaterial)
-    .cornerRadius(MarineTheme.Metrics.cornerRadius)
-    .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
+    )
   }
 }
 
