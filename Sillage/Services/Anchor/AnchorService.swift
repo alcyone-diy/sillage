@@ -347,6 +347,11 @@ final class AnchorService {
     }
   }
   
+  /// Handles temporary GPS accuracy degradation during anchor watch.
+  /// Technical Design Choice: Uses a 2-second debounce interval via `Task.sleep` to prevent notification
+  /// flapping and false alarms caused by transient GPS hardware accuracy micro-fluctuations.
+  /// If the GPS signal improves or the watch state is modified within 2 seconds, `degradedAlertTask` is cancelled
+  /// and the critical alert notification is silently dropped.
   private func handleDegradedGPS() {
     guard status == .armed || status == .dragging else { return }
     guard !isDegradedAlertSent else { return }
@@ -356,13 +361,24 @@ final class AnchorService {
     Logger.anchor.warning("⚓️ GPS accuracy lost at anchor. Verification temporarily suspended.")
     
     if !isMuted {
-      // Unstructured task used as "fire-and-forget" to prevent blocking the GPS stream loop.
+      // Unstructured task used as "fire-and-forget" to prevent blocking the high-frequency GPS stream loop.
+      // Explicit 2-second debounce prevents notification spam on temporary GPS hardware chatter.
       degradedAlertTask?.cancel()
       degradedAlertTask = Task { [weak self] in
-        guard let self = self else { return }
+        try? await Task.sleep(for: .seconds(2))
+        guard let self = self, !Task.isCancelled else { return }
+        
+        let bodyText: String
+        if let accuracy = self.gpsAccuracy {
+          let formattedAccuracy = accuracy.converted(to: .meters).formatted(.anchorDistance)
+          bodyText = String(localized: "Critical GPS accuracy (\(formattedAccuracy)). Anchor alarm is temporarily unreliable.")
+        } else {
+          bodyText = String(localized: "Critical GPS accuracy. Anchor alarm is temporarily unreliable.")
+        }
+
         await self.notificationService.sendCriticalNotification(
           title: String(localized: "⚠️ Monitoring Suspended"),
-          body: String(localized: "Critical GPS accuracy. Anchor alarm is temporarily unreliable."),
+          body: bodyText,
           identifier: NotificationIntent.anchorGPSDegraded.rawValue
         )
       }
@@ -476,6 +492,38 @@ final class AnchorService {
 
 
 
+  /// Constructs localized notification titles and descriptive bodies for anchor alarm triggers.
+  /// Technical Design Choice: Uses Swift Foundation's `.formatted(.anchorDistance)` style on `Measurement<UnitLength>`
+  /// to ensure consistent unit representation (meters) without raw mathematical conversions or dummy fallback values.
+  private func notificationContent(for reason: AnchorTriggerReason) -> (title: String, body: String) {
+    switch reason {
+    case .distanceExceeded(let distance, let radius):
+      let distStr = distance.converted(to: .meters).formatted(.anchorDistance)
+      let radStr = radius.converted(to: .meters).formatted(.anchorDistance)
+      return (
+        title: String(localized: "⚓️ DRAGGING ANCHOR!"),
+        body: String(localized: "Vessel position is \(distStr) from anchor point (radius limit: \(radStr)).")
+      )
+    case .poorAccuracy(let accuracy, let requiredAccuracy):
+      let accStr = accuracy.converted(to: .meters).formatted(.anchorDistance)
+      let reqStr = requiredAccuracy.converted(to: .meters).formatted(.anchorDistance)
+      return (
+        title: String(localized: "⚠️ Anchor Alarm: GPS Degraded"),
+        body: String(localized: "GPS accuracy degraded to \(accStr) (required: \(reqStr)).")
+      )
+    case .gpsSignalLost:
+      return (
+        title: String(localized: "⚠️ Anchor Alarm: GPS Lost"),
+        body: String(localized: "GPS position signal lost during active anchor watch.")
+      )
+    case .debugSimulation:
+      return (
+        title: String(localized: "⚓️ DRAGGING ANCHOR! (Debug)"),
+        body: String(localized: "Debug simulation anchor alarm triggered.")
+      )
+    }
+  }
+
   private func triggerAlarm(reason: AnchorTriggerReason) {
     Logger.anchor.fault("🚨 ANCHOR ALARM TRIGGERED! Reason: \(String(describing: reason), privacy: .public)")
     
@@ -485,11 +533,12 @@ final class AnchorService {
     
     if !isMuted {
       alarmAudioService.startSiren()
+      let content = notificationContent(for: reason)
       Task { @MainActor [weak self] in
         guard let self = self else { return }
         await self.notificationService.sendCriticalNotification(
-          title: String(localized: "⚓️ DRAGGING ANCHOR!"),
-          body: String(localized: "Anchor alarm triggered."),
+          title: content.title,
+          body: content.body,
           identifier: NotificationIntent.anchorDragging.rawValue
         )
       }

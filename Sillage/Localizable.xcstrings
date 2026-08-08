@@ -101,7 +101,16 @@
     "⚓️ DRAGGING ANCHOR!" : {
 
     },
+    "⚓️ DRAGGING ANCHOR! (Debug)" : {
+
+    },
     "⚠️" : {
+
+    },
+    "⚠️ Anchor Alarm: GPS Degraded" : {
+
+    },
+    "⚠️ Anchor Alarm: GPS Lost" : {
 
     },
     "⚠️ Monitoring Suspended" : {
@@ -177,9 +186,6 @@
 
     },
     "Anchor alarm is active but the app has stopped receiving GPS updates." : {
-
-    },
-    "Anchor alarm triggered." : {
 
     },
     "Anchor Alerts" : {
@@ -305,10 +311,16 @@
     "Create Waypoint…" : {
 
     },
+    "Critical GPS accuracy (%@). Anchor alarm is temporarily unreliable." : {
+
+    },
     "Critical GPS accuracy. Anchor alarm is temporarily unreliable." : {
 
     },
     "Debug" : {
+
+    },
+    "Debug simulation anchor alarm triggered." : {
 
     },
     "Default style URL is not available." : {
@@ -473,7 +485,20 @@
     "Go To" : {
 
     },
+    "GPS accuracy degraded to %@ (required: %@)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "GPS accuracy degraded to %1$@ (required: %2$@)."
+          }
+        }
+      }
+    },
     "GPS Information" : {
+
+    },
+    "GPS position signal lost during active anchor watch." : {
 
     },
     "GPS signal lost" : {
@@ -882,6 +907,16 @@
     },
     "Version" : {
 
+    },
+    "Vessel position is %@ from anchor point (radius limit: %@)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Vessel position is %1$@ from anchor point (radius limit: %2$@)."
+          }
+        }
+      }
     },
     "Vigilance" : {
       "comment" : "Weather alarm"
