@@ -25,7 +25,8 @@ enum MapLayerIdentifier: String, CaseIterable, Comparable {
   case visibleWaypoints = "visible-waypoints-layer"
   case goToWaypoint = "goto-waypoint-layer"
   case anchorRadiusFill = "anchor-radius-layer"
-  case anchorRadiusStroke = "anchor-radius-stroke-layer"
+  case anchorRadiusStrokeDashed = "anchor-radius-stroke-dashed-layer"
+  case anchorRadiusStrokeSolid = "anchor-radius-stroke-solid-layer"
   case anchorEvitementLine = "anchor-evitement-layer"
   case anchorRodeLine = "anchor-rode-layer"
   case anchorPoint = "anchor-point-layer"
@@ -321,11 +322,18 @@ struct MapStyleController {
       anchorRadiusLayer.fillOpacity = NSExpression(forConstantValue: 0.15)
       insertLayer(anchorRadiusLayer, identifier: .anchorRadiusFill, into: style)
 
-      let anchorRadiusStrokeLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorRadiusStroke.rawValue, source: anchorRadiusSource)
-      anchorRadiusStrokeLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
-      anchorRadiusStrokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
-      anchorRadiusStrokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
-      insertLayer(anchorRadiusStrokeLayer, identifier: .anchorRadiusStroke, into: style)
+      let anchorRadiusStrokeDashedLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorRadiusStrokeDashed.rawValue, source: anchorRadiusSource)
+      anchorRadiusStrokeDashedLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
+      anchorRadiusStrokeDashedLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0] as [NSNumber])
+      anchorRadiusStrokeDashedLayer.lineWidth = NSExpression(forConstantValue: 2.5)
+      anchorRadiusStrokeDashedLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      insertLayer(anchorRadiusStrokeDashedLayer, identifier: .anchorRadiusStrokeDashed, into: style)
+
+      let anchorRadiusStrokeSolidLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorRadiusStrokeSolid.rawValue, source: anchorRadiusSource)
+      anchorRadiusStrokeSolidLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorArmed))
+      anchorRadiusStrokeSolidLayer.lineWidth = NSExpression(forConstantValue: 2.0)
+      anchorRadiusStrokeSolidLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      insertLayer(anchorRadiusStrokeSolidLayer, identifier: .anchorRadiusStrokeSolid, into: style)
 
       let anchorEvitementSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorEvitement.rawValue, shape: nil, options: nil)
       style.addSource(anchorEvitementSource)
@@ -429,7 +437,8 @@ struct MapStyleController {
     }
 
     guard let fillLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorRadiusFill.rawValue) as? MLNFillStyleLayer,
-          let strokeLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorRadiusStroke.rawValue) as? MLNLineStyleLayer,
+          let dashedLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorRadiusStrokeDashed.rawValue) as? MLNLineStyleLayer,
+          let solidLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorRadiusStrokeSolid.rawValue) as? MLNLineStyleLayer,
           let rodeLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorRodeLine.rawValue) as? MLNLineStyleLayer else {
       return
     }
@@ -451,7 +460,8 @@ struct MapStyleController {
     switch status {
     case .setup:
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
-      strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      dashedLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      solidLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
       rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
       evitementLayer?.lineOpacity = NSExpression(forConstantValue: 0.0)
 
@@ -459,13 +469,15 @@ struct MapStyleController {
       fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
 
-      strokeLayer.lineColor = NSExpression(forConstantValue: statusColor)
-      strokeLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
-      strokeLayer.lineWidth = NSExpression(forConstantValue: 3.0)
-      strokeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
+      dashedLayer.lineColor = NSExpression(forConstantValue: statusColor)
+      dashedLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0] as [NSNumber])
+      dashedLayer.lineWidth = NSExpression(forConstantValue: 2.5)
+      dashedLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
+
+      solidLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
 
       rodeLayer.lineColor = NSExpression(forConstantValue: statusColor)
-      rodeLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
+      rodeLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0] as [NSNumber])
       rodeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
       rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
 
@@ -477,13 +489,14 @@ struct MapStyleController {
       fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.10)
 
-      strokeLayer.lineColor = NSExpression(forConstantValue: statusColor)
-      strokeLayer.lineDashPattern = nil
-      strokeLayer.lineWidth = NSExpression(forConstantValue: 1.5)
-      strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
+      dashedLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+
+      solidLayer.lineColor = NSExpression(forConstantValue: statusColor)
+      solidLayer.lineWidth = NSExpression(forConstantValue: 2.0)
+      solidLayer.lineOpacity = NSExpression(forConstantValue: 0.9)
 
       rodeLayer.lineColor = NSExpression(forConstantValue: statusColor)
-      rodeLayer.lineDashPattern = NSExpression(forConstantValue: [6.0, 3.0])
+      rodeLayer.lineDashPattern = NSExpression(forConstantValue: [6.0, 3.0] as [NSNumber])
       rodeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
       rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.9)
 
@@ -495,10 +508,11 @@ struct MapStyleController {
       fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.25)
 
-      strokeLayer.lineColor = NSExpression(forConstantValue: statusColor)
-      strokeLayer.lineDashPattern = nil
-      strokeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
-      strokeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
+      dashedLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+
+      solidLayer.lineColor = NSExpression(forConstantValue: statusColor)
+      solidLayer.lineWidth = NSExpression(forConstantValue: 3.0)
+      solidLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
 
       rodeLayer.lineColor = NSExpression(forConstantValue: statusColor)
       rodeLayer.lineDashPattern = nil
