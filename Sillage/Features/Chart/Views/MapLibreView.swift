@@ -344,9 +344,10 @@ struct MapLibreView: UIViewRepresentable {
       // Only trigger at the start of the gesture to prevent multiple openings
       guard sender.state == .began else { return }
       
-      /// Technical Design Choice: Disable contextual gesture during anchor position adjustment
-      /// Prevents long-press waypoint popover creation while the user is actively aiming with the crosshair.
-      guard !parent.viewModel.anchorViewModel.isAdjustingAnchor else { return }
+      /// Technical Design Choice: Disable contextual gesture during active action confirmation cards
+      /// Prevents long-press waypoint popover creation whenever a MarineActionConfirmationCard is active
+      /// (e.g. anchor repositioning or offline area selection).
+      guard !parent.viewModel.isActionConfirmationCardActive else { return }
       
       guard let mapView = sender.view as? MLNMapView else { return }
 
