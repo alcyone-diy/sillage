@@ -40,7 +40,10 @@ public struct AnchorAdjustOverlayView: View {
           .padding(.bottom, 40)
       }
     }
-    .ignoresSafeArea(.all, edges: .top)
+    // CRITICAL: Must ignore all safe areas (not just .top) so that this ZStack's mathematical center
+    // perfectly aligns with the MapLibreView beneath it. Otherwise, the crosshair will be offset
+    // by the bottom home indicator safe area, causing inaccurate GPS coordinate sampling on confirm.
+    .ignoresSafeArea()
   }
 
   @ViewBuilder

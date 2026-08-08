@@ -207,6 +207,7 @@ struct MapStyleController {
       vesselSymbolLayer.iconRotation = NSExpression(forKeyPath: "course")
       vesselSymbolLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
       vesselSymbolLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
+      vesselSymbolLayer.iconAnchor = NSExpression(forConstantValue: "center")
       vesselSymbolLayer.iconOpacity = NSExpression(forConstantValue: 1.0)
       insertLayer(vesselSymbolLayer, identifier: .vesselSymbol, into: style)
     }
@@ -251,7 +252,7 @@ struct MapStyleController {
       if style.image(forName: imageName) == nil {
         if let image = AnchorGraphicsFactory.createAnchorImage(for: status, theme: theme) {
           style.setImage(image, forName: imageName)
-          Logger.mapStyle.debug("Registered anchor icon '\(imageName, privacy: .public)' in MapLibre style")
+          Logger.mapStyle.debug("Registered anchor icon image for status \(status.rawValue, privacy: .public)")
         }
       }
     }
@@ -362,6 +363,7 @@ struct MapStyleController {
       anchorPointLayer.iconImageName = NSExpression(forConstantValue: "anchor-icon-dropped")
       anchorPointLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
       anchorPointLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
+      anchorPointLayer.iconAnchor = NSExpression(forConstantValue: "center")
       anchorPointLayer.iconScale = NSExpression(forConstantValue: 1.0)
       anchorPointLayer.iconOpacity = NSExpression(forConstantValue: 1.0)
       insertLayer(anchorPointLayer, identifier: .anchorPoint, into: style)
