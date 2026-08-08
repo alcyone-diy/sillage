@@ -26,7 +26,7 @@ struct SettingsView: View {
         }
         .marineListCell()
         
-        NavigationLink(destination: ChartPreferencesView()) {
+        NavigationLink(value: PanelManagerViewModel.CommandDestination.chartPreferences) {
           Label("Chart Preferences", systemImage: "map")
             .marineFont(.body)
         }

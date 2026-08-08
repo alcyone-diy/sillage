@@ -40,24 +40,33 @@ struct OfflineRegionsManagerView: View {
           } else {
             Text("Tap '+' to select an area on the chart to download.")
           }
+        } actions: {
+          if chartViewModel.showOfflineAreaWarning {
+            NavigationLink(value: PanelManagerViewModel.CommandDestination.chartPreferences) {
+              Text("Chart Preferences")
+            }
+            .buttonStyle(.borderedProminent)
+          }
         }
       } else {
         List {
           if chartViewModel.showOfflineAreaWarning {
             Section {
-              HStack(alignment: .top, spacing: 12) {
-                Text("⚠️")
-                  .font(.title2)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                  Text("GeoGarage Required")
-                    .marineFont(.headline)
-                    .foregroundStyle(.primary)
+              NavigationLink(value: PanelManagerViewModel.CommandDestination.chartPreferences) {
+                HStack(alignment: .top, spacing: 12) {
+                  Text("⚠️")
+                    .font(.title2)
                   
-                  Text("Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences.")
-                    .marineFont(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                  VStack(alignment: .leading, spacing: 4) {
+                    Text("GeoGarage Required")
+                      .marineFont(.headline)
+                      .foregroundStyle(.primary)
+                    
+                    Text("Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences.")
+                      .marineFont(.subheadline)
+                      .foregroundStyle(.secondary)
+                      .fixedSize(horizontal: false, vertical: true)
+                  }
                 }
               }
               .marineListCell()
