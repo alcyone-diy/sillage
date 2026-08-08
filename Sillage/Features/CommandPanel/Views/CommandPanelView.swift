@@ -225,6 +225,8 @@ struct CommandPanelView: View {
           GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)
         case .offlineCharts:
           OfflineRegionsManagerView()
+        case .chartPreferences:
+          ChartPreferencesView()
         }
       }
       .handleTrackRecordingErrors()
