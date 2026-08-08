@@ -56,7 +56,13 @@ final class ChartViewModel {
       preferencesService.isOpenSeaMapOverlayEnabled = isOpenSeaMapOverlayEnabled
     }
   }
-  
+
+  // MARK: - Action Card State
+
+  /// Indicates whether a `MarineActionConfirmationCard` is actively presented on screen.
+  /// When `true`, MapLibre contextual long-press gestures are automatically disabled to prevent conflict.
+  var isActionConfirmationCardActive: Bool = false
+
   // MARK: - Chart Camera State
   
   var centerCoordinate: CLLocationCoordinate2D = AppConstants.defaultMapCenter

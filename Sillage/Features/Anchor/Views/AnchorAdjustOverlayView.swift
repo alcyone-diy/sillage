@@ -62,6 +62,12 @@ public struct AnchorAdjustOverlayView: View {
         panelManagerViewModel?.openPanel(.command)
       }
     )
+    .onAppear {
+      chartViewModel.isActionConfirmationCardActive = true
+    }
+    .onDisappear {
+      chartViewModel.isActionConfirmationCardActive = false
+    }
   }
 }
 

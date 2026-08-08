@@ -472,6 +472,31 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isOpenSeaMapOverlayEnabled, "OpenSeaMap seamark overlay must be automatically disabled when switching away from OpenSeaMap chart source")
     XCTAssertFalse(preferencesService.isOpenSeaMapOverlayEnabled)
   }
+
+  func testIsActionConfirmationCardActive_StateToggle() {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    XCTAssertFalse(viewModel.isActionConfirmationCardActive)
+    viewModel.isActionConfirmationCardActive = true
+    XCTAssertTrue(viewModel.isActionConfirmationCardActive)
+    viewModel.isActionConfirmationCardActive = false
+    XCTAssertFalse(viewModel.isActionConfirmationCardActive)
+  }
 }
 
 

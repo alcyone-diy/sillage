@@ -82,24 +82,6 @@ struct OfflineSelectionOverlayView: View {
                   self.bottomPanelHeight = newValue
               }
           }
-          
-          VStack {
-            HStack {
-              Spacer()
-              Button(action: {
-                viewModel.resetSelection()
-              }) {
-                Image(systemName: "xmark")
-                  .font(.title3.weight(.bold))
-                  .foregroundColor(marineTheme.colors.textPrimary)
-                  .padding(MarineTheme.Spacing.small)
-                  .background(Circle().fill(marineTheme.colors.overlay))
-              }
-              .padding()
-              .padding(.top, MarineTheme.Spacing.large) // Safe area spacing if needed
-            }
-            Spacer()
-          }
         }
         .onChange(of: geometry.size) { oldSize, newSize in
           if let current = viewModel.cropRect {
@@ -331,41 +313,49 @@ struct OfflineSelectionOverlayView: View {
     return CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
   }
   
-  /// Displays contextual information and actions based on the current state of the offline selection (e.g., download progress or area estimation).
+  /// Technical Design Choice: Modular Marine Action Card for Region Download
+  ///
+  /// Uses `MarineActionConfirmationCard` to standardize confirmation and cancellation across marine overlays:
+  /// 1. **Glove Mode & Fitts's Law:** Enforces minimum touch targets (66pt+ in Glove Mode) on both Cancel and Download buttons for operation under rough sea conditions.
+  /// 2. **High Glare Backdrop:** Employs `Material.ultraThinMaterial` backdrop to preserve chart context while ensuring high contrast readability under direct sunlight.
+  /// 3. **Dynamic Feedback:** Real-time surface area calculation is rendered dynamically in the card's header content, visually alerting the user via `marineTheme.colors.destructive` when size limits are exceeded.
   @ViewBuilder
   private var bottomPanel: some View {
     if let viewModel = viewModel {
-      VStack(spacing: MarineTheme.Spacing.medium) {
-        if let area = viewModel.estimatedArea {
-          Text(area.marineFormatted)
-            .marineFont(.title2)
-            .foregroundColor(viewModel.isValidSize ? .primary : marineTheme.colors.destructive)
-        } else {
-          Text("Calculating area...")
-            .marineFont(.body)
-            .foregroundColor(marineTheme.colors.textSecondary)
-        }
-        
-        Button(action: {
+      MarineActionConfirmationCard(
+        cancelTitle: "Cancel",
+        cancelIcon: "xmark",
+        onCancel: {
+          viewModel.resetSelection()
+        },
+        confirmTitle: "Download",
+        confirmIcon: "arrow.down.circle",
+        isConfirmDisabled: !viewModel.isValidSize,
+        onConfirm: {
           viewModel.startDownload(chartSource: chartViewModel?.currentChartSource)
           viewModel.isSelectionModeActive = false
-        }) {
-          Text("Download")
-            .marineFont(.headline)
-            .foregroundColor(.white)
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(viewModel.isValidSize ? marineTheme.colors.accent : marineTheme.colors.inactive)
-            .cornerRadius(MarineTheme.Metrics.cornerRadius)
         }
-        .buttonStyle(MarineButtonStyle())
-        .disabled(!viewModel.isValidSize)
+      ) {
+        VStack(spacing: MarineTheme.Spacing.small) {
+          if let area = viewModel.estimatedArea {
+            Text(area.marineFormatted)
+              .marineFont(.title2)
+              .foregroundColor(viewModel.isValidSize ? marineTheme.colors.textPrimary : marineTheme.colors.destructive)
+          } else {
+            Text("Calculating area...")
+              .marineFont(.body)
+              .foregroundColor(marineTheme.colors.textSecondary)
+          }
+        }
       }
-      .padding()
-      .background(marineTheme.colors.panelBackground)
-      .cornerRadius(MarineTheme.Metrics.cornerRadius)
-      .padding()
+      .padding(.horizontal, MarineTheme.Spacing.medium)
       .padding(.bottom, MarineTheme.Spacing.medium)
+      .onAppear {
+        chartViewModel?.isActionConfirmationCardActive = true
+      }
+      .onDisappear {
+        chartViewModel?.isActionConfirmationCardActive = false
+      }
     }
   }
 }
