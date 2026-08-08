@@ -59,6 +59,17 @@ struct ContentView: View {
           }
         }
         
+        MapCalloutOverlayView(
+          calloutViewModel: chartViewModel.calloutViewModel,
+          chartViewModel: chartViewModel
+        )
+        .ignoresSafeArea()
+        .onChange(of: panelManagerViewModel.activePanel) { _, newPanel in
+          if newPanel != .none {
+            chartViewModel.calloutViewModel.dismiss()
+          }
+        }
+
         OfflineSelectionOverlayView()
 
         if anchorViewModel.isAdjustingAnchor {

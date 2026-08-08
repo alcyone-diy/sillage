@@ -131,6 +131,7 @@ final class ChartViewModel {
   private let waypointService: WaypointService?
   private let anchorService: AnchorService
   let anchorViewModel: AnchorViewModel
+  let calloutViewModel = MapCalloutViewModel()
   private let messageService: MessageService?
   
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
