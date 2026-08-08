@@ -261,7 +261,7 @@ public struct AnchorAlarmView: View {
           viewModel.startPreparingDropAnchor()
           panelManagerViewModel?.closePanel()
         }) {
-          Label("Drop Anchor", systemImage: "water.waves.and.arrow.down")
+          Label("Select Drop Point", systemImage: "water.waves.and.arrow.down")
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
             .background(marineTheme.colors.primary)
