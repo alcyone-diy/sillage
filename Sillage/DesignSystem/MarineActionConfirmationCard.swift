@@ -39,6 +39,7 @@ public struct MarineActionConfirmationCard<Content: View>: View {
   private let confirmForegroundColor: Color?
   private let isConfirmDisabled: Bool
   private let onConfirm: @MainActor () -> Void
+  private let onHeightChange: ((CGFloat) -> Void)?
 
   /// Creates a modular action confirmation card with custom header content.
   /// - Parameters:
@@ -49,10 +50,11 @@ public struct MarineActionConfirmationCard<Content: View>: View {
   ///   - onCancel: Optional main-actor closure called when the user taps the cancel button.
   ///   - confirmTitle: Title for the confirm action button. Default is `"Confirm"`.
   ///   - confirmIcon: Optional SF Symbol icon name for the confirm button. Default is `"checkmark"`.
-  ///   - confirmStyle: Optional custom background color for the confirm button. Defaults to `vectorHDG`.
+  ///   - confirmStyle: Optional custom background color for the confirm button. Defaults to `primary`.
   ///   - confirmForegroundColor: Optional custom text/icon color for the confirm button. Defaults to `onPrimary`.
   ///   - isConfirmDisabled: Whether the confirm button is disabled. Default is `false`.
   ///   - onConfirm: Main-actor closure called when the user taps the confirm button.
+  ///   - onHeightChange: Optional closure receiving rendered card height changes for dynamic parent layout spacing.
   ///   - headerContent: A ViewBuilder returning custom content displayed above the action buttons.
   public init(
     cancelTitle: LocalizedStringKey? = "Cancel",
@@ -66,6 +68,7 @@ public struct MarineActionConfirmationCard<Content: View>: View {
     confirmForegroundColor: Color? = nil,
     isConfirmDisabled: Bool = false,
     onConfirm: @MainActor @escaping () -> Void,
+    onHeightChange: ((CGFloat) -> Void)? = nil,
     @ViewBuilder headerContent: () -> Content
   ) {
     self.cancelTitle = cancelTitle
@@ -79,6 +82,7 @@ public struct MarineActionConfirmationCard<Content: View>: View {
     self.confirmForegroundColor = confirmForegroundColor
     self.isConfirmDisabled = isConfirmDisabled
     self.onConfirm = onConfirm
+    self.onHeightChange = onHeightChange
     self.headerContent = headerContent()
   }
 
@@ -116,7 +120,7 @@ public struct MarineActionConfirmationCard<Content: View>: View {
           .background(
             isConfirmDisabled
               ? marineTheme.colors.disabledBackground
-              : (confirmStyle ?? marineTheme.colors.vectorHDG)
+              : (confirmStyle ?? marineTheme.colors.primary)
           )
           .foregroundColor(
             isConfirmDisabled
@@ -133,6 +137,14 @@ public struct MarineActionConfirmationCard<Content: View>: View {
     .background(Material.ultraThinMaterial)
     .cornerRadius(MarineTheme.Metrics.cornerRadius)
     .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
+    .onGeometryChange(for: CGFloat.self) { proxy in
+      proxy.size.height
+    } action: { newHeight in
+      onHeightChange?(newHeight)
+    }
+    .onDisappear {
+      onHeightChange?(0)
+    }
   }
 }
 
@@ -169,6 +181,7 @@ extension MarineActionConfirmationCard where Content == MarineCardInstructionTit
   ///   - confirmForegroundColor: Optional custom text/icon color for the confirm button.
   ///   - isConfirmDisabled: Whether the confirm button is disabled. Default is `false`.
   ///   - onConfirm: Main-actor closure called when the user taps the confirm button.
+  ///   - onHeightChange: Optional closure receiving rendered card height changes for dynamic parent layout spacing.
   public init(
     title: LocalizedStringKey,
     cancelTitle: LocalizedStringKey? = "Cancel",
@@ -181,7 +194,8 @@ extension MarineActionConfirmationCard where Content == MarineCardInstructionTit
     confirmStyle: Color? = nil,
     confirmForegroundColor: Color? = nil,
     isConfirmDisabled: Bool = false,
-    onConfirm: @MainActor @escaping () -> Void
+    onConfirm: @MainActor @escaping () -> Void,
+    onHeightChange: ((CGFloat) -> Void)? = nil
   ) {
     self.init(
       cancelTitle: cancelTitle,
@@ -194,7 +208,8 @@ extension MarineActionConfirmationCard where Content == MarineCardInstructionTit
       confirmStyle: confirmStyle,
       confirmForegroundColor: confirmForegroundColor,
       isConfirmDisabled: isConfirmDisabled,
-      onConfirm: onConfirm
+      onConfirm: onConfirm,
+      onHeightChange: onHeightChange
     ) {
       MarineCardInstructionTitle(title: title)
     }

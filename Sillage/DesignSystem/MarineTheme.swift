@@ -106,6 +106,12 @@ struct MarineTheme {
     static let medium: CGFloat = 16
     static let large: CGFloat = 24
     static let extraLarge: CGFloat = 32
+
+    /// Standard margin for full-screen overlay action cards
+    static let overlayCardBottom: CGFloat = 40.0
+
+    /// Default bottom safe area clearance for floating action buttons (FAB)
+    static let fabBottomDefault: CGFloat = 32.0
   }
 
   struct ChartMetrics {

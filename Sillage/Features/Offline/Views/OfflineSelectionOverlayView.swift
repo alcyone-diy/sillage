@@ -15,6 +15,7 @@ import SwiftUI
 struct OfflineSelectionOverlayView: View {
   @Environment(OfflineSelectionViewModel.self) private var viewModel: OfflineSelectionViewModel?
   @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
+  @Environment(PanelManagerViewModel.self) private var panelManagerViewModel: PanelManagerViewModel?
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.physicalSafeArea) private var physicalSafeArea
@@ -334,6 +335,10 @@ struct OfflineSelectionOverlayView: View {
         onConfirm: {
           viewModel.startDownload(chartSource: chartViewModel?.currentChartSource)
           viewModel.isSelectionModeActive = false
+        },
+        onHeightChange: { height in
+          panelManagerViewModel?.actionConfirmationCardHeight = height
+          panelManagerViewModel?.actionConfirmationCardBottomPadding = MarineTheme.Spacing.overlayCardBottom
         }
       ) {
         VStack(spacing: MarineTheme.Spacing.small) {
@@ -349,7 +354,7 @@ struct OfflineSelectionOverlayView: View {
         }
       }
       .padding(.horizontal, MarineTheme.Spacing.medium)
-      .padding(.bottom, MarineTheme.Spacing.medium)
+      .padding(.bottom, MarineTheme.Spacing.overlayCardBottom)
       .onAppear {
         chartViewModel?.isActionConfirmationCardActive = true
       }
