@@ -48,7 +48,7 @@ final class DefaultBackgroundMonitoringServiceTests: XCTestCase {
   
   private final class MockPositioningService: PositioningService {
     var currentAuthorizationStatus: CLAuthorizationStatus = .authorizedAlways
-    var locationContinuation: AsyncStream<PositioningState>.Continuation!
+    var locationContinuation: AsyncStream<PositioningState>.Continuation?
     var locationUpdates: AsyncStream<PositioningState>
     var authorizationStatusStream: AsyncStream<CLAuthorizationStatus>
     var currentDistanceFilter: Measurement<UnitLength> = Measurement(value: 10, unit: .meters)
@@ -106,7 +106,7 @@ final class DefaultBackgroundMonitoringServiceTests: XCTestCase {
     token.invalidate()
     
     // Wait for the async task inside invalidateToken to finish
-    try await Task.sleep(nanoseconds: 500_000_000)
+    try await waitFor { mockPositioning.lastBackgroundToken?.invalidateCallCount == 1 && mockNotification.cancelWatchdogCallCount == 1 }
     
     // Assert Cleanup
     XCTAssertEqual(mockPositioning.lastBackgroundToken?.invalidateCallCount, 1)
@@ -128,10 +128,10 @@ final class DefaultBackgroundMonitoringServiceTests: XCTestCase {
     
     // Yield a fix
     let fix = NavigationFix(coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0), horizontalAccuracy: Measurement(value: 1, unit: .meters), courseOverGround: nil, courseOverGroundAccuracy: nil, speedOverGround: nil, speedOverGroundAccuracy: nil, timestamp: Date())
-    mockPositioning.locationContinuation.yield(.active(fix))
+    mockPositioning.locationContinuation?.yield(.active(fix))
     
     // Wait for internal async loops
-    try await Task.sleep(nanoseconds: 500_000_000)
+    try await waitFor { mockNotification.checkInCallCount == 1 }
     
     // Assert
     let checkInCount = mockNotification.checkInCallCount

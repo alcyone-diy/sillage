@@ -20,33 +20,112 @@ final class MockBackgroundLocationToken: BackgroundLocationToken {
 
 @MainActor
 final class MockPositioningService: PositioningService {
-  var locationContinuation: AsyncStream<PositioningState>.Continuation!
-  var locationUpdates: AsyncStream<PositioningState>
+  struct LocationContinuationWrapper: Sendable {
+    weak var service: MockPositioningService?
+    
+    @discardableResult
+    @MainActor
+    func yield(_ value: PositioningState) -> AsyncStream<PositioningState>.Continuation.YieldResult {
+      service?.yieldLocation(value)
+      return .enqueued(remaining: 0)
+    }
+    
+    @MainActor
+    func finish() {
+      service?.finishLocationStreams()
+    }
+  }
+
+  struct AuthContinuationWrapper: Sendable {
+    weak var service: MockPositioningService?
+    
+    @discardableResult
+    @MainActor
+    func yield(_ value: CLAuthorizationStatus) -> AsyncStream<CLAuthorizationStatus>.Continuation.YieldResult {
+      service?.yieldAuth(value)
+      return .enqueued(remaining: 0)
+    }
+  }
+
+  private var locationContinuations: [UUID: AsyncStream<PositioningState>.Continuation] = [:]
+  private var authContinuations: [UUID: AsyncStream<CLAuthorizationStatus>.Continuation] = [:]
+
+  private(set) var locationUpdatesAccessCount = 0
+
+  var locationUpdates: AsyncStream<PositioningState> {
+    locationUpdatesAccessCount += 1
+    let (stream, continuation) = AsyncStream.makeStream(of: PositioningState.self)
+    let id = UUID()
+    locationContinuations[id] = continuation
+    continuation.onTermination = { [weak self] _ in
+      Task { @MainActor [weak self] in
+        self?.locationContinuations.removeValue(forKey: id)
+      }
+    }
+    return stream
+  }
+
+  var authorizationStatusStream: AsyncStream<CLAuthorizationStatus> {
+    let (stream, continuation) = AsyncStream.makeStream(of: CLAuthorizationStatus.self)
+    let id = UUID()
+    authContinuations[id] = continuation
+    continuation.onTermination = { [weak self] _ in
+      Task { @MainActor [weak self] in
+        self?.authContinuations.removeValue(forKey: id)
+      }
+    }
+    return stream
+  }
+
+  var locationContinuation: LocationContinuationWrapper?
   var currentDistanceFilter: Measurement<UnitLength> = Measurement(value: 10, unit: .meters)
   
   var currentAuthorizationStatus: CLAuthorizationStatus = .notDetermined
   
-  var authContinuation: AsyncStream<CLAuthorizationStatus>.Continuation!
-  var authorizationStatusStream: AsyncStream<CLAuthorizationStatus>
+  var authContinuation: AuthContinuationWrapper?
   
   var lastKnownLocation: NavigationFix?
   
   init() {
-    let (locStream, locCont) = AsyncStream.makeStream(of: PositioningState.self)
-    self.locationUpdates = locStream
-    self.locationContinuation = locCont
-    
-    let (authStream, authCont) = AsyncStream.makeStream(of: CLAuthorizationStatus.self)
-    self.authorizationStatusStream = authStream
-    self.authContinuation = authCont
+    self.locationContinuation = LocationContinuationWrapper(service: self)
+    self.authContinuation = AuthContinuationWrapper(service: self)
+  }
+
+  func yieldLocation(_ state: PositioningState) {
+    for continuation in locationContinuations.values {
+      continuation.yield(state)
+    }
+  }
+
+  func yieldAuth(_ status: CLAuthorizationStatus) {
+    self.currentAuthorizationStatus = status
+    for continuation in authContinuations.values {
+      continuation.yield(status)
+    }
+  }
+
+  func finishLocationStreams() {
+    for continuation in locationContinuations.values {
+      continuation.finish()
+    }
+    locationContinuations.removeAll()
   }
   
   func requestAuthorization() {}
-  private final class MockLocationUpdateToken: LocationUpdateToken {
-    func invalidate() {}
+  final class MockLocationUpdateToken: LocationUpdateToken {
+    private(set) var invalidateCallCount = 0
+    func invalidate() {
+      invalidateCallCount += 1
+    }
   }
+  private(set) var requestLocationUpdatesCallCount = 0
+  private(set) var lastUpdateToken: MockLocationUpdateToken?
+
   func requestLocationUpdates() -> any LocationUpdateToken {
-    return MockLocationUpdateToken()
+    requestLocationUpdatesCallCount += 1
+    let token = MockLocationUpdateToken()
+    lastUpdateToken = token
+    return token
   }
   
   func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {}
@@ -61,7 +140,7 @@ final class MockPositioningService: PositioningService {
   
   func simulateFix(_ fix: NavigationFix) {
     lastKnownLocation = fix
-    locationContinuation.yield(.active(fix))
+    locationContinuation?.yield(.active(fix))
   }
 }
 
@@ -218,9 +297,7 @@ final class AnchorServiceTests: XCTestCase {
     )
     
     mockGPS.simulateFix(badFix)
-    
-    // Wait for the async task to process the fix
-    try await Task.sleep(nanoseconds: 500_000_000) // 100ms
+    try await waitFor { service.status == .dragging }
     
     // Status must change to .dragging with .gpsSignalLost trigger reason
     XCTAssertEqual(service.status, .dragging)
@@ -244,8 +321,7 @@ final class AnchorServiceTests: XCTestCase {
     )
     
     mockGPS.simulateFix(degradedFix)
-    
-    try await Task.sleep(nanoseconds: 500_000_000) // 100ms
+    try await waitFor { service.status == .dragging }
     
     // Status must change to dragging with poorAccuracy reason
     XCTAssertEqual(service.status, .dragging)
@@ -274,8 +350,7 @@ final class AnchorServiceTests: XCTestCase {
     )
     
     mockGPS.simulateFix(validFix)
-    
-    try await Task.sleep(nanoseconds: 500_000_000) // 100ms
+    try await waitFor { service.status == .dragging && mockNotif.sentNotifications.count == 1 }
     
     // Status must change to dragging
     XCTAssertEqual(service.status, .dragging)
@@ -294,8 +369,8 @@ final class AnchorServiceTests: XCTestCase {
     service.arm(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
     
     struct GPSTestError: Error {}
-    mockGPS.locationContinuation.yield(.lost(GPSTestError()))
-    try await Task.sleep(nanoseconds: 500_000_000)
+    mockGPS.locationContinuation?.yield(.lost(GPSTestError()))
+    try await waitFor { service.status == .dragging }
     
     XCTAssertEqual(service.status, .dragging)
     XCTAssertEqual(service.triggerReason, .gpsSignalLost)
@@ -318,7 +393,7 @@ final class AnchorServiceTests: XCTestCase {
     )
     
     mockGPS.simulateFix(validFix)
-    try await Task.sleep(nanoseconds: 500_000_000)
+    try await waitFor { service.status == .dragging && mockNotif.sentNotifications.count == 1 }
     
     XCTAssertEqual(service.status, .dragging)
     XCTAssertEqual(mockNotif.sentNotifications.count, 1)
@@ -340,7 +415,7 @@ final class AnchorServiceTests: XCTestCase {
     )
     
     mockGPS.simulateFix(furtherFix)
-    try await Task.sleep(nanoseconds: 500_000_000)
+    try await waitFor { (service.currentDistance?.value ?? 0) > 200.0 }
     
     // Notification shouldn't trigger again because it is muted (and already dragging)
     XCTAssertEqual(service.status, .dragging)
@@ -359,14 +434,14 @@ final class AnchorServiceTests: XCTestCase {
     )
     
     mockGPS.simulateFix(returnFix)
-    try await Task.sleep(nanoseconds: 500_000_000)
+    try await waitFor { service.status == .armed }
     
     XCTAssertEqual(service.status, .armed)
     XCTAssertFalse(service.isMuted) // Mute flag should be reset
     
     // Go back outside
     mockGPS.simulateFix(validFix)
-    try await Task.sleep(nanoseconds: 500_000_000)
+    try await waitFor { service.status == .dragging && mockNotif.sentNotifications.count == 2 }
     
     XCTAssertEqual(service.status, .dragging)
     XCTAssertEqual(mockNotif.sentNotifications.count, 2) // Notification triggers again!
@@ -429,8 +504,8 @@ final class AnchorServiceTests: XCTestCase {
       speedOverGroundAccuracy: nil,
       timestamp: Date()
     )
-    mockGPS.locationContinuation.yield(.active(fix))
-    try await Task.sleep(nanoseconds: 500_000_000)
+    mockGPS.locationContinuation?.yield(.active(fix))
+    try await waitFor { service.currentDistance != nil }
     
     // The distance MUST be calculated and updated
     XCTAssertNotNil(service.currentDistance)
@@ -524,7 +599,7 @@ final class AnchorServiceTests: XCTestCase {
       timestamp: Date()
     )
     mockGPS.simulateFix(firstFix)
-    try await Task.sleep(nanoseconds: 500_000_000)
+    try await waitFor { service.status == .dropped }
     
     // Status must now be .dropped with coordinate locked
     XCTAssertEqual(service.status, .dropped)
@@ -563,7 +638,7 @@ final class AnchorServiceTests: XCTestCase {
     // 1. Drop anchor with initial accuracy 30m
     service.drop(coordinate: initialFix.coordinate, radius: Measurement(value: 50, unit: .meters))
     mockGPS.simulateFix(initialFix)
-    try await Task.sleep(nanoseconds: 500_000_000)
+    try await waitFor { service.status == .dropped && service.currentDistance != nil }
     
     XCTAssertEqual(service.status, .dropped)
     
@@ -595,7 +670,7 @@ final class AnchorServiceTests: XCTestCase {
       timestamp: Date()
     )
     mockGPS.simulateFix(fix)
-    try await Task.sleep(nanoseconds: 500_000_000)
+    try await waitFor { service.status == .armed && service.currentDistance != nil }
     
     XCTAssertEqual(service.status, .armed)
     
@@ -622,6 +697,15 @@ final class AnchorServiceTests: XCTestCase {
     XCTAssertEqual(service.activeWatch?.coordinate?.latitude, 45.001)
     XCTAssertNil(service.activeWatch?.initialAccuracy)
     XCTAssertNil(service.currentDistance)
+  }
+
+  func testAnchorService_cancelsLocationTask_whenSetupStopsAndInactive() async throws {
+    service.startSetupLocationUpdates()
+    XCTAssertEqual(mockGPS.requestLocationUpdatesCallCount, 1)
+    
+    service.stopSetupLocationUpdates()
+    XCTAssertEqual(mockGPS.lastUpdateToken?.invalidateCallCount, 1)
+    XCTAssertEqual(service.status, .inactive)
   }
 }
 
