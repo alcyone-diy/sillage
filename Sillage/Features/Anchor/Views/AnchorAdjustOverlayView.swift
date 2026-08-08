@@ -24,8 +24,10 @@ public struct AnchorAdjustOverlayView: View {
   public var body: some View {
     ZStack {
       // 1. Central Crosshair Reticle (Fixed at center of map viewport)
-      CrosshairView()
-        .allowsHitTesting(false)
+      MarineCrosshairView(
+        color: marineTheme.colors.vectorHDG,
+        centerDotColor: marineTheme.colors.destructive
+      )
 
       VStack {
         // 2. Top Sightline Telemetry HUD (Isolated sub-view for 120fps rendering)
@@ -155,33 +157,3 @@ fileprivate struct LineOfSightHUDView: View {
   }
 }
 
-// MARK: - Central Crosshair Reticle
-
-fileprivate struct CrosshairView: View {
-  @Environment(\.marineTheme) private var marineTheme
-
-  var body: some View {
-    ZStack {
-      // Outer Target Circle
-      Circle()
-        .stroke(marineTheme.colors.vectorHDG, lineWidth: 2.0)
-        .frame(width: 44, height: 44)
-
-      // Inner Center Dot
-      Circle()
-        .fill(marineTheme.colors.destructive)
-        .frame(width: 6, height: 6)
-
-      // Horizontal Line
-      Rectangle()
-        .fill(marineTheme.colors.vectorHDG)
-        .frame(width: 60, height: 1.5)
-
-      // Vertical Line
-      Rectangle()
-        .fill(marineTheme.colors.vectorHDG)
-        .frame(width: 1.5, height: 60)
-    }
-    .shadow(color: Color.black.opacity(0.5), radius: 4, x: 0, y: 2)
-  }
-}

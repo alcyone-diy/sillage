@@ -41,7 +41,7 @@ struct MapCalloutOverlayView: View {
         ZStack {
           // 1. Target Crosshair Reticle (Displayed only when targeting empty map space)
           if calloutViewModel.targetWaypointID == nil {
-            targetCrosshairView
+            MarineCrosshairView()
               .position(x: screenPoint.x, y: screenPoint.y)
           }
           
@@ -62,36 +62,6 @@ struct MapCalloutOverlayView: View {
         }
       }
       .ignoresSafeArea()
-    }
-  }
-  
-  // MARK: - Target Crosshair Reticle
-  
-  private var targetCrosshairView: some View {
-    ZStack {
-      // Outer reticle ring with white stroke shadow for visibility over dark/light charts
-      Circle()
-        .stroke(Color.white, lineWidth: 3)
-        .frame(width: 26, height: 26)
-        .shadow(color: .black.opacity(0.4), radius: 2)
-      
-      Circle()
-        .stroke(marineTheme.colors.primary, lineWidth: 2)
-        .frame(width: 26, height: 26)
-      
-      // Crosshair tick marks (+)
-      Rectangle()
-        .fill(marineTheme.colors.primary)
-        .frame(width: 1.5, height: 32)
-      
-      Rectangle()
-        .fill(marineTheme.colors.primary)
-        .frame(width: 32, height: 1.5)
-      
-      // Center focal dot
-      Circle()
-        .fill(marineTheme.colors.primary)
-        .frame(width: 6, height: 6)
     }
   }
   
