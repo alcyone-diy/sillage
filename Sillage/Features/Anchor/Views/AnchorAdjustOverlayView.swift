@@ -39,7 +39,7 @@ public struct AnchorAdjustOverlayView: View {
         // 3. Bottom Action Controls & Instruction Prompt
         bottomControlPanel
           .padding(.horizontal, MarineTheme.Spacing.medium)
-          .padding(.bottom, 40)
+          .padding(.bottom, MarineTheme.Spacing.overlayCardBottom)
       }
     }
     // CRITICAL: Must ignore all safe areas (not just .top) so that this ZStack's mathematical center
@@ -62,6 +62,10 @@ public struct AnchorAdjustOverlayView: View {
         Logger.anchor.info("User confirmed new anchor coordinate at (\(newCoordinate.latitude, privacy: .public), \(newCoordinate.longitude, privacy: .public))")
         anchorViewModel.confirmAdjustAnchor(to: newCoordinate)
         panelManagerViewModel?.openPanel(.command)
+      },
+      onHeightChange: { height in
+        panelManagerViewModel?.actionConfirmationCardHeight = height
+        panelManagerViewModel?.actionConfirmationCardBottomPadding = MarineTheme.Spacing.overlayCardBottom
       }
     )
   }

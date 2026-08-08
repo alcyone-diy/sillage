@@ -42,6 +42,10 @@ public final class PanelManagerViewModel {
   /// The view stack path for the Command Panel.
   public var commandPath: [CommandDestination] = []
 
+  // MARK: - Action Confirmation Card Layout State
+  public var actionConfirmationCardHeight: CGFloat = 0
+  public var actionConfirmationCardBottomPadding: CGFloat = 0
+
   public init() {}
 
   /// Opens the specified panel.

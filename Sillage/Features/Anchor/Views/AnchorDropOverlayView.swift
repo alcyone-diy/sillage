@@ -36,15 +36,18 @@ public struct AnchorDropOverlayView: View {
         },
         confirmTitle: "Drop Anchor",
         confirmIcon: "water.waves.and.arrow.down",
-        confirmStyle: marineTheme.colors.primary,
         onConfirm: {
           Logger.anchor.info("User confirmed drop anchor from full-screen overlay")
           anchorViewModel.confirmDropAnchor()
           panelManagerViewModel?.openAnchorAlarmPanel()
+        },
+        onHeightChange: { height in
+          panelManagerViewModel?.actionConfirmationCardHeight = height
+          panelManagerViewModel?.actionConfirmationCardBottomPadding = MarineTheme.Spacing.overlayCardBottom
         }
       )
       .padding(.horizontal, MarineTheme.Spacing.medium)
-      .padding(.bottom, 40)
+      .padding(.bottom, MarineTheme.Spacing.overlayCardBottom)
     }
     .ignoresSafeArea()
   }

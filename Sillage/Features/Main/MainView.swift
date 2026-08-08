@@ -80,61 +80,58 @@ struct ContentView: View {
             .transition(.opacity)
         }
 
-        // UI Overlay (Focus Mode: Hidden during anchor position adjustment; Top Dashboard & Command Button hidden during drop anchor preparation)
-        if !anchorViewModel.isAdjustingAnchor {
-          VStack {
-            if !anchorViewModel.isPreparingDropAnchor {
-              // Top Marine Dashboard
-              marineDashboard
+        // UI Overlay (Focus Mode during Action Confirmation Cards: Top Dashboard & Command Panel Button hidden; Location Button remains visible elevated above the card)
+        VStack {
+          if !chartViewModel.isActionConfirmationCardActive {
+            // Top Marine Dashboard
+            marineDashboard
 
-              if anchorViewModel.status == .dragging && anchorViewModel.isAlertSilenced {
-                AnchoringStatusCapsuleView(anchorViewModel: anchorViewModel) {
-                  panelManagerViewModel.openAnchorAlarmPanel()
-                }
-                .padding(.horizontal)
-                .transition(.move(edge: .top).combined(with: .opacity))
+            if anchorViewModel.status == .dragging && anchorViewModel.isAlertSilenced {
+              AnchoringStatusCapsuleView(anchorViewModel: anchorViewModel) {
+                panelManagerViewModel.openAnchorAlarmPanel()
               }
+              .padding(.horizontal)
+              .transition(.move(edge: .top).combined(with: .opacity))
+            }
+          }
+
+          Spacer()
+
+          // Bottom Floating Action Buttons
+          HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 16) {
+              MapScaleView(mapScale: chartViewModel.mapScale, zoomLevel: chartViewModel.zoomLevel)
+                .padding(.leading, 8)
+
+              // Location / Recenter Button (ALWAYS DISPLAYED)
+              Button(action: {
+                if let gate = panelManagerViewModel.executeOrRequestPermission(
+                    type: .location(trigger: .mapTracking),
+                    in: permissionService,
+                    action: { [weak chartViewModel] in
+                        chartViewModel?.toggleTrackingMode()
+                    }
+                ) {
+                    permissionGateType = gate
+                }
+              }) {
+                Image(marineIcon: trackingIconName(for: chartViewModel.trackingMode))
+                  .marineFont(.title3)
+                  .foregroundColor(.white)
+              }
+              .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: chartViewModel.trackingMode)))
+              .padding()
+              .padding(.bottom, locationButtonBottomPadding)
+              .animation(.easeInOut(duration: 0.25), value: chartViewModel.isActionConfirmationCardActive)
             }
 
             Spacer()
 
-            // Bottom Floating Action Buttons
-            HStack(alignment: .bottom) {
-              VStack(alignment: .leading, spacing: 16) {
-                MapScaleView(mapScale: chartViewModel.mapScale, zoomLevel: chartViewModel.zoomLevel)
-                  .padding(.leading, 8)
-                  
-                if !anchorViewModel.isPreparingDropAnchor {
-                  // Recenter Button
-                  Button(action: {
-                    if let gate = panelManagerViewModel.executeOrRequestPermission(
-                        type: .location(trigger: .mapTracking),
-                        in: permissionService,
-                        action: { [weak chartViewModel] in
-                            chartViewModel?.toggleTrackingMode()
-                        }
-                    ) {
-                        permissionGateType = gate
-                    }
-                  }) {
-                    Image(marineIcon: trackingIconName(for: chartViewModel.trackingMode))
-                      .marineFont(.title3)
-                      .foregroundColor(.white)
-                  }
-                  .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: chartViewModel.trackingMode)))
-                  .padding()
-                  .padding(.bottom, 30) // Clears bottom safe area
-                }
-              }
-
-              Spacer()
-
-              if !anchorViewModel.isPreparingDropAnchor {
-                // Command Panel Button
-                CommandButtonView()
-                  .padding()
-                  .padding(.bottom, 30) // Clears bottom safe area
-              }
+            if !chartViewModel.isActionConfirmationCardActive {
+              // Command Panel Button (NEVER DISPLAYED when an action confirmation card is active)
+              CommandButtonView()
+                .padding()
+                .padding(.bottom, MarineTheme.Spacing.fabBottomDefault)
             }
           }
         }
@@ -320,6 +317,15 @@ struct ContentView: View {
     case .free: return .trackingFree
     case .northUp: return .trackingNorthUp
     case .courseUp: return .trackingCourseUp
+    }
+  }
+
+  /// Dynamically computes the bottom padding for the Location FAB to maintain exact theme spacing above active confirmation cards.
+  private var locationButtonBottomPadding: CGFloat {
+    if chartViewModel.isActionConfirmationCardActive && panelManagerViewModel.actionConfirmationCardHeight > 0 {
+      return panelManagerViewModel.actionConfirmationCardHeight + panelManagerViewModel.actionConfirmationCardBottomPadding
+    } else {
+      return MarineTheme.Spacing.fabBottomDefault
     }
   }
 
