@@ -468,13 +468,17 @@ final class ChartViewModel {
       return newCoord
     }()
     
+    let evitementCoords = watch.evitementHistory.map(\.coordinate)
+    
     anchorVisualState = AnchorVisualState(
       status: visualStatus,
       pointCoordinate: targetCoordinate,
       radius: watch.radius,
-      vesselCoordinate: throttledVesselCoord
+      vesselCoordinate: throttledVesselCoord,
+      evitementCoordinates: evitementCoords
     )
   }
+
   
   // MARK: - Location Handling
   

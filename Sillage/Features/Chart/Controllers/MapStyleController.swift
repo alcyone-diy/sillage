@@ -26,6 +26,7 @@ enum MapLayerIdentifier: String, CaseIterable, Comparable {
   case goToWaypoint = "goto-waypoint-layer"
   case anchorRadiusFill = "anchor-radius-layer"
   case anchorRadiusStroke = "anchor-radius-stroke-layer"
+  case anchorEvitementLine = "anchor-evitement-layer"
   case anchorRodeLine = "anchor-rode-layer"
   case anchorPoint = "anchor-point-layer"
   case headingLine = "heading-vector-layer"
@@ -54,9 +55,11 @@ enum MapSourceIdentifier: String, CaseIterable {
   case heading = "heading-vector-source"
   case vessel = "vessel-source"
   case anchorRadius = "anchor-radius-source"
+  case anchorEvitement = "anchor-evitement-source"
   case anchorRode = "anchor-rode-source"
   case anchorPoint = "anchor-point-source"
 }
+
 
 /// Stateless MapLibre style worker.
 /// All operations are isolated to the `@MainActor`.
@@ -324,6 +327,16 @@ struct MapStyleController {
       anchorRadiusStrokeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
       insertLayer(anchorRadiusStrokeLayer, identifier: .anchorRadiusStroke, into: style)
 
+      let anchorEvitementSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorEvitement.rawValue, shape: nil, options: nil)
+      style.addSource(anchorEvitementSource)
+
+      let anchorEvitementLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorEvitementLine.rawValue, source: anchorEvitementSource)
+      anchorEvitementLayer.lineWidth = NSExpression(forConstantValue: 2.5)
+      anchorEvitementLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorArmed))
+      anchorEvitementLayer.lineOpacity = NSExpression(forConstantValue: 0.70)
+      insertLayer(anchorEvitementLayer, identifier: .anchorEvitementLine, into: style)
+
+
       let anchorRodeSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorRode.rawValue, shape: nil, options: nil)
       style.addSource(anchorRodeSource)
 
@@ -394,6 +407,9 @@ struct MapStyleController {
     if let source = style.source(withIdentifier: MapSourceIdentifier.anchorRadius.rawValue) as? MLNShapeSource {
       source.shape = anchorFeatures.radiusFeature
     }
+    if let source = style.source(withIdentifier: MapSourceIdentifier.anchorEvitement.rawValue) as? MLNShapeSource {
+      source.shape = anchorFeatures.evitementLineFeature
+    }
     if let source = style.source(withIdentifier: MapSourceIdentifier.anchorRode.rawValue) as? MLNShapeSource {
       source.shape = anchorFeatures.rodeLineFeature
     }
@@ -404,6 +420,7 @@ struct MapStyleController {
       updateAnchorLayerStyles(in: style, for: status, with: theme)
     }
   }
+
 
   /// Updates fill and stroke styles for the anchor radius, rode line, and point layers based on status.
   private static func updateAnchorLayerStyles(in style: MLNStyle, for status: AnchorVisualStatus, with theme: MarineTheme) {
@@ -416,6 +433,8 @@ struct MapStyleController {
           let rodeLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorRodeLine.rawValue) as? MLNLineStyleLayer else {
       return
     }
+
+    let evitementLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorEvitementLine.rawValue) as? MLNLineStyleLayer
 
     let statusColor: UIColor
     switch status {
@@ -434,6 +453,7 @@ struct MapStyleController {
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
       strokeLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
       rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      evitementLayer?.lineOpacity = NSExpression(forConstantValue: 0.0)
 
     case .dropped:
       fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
@@ -449,6 +469,10 @@ struct MapStyleController {
       rodeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
       rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
 
+      evitementLayer?.lineColor = NSExpression(forConstantValue: statusColor)
+      evitementLayer?.lineWidth = NSExpression(forConstantValue: 2.5)
+      evitementLayer?.lineOpacity = NSExpression(forConstantValue: 0.70)
+
     case .armed:
       fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.10)
@@ -463,6 +487,10 @@ struct MapStyleController {
       rodeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
       rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.9)
 
+      evitementLayer?.lineColor = NSExpression(forConstantValue: statusColor)
+      evitementLayer?.lineWidth = NSExpression(forConstantValue: 2.5)
+      evitementLayer?.lineOpacity = NSExpression(forConstantValue: 0.70)
+
     case .dragging:
       fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
       fillLayer.fillOpacity = NSExpression(forConstantValue: 0.25)
@@ -476,7 +504,13 @@ struct MapStyleController {
       rodeLayer.lineDashPattern = nil
       rodeLayer.lineWidth = NSExpression(forConstantValue: 3.0)
       rodeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
+
+      evitementLayer?.lineColor = NSExpression(forConstantValue: statusColor)
+      evitementLayer?.lineWidth = NSExpression(forConstantValue: 3.0)
+      evitementLayer?.lineOpacity = NSExpression(forConstantValue: 0.90)
     }
   }
+
+
 }
 

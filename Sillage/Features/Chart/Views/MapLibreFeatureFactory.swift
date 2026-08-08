@@ -15,13 +15,14 @@ struct AnchorFeatures {
   let pointFeature: MLNPointFeature?
   let radiusFeature: MLNPolygonFeature?
   let rodeLineFeature: MLNPolylineFeature?
+  let evitementLineFeature: MLNPolylineFeature?
 }
 
 @MainActor
 enum MapLibreFeatureFactory {
   static func createAnchorFeatures(from state: AnchorVisualState?) -> AnchorFeatures {
     guard let state else {
-      return AnchorFeatures(pointFeature: nil, radiusFeature: nil, rodeLineFeature: nil)
+      return AnchorFeatures(pointFeature: nil, radiusFeature: nil, rodeLineFeature: nil, evitementLineFeature: nil)
     }
     
     let pointFeature = MLNPointFeature()
@@ -43,21 +44,29 @@ enum MapLibreFeatureFactory {
       return feature
     }()
     
-    let rodeLineFeature: MLNPolylineFeature? = {
-      guard let vesselCoord = state.vesselCoordinate,
-            state.status == .dropped || state.status == .armed || state.status == .dragging else {
+    let rodeLineFeature: MLNPolylineFeature? = nil
+
+
+    let evitementLineFeature: MLNPolylineFeature? = {
+      guard state.evitementCoordinates.count >= 2 else {
         return nil
       }
-      var coords: [CLLocationCoordinate2D] = [vesselCoord, state.pointCoordinate]
-      let feature = MLNPolylineFeature(coordinates: &coords, count: 2)
+      var coords = state.evitementCoordinates
+      let feature = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
       feature.attributes = [
-        MapFeatureKey.type.rawValue: MapFeatureType.anchorRode.rawValue,
+        MapFeatureKey.type.rawValue: "anchor-evitement-line",
       ]
       return feature
     }()
     
-    return AnchorFeatures(pointFeature: pointFeature, radiusFeature: radiusFeature, rodeLineFeature: rodeLineFeature)
+    return AnchorFeatures(
+      pointFeature: pointFeature,
+      radiusFeature: radiusFeature,
+      rodeLineFeature: rodeLineFeature,
+      evitementLineFeature: evitementLineFeature
+    )
   }
+
   
   static func createVesselFeature(from state: VesselVisualState?) -> MLNPointFeature? {
     guard let state = state else { return nil }
