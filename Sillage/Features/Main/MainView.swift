@@ -75,23 +75,25 @@ struct ContentView: View {
         if anchorViewModel.isAdjustingAnchor {
           AnchorAdjustOverlayView()
             .transition(.opacity)
+        } else if anchorViewModel.isPreparingDropAnchor {
+          AnchorDropOverlayView()
+            .transition(.opacity)
         }
 
-        // UI Overlay (Focus Mode: Hidden completely during anchor position adjustment)
+        // UI Overlay (Focus Mode: Hidden during anchor position adjustment; Top Dashboard & Command Button hidden during drop anchor preparation)
         if !anchorViewModel.isAdjustingAnchor {
           VStack {
-            // Top Marine Dashboard
-            marineDashboard
+            if !anchorViewModel.isPreparingDropAnchor {
+              // Top Marine Dashboard
+              marineDashboard
 
-            if anchorViewModel.status == .dragging && anchorViewModel.isAlertSilenced {
-              AnchoringStatusCapsuleView(anchorViewModel: anchorViewModel) {
-                if panelManagerViewModel.commandPath.last != .anchorAlarm {
-                  panelManagerViewModel.commandPath.append(.anchorAlarm)
+              if anchorViewModel.status == .dragging && anchorViewModel.isAlertSilenced {
+                AnchoringStatusCapsuleView(anchorViewModel: anchorViewModel) {
+                  panelManagerViewModel.openAnchorAlarmPanel()
                 }
-                panelManagerViewModel.openPanel(.command)
+                .padding(.horizontal)
+                .transition(.move(edge: .top).combined(with: .opacity))
               }
-              .padding(.horizontal)
-              .transition(.move(edge: .top).combined(with: .opacity))
             }
 
             Spacer()
@@ -102,33 +104,37 @@ struct ContentView: View {
                 MapScaleView(mapScale: chartViewModel.mapScale, zoomLevel: chartViewModel.zoomLevel)
                   .padding(.leading, 8)
                   
-                // Recenter Button
-                Button(action: {
-                  if let gate = panelManagerViewModel.executeOrRequestPermission(
-                      type: .location(trigger: .mapTracking),
-                      in: permissionService,
-                      action: { [weak chartViewModel] in
-                          chartViewModel?.toggleTrackingMode()
-                      }
-                  ) {
-                      permissionGateType = gate
+                if !anchorViewModel.isPreparingDropAnchor {
+                  // Recenter Button
+                  Button(action: {
+                    if let gate = panelManagerViewModel.executeOrRequestPermission(
+                        type: .location(trigger: .mapTracking),
+                        in: permissionService,
+                        action: { [weak chartViewModel] in
+                            chartViewModel?.toggleTrackingMode()
+                        }
+                    ) {
+                        permissionGateType = gate
+                    }
+                  }) {
+                    Image(marineIcon: trackingIconName(for: chartViewModel.trackingMode))
+                      .marineFont(.title3)
+                      .foregroundColor(.white)
                   }
-                }) {
-                  Image(marineIcon: trackingIconName(for: chartViewModel.trackingMode))
-                    .marineFont(.title3)
-                    .foregroundColor(.white)
+                  .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: chartViewModel.trackingMode)))
+                  .padding()
+                  .padding(.bottom, 30) // Clears bottom safe area
                 }
-                .buttonStyle(MarineFABStyle(backgroundColor: trackingBackgroundColor(for: chartViewModel.trackingMode)))
-                .padding()
-                .padding(.bottom, 30) // Clears bottom safe area
               }
 
               Spacer()
 
-              // Command Panel Button
-              CommandButtonView()
-                .padding()
-                .padding(.bottom, 30) // Clears bottom safe area
+              if !anchorViewModel.isPreparingDropAnchor {
+                // Command Panel Button
+                CommandButtonView()
+                  .padding()
+                  .padding(.bottom, 30) // Clears bottom safe area
+              }
             }
           }
         }

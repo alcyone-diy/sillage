@@ -60,6 +60,7 @@ final class MockPositioningService: PositioningService {
   }
   
   func simulateFix(_ fix: NavigationFix) {
+    lastKnownLocation = fix
     locationContinuation.yield(.active(fix))
   }
 }

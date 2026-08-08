@@ -59,9 +59,20 @@ final class ChartViewModel {
 
   // MARK: - Action Card State
 
+  private var _isActionConfirmationCardActiveOverride: Bool = false
+
   /// Indicates whether a `MarineActionConfirmationCard` is actively presented on screen.
-  /// When `true`, MapLibre contextual long-press gestures are automatically disabled to prevent conflict.
-  var isActionConfirmationCardActive: Bool = false
+  /// Dynamically derived from underlying feature overlay states to eliminate `.onAppear` / `.onDisappear` side-effects.
+  var isActionConfirmationCardActive: Bool {
+    get {
+      return anchorViewModel.isAdjustingAnchor ||
+             anchorViewModel.isPreparingDropAnchor ||
+             _isActionConfirmationCardActiveOverride
+    }
+    set {
+      _isActionConfirmationCardActiveOverride = newValue
+    }
+  }
 
   // MARK: - Chart Camera State
   
@@ -418,6 +429,8 @@ final class ChartViewModel {
     func observeSetupMode() {
       withObservationTracking {
         _ = anchorViewModel.isSetupModeActive
+        _ = anchorViewModel.isPreparingDropAnchor
+        _ = anchorViewModel.isAdjustingAnchor
         _ = anchorViewModel.configuredRadius
         _ = anchorViewModel.anchorCoordinate
       } onChange: { [weak self] in
@@ -436,7 +449,7 @@ final class ChartViewModel {
     let currentVesselCoord = vesselCoord ?? currentCoordinate ?? instrumentDampingService.state?.coordinate
     
     if status == .inactive {
-      if anchorViewModel.isSetupModeActive,
+      if (anchorViewModel.isSetupModeActive || anchorViewModel.isPreparingDropAnchor),
         let coord = currentVesselCoord {
         anchorVisualState = AnchorVisualState(
           status: .setup,
@@ -681,7 +694,7 @@ final class ChartViewModel {
     }
   }
   
-  /// Forces the chart camera to jump to the user's last known location.
+  /// Forces the chart camera to jump to the user's last known location while preserving the current map zoom level (`zoom: nil`).
   func centerOnUserLocation() {
     guard let coordinate = instrumentDampingService.state?.coordinate else {
       Logger.chart.warning("Cannot center: coordinate is nil. Waiting for a valid GPS fix from PositioningService.")
