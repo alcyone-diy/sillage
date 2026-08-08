@@ -59,6 +59,7 @@ struct MapScaleView: View {
         .transition(.opacity)
       }
     }
+    .allowsHitTesting(false)
     .animation(.easeInOut(duration: 0.3), value: showOverlay)
     .onChange(of: mapScale) { _, newValue in
       guard let newMeasurement = newValue else { return }
