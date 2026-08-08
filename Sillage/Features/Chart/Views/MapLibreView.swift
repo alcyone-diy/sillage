@@ -12,50 +12,6 @@ import SwiftUI
 import MapLibre
 import CoreLocation
 import OSLog
-
-struct PopoverMenuAction: Identifiable {
-  let id = UUID()
-  let title: String
-  let systemImage: String
-  let isDestructive: Bool
-  let action: () -> Void
-  
-  init(title: String, systemImage: String, isDestructive: Bool = false, action: @escaping () -> Void) {
-    self.title = title
-    self.systemImage = systemImage
-    self.isDestructive = isDestructive
-    self.action = action
-  }
-}
-
-struct PopoverMenuView: View {
-  let actions: [PopoverMenuAction]
-  
-  var body: some View {
-    VStack(spacing: 0) {
-      ForEach(actions) { action in
-        Button(action: action.action) {
-          HStack {
-            Text(action.title)
-              .foregroundColor(action.isDestructive ? .red : .primary)
-            Spacer()
-            Image(systemName: action.systemImage)
-              .foregroundColor(action.isDestructive ? .red : .primary)
-          }
-          .padding()
-          .frame(height: 50)
-          .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        
-        if action.id != actions.last?.id {
-          Divider()
-        }
-      }
-    }
-  }
-}
-
 extension UIView {
   var parentViewController: UIViewController? {
     var parentResponder: UIResponder? = self
@@ -123,6 +79,21 @@ struct MapLibreView: UIViewRepresentable {
     longPressGesture.minimumPressDuration = 0.5
     mapView.addGestureRecognizer(longPressGesture)
     
+    // Setup single tap gesture for implicit context callout dismissal
+    let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+    tapGesture.cancelsTouchesInView = false
+    
+    // Prevent single-tap callout dismiss from interfering with MapLibre's native double-tap zoom gestures
+    if let gestureRecognizers = mapView.gestureRecognizers {
+      for recognizer in gestureRecognizers {
+        if let tapRecognizer = recognizer as? UITapGestureRecognizer, tapRecognizer.numberOfTapsRequired == 2 {
+          tapGesture.require(toFail: tapRecognizer)
+        }
+      }
+    }
+    
+    mapView.addGestureRecognizer(tapGesture)
+    
     return mapView
   }
   
@@ -183,16 +154,19 @@ struct MapLibreView: UIViewRepresentable {
       }
       
       // Displayed waypoints feature update
-      if visibleWaypointVisualStates != context.coordinator.lastVisibleWaypointVisualStates {
-        MapStyleController.updateVisibleWaypoints(states: visibleWaypointVisualStates, in: style, theme: marineTheme)
+      let targetWaypointID = viewModel.calloutViewModel.targetWaypointID
+      if visibleWaypointVisualStates != context.coordinator.lastVisibleWaypointVisualStates || targetWaypointID != context.coordinator.lastCalloutTargetWaypointID {
+        MapStyleController.updateVisibleWaypoints(states: visibleWaypointVisualStates, targetWaypointID: targetWaypointID, in: style, theme: marineTheme)
         context.coordinator.lastVisibleWaypointVisualStates = visibleWaypointVisualStates
       }
       
       // GoTo waypoint feature update
-      if goToWaypointVisualState != context.coordinator.lastGoToWaypointVisualState {
-        MapStyleController.updateGoToWaypoint(state: goToWaypointVisualState, in: style, theme: marineTheme)
+      if goToWaypointVisualState != context.coordinator.lastGoToWaypointVisualState || targetWaypointID != context.coordinator.lastCalloutTargetWaypointID {
+        MapStyleController.updateGoToWaypoint(state: goToWaypointVisualState, targetWaypointID: targetWaypointID, in: style, theme: marineTheme)
         context.coordinator.lastGoToWaypointVisualState = goToWaypointVisualState
       }
+
+      context.coordinator.lastCalloutTargetWaypointID = targetWaypointID
       
       // Bearing Line feature update
       if bearingLineVisualState != context.coordinator.lastBearingLineVisualState {
@@ -299,7 +273,7 @@ struct MapLibreView: UIViewRepresentable {
   // MARK: - Coordinator
   
   @MainActor
-  class Coordinator: NSObject, MLNMapViewDelegate, UIPopoverPresentationControllerDelegate {
+  class Coordinator: NSObject, MLNMapViewDelegate {
     var parent: MapLibreView
     private var streamTask: Task<Void, Never>?
     private var pendingBoundsUpdateTask: Task<Void, Never>?
@@ -320,6 +294,7 @@ struct MapLibreView: UIViewRepresentable {
     var lastActiveTrackTimestamp: Date?
     var lastDataStale: Bool?
     var lastTrackingMode: ChartTrackingMode = .free
+    var lastCalloutTargetWaypointID: String?
     
     init(_ parent: MapLibreView) {
       self.parent = parent
@@ -340,6 +315,13 @@ struct MapLibreView: UIViewRepresentable {
       NotificationCenter.default.removeObserver(self)
     }
     
+    @objc func handleTap(_ sender: UITapGestureRecognizer) {
+      guard sender.state == .ended else { return }
+      if parent.viewModel.calloutViewModel.isCalloutVisible {
+        parent.viewModel.calloutViewModel.dismiss()
+      }
+    }
+    
     @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
       // Only trigger at the start of the gesture to prevent multiple openings
       guard sender.state == .began else { return }
@@ -352,91 +334,19 @@ struct MapLibreView: UIViewRepresentable {
       guard let mapView = sender.view as? MLNMapView else { return }
 
       let point = sender.location(in: mapView)
+      let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
       
       let touchRect = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
       let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: [MapLayerIdentifier.goToWaypoint.rawValue, MapLayerIdentifier.visibleWaypoints.rawValue])
 
-      
       if let feature = features.first as? MLNPointFeature,
          let id = feature.attributes[MapFeatureKey.id.rawValue] as? String {
-        let isSelected = self.parent.viewModel.goToWaypointID == id
-        
-        let actionTitle = isSelected ? String(localized: "Deselect") : String(localized: "Select")
-        let actionImageName = isSelected ? MarineIcon.deselect.rawValue : MarineIcon.select.rawValue
-        
-        let selectAction = PopoverMenuAction(title: actionTitle, systemImage: actionImageName) { [weak self] in
-          guard let self = self else { return }
-          Task { @MainActor in
-            if isSelected {
-              self.parent.waypointService?.setDestination(waypointID: nil)
-            } else {
-              self.parent.waypointService?.setDestination(waypointID: id)
-            }
-          }
-          mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
-        }
-        
-        let editAction = PopoverMenuAction(title: String(localized: "Show Details"), systemImage: MarineIcon.details.rawValue) { [weak self] in
-          guard let self = self else { return }
-          Task { @MainActor in
-            self.parent.panelManager.commandPath = [.waypoints, .waypointDetail(id)]
-            self.parent.panelManager.openPanel(.command)
-          }
-          mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
-        }
-        
-        showPopover(actions: [editAction, selectAction], at: point, in: mapView)
-        
+        let exactCoordinate = feature.coordinate
+        let exactPoint = mapView.convert(exactCoordinate, toPointTo: mapView)
+        self.parent.viewModel.calloutViewModel.presentCallout(at: exactPoint, coordinate: exactCoordinate, waypointID: id)
       } else {
-        let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
-        var actions: [PopoverMenuAction] = []
-        
-        let createAction = PopoverMenuAction(title: String(localized: "Create Waypoint…"), systemImage: MarineIcon.waypoint.rawValue) { [weak self] in
-          guard let self = self else { return }
-          Task { @MainActor in
-            var defaultName: String? = nil
-            if let service = self.parent.waypointService {
-              defaultName = await service.generateDefaultName()
-            }
-            let draftCoord = CoordinateWrapper(coordinate: coordinate, defaultName: defaultName)
-            self.parent.appViewModel.waypointDraft = draftCoord
-          }
-          mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
-        }
-        actions.append(createAction)
-        
-        if self.parent.viewModel.goToWaypointID != nil {
-          let deselectAction = PopoverMenuAction(title: String(localized: "Deselect Target"), systemImage: MarineIcon.deselect.rawValue) { [weak self] in
-            Task { @MainActor in
-              self?.parent.waypointService?.setDestination(waypointID: nil)
-            }
-            mapView.parentViewController?.presentedViewController?.dismiss(animated: true)
-          }
-          actions.append(deselectAction)
-        }
-        
-        showPopover(actions: actions, at: point, in: mapView)
+        self.parent.viewModel.calloutViewModel.presentCallout(at: point, coordinate: coordinate, waypointID: nil)
       }
-    }
-    
-    private func showPopover(actions: [PopoverMenuAction], at point: CGPoint, in mapView: MLNMapView) {
-      let popoverContent = PopoverMenuView(actions: actions)
-      let hostingController = UIHostingController(rootView: popoverContent)
-      hostingController.preferredContentSize = CGSize(width: 250, height: CGFloat(actions.count * 50))
-      hostingController.modalPresentationStyle = .popover
-      
-      if let popover = hostingController.popoverPresentationController {
-        popover.sourceView = mapView
-        popover.sourceRect = CGRect(x: point.x, y: point.y, width: 1, height: 1)
-        popover.delegate = self
-        popover.permittedArrowDirections = .any
-      }
-      
-      mapView.parentViewController?.present(hostingController, animated: true)
-    }
-    
-    func adaptivePresentationStyle(for controller: UIPresentationController) -> UIModalPresentationStyle {
-      return .none
     }
     
     func setupSubscription(for mapView: MLNMapView) {
@@ -469,12 +379,14 @@ struct MapLibreView: UIViewRepresentable {
       let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
       self.parent.viewModel.mapScale = Measurement(value: mpp, unit: UnitLength.meters)
       self.parent.viewModel.zoomLevel = mapView.zoomLevel
+      self.parent.viewModel.calloutViewModel.throttledUpdateScreenPosition(from: mapView)
     }
     
     func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
       let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
       self.parent.viewModel.mapScale = Measurement(value: mpp, unit: UnitLength.meters)
       self.parent.viewModel.zoomLevel = mapView.zoomLevel
+      self.parent.viewModel.calloutViewModel.updateScreenPositionImmediately(from: mapView)
     }
     
     // Called when the map has finished loading its style
@@ -523,12 +435,14 @@ struct MapLibreView: UIViewRepresentable {
       lastSavedTrackVisualState = savedState
 
       let visibleStates = parent.viewModel.visibleWaypointVisualStates
-      MapStyleController.updateVisibleWaypoints(states: visibleStates, in: style, theme: parent.marineTheme)
+      let targetID = parent.viewModel.calloutViewModel.targetWaypointID
+      MapStyleController.updateVisibleWaypoints(states: visibleStates, targetWaypointID: targetID, in: style, theme: parent.marineTheme)
       lastVisibleWaypointVisualStates = visibleStates
 
       let goToState = parent.viewModel.goToWaypointVisualState
-      MapStyleController.updateGoToWaypoint(state: goToState, in: style, theme: parent.marineTheme)
+      MapStyleController.updateGoToWaypoint(state: goToState, targetWaypointID: targetID, in: style, theme: parent.marineTheme)
       lastGoToWaypointVisualState = goToState
+      lastCalloutTargetWaypointID = targetID
 
       let bearingState = parent.viewModel.bearingLineVisualState
       MapStyleController.updateBearingLine(state: bearingState, in: style, theme: parent.marineTheme)
