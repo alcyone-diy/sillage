@@ -80,24 +80,6 @@ final class MockClock: Clock, @unchecked Sendable {
   }
 }
 
-@MainActor
-private func waitFor(
-  timeout: Duration = .seconds(2),
-  condition: () -> Bool
-) async throws {
-  let start = ContinuousClock.now
-  while true {
-    if condition() { return }
-    let elapsed = start.duration(to: ContinuousClock.now)
-    if elapsed > timeout {
-      struct TimeoutError: Error {}
-      throw TimeoutError()
-    }
-    // Micro-sleep to yield control to the async stream processor without blocking the MainActor
-    try await Task.sleep(nanoseconds: 1_000_000)
-  }
-}
-
 @Suite("Instrument Damping Service Tests")
 struct InstrumentDampingServiceTests {
   

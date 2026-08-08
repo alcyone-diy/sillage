@@ -377,7 +377,7 @@ final class ChartViewModelTests: XCTestCase {
     _ = viewModel
   }
 
-  func testLogoutGeoGarageClearsMessagesAndLayers() async {
+  func testLogoutGeoGarageClearsMessagesAndLayers() async throws {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let messageService = MessageService()
@@ -415,7 +415,7 @@ final class ChartViewModelTests: XCTestCase {
 
     // Act
     viewModel.logoutGeoGarage()
-    try? await Task.sleep(for: .milliseconds(50))
+    try await waitFor { viewModel.availableGeoGarageLayers.isEmpty && messageService.messages.count == 0 }
 
     // Assert
     XCTAssertTrue(viewModel.availableGeoGarageLayers.isEmpty)
@@ -514,6 +514,7 @@ final class ChartViewModelTests: XCTestCase {
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    instrumentDampingService.start()
 
     let viewModel = ChartViewModel(
       positioningService: positioningService,
@@ -536,15 +537,24 @@ final class ChartViewModelTests: XCTestCase {
     )
     let stream = viewModel.cameraMoveStream
     let task = Task<CameraMoveEvent?, Never> {
-      for await event in stream {
-        return event
+      await withTaskGroup(of: CameraMoveEvent?.self) { group in
+        group.addTask {
+          var iterator = stream.makeAsyncIterator()
+          return await iterator.next()
+        }
+        group.addTask {
+          try? await Task.sleep(for: .seconds(2))
+          return nil
+        }
+        let firstResult = await group.next()
+        group.cancelAll()
+        return firstResult.flatMap { $0 }
       }
-      return nil
     }
 
     await Task.yield()
 
-    positioningService.locationContinuation.yield(.active(fix))
+    positioningService.locationContinuation?.yield(.active(fix))
     await Task.yield()
 
     viewModel.centerOnUserLocation()

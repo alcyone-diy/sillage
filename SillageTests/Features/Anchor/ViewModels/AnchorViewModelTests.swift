@@ -69,7 +69,7 @@ private final class AnchorViewModelMockPositioningService: PositioningService {
 final class AnchorViewModelTests: XCTestCase {
 
   func testPreparingDropAnchorLifecycle() async throws {
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let positioningService = AnchorViewModelMockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
@@ -80,25 +80,25 @@ final class AnchorViewModelTests: XCTestCase {
       permissionService: permissionService,
       backgroundMonitoringService: backgroundMonitoringService
     )
+    anchorService.clear()
     let viewModel = AnchorViewModel(anchorService: anchorService)
 
     // 1. Initial State: ephemeral preparation mode is false
-    XCTAssertFalse(viewModel.isPreparingDropAnchor)
+    XCTAssertFalse(viewModel.isPreparingDropAnchor, "Step 1 failed: isPreparingDropAnchor is true")
 
     // 2. Start preparation mode
     viewModel.startPreparingDropAnchor()
-    XCTAssertTrue(viewModel.isPreparingDropAnchor)
+    XCTAssertTrue(viewModel.isPreparingDropAnchor, "Step 2 failed: isPreparingDropAnchor is false")
 
     // 3. Cancel preparation mode
     viewModel.cancelPreparingDropAnchor()
-    XCTAssertFalse(viewModel.isPreparingDropAnchor)
-    XCTAssertEqual(viewModel.state, .setup)
+    XCTAssertFalse(viewModel.isPreparingDropAnchor, "Step 3 failed: isPreparingDropAnchor is true")
+    XCTAssertEqual(viewModel.state, .setup, "Step 3 failed: state is \(viewModel.state) instead of .setup")
 
     // 4. Start & Confirm drop anchor
     viewModel.startPreparingDropAnchor()
-    XCTAssertTrue(viewModel.isPreparingDropAnchor)
+    XCTAssertTrue(viewModel.isPreparingDropAnchor, "Step 4 failed: isPreparingDropAnchor is false after start")
 
-    // Provide fix for dropAnchor via mock positioning service
     let fix = NavigationFix(
       coordinate: CLLocationCoordinate2D(latitude: 47.123, longitude: -3.456),
       horizontalAccuracy: Measurement(value: 5.0, unit: UnitLength.meters),
@@ -110,14 +110,16 @@ final class AnchorViewModelTests: XCTestCase {
     )
     positioningService.simulateFix(fix)
 
-    // Allow async location stream in AnchorService to process the fix
-    try await Task.sleep(nanoseconds: 100_000_000)
-
     viewModel.confirmDropAnchor()
-    XCTAssertFalse(viewModel.isPreparingDropAnchor)
-    XCTAssertEqual(viewModel.state, .dropped)
-    XCTAssertNotNil(viewModel.anchorCoordinate)
-    XCTAssertEqual(viewModel.anchorCoordinate?.latitude, 47.123)
-    XCTAssertEqual(viewModel.anchorCoordinate?.longitude, -3.456)
+
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.state == .dropped && viewModel.anchorCoordinate != nil
+    }
+
+    XCTAssertFalse(viewModel.isPreparingDropAnchor, "Step 4 failed: isPreparingDropAnchor is true after confirm")
+    XCTAssertEqual(viewModel.state, .dropped, "Step 4 failed: state is \(viewModel.state) instead of .dropped")
+    XCTAssertNotNil(viewModel.anchorCoordinate, "Step 4 failed: anchorCoordinate is nil")
+    XCTAssertEqual(viewModel.anchorCoordinate?.latitude, 47.123, "Step 4 failed: latitude is \(String(describing: viewModel.anchorCoordinate?.latitude))")
+    XCTAssertEqual(viewModel.anchorCoordinate?.longitude, -3.456, "Step 4 failed: longitude is \(String(describing: viewModel.anchorCoordinate?.longitude))")
   }
 }

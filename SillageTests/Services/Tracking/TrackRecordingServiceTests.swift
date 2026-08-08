@@ -287,8 +287,7 @@ struct TrackRecordingServiceTests {
     // Emit a poor fix
     let poorFix = createNavigationFix(latitude: 45.0, longitude: -1.0, accuracy: 100) // Assuming max horizontal accuracy < 100
     mockPositioning.emit(fix: poorFix)
-    
-    try await Task.sleep(for: .milliseconds(200))
+    try await waitFor { service.state == .waitingForFix }
     
     #expect(service.state == .waitingForFix)
     #expect(service.trackPoints.isEmpty)

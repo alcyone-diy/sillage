@@ -145,6 +145,7 @@ final class AnchorService {
     setupLocationToken = nil
     if status == .inactive {
       locationUpdateTask.task?.cancel()
+      locationUpdateTask.task = nil
     }
   }
   
@@ -276,6 +277,8 @@ final class AnchorService {
     monitoringToken = nil
     
     stopSetupLocationUpdates()
+    locationUpdateTask.task?.cancel()
+    locationUpdateTask.task = nil
     isDegradedAlertSent = false
     
     notifyStateChange()
