@@ -41,17 +41,29 @@ final class AnchorViewModel {
   /// Indicates whether the UI is currently in manual anchor position adjustment mode.
   var isAdjustingAnchor: Bool = false
 
-  
+  /// Technical Design Choice: Ephemeral Preparation Mode
+  /// Indicates whether the UI is in full-screen drop anchor confirmation mode.
+  /// Strictly transient in-memory state that defaults to `false` and is never persisted across app launches.
+  var isPreparingDropAnchor: Bool = false {
+    didSet {
+      updateLocationUpdatesState()
+    }
+  }
+
   /// Technical Design Choice: Lifecycle-bound location update token control
-  /// When setup mode is activated by the UI (`onAppear`), `startSetupLocationUpdates()` requests location updates.
-  /// When deactivated (`onDisappear`), `stopSetupLocationUpdates()` releases the token, preventing high-frequency GPS battery drain.
+  /// When setup mode or drop anchor preparation is activated by the UI, `startSetupLocationUpdates()` requests location updates.
+  /// When both are inactive, `stopSetupLocationUpdates()` releases the token, preventing high-frequency GPS battery drain.
   var isSetupModeActive: Bool = false {
     didSet {
-      if isSetupModeActive {
-        anchorService.startSetupLocationUpdates()
-      } else {
-        anchorService.stopSetupLocationUpdates()
-      }
+      updateLocationUpdatesState()
+    }
+  }
+
+  private func updateLocationUpdatesState() {
+    if isSetupModeActive || isPreparingDropAnchor {
+      anchorService.startSetupLocationUpdates()
+    } else {
+      anchorService.stopSetupLocationUpdates()
     }
   }
   
@@ -170,6 +182,7 @@ final class AnchorViewModel {
       Logger.anchor.warning("Anchor drop requested without immediate GPS fix. Pending position lock.")
       anchorService.drop(coordinate: nil, radius: configuredRadius)
     }
+    syncState()
   }
   
   func cancelDrop() {
@@ -177,6 +190,7 @@ final class AnchorViewModel {
     self.anchorCoordinate = nil
     self.anchorDropError = nil
     anchorService.clear()
+    syncState()
   }
   
   func incrementRadius() {
@@ -199,6 +213,7 @@ final class AnchorViewModel {
     if anchorService.status != .inactive {
       anchorService.update(radius: newRadius)
     }
+    syncState()
   }
   
   func armAlarm() {
@@ -208,6 +223,7 @@ final class AnchorViewModel {
     }
     Logger.anchor.info("Arming anchor alarm from ViewModel.")
     anchorService.arm(coordinate: coord, radius: configuredRadius)
+    syncState()
   }
   
   func requestArmAlarm(in service: PermissionService) {
@@ -228,16 +244,19 @@ final class AnchorViewModel {
   func disarmAlarm() {
     Logger.anchor.info("Disarming anchor alarm from ViewModel.")
     anchorService.disarm()
+    syncState()
   }
   
   func silenceAlert() {
     Logger.anchor.info("Silencing anchor alert from ViewModel.")
     anchorService.silenceAlarm()
+    syncState()
   }
   
   func unSilenceAlert() {
     Logger.anchor.info("Unsilencing anchor alert from ViewModel.")
     anchorService.unSilenceAlarm()
+    syncState()
   }
 
   /// Technical Design Choice: Domain Isolation for Position Adjustment
@@ -253,11 +272,31 @@ final class AnchorViewModel {
     self.anchorCoordinate = newCoordinate
     anchorService.adjustAnchorPosition(to: newCoordinate)
     self.isAdjustingAnchor = false
+    syncState()
   }
 
   func cancelAdjustAnchor() {
     Logger.anchor.info("Canceling manual anchor position adjustment.")
     self.isAdjustingAnchor = false
+  }
+
+  /// Technical Design Choice: Full-Screen Drop Anchor Preparation Flow
+  /// Activates the full-screen preparation mode, displaying the anchor marker over the vessel
+  /// and presenting MarineActionConfirmationCard while command panel is dismissed.
+  func startPreparingDropAnchor() {
+    Logger.anchor.info("Starting full-screen drop anchor preparation mode.")
+    self.isPreparingDropAnchor = true
+  }
+
+  func confirmDropAnchor() {
+    Logger.anchor.info("Confirming drop anchor from full-screen confirmation overlay.")
+    dropAnchor()
+    self.isPreparingDropAnchor = false
+  }
+
+  func cancelPreparingDropAnchor() {
+    Logger.anchor.info("Canceling full-screen drop anchor preparation mode.")
+    self.isPreparingDropAnchor = false
   }
 
 

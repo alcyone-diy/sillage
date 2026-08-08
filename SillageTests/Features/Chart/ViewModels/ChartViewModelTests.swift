@@ -492,10 +492,72 @@ final class ChartViewModelTests: XCTestCase {
     )
 
     XCTAssertFalse(viewModel.isActionConfirmationCardActive)
-    viewModel.isActionConfirmationCardActive = true
+    
+    // 1. Activated via manual anchor position adjustment
+    anchorViewModel.startAdjustingAnchor()
     XCTAssertTrue(viewModel.isActionConfirmationCardActive)
-    viewModel.isActionConfirmationCardActive = false
+    anchorViewModel.cancelAdjustAnchor()
     XCTAssertFalse(viewModel.isActionConfirmationCardActive)
+
+    // 2. Activated via drop anchor preparation mode
+    anchorViewModel.startPreparingDropAnchor()
+    XCTAssertTrue(viewModel.isActionConfirmationCardActive)
+    anchorViewModel.cancelPreparingDropAnchor()
+    XCTAssertFalse(viewModel.isActionConfirmationCardActive)
+  }
+
+  func testCenterOnUserLocation_PreservesZoom() async {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    let expectedCoord = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
+    let fix = NavigationFix(
+      coordinate: expectedCoord,
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    let stream = viewModel.cameraMoveStream
+    let task = Task<CameraMoveEvent?, Never> {
+      for await event in stream {
+        return event
+      }
+      return nil
+    }
+
+    await Task.yield()
+
+    positioningService.locationContinuation.yield(.active(fix))
+    await Task.yield()
+
+    viewModel.centerOnUserLocation()
+
+    let receivedEvent = await task.value
+
+    if case .center(let coordinate, let zoom, _) = receivedEvent {
+      XCTAssertEqual(coordinate.latitude, expectedCoord.latitude, accuracy: 0.0001)
+      XCTAssertEqual(coordinate.longitude, expectedCoord.longitude, accuracy: 0.0001)
+      XCTAssertNil(zoom, "Zoom must be nil to preserve current zoom level")
+    } else {
+      XCTFail("Expected CameraMoveEvent.center event but got \(String(describing: receivedEvent))")
+    }
   }
 }
 

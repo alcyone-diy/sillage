@@ -51,6 +51,14 @@ public final class PanelManagerViewModel {
     }
   }
 
+  /// Opens the command panel specifically routed to the Anchor Alarm sub-view.
+  public func openAnchorAlarmPanel() {
+    if commandPath.last != .anchorAlarm {
+      commandPath.append(.anchorAlarm)
+    }
+    openPanel(.command)
+  }
+
   /// Closes any active panel and resets the UI path state.
   public func closePanel() {
     resetCommandPath()

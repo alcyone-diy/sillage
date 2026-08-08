@@ -256,7 +256,10 @@ public struct AnchorAlarmView: View {
       case .setup:
         Button(action: {
           Logger.anchor.info("User requested to drop anchor")
-          viewModel.dropAnchor()
+          // Center the map camera on the vessel while preserving current zoom level
+          chartViewModel?.centerOnUserLocation()
+          viewModel.startPreparingDropAnchor()
+          panelManagerViewModel?.closePanel()
         }) {
           Label("Drop Anchor", systemImage: "water.waves.and.arrow.down")
             .font(.headline)

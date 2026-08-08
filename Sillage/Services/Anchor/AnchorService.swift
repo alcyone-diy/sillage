@@ -133,6 +133,9 @@ final class AnchorService {
     guard setupLocationToken == nil else { return }
     Logger.anchor.info("⚓️ Starting setup location updates for Anchor UI")
     setupLocationToken = positioningService.requestLocationUpdates()
+    if status == .inactive {
+      startListeningToGPS()
+    }
   }
 
   func stopSetupLocationUpdates() {
@@ -140,6 +143,9 @@ final class AnchorService {
     Logger.anchor.info("⚓️ Stopping setup location updates for Anchor UI")
     setupLocationToken?.invalidate()
     setupLocationToken = nil
+    if status == .inactive {
+      locationUpdateTask.task?.cancel()
+    }
   }
   
   /// Drops anchor using the provided coordinate or best available fix.
