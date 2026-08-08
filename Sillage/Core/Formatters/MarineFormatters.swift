@@ -61,3 +61,11 @@ extension Measurement where UnitType == UnitArea {
     )
   }
 }
+
+extension FormatStyle where Self == Measurement<UnitLength>.FormatStyle {
+  /// Standardized format style for anchor distance measurements in meters (e.g. "50 m").
+  public static var anchorDistance: Measurement<UnitLength>.FormatStyle {
+    .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0)))
+  }
+}
+
