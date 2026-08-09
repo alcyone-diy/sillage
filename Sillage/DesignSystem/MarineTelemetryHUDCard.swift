@@ -34,26 +34,33 @@ public enum TelemetryHUDLayout: Sendable, Equatable, Hashable {
   case grid(columns: Int)
 }
 
+/// Defines interactive editing states for telemetry HUD cards.
+public enum TelemetryEditMode: Sendable, Equatable, Hashable {
+  case none
+  case remove
+  case add
+}
+
 /// A unified, highly performant marine telemetry HUD card.
 /// Renders telemetry cells either in a continuous horizontal strip with vertical dividers
 /// or in an explicit column-based grid without vertical dividers.
-/// Supports an interactive Edit Mode (`isEditing == true`) displaying removal badges on telemetry cells.
+/// Supports interactive Edit Modes (`.remove` or `.add`) displaying action badges on telemetry cells.
 public struct MarineTelemetryHUDCard: View {
   let items: [MarineTelemetryItem]
   let layout: TelemetryHUDLayout
-  let isEditing: Bool
+  let editMode: TelemetryEditMode
   let onItemTapped: ((String) -> Void)?
   @Environment(\.marineTheme) private var marineTheme
 
   public init(
     items: [MarineTelemetryItem],
     layout: TelemetryHUDLayout = .horizontal,
-    isEditing: Bool = false,
+    editMode: TelemetryEditMode = .none,
     onItemTapped: ((String) -> Void)? = nil
   ) {
     self.items = items
     self.layout = layout
-    self.isEditing = isEditing
+    self.editMode = editMode
     self.onItemTapped = onItemTapped
   }
 
@@ -68,8 +75,8 @@ public struct MarineTelemetryHUDCard: View {
       .overlay(
         RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
           .stroke(
-            isEditing ? marineTheme.colors.accent.opacity(0.8) : marineTheme.colors.border.opacity(0.4),
-            lineWidth: isEditing ? MarineTheme.Metrics.borderWidth : MarineTheme.Metrics.borderWidth / 2
+            editMode != .none ? marineTheme.colors.accent.opacity(0.8) : marineTheme.colors.border.opacity(0.4),
+            lineWidth: editMode != .none ? MarineTheme.Metrics.borderWidth : MarineTheme.Metrics.borderWidth / 2
           )
       )
       .shadow(color: Color.black.opacity(0.15), radius: MarineTheme.Metrics.shadowRadius * 3, x: 0, y: MarineTheme.Metrics.shadowOffset * 3)
@@ -120,25 +127,25 @@ public struct MarineTelemetryHUDCard: View {
           .marineFont(.instrumentData)
           .foregroundColor(item.isPlaceholder ? marineTheme.colors.textSecondary : marineTheme.colors.textPrimary)
       }
-      .padding(isEditing ? 4 : 0)
-      .opacity(isEditing ? 0.85 : 1.0)
+      .padding(editMode != .none ? 4 : 0)
+      .opacity(editMode != .none ? 0.85 : 1.0)
       .contentShape(Rectangle())
 
-      if isEditing {
+      if editMode != .none {
         ZStack {
           Circle()
             .fill(Color.white)
             .frame(width: 14, height: 14)
 
-          Image(systemName: "minus.circle.fill")
+          Image(systemName: editMode == .remove ? "minus.circle.fill" : "plus.circle.fill")
             .font(.system(size: 16, weight: .bold))
-            .foregroundColor(marineTheme.colors.error)
+            .foregroundColor(editMode == .remove ? marineTheme.colors.error : Color.green)
         }
         .offset(x: -8, y: -8)
       }
     }
     .onTapGesture {
-      if isEditing {
+      if editMode != .none {
         onItemTapped?(item.id)
       }
     }
@@ -169,10 +176,17 @@ public struct MarineTelemetryHUDCard: View {
     }
 
     VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
-      Text("Edit Mode (isEditing = true)")
+      Text("Edit Mode - Remove (.remove)")
         .font(.caption)
         .foregroundStyle(.secondary)
-      MarineTelemetryHUDCard(items: sampleItems, layout: .grid(columns: 2), isEditing: true)
+      MarineTelemetryHUDCard(items: sampleItems, layout: .grid(columns: 2), editMode: .remove)
+    }
+
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+      Text("Edit Mode - Add (.add)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      MarineTelemetryHUDCard(items: sampleItems, layout: .horizontal, editMode: .add)
     }
   }
   .padding(MarineTheme.Spacing.medium)

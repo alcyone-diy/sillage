@@ -158,6 +158,9 @@
     "ALERT SILENCED" : {
 
     },
+    "All instruments are active in HUD" : {
+
+    },
     "Allow Access" : {
 
     },
@@ -225,6 +228,9 @@
 
     },
     "Authentication required" : {
+
+    },
+    "Available Instruments" : {
 
     },
     "Average Speed" : {
@@ -366,6 +372,9 @@
 
     },
     "DISTANCE" : {
+
+    },
+    "Done" : {
 
     },
     "Download" : {

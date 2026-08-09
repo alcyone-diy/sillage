@@ -37,7 +37,9 @@ final class MarineTelemetryHUDCardTests: XCTestCase {
     let card = MarineTelemetryHUDCard(items: [sogItem, cogItem])
 
     XCTAssertEqual(card.layout, .horizontal)
-    XCTAssertNotNil(card.body)
+
+    let host = UIHostingController(rootView: card)
+    XCTAssertNotNil(host.view)
   }
 
   func testHUDCardInitialization_WithExplicitHorizontalLayout() {
@@ -46,7 +48,9 @@ final class MarineTelemetryHUDCardTests: XCTestCase {
     let card = MarineTelemetryHUDCard(items: [sogItem, cogItem], layout: .horizontal)
 
     XCTAssertEqual(card.layout, .horizontal)
-    XCTAssertNotNil(card.body)
+
+    let host = UIHostingController(rootView: card)
+    XCTAssertNotNil(host.view)
   }
 
   func testHUDCardInitialization_WithTwoColumnGridLayout() {
@@ -55,7 +59,9 @@ final class MarineTelemetryHUDCardTests: XCTestCase {
     let card = MarineTelemetryHUDCard(items: [sogItem, cogItem], layout: .grid(columns: 2))
 
     XCTAssertEqual(card.layout, .grid(columns: 2))
-    XCTAssertNotNil(card.body)
+
+    let host = UIHostingController(rootView: card)
+    XCTAssertNotNil(host.view)
   }
 
   func testHUDCardInitialization_WithSingleColumnGridLayout() {
@@ -63,7 +69,9 @@ final class MarineTelemetryHUDCardTests: XCTestCase {
     let card = MarineTelemetryHUDCard(items: [item], layout: .grid(columns: 1))
 
     XCTAssertEqual(card.layout, .grid(columns: 1))
-    XCTAssertNotNil(card.body)
+
+    let host = UIHostingController(rootView: card)
+    XCTAssertNotNil(host.view)
   }
 
   func testHUDCardInitialization_WithZeroOrNegativeGridColumns_FailsafeEvaluation() {
@@ -73,16 +81,20 @@ final class MarineTelemetryHUDCardTests: XCTestCase {
 
     XCTAssertEqual(cardZero.layout, .grid(columns: 0))
     XCTAssertEqual(cardNegative.layout, .grid(columns: -2))
-    // Verifies body computation evaluates safely without crashing due to max(1, columns) guard
-    XCTAssertNotNil(cardZero.body)
-    XCTAssertNotNil(cardNegative.body)
+
+    let hostZero = UIHostingController(rootView: cardZero)
+    let hostNegative = UIHostingController(rootView: cardNegative)
+    XCTAssertNotNil(hostZero.view)
+    XCTAssertNotNil(hostNegative.view)
   }
 
   func testHUDCardInitialization_WithEmptyItems() {
     let emptyHorizontalCard = MarineTelemetryHUDCard(items: [], layout: .horizontal)
     let emptyGridCard = MarineTelemetryHUDCard(items: [], layout: .grid(columns: 2))
 
-    XCTAssertNotNil(emptyHorizontalCard.body)
-    XCTAssertNotNil(emptyGridCard.body)
+    let hostHorizontal = UIHostingController(rootView: emptyHorizontalCard)
+    let hostGrid = UIHostingController(rootView: emptyGridCard)
+    XCTAssertNotNil(hostHorizontal.view)
+    XCTAssertNotNil(hostGrid.view)
   }
 }
