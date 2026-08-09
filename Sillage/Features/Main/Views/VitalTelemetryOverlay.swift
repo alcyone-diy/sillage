@@ -10,16 +10,29 @@
 
 import SwiftUI
 
-/// An adaptive overlay displaying vital navigation telemetry metrics (SOG, COG, and optional BTW, RNG, XTE).
-/// Automatically switches between a 2-column grid layout in Compact size classes (iPhone Portrait)
+/// An adaptive, user-customizable overlay displaying vital navigation and hardware telemetry metrics.
+/// Dynamically renders user-selected metrics from `TelemetryPreferences` (e.g. SOG, COG, BTW, RNG, XTE, Battery)
+/// and automatically switches between a 2-column grid layout in Compact size classes (iPhone Portrait)
 /// and a continuous horizontal strip in Regular size classes (iPhone Landscape, iPad).
+/// Supports interactive Edit Mode (`isEditingHUD == true`), triggered via a 0.8s long press gesture.
 @MainActor
 public struct VitalTelemetryOverlay: View {
   @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
+  @Environment(TelemetryPreferences.self) private var envPreferences: TelemetryPreferences?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @Environment(\.locale) private var locale
 
-  public init() {}
+  @State private var secondaryViewModel = SecondaryTelemetryViewModel()
+  @State private var isEditingHUD: Bool = false
+  private var customPreferences: TelemetryPreferences?
+
+  public init(preferences: TelemetryPreferences? = nil) {
+    self.customPreferences = preferences
+  }
+
+  private var preferences: TelemetryPreferences {
+    customPreferences ?? envPreferences ?? TelemetryPreferences()
+  }
 
   /// Technical Design Choice: Speculative-Free Layout Adaptation
   /// Replaces multi-pass `ViewThatFits` measuring wrappers with explicit environment size class checks.
@@ -34,78 +47,114 @@ public struct VitalTelemetryOverlay: View {
   }
 
   public var body: some View {
-    MarineTelemetryHUDCard(items: telemetryItems, layout: currentLayout)
+    ZStack {
+      if isEditingHUD {
+        Color.clear
+          .contentShape(Rectangle())
+          .onTapGesture {
+            isEditingHUD = false
+          }
+      }
+
+      MarineTelemetryHUDCard(
+        items: telemetryItems,
+        layout: currentLayout,
+        isEditing: isEditingHUD,
+        onItemTapped: { metricId in
+          guard isEditingHUD else { return }
+          if let metric = TelemetryMetric(rawValue: metricId) {
+            preferences.activeMetrics.removeAll(where: { $0 == metric })
+          }
+        }
+      )
+      .onLongPressGesture(minimumDuration: 0.8) {
+        if !isEditingHUD {
+          isEditingHUD = true
+        }
+      }
+    }
   }
 
-  /// Maps current `ChartViewModel` telemetry state into domain `MarineTelemetryItem` structs.
-  /// Strictly enforces "No Data" rules ("---" for speed and distance metrics, "---°" for bearing metrics)
-  /// and conditionally appends Route Navigation metrics (BTW, RNG, XTE) when an active route or waypoint is set.
+  /// Maps user-configured `TelemetryMetric` cases from `TelemetryPreferences` into `MarineTelemetryItem` structs.
+  /// Dynamically extracts data from `ChartViewModel` and `SecondaryTelemetryViewModel` and strictly enforces
+  /// "No Data" formatting ("---" for speed/distance/battery metrics, "---°" for bearings) when values are missing.
   private var telemetryItems: [MarineTelemetryItem] {
-    let sog = chartViewModel?.smoothedSOG
-    let cog = chartViewModel?.smoothedCOG
+    preferences.activeMetrics.map { (metric: TelemetryMetric) -> MarineTelemetryItem in
+      switch metric {
+      case .sog:
+        let value = chartViewModel?.smoothedSOG
+        let string = value?.marineFormatted ?? "---"
+        return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
-    let sogString = sog?.marineFormatted ?? "---"
-    let cogString = cog?.marineBearingFormatted ?? "---°"
+      case .cog:
+        let value = chartViewModel?.smoothedCOG
+        let string = value?.marineBearingFormatted ?? "---°"
+        return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
-    var items = [
-      MarineTelemetryItem(label: "SOG", value: sogString, isPlaceholder: sog == nil),
-      MarineTelemetryItem(label: "COG", value: cogString, isPlaceholder: cog == nil)
-    ]
+      case .btw:
+        let value = chartViewModel?.bearingToWaypoint
+        let string = value?.marineBearingFormatted ?? "---°"
+        return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
-    if chartViewModel?.goToWaypointVisualState != nil {
-      let btw = chartViewModel?.bearingToWaypoint
-      let rng = chartViewModel?.rangeToWaypoint
-      let xte = chartViewModel?.crossTrackError
+      case .rng:
+        let value = chartViewModel?.rangeToWaypoint
+        let string = value?.marineContextualDistanceFormatted(locale: locale) ?? "---"
+        return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
-      let btwString = btw?.marineBearingFormatted ?? "---°"
-      let rngString = rng?.marineContextualDistanceFormatted(locale: locale) ?? "---"
-      let xteString = xte?.marineCrossTrackFormatted ?? "---"
+      case .xte:
+        let value = chartViewModel?.crossTrackError
+        let string = value?.marineCrossTrackFormatted ?? "---"
+        return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
-      items.append(MarineTelemetryItem(label: "BTW", value: btwString, isPlaceholder: btw == nil))
-      items.append(MarineTelemetryItem(label: "RNG", value: rngString, isPlaceholder: rng == nil))
-      items.append(MarineTelemetryItem(label: "XTE", value: xteString, isPlaceholder: xte == nil))
+      case .battery:
+        let batteryItem = secondaryViewModel.items.first(where: { $0.id == "BATTERY" })
+        let string = batteryItem?.value ?? "---"
+        let isPlaceholder = batteryItem?.isPlaceholder ?? true
+        return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: isPlaceholder)
+      }
     }
-
-    return items
   }
 }
 
 #Preview("Vital Telemetry Overlay") {
-  let sampleItemsInactive = [
-    MarineTelemetryItem(label: "SOG", value: "6.4 kn"),
-    MarineTelemetryItem(label: "COG", value: "215°")
-  ]
+  struct PreviewContainer: View {
+    let defaultPrefs: TelemetryPreferences = TelemetryPreferences()
+    let fullPrefs: TelemetryPreferences = {
+      let prefs = TelemetryPreferences()
+      prefs.activeMetrics = TelemetryMetric.allCases
+      return prefs
+    }()
 
-  let sampleItemsActiveRoute = [
-    MarineTelemetryItem(label: "SOG", value: "6.4 kn"),
-    MarineTelemetryItem(label: "COG", value: "215°"),
-    MarineTelemetryItem(label: "BTW", value: "210°"),
-    MarineTelemetryItem(label: "RNG", value: "1.2 NM"),
-    MarineTelemetryItem(label: "XTE", value: "0.02 NM")
-  ]
+    var body: some View {
+      VStack(spacing: 24) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Compact / Portrait Mode - Default Metrics (.grid)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          VitalTelemetryOverlay(preferences: defaultPrefs)
+            .environment(\.horizontalSizeClass, .compact)
+        }
 
-  VStack(spacing: 24) {
-    VStack(alignment: .leading, spacing: 6) {
-      Text("Compact / Portrait Mode - Standby (.grid)")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      MarineTelemetryHUDCard(items: sampleItemsInactive, layout: .grid(columns: 2))
-    }
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Compact / Portrait Mode - All Metrics (.grid 6 items)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          VitalTelemetryOverlay(preferences: fullPrefs)
+            .environment(\.horizontalSizeClass, .compact)
+        }
 
-    VStack(alignment: .leading, spacing: 6) {
-      Text("Compact / Portrait Mode - Active Route (.grid 5 items)")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      MarineTelemetryHUDCard(items: sampleItemsActiveRoute, layout: .grid(columns: 2))
-    }
-
-    VStack(alignment: .leading, spacing: 6) {
-      Text("Regular / Landscape Mode - Active Route (.horizontal 5 items)")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      MarineTelemetryHUDCard(items: sampleItemsActiveRoute, layout: .horizontal)
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Regular / Landscape Mode - All Metrics (.horizontal)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          VitalTelemetryOverlay(preferences: fullPrefs)
+            .environment(\.horizontalSizeClass, .regular)
+        }
+      }
+      .padding()
+      .background(Color.gray.opacity(0.3))
     }
   }
-  .padding()
-  .background(Color.gray.opacity(0.3))
+
+  return PreviewContainer()
 }

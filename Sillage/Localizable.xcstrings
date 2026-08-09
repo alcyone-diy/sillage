@@ -239,6 +239,9 @@
     "Barometer Alarm" : {
 
     },
+    "BATTERY" : {
+
+    },
     "BEARING" : {
 
     },
@@ -955,6 +958,9 @@
 
     },
     "Website" : {
+
+    },
+    "WIND" : {
 
     },
     "xctest-dynamic-overlay" : {

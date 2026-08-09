@@ -79,6 +79,14 @@ extension Measurement where UnitType == UnitLength {
   }
 }
 
+extension Float {
+  /// Formats a 0.0...1.0 fraction as a percentage string (e.g. 0.85 -> "85%").
+  public var marinePercentageFormatted: String {
+    let percentage = Int((self * 100).rounded())
+    return "\(percentage)%"
+  }
+}
+
 extension Measurement where UnitType == UnitSpeed {
     public var marineFormatted: String {
         self.converted(to: .knots).formatted(
