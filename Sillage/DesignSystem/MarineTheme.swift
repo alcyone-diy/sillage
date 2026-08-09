@@ -104,6 +104,8 @@ struct MarineTheme {
     static let calloutVerticalOffset: CGFloat = 110.0
     /// Divider height in map callout telemetry header
     static let calloutDividerHeight: CGFloat = 36.0
+    /// Standard divider height in floating top telemetry HUD cards
+    static let hudDividerHeight: CGFloat = 28.0
   }
 
   var metrics: Metrics {
@@ -117,6 +119,9 @@ struct MarineTheme {
     static let medium: CGFloat = 16
     static let large: CGFloat = 24
     static let extraLarge: CGFloat = 32
+
+    /// Standard top offset for floating top telemetry HUD cards below the safe area
+    static let hudCardTopPadding: CGFloat = 10.0
 
     /// Standard margin for full-screen overlay action cards
     static let overlayCardBottom: CGFloat = 40.0
