@@ -224,6 +224,6 @@ struct MapCalloutOverlayView: View {
   }
   
   private func formatDistance(_ distance: Measurement<UnitLength>) -> String {
-    distance.marineContextualDistanceFormatted
+    distance.marineContextualDistanceFormatted()
   }
 }

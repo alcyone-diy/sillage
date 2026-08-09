@@ -86,19 +86,14 @@ final class AnchorViewModel {
 
   var triggerReasonDescription: String? {
     guard let reason = triggerReason else { return nil }
-    let formatStyle = Measurement<UnitLength>.FormatStyle.measurement(
-      width: .abbreviated,
-      usage: .asProvided,
-      numberFormatStyle: .number.precision(.fractionLength(0))
-    )
     switch reason {
     case .distanceExceeded(let distance, let radius):
-      let distStr = distance.formatted(formatStyle)
-      let radStr = radius.formatted(formatStyle)
+      let distStr = distance.marineAnchorDistanceFormatted()
+      let radStr = radius.marineAnchorDistanceFormatted()
       return String(localized: "Safety radius exceeded (\(distStr) / \(radStr))")
     case .poorAccuracy(let accuracy, let requiredAccuracy):
-      let accStr = accuracy.formatted(formatStyle)
-      let reqStr = requiredAccuracy.formatted(formatStyle)
+      let accStr = accuracy.marineAnchorDistanceFormatted()
+      let reqStr = requiredAccuracy.marineAnchorDistanceFormatted()
       return String(localized: "Insufficient GPS accuracy (\(accStr), required <= \(reqStr))")
     case .gpsSignalLost:
       return String(localized: "GPS signal lost")
@@ -192,7 +187,7 @@ final class AnchorViewModel {
     }
     syncState()
   }
-  
+
   func cancelDrop() {
     Logger.anchor.info("Canceling anchor drop before arming.")
     self.anchorCoordinate = nil
@@ -200,21 +195,49 @@ final class AnchorViewModel {
     anchorService.clear()
     syncState()
   }
-  
-  func incrementRadius() {
-    let currentVal = configuredRadius.converted(to: .meters).value
-    let newVal = min(currentVal + 5.0, 500.0)
-    updateRadius(to: newVal)
+
+  /// Technical Design Choice: Locale-Aware Round Stepping & Domain Bounds
+  /// Enforces clean, natural steps (5m in metric, 10ft in US/UK imperial) with round min/max bounds
+  /// (10m - 500m in metric, 30ft - 1600ft in feet) while maintaining single-source Measurement<UnitLength> domain state.
+  private static let minRadiusMetric = Measurement<UnitLength>(value: 10.0, unit: .meters)
+  private static let maxRadiusMetric = Measurement<UnitLength>(value: 500.0, unit: .meters)
+
+  private static let minRadiusImperial = Measurement<UnitLength>(value: 30.0, unit: .feet)
+  private static let maxRadiusImperial = Measurement<UnitLength>(value: 1600.0, unit: .feet)
+
+  func incrementRadius(locale: Locale = .autoupdatingCurrent) {
+    let isMetric = locale.measurementSystem == .metric
+    let stepUnit: UnitLength = isMetric ? .meters : .feet
+    let stepValue: Double = isMetric ? 5.0 : 10.0
+    let minBound = isMetric ? Self.minRadiusMetric : Self.minRadiusImperial
+    let maxBound = isMetric ? Self.maxRadiusMetric : Self.maxRadiusImperial
+
+    let currentVal = configuredRadius.converted(to: stepUnit).value
+    let roundedCurrent = (currentVal / stepValue).rounded() * stepValue
+    let newVal = roundedCurrent + stepValue
+    let candidateRadius = Measurement(value: newVal, unit: stepUnit)
+
+    let clampedRadius = min(max(candidateRadius, minBound), maxBound)
+    updateRadius(to: clampedRadius)
+  }
+
+  func decrementRadius(locale: Locale = .autoupdatingCurrent) {
+    let isMetric = locale.measurementSystem == .metric
+    let stepUnit: UnitLength = isMetric ? .meters : .feet
+    let stepValue: Double = isMetric ? 5.0 : 10.0
+    let minBound = isMetric ? Self.minRadiusMetric : Self.minRadiusImperial
+    let maxBound = isMetric ? Self.maxRadiusMetric : Self.maxRadiusImperial
+
+    let currentVal = configuredRadius.converted(to: stepUnit).value
+    let roundedCurrent = (currentVal / stepValue).rounded() * stepValue
+    let newVal = roundedCurrent - stepValue
+    let candidateRadius = Measurement(value: newVal, unit: stepUnit)
+
+    let clampedRadius = min(max(candidateRadius, minBound), maxBound)
+    updateRadius(to: clampedRadius)
   }
   
-  func decrementRadius() {
-    let currentVal = configuredRadius.converted(to: .meters).value
-    let newVal = max(currentVal - 5.0, 10.0)
-    updateRadius(to: newVal)
-  }
-  
-  private func updateRadius(to valueInMeters: Double) {
-    let newRadius = Measurement(value: valueInMeters, unit: UnitLength.meters)
+  private func updateRadius(to newRadius: Measurement<UnitLength>) {
     self.configuredRadius = newRadius
     anchorService.defaultRadius = newRadius
     

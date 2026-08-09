@@ -13,6 +13,7 @@ import SwiftUI
 struct AnchorAlertView: View {
   @Environment(AnchorViewModel.self) private var anchorViewModel
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(\.locale) private var locale
   
   @State private var isFlashing = false
   
@@ -93,8 +94,7 @@ struct AnchorAlertView: View {
                 .foregroundColor(.white.opacity(0.8))
               
               if let dist = anchorViewModel.currentDistance {
-                let distMeters = dist.converted(to: .meters).value
-                Text("\(Int(distMeters))m")
+                Text(dist.marineAnchorDistanceFormatted(locale: locale))
                   .font(.system(size: 32, weight: .bold, design: .monospaced))
                   .lineLimit(1)
                   .minimumScaleFactor(0.6)
@@ -115,8 +115,7 @@ struct AnchorAlertView: View {
                 .marineFont(.instrumentLabel)
                 .foregroundColor(.white.opacity(0.8))
               
-              let radiusMeters = anchorViewModel.configuredRadius.converted(to: .meters).value
-              Text("\(Int(radiusMeters))m")
+              Text(anchorViewModel.configuredRadius.marineAnchorDistanceFormatted(locale: locale))
                 .font(.system(size: 32, weight: .bold, design: .monospaced))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)

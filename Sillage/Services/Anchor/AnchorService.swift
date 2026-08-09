@@ -379,7 +379,7 @@ final class AnchorService {
         
         let bodyText: String
         if let accuracy = self.gpsAccuracy {
-          let formattedAccuracy = accuracy.converted(to: .meters).formatted(.anchorDistance)
+          let formattedAccuracy = accuracy.marineAnchorDistanceFormatted()
           bodyText = String(localized: "Critical GPS accuracy (\(formattedAccuracy)). Anchor alarm is temporarily unreliable.")
         } else {
           bodyText = String(localized: "Critical GPS accuracy. Anchor alarm is temporarily unreliable.")
@@ -502,20 +502,20 @@ final class AnchorService {
 
 
   /// Constructs localized notification titles and descriptive bodies for anchor alarm triggers.
-  /// Technical Design Choice: Uses Swift Foundation's `.formatted(.anchorDistance)` style on `Measurement<UnitLength>`
-  /// to ensure consistent unit representation (meters) without raw mathematical conversions or dummy fallback values.
+  /// Technical Design Choice: Uses `marineAnchorDistanceFormatted()` on `Measurement<UnitLength>`
+  /// to ensure dynamic unit representation (meters for metric, feet for US/UK) based on user phone settings.
   private func notificationContent(for reason: AnchorTriggerReason) -> (title: String, body: String) {
     switch reason {
     case .distanceExceeded(let distance, let radius):
-      let distStr = distance.converted(to: .meters).formatted(.anchorDistance)
-      let radStr = radius.converted(to: .meters).formatted(.anchorDistance)
+      let distStr = distance.marineAnchorDistanceFormatted()
+      let radStr = radius.marineAnchorDistanceFormatted()
       return (
         title: String(localized: "⚓️ DRAGGING ANCHOR!"),
         body: String(localized: "Vessel position is \(distStr) from anchor point (radius limit: \(radStr)).")
       )
     case .poorAccuracy(let accuracy, let requiredAccuracy):
-      let accStr = accuracy.converted(to: .meters).formatted(.anchorDistance)
-      let reqStr = requiredAccuracy.converted(to: .meters).formatted(.anchorDistance)
+      let accStr = accuracy.marineAnchorDistanceFormatted()
+      let reqStr = requiredAccuracy.marineAnchorDistanceFormatted()
       return (
         title: String(localized: "⚠️ Anchor Alarm: GPS Degraded"),
         body: String(localized: "GPS accuracy degraded to \(accStr) (required: \(reqStr)).")

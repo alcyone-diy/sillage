@@ -10,9 +10,6 @@
     "--" : {
 
     },
-    "-- m" : {
-
-    },
     "---" : {
 
     },
@@ -87,9 +84,6 @@
 
     },
     "%lld offline charts" : {
-
-    },
-    "%lldm" : {
 
     },
     "%lldm out of zone" : {
@@ -198,6 +192,9 @@
 
     },
     "Anchor Dropped" : {
+
+    },
+    "Anchor dropped with degraded accuracy (±%@)" : {
 
     },
     "Anchor dropped. Position will lock automatically on first GPS fix." : {
@@ -511,6 +508,9 @@
 
     },
     "GPS State" : {
+
+    },
+    "GPS: %@" : {
 
     },
     "GRDB" : {

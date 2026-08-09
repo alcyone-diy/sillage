@@ -17,16 +17,8 @@ public struct AnchorAlarmView: View {
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel: PanelManagerViewModel?
   @Environment(\.marineTheme) private var marineTheme
   @Environment(PermissionService.self) private var permissionService
+  @Environment(\.locale) private var locale
 
-
-  
-  private static let distanceFormatter: MeasurementFormatter = {
-    let formatter = MeasurementFormatter()
-    formatter.unitOptions = .providedUnit
-    formatter.numberFormatter.maximumFractionDigits = 0
-    return formatter
-  }()
-  
   public init() {}
   
   private var isArmed: Bool {
@@ -128,20 +120,20 @@ public struct AnchorAlarmView: View {
           .padding(MarineTheme.Spacing.small)
           .background(marineTheme.colors.destructiveBackground)
           .cornerRadius(MarineTheme.Metrics.cornerRadius)
-        } else if let initialAcc = viewModel.initialAccuracy?.converted(to: .meters).value, initialAcc > 15.0 {
+        } else if let initialAcc = viewModel.initialAccuracy, initialAcc.converted(to: .meters).value > 15.0 {
           HStack(spacing: 4) {
             Image(systemName: "info.circle.fill")
-            Text(String(format: "Anchor dropped with degraded accuracy (±%.0fm)", initialAcc))
+            Text("Anchor dropped with degraded accuracy (±\(initialAcc.marineAnchorDistanceFormatted(locale: locale)))")
           }
           .font(.caption.bold())
           .foregroundColor(marineTheme.colors.warning)
           .padding(MarineTheme.Spacing.small)
           .background(marineTheme.colors.warning.opacity(0.2))
           .cornerRadius(MarineTheme.Metrics.cornerRadius)
-        } else if viewModel.isGPSAccuracyDegraded, let accuracy = viewModel.gpsAccuracy?.converted(to: .meters).value {
+        } else if viewModel.isGPSAccuracyDegraded, let accuracy = viewModel.gpsAccuracy {
           HStack(spacing: 4) {
             Image(systemName: "exclamationmark.triangle.fill")
-            Text(String(format: "GPS: %.0fm", accuracy))
+            Text("GPS: \(accuracy.marineAnchorDistanceFormatted(locale: locale))")
           }
           .font(.caption.bold())
           .foregroundColor(marineTheme.colors.warning)
@@ -193,12 +185,12 @@ public struct AnchorAlarmView: View {
             .foregroundColor(marineTheme.colors.textSecondary)
           
           if let dist = viewModel.currentDistance {
-            Text(Self.distanceFormatter.string(from: dist.converted(to: .meters)))
+            Text(dist.marineAnchorDistanceFormatted(locale: locale))
               .font(.system(.title, design: .default).monospacedDigit().bold())
               .foregroundColor(isDragging ? marineTheme.colors.destructive : marineTheme.colors.primary)
               .frame(height: marineTheme.minTouchTarget)
           } else {
-            Text("-- m")
+            Text("--")
               .font(.system(.title, design: .default).monospacedDigit().bold())
               .foregroundColor(marineTheme.colors.primary)
               .frame(height: marineTheme.minTouchTarget)
@@ -214,7 +206,7 @@ public struct AnchorAlarmView: View {
             .foregroundColor(marineTheme.colors.textSecondary)
           
           HStack(spacing: MarineTheme.Spacing.small) {
-            Button(action: { viewModel.decrementRadius() }) {
+            Button(action: { viewModel.decrementRadius(locale: locale) }) {
               Image(systemName: "minus")
                 .font(.title3.bold())
                 .frame(width: marineTheme.minTouchTarget, height: marineTheme.minTouchTarget)
@@ -226,12 +218,12 @@ public struct AnchorAlarmView: View {
             .opacity(isArmed ? 0.3 : 1.0)
             .disabled(isArmed)
             
-            Text(Self.distanceFormatter.string(from: viewModel.configuredRadius.converted(to: .meters)))
+            Text(viewModel.configuredRadius.marineAnchorDistanceFormatted(locale: locale))
               .font(.system(.title, design: .default).monospacedDigit().bold())
               .foregroundColor(marineTheme.colors.textSecondary)
               .frame(width: 90, alignment: .center)
               
-            Button(action: { viewModel.incrementRadius() }) {
+            Button(action: { viewModel.incrementRadius(locale: locale) }) {
               Image(systemName: "plus")
                 .font(.title3.bold())
                 .frame(width: marineTheme.minTouchTarget, height: marineTheme.minTouchTarget)
