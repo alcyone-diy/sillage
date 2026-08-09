@@ -17,7 +17,8 @@ final class VitalTelemetryOverlayTests: XCTestCase {
 
   func testVitalTelemetryOverlay_Initialization() {
     let overlay = VitalTelemetryOverlay()
-    XCTAssertNotNil(overlay.body)
+    let host = UIHostingController(rootView: overlay)
+    XCTAssertNotNil(host.view)
   }
 
   func testVitalTelemetryOverlay_RendersInUIHostingController() {
