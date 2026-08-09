@@ -338,26 +338,7 @@ struct ContentView: View {
 
   // Marine Dashboard View
   private var marineDashboard: some View {
-    let sog = chartViewModel.smoothedSOG
-    let cog = chartViewModel.smoothedCOG
-    let btw = chartViewModel.bearingToWaypoint
-
-    let sogString = sog?.marineFormatted ?? "---"
-    let cogString = cog?.marineBearingFormatted ?? "---°"
-    let btwString = btw?.marineBearingFormatted ?? "---°"
-
-    var items = [
-      MarineTelemetryItem(label: "SOG", value: sogString, isPlaceholder: sog == nil),
-      MarineTelemetryItem(label: "COG", value: cogString, isPlaceholder: cog == nil)
-    ]
-
-    if chartViewModel.goToWaypointVisualState != nil {
-      items.append(
-        MarineTelemetryItem(label: "BTW", value: btwString, isPlaceholder: btw == nil)
-      )
-    }
-
-    return MarineTelemetryHUDCard(items: items)
+    VitalTelemetryOverlay()
       .padding(.horizontal)
       .padding(.top, MarineTheme.Spacing.hudCardTopPadding)
   }

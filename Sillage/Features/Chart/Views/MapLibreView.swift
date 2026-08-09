@@ -60,8 +60,10 @@ struct MapLibreView: UIViewRepresentable {
     mapView.attributionButton.isHidden = true
     mapView.logoView.isHidden = true
     
-    // Configure compass to remain permanently visible
+    // Configure compass to remain permanently visible at top-right below top HUD overlay
     mapView.compassView.compassVisibility = .visible
+    mapView.compassViewPosition = .topRight
+    mapView.compassViewMargins = CGPoint(x: MarineTheme.Spacing.medium, y: MarineTheme.Spacing.compassTopMargin)
     
     // Load a minimal blank style so MapLibre initializes and fires `mapView(_:didFinishLoading:)`
     if let blankStyleURL = createBlankStyleJSON() {
