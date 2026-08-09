@@ -359,7 +359,7 @@ struct ContentView: View {
 
     return MarineTelemetryHUDCard(items: items)
       .padding(.horizontal)
-      .padding(.top, 10)
+      .padding(.top, MarineTheme.Spacing.hudCardTopPadding)
   }
 }
 

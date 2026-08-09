@@ -18,6 +18,7 @@ public struct AnchorAdjustOverlayView: View {
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel: PanelManagerViewModel?
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(\.physicalSafeArea) private var physicalSafeArea
 
   public init() {}
 
@@ -32,7 +33,7 @@ public struct AnchorAdjustOverlayView: View {
       VStack {
         // 2. Top Sightline Telemetry HUD (Isolated sub-view for 120fps rendering)
         LineOfSightHUDView(chartViewModel: chartViewModel)
-          .padding(.top, MarineTheme.Spacing.extraLarge * 2) // Safe area clearance below top edge
+          .padding(.top, physicalSafeArea.top + MarineTheme.Spacing.hudCardTopPadding)
 
         Spacer()
 

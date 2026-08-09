@@ -40,7 +40,7 @@ public struct MarineTelemetryHUDCard: View {
       ForEach(items) { item in
         if item.id != items.first?.id {
           Divider()
-            .frame(height: 28)
+            .frame(height: MarineTheme.Metrics.hudDividerHeight)
         }
 
         VStack(spacing: 2) {
