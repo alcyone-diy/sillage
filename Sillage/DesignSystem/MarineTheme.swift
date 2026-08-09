@@ -81,7 +81,7 @@ struct MarineTheme {
     vectorTick: .black,
     anchorArmed: Color(red: 0.17, green: 0.24, blue: 0.31), // Navy / Slate #2C3E50
     anchorDragging: Color(red: 0.90, green: 0.11, blue: 0.14), // Alert Red #E61C24
-    anchorDropped: Color(red: 1.0, green: 0.80, blue: 0.0) // Maritime Yellow #FFCC00
+    anchorDropped: Color(red: 0.82, green: 0.0, blue: 0.45) // Magenta #D10074
   )
 
   struct Metrics {
