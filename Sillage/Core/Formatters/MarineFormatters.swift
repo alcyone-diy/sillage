@@ -11,6 +11,10 @@
 import Foundation
 
 public struct MarineFormatters {
+  /// The global boundary threshold (0.1 NM / 185.2 meters) between short distances
+  /// (formatted using iOS system units) and long distances (formatted in nautical miles).
+  public static let shortDistanceThreshold = Measurement<UnitLength>(value: 185.2, unit: .meters)
+
   public static let fileSizeFormatter: MeasurementFormatter = {
     let formatter = MeasurementFormatter()
     formatter.unitOptions = .naturalScale
@@ -31,10 +35,29 @@ extension Duration {
 }
 
 extension Measurement where UnitType == UnitLength {
-  var marineFormatted: String {
+  public var marineFormatted: String {
     self.converted(to: .nauticalMiles).formatted(
       .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(2)))
     )
+  }
+
+  /// Formats a distance measurement for marine contextual displays.
+  /// If the distance is below `MarineFormatters.shortDistanceThreshold` (0.1 NM / 185.2m), formats using the user's iOS measurement system settings (e.g. meters in metric locales, feet/yards in imperial locales).
+  /// Otherwise, formats in nautical miles (NM).
+  ///
+  /// - Note: Technical Rationale: `self` is explicitly converted to `.meters` prior to `.formatted(...)` for short distances.
+  ///   This ensures Foundation's `MeasurementFormatStyle` operates from a standard metric base unit when converting to system units (feet/yards),
+  ///   preventing unit conversion discrepancies when `self` is initially provided in nautical miles (`.nauticalMiles`).
+  public var marineContextualDistanceFormatted: String {
+    if self.converted(to: .meters) < MarineFormatters.shortDistanceThreshold {
+      return self.converted(to: .meters).formatted(
+        .measurement(width: .abbreviated, usage: .general, numberFormatStyle: .number.precision(.fractionLength(0)))
+      )
+    } else {
+      return self.converted(to: .nauticalMiles).formatted(
+        .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(2)))
+      )
+    }
   }
 }
 

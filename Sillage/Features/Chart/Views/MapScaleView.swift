@@ -130,7 +130,7 @@ struct MapScaleView: View {
     
     let niceMeasurement: Measurement<UnitLength>
     
-    if maxDistanceMeters.value < 185.0 {
+    if maxDistanceMeters < MarineFormatters.shortDistanceThreshold {
       let niceVal = calculateNiceValue(for: maxDistanceMeters.value)
       niceMeasurement = Measurement(value: niceVal, unit: UnitLength.meters)
     } else {

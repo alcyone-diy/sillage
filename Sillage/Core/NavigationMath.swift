@@ -144,6 +144,26 @@ extension CLLocationCoordinate2D {
 
     return Measurement(value: bearingDegrees, unit: UnitAngle.degrees)
   }
+
+  /// Calculates the Great Circle distance from this coordinate to another coordinate using the Haversine formula.
+  /// Pure value-type calculation avoiding heap allocations of `CLLocation`.
+  /// - Parameter destination: The target coordinate.
+  /// - Returns: Physical distance as a `Measurement<UnitLength>`.
+  func distance(to destination: CLLocationCoordinate2D) -> Measurement<UnitLength> {
+    let lat1 = self.latitude * .pi / 180.0
+    let lon1 = self.longitude * .pi / 180.0
+    let lat2 = destination.latitude * .pi / 180.0
+    let lon2 = destination.longitude * .pi / 180.0
+
+    let dLat = lat2 - lat1
+    let dLon = lon2 - lon1
+
+    let a = sin(dLat / 2.0) * sin(dLat / 2.0) + cos(lat1) * cos(lat2) * sin(dLon / 2.0) * sin(dLon / 2.0)
+    let c = 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
+
+    let distanceInMeters = Self.earthRadius.value * c
+    return Measurement(value: distanceInMeters, unit: .meters)
+  }
 }
 
 extension UnitArea {
