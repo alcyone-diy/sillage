@@ -46,7 +46,7 @@ public struct VitalTelemetryHUD: View {
   /// while regular size classes (e.g. iPhone landscape, iPad) use a single horizontal strip.
   private var currentLayout: TelemetryHUDLayout {
     if horizontalSizeClass == .compact {
-      return .grid(columns: 2)
+      return .grid(columns: 4)
     } else {
       return .horizontal
     }
