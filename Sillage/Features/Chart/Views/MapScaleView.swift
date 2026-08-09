@@ -131,8 +131,11 @@ struct MapScaleView: View {
     let niceMeasurement: Measurement<UnitLength>
     
     if maxDistanceMeters < MarineFormatters.shortDistanceThreshold {
-      let niceVal = calculateNiceValue(for: maxDistanceMeters.value)
-      niceMeasurement = Measurement(value: niceVal, unit: UnitLength.meters)
+      let isMetric = Locale.current.measurementSystem == .metric
+      let targetUnit: UnitLength = isMetric ? .meters : .feet
+      let maxDistInTargetUnit = maxDistanceMeters.converted(to: targetUnit).value
+      let niceVal = calculateNiceValue(for: maxDistInTargetUnit)
+      niceMeasurement = Measurement(value: niceVal, unit: targetUnit)
     } else {
       let maxNM = maxDistanceMeters.converted(to: .nauticalMiles).value
       let niceVal = calculateNiceValue(for: maxNM)
