@@ -32,7 +32,7 @@ protocol PreferencesServiceProtocol {
 
   func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double)
   func loadCameraState() -> (coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double)?
-  
+
   var activeTrackSessionID: String? { get }
   func saveActiveTrackSessionID(_ id: String)
   func clearActiveTrackSessionID()
@@ -44,9 +44,12 @@ protocol PreferencesServiceProtocol {
   var isBaroAlarmEnabled: Bool { get set }
   var baroAlarmSensitivity: BaroAlarmSensitivity { get set }
   var barometerOffset: Measurement<UnitPressure> { get set }
-  
+
   // MARK: - Anchor Watch Settings
   var savedAnchorRadius: Measurement<UnitLength> { get set }
+
+  // MARK: - HUD Settings
+  var hudEditOpenCount: Int { get set }
 }
 
 @Observable
@@ -73,8 +76,9 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let isBaroAlarmEnabledKey = "isBaroAlarmEnabled"
   @ObservationIgnored private let baroAlarmSensitivityKey = "baroAlarmSensitivity"
   @ObservationIgnored private let barometerOffsetHPaKey = "barometerOffsetHPa"
-  
+
   @ObservationIgnored private let savedAnchorRadiusMetersKey = "savedAnchorRadiusMeters"
+  @ObservationIgnored private let hudEditOpenCountKey = "sillage.prefs.hudEditOpenCount"
 
   @ObservationIgnored private let defaults = UserDefaults.standard
 
@@ -169,7 +173,7 @@ class PreferencesService: PreferencesServiceProtocol {
   private var rawBaroAlarmSensitivity: String {
     didSet { defaults.set(rawBaroAlarmSensitivity, forKey: baroAlarmSensitivityKey) }
   }
-  
+
   var baroAlarmSensitivity: BaroAlarmSensitivity {
     get { BaroAlarmSensitivity(rawValue: rawBaroAlarmSensitivity) ?? .medium }
     set { rawBaroAlarmSensitivity = newValue.rawValue }
@@ -183,14 +187,18 @@ class PreferencesService: PreferencesServiceProtocol {
     get { Measurement(value: rawBarometerOffsetHPa, unit: .hectopascals) }
     set { rawBarometerOffsetHPa = newValue.converted(to: .hectopascals).value }
   }
-  
+
   private var rawAnchorRadiusMeters: Double {
     didSet { defaults.set(rawAnchorRadiusMeters, forKey: savedAnchorRadiusMetersKey) }
   }
-  
+
   var savedAnchorRadius: Measurement<UnitLength> {
     get { Measurement(value: rawAnchorRadiusMeters, unit: .meters) }
     set { rawAnchorRadiusMeters = newValue.converted(to: .meters).value }
+  }
+
+  var hudEditOpenCount: Int {
+    didSet { defaults.set(hudEditOpenCount, forKey: hudEditOpenCountKey) }
   }
 
   init() {
@@ -214,12 +222,13 @@ class PreferencesService: PreferencesServiceProtocol {
     self.activeTrackSessionID = defaults.string(forKey: activeTrackSessionIDKey)
     self.goToWaypointID = defaults.string(forKey: goToWaypointIDKey)
     self.displayedTrackSessionID = defaults.string(forKey: displayedTrackSessionIDKey)
-    
+
     self.isBaroAlarmEnabled = defaults.object(forKey: isBaroAlarmEnabledKey) as? Bool ?? false
     self.rawBaroAlarmSensitivity = defaults.string(forKey: baroAlarmSensitivityKey) ?? BaroAlarmSensitivity.medium.rawValue
     self.rawBarometerOffsetHPa = defaults.object(forKey: barometerOffsetHPaKey) as? Double ?? 0.0
-    
+
     self.rawAnchorRadiusMeters = defaults.object(forKey: savedAnchorRadiusMetersKey) as? Double ?? 25.0
+    self.hudEditOpenCount = defaults.integer(forKey: hudEditOpenCountKey)
   }
 
   func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double) {

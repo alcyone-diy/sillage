@@ -176,6 +176,7 @@ final class MockPreferencesService: PreferencesServiceProtocol {
   var barometerOffset: Measurement<UnitPressure> = Measurement(value: 0, unit: .hectopascals)
   
   var savedAnchorRadius: Measurement<UnitLength> = Measurement(value: 25.0, unit: .meters)
+  var hudEditOpenCount: Int = 0
 }
 
 @MainActor

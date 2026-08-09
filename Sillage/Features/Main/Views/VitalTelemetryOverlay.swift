@@ -14,17 +14,22 @@ import SwiftUI
 /// Dynamically renders user-selected metrics from `TelemetryPreferences` (e.g. SOG, COG, BTW, RNG, XTE, Battery)
 /// and automatically switches between a 2-column grid layout in Compact size classes (iPhone Portrait)
 /// and a continuous horizontal strip in Regular size classes (iPhone Landscape, iPad).
-/// Supports interactive Edit Mode (`isEditingHUD == true`) with metric removal and addition from the Telemetry Reservoir.
+/// Supports interactive Edit Mode (`isEditingHUD == true`), squish long-press feedback, and ephemeral short-tap hint toasts capped at 2 successful Edit Mode entries.
 @MainActor
 public struct VitalTelemetryOverlay: View {
   @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
   @Environment(TelemetryPreferences.self) private var envPreferences: TelemetryPreferences?
+  @Environment(PreferencesService.self) private var preferencesService: PreferencesService?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @Environment(\.locale) private var locale
   @Environment(\.marineTheme) private var marineTheme
 
   @State private var secondaryViewModel = SecondaryTelemetryViewModel()
   @State private var isEditingHUD: Bool = false
+  @State private var isPressingHUD: Bool = false
+  @State private var showEditHint: Bool = false
+  @State private var hintTask: Task<Void, Never>? = nil
+
   private var customPreferences: TelemetryPreferences?
 
   public init(preferences: TelemetryPreferences? = nil) {
@@ -62,18 +67,74 @@ public struct VitalTelemetryOverlay: View {
           }
         }
       )
-      .onLongPressGesture(minimumDuration: 0.8) {
+      .scaleEffect((isPressingHUD && !isEditingHUD) ? 0.95 : 1.0)
+      .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressingHUD)
+      .onLongPressGesture(minimumDuration: 0.8) { isPressing in
+        guard !isEditingHUD else {
+          isPressingHUD = false
+          return
+        }
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+          isPressingHUD = isPressing
+        }
+      } perform: {
+        guard !isEditingHUD else { return }
+        isPressingHUD = false
         withAnimation(.spring()) {
-          if !isEditingHUD {
-            isEditingHUD = true
+          isEditingHUD = true
+          showEditHint = false
+          preferencesService?.hudEditOpenCount = (preferencesService?.hudEditOpenCount ?? 0) + 1
+        }
+      }
+      .simultaneousGesture(
+        TapGesture().onEnded {
+          let openCount = preferencesService?.hudEditOpenCount ?? 0
+          guard !isEditingHUD, openCount < 2 else { return }
+
+          hintTask?.cancel()
+          withAnimation(.easeInOut(duration: 0.25)) {
+            showEditHint = true
+          }
+          hintTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.25)) {
+              showEditHint = false
+            }
           }
         }
+      )
+
+      if showEditHint && !isEditingHUD {
+        HStack(spacing: 6) {
+          Image(systemName: "hand.tap.fill")
+            .font(.system(size: 12))
+            .foregroundColor(marineTheme.colors.accent)
+
+          Text("Long press to customize")
+            .marineFont(.caption)
+            .foregroundColor(marineTheme.colors.textSecondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+          .ultraThinMaterial,
+          in: Capsule()
+        )
+        .overlay(
+          Capsule()
+            .stroke(marineTheme.colors.border.opacity(0.3), lineWidth: MarineTheme.Metrics.borderWidth / 2)
+        )
+        .transition(.opacity.combined(with: .scale(scale: 0.9)))
       }
 
       if isEditingHUD {
         reservoirOverlay
           .transition(.move(edge: .bottom).combined(with: .opacity))
       }
+    }
+    .onChange(of: isEditingHUD) { _, _ in
+      isPressingHUD = false
     }
     .animation(.spring(), value: isEditingHUD)
     .animation(.default, value: preferences.activeMetrics)
@@ -91,6 +152,7 @@ public struct VitalTelemetryOverlay: View {
         Spacer()
 
         Button {
+          isPressingHUD = false
           withAnimation(.spring()) {
             isEditingHUD = false
           }
