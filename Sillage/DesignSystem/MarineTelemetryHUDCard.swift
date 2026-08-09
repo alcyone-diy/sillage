@@ -37,14 +37,24 @@ public enum TelemetryHUDLayout: Sendable, Equatable, Hashable {
 /// A unified, highly performant marine telemetry HUD card.
 /// Renders telemetry cells either in a continuous horizontal strip with vertical dividers
 /// or in an explicit column-based grid without vertical dividers.
+/// Supports an interactive Edit Mode (`isEditing == true`) displaying removal badges on telemetry cells.
 public struct MarineTelemetryHUDCard: View {
   let items: [MarineTelemetryItem]
   let layout: TelemetryHUDLayout
+  let isEditing: Bool
+  let onItemTapped: ((String) -> Void)?
   @Environment(\.marineTheme) private var marineTheme
 
-  public init(items: [MarineTelemetryItem], layout: TelemetryHUDLayout = .horizontal) {
+  public init(
+    items: [MarineTelemetryItem],
+    layout: TelemetryHUDLayout = .horizontal,
+    isEditing: Bool = false,
+    onItemTapped: ((String) -> Void)? = nil
+  ) {
     self.items = items
     self.layout = layout
+    self.isEditing = isEditing
+    self.onItemTapped = onItemTapped
   }
 
   public var body: some View {
@@ -57,7 +67,10 @@ public struct MarineTelemetryHUDCard: View {
       )
       .overlay(
         RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-          .stroke(marineTheme.colors.border.opacity(0.4), lineWidth: MarineTheme.Metrics.borderWidth / 2)
+          .stroke(
+            isEditing ? marineTheme.colors.accent.opacity(0.8) : marineTheme.colors.border.opacity(0.4),
+            lineWidth: isEditing ? MarineTheme.Metrics.borderWidth : MarineTheme.Metrics.borderWidth / 2
+          )
       )
       .shadow(color: Color.black.opacity(0.15), radius: MarineTheme.Metrics.shadowRadius * 3, x: 0, y: MarineTheme.Metrics.shadowOffset * 3)
   }
@@ -97,19 +110,42 @@ public struct MarineTelemetryHUDCard: View {
 
   @ViewBuilder
   private func cellView(for item: MarineTelemetryItem) -> some View {
-    VStack(spacing: 2) {
-      Text(item.label)
-        .marineFont(.instrumentLabel)
-        .foregroundColor(marineTheme.colors.textSecondary)
+    ZStack(alignment: .topLeading) {
+      VStack(spacing: 2) {
+        Text(item.label)
+          .marineFont(.instrumentLabel)
+          .foregroundColor(marineTheme.colors.textSecondary)
 
-      Text(verbatim: item.value)
-        .marineFont(.instrumentData)
-        .foregroundColor(item.isPlaceholder ? marineTheme.colors.textSecondary : marineTheme.colors.textPrimary)
+        Text(verbatim: item.value)
+          .marineFont(.instrumentData)
+          .foregroundColor(item.isPlaceholder ? marineTheme.colors.textSecondary : marineTheme.colors.textPrimary)
+      }
+      .padding(isEditing ? 4 : 0)
+      .opacity(isEditing ? 0.85 : 1.0)
+      .contentShape(Rectangle())
+
+      if isEditing {
+        ZStack {
+          Circle()
+            .fill(Color.white)
+            .frame(width: 14, height: 14)
+
+          Image(systemName: "minus.circle.fill")
+            .font(.system(size: 16, weight: .bold))
+            .foregroundColor(marineTheme.colors.error)
+        }
+        .offset(x: -8, y: -8)
+      }
+    }
+    .onTapGesture {
+      if isEditing {
+        onItemTapped?(item.id)
+      }
     }
   }
 }
 
-#Preview {
+#Preview("Marine Telemetry HUD Card") {
   let sampleItems = [
     MarineTelemetryItem(label: "SOG", value: "6.4 kn"),
     MarineTelemetryItem(label: "COG", value: "215°"),
@@ -130,6 +166,13 @@ public struct MarineTelemetryHUDCard: View {
         .font(.caption)
         .foregroundStyle(.secondary)
       MarineTelemetryHUDCard(items: sampleItems, layout: .grid(columns: 2))
+    }
+
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+      Text("Edit Mode (isEditing = true)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      MarineTelemetryHUDCard(items: sampleItems, layout: .grid(columns: 2), isEditing: true)
     }
   }
   .padding(MarineTheme.Spacing.medium)

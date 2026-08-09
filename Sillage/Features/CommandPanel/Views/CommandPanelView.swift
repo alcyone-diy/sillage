@@ -72,7 +72,7 @@ struct CommandPanelView: View {
           .listRowBackground(Color.clear)
           .listRowInsets(EdgeInsets())
         }
-        
+
         // Zone 2: Safety
         Section(header: Text("Safety")) {
           Button {
