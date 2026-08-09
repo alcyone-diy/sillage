@@ -338,79 +338,88 @@ struct ContentView: View {
 
   // Marine Dashboard View
   private var marineDashboard: some View {
-      VStack(spacing: 8) {
-        // TODO: Need to find a way to add it back without taking too much space.
-        /*
-        if let coordinate = chartViewModel.currentCoordinate {
-          Text(coordinate.formatted(.marineCoordinate))
-            .marineFont(.instrumentData)
-            .foregroundColor(.yellow)
+    HStack(spacing: MarineTheme.Spacing.medium) {
+      // SOG Telemetry
+      VStack(spacing: 2) {
+        Text("SOG")
+          .marineFont(.instrumentLabel)
+          .foregroundColor(marineTheme.colors.textSecondary)
+
+        if let sogMeasurement = chartViewModel.smoothedSOG {
+          let sogKnots = sogMeasurement.converted(to: .knots).value
+          Text(
+            Measurement(value: sogKnots, unit: UnitSpeed.knots).formatted(
+              .measurement(
+                width: .abbreviated,
+                usage: .asProvided,
+                numberFormatStyle: .number.precision(.fractionLength(1))
+              )
+            )
+          )
+          .marineFont(.instrumentData)
+          .foregroundColor(marineTheme.colors.textPrimary)
         } else {
-          Text("-- / --")
+          Text("--")
             .marineFont(.instrumentData)
-            .foregroundColor(.yellow)
+            .foregroundColor(marineTheme.colors.textSecondary)
         }
-        */
-        HStack(spacing: 40) {
-          VStack {
-            Text("SOG")
-              .marineFont(.instrumentLabel)
-              .foregroundColor(.secondary)
-            Group {
-              if let sogMeasurement = chartViewModel.smoothedSOG {
-                let sogKnots = sogMeasurement.converted(to: .knots).value
-                Text(Measurement(value: sogKnots, unit: UnitSpeed.knots).formatted(
-                    .measurement(width: .abbreviated,
-                                 usage: .asProvided,
-                                 numberFormatStyle: .number.precision(.fractionLength(1)))))
+      }
 
-              } else {
-                Text("--")
-              }
-            }
-              .marineFont(.instrumentData)
-              .foregroundColor(.white)
-          }
+      Divider()
+        .frame(height: 28)
 
-          VStack {
-            Text("COG")
-              .marineFont(.instrumentLabel)
-              .foregroundColor(.secondary)
-            Group {
-              if let cog = chartViewModel.smoothedCOG {
-                Text("\(cog.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
-              } else {
-                Text("--°")
-              }
-            }
+      // COG Telemetry
+      VStack(spacing: 2) {
+        Text("COG")
+          .marineFont(.instrumentLabel)
+          .foregroundColor(marineTheme.colors.textSecondary)
+
+        if let cog = chartViewModel.smoothedCOG {
+          Text("\(cog.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
+            .marineFont(.instrumentData)
+            .foregroundColor(marineTheme.colors.textPrimary)
+        } else {
+          Text("--°")
+            .marineFont(.instrumentData)
+            .foregroundColor(marineTheme.colors.textSecondary)
+        }
+      }
+
+      if chartViewModel.goToWaypointVisualState != nil {
+        Divider()
+          .frame(height: 28)
+
+        // BTW Telemetry
+        VStack(spacing: 2) {
+          Text("BTW")
+            .marineFont(.instrumentLabel)
+            .foregroundColor(marineTheme.colors.textSecondary)
+
+          if let btw = chartViewModel.bearingToWaypoint {
+            Text("\(btw.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
               .marineFont(.instrumentData)
-              .foregroundColor(.white)
-          }
-          
-          if chartViewModel.goToWaypointVisualState != nil {
-            VStack {
-              Text("BTW")
-                .marineFont(.instrumentLabel)
-                .foregroundColor(.secondary)
-              Group {
-                if let btw = chartViewModel.bearingToWaypoint {
-                  Text("\(btw.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
-                } else {
-                  Text("--°")
-                }
-              }
-                .marineFont(.instrumentData)
-                .foregroundColor(.white)
-            }
+              .foregroundColor(marineTheme.colors.textPrimary)
+          } else {
+            Text("--°")
+              .marineFont(.instrumentData)
+              .foregroundColor(marineTheme.colors.textSecondary)
           }
         }
       }
-      .padding()
-      .background(Material.ultraThinMaterial)
-      .environment(\.colorScheme, .dark)
-      .cornerRadius(12)
-      .padding(.horizontal)
-      .padding(.top, 10)
+    }
+    .padding(.horizontal, MarineTheme.Spacing.medium)
+    .padding(.vertical, MarineTheme.Spacing.small + 2)
+    .background(
+      .regularMaterial,
+      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+        .stroke(marineTheme.colors.border.opacity(0.4), lineWidth: MarineTheme.Metrics.borderWidth / 2)
+    )
+    .shadow(color: Color.black.opacity(0.15), radius: MarineTheme.Metrics.shadowRadius * 3, x: 0, y: MarineTheme.Metrics.shadowOffset * 3)
+    .padding(.horizontal)
+    .padding(.top, 10)
   }
 }
 
