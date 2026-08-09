@@ -108,6 +108,9 @@ final class ChartViewModel {
   }
   
   var bearingToWaypoint: Measurement<UnitAngle>? = nil
+  var rangeToWaypoint: Measurement<UnitLength>? = nil
+  var crossTrackError: Measurement<UnitLength>? = nil
+  private var goToOriginCoordinate: CLLocationCoordinate2D? = nil
   
   // MARK: - Chart Visual States (Annotations)
   
@@ -970,9 +973,21 @@ final class ChartViewModel {
   private func updateBearingToWaypoint(state: InstrumentState?) {
     guard let current = state?.coordinate, let waypoint = goToWaypointVisualState?.coordinate else {
       bearingToWaypoint = nil
+      rangeToWaypoint = nil
+      crossTrackError = nil
+      goToOriginCoordinate = nil
       return
     }
+
     bearingToWaypoint = current.greatCircleBearing(to: waypoint)
+    rangeToWaypoint = current.distance(to: waypoint)
+
+    if let origin = goToOriginCoordinate {
+      crossTrackError = current.crossTrackError(from: origin, to: waypoint)
+    } else {
+      goToOriginCoordinate = current
+      crossTrackError = current.crossTrackError(from: current, to: waypoint)
+    }
   }
   
   private func updateBearingLine(state: InstrumentState?) {

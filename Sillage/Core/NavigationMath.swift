@@ -164,6 +164,35 @@ extension CLLocationCoordinate2D {
     let distanceInMeters = Self.earthRadius.value * c
     return Measurement(value: distanceInMeters, unit: .meters)
   }
+
+  /// Calculates the Cross Track Error (XTE) from this coordinate to the track line defined by an origin and destination.
+  /// - Parameters:
+  ///   - origin: The starting coordinate of the leg track line.
+  ///   - destination: The target destination coordinate of the leg track line.
+  /// - Returns: Physical cross-track error distance as a `Measurement<UnitLength>`.
+  func crossTrackError(from origin: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D) -> Measurement<UnitLength> {
+    let distanceToOrigin = origin.distance(to: self)
+    let dist13InMeters = distanceToOrigin.converted(to: .meters).value
+
+    guard dist13InMeters > 0,
+          let bearingToCurrent = origin.greatCircleBearing(to: self),
+          let bearingToDestination = origin.greatCircleBearing(to: destination) else {
+      return Measurement(value: 0.0, unit: .meters)
+    }
+
+    let delta13 = dist13InMeters / Self.earthRadius.value
+    let theta13 = bearingToCurrent.converted(to: .radians).value
+    let theta12 = bearingToDestination.converted(to: .radians).value
+
+    let crossTrackDistanceRadians = asin(sin(delta13) * sin(theta13 - theta12))
+    let crossTrackMeters = abs(crossTrackDistanceRadians * Self.earthRadius.value)
+
+    if crossTrackMeters.isNaN || crossTrackMeters.isInfinite {
+      return Measurement(value: 0.0, unit: .meters)
+    }
+
+    return Measurement(value: crossTrackMeters, unit: .meters)
+  }
 }
 
 extension UnitArea {

@@ -730,6 +730,9 @@
     "Retry" : {
 
     },
+    "RNG" : {
+
+    },
     "S" : {
       "comment" : "South cardinal point"
     },
@@ -955,6 +958,9 @@
 
     },
     "xctest-dynamic-overlay" : {
+
+    },
+    "XTE" : {
 
     },
     "You can change this at any time in the Settings app." : {

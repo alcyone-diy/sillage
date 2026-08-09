@@ -70,6 +70,13 @@ extension Measurement where UnitType == UnitLength {
       .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0)))
     )
   }
+
+  /// Formats a cross-track error measurement in nautical miles (NM) with 2 decimal places (e.g. "0.02 NM").
+  public var marineCrossTrackFormatted: String {
+    self.converted(to: .nauticalMiles).formatted(
+      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(2)))
+    )
+  }
 }
 
 extension Measurement where UnitType == UnitSpeed {
