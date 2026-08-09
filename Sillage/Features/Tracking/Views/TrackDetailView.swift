@@ -94,7 +94,7 @@ struct TrackDetailView: View {
           
           DetailRow(
             label: "Length",
-            value: viewModel.totalDistanceOverGround?.marineFormatted ?? "—"
+            value: viewModel.totalDistanceOverGround?.marineNauticalMilesFormatted ?? "—"
           )
           .marineListCell()
           
