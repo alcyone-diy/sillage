@@ -35,12 +35,29 @@ extension Duration {
 }
 
 extension Measurement where UnitType == UnitLength {
-  public var marineFormatted: String {
-    self.converted(to: .nauticalMiles).formatted(
-      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(2)))
+  /// Base formatter: formats strictly in Nautical Miles with dynamic precision based on magnitude.
+  public var marineNauticalMilesFormatted: String {
+    let nm = self.converted(to: .nauticalMiles)
+    let magnitude = abs(nm.value)
+    
+    let fractionDigits: Int
+    if magnitude < 10.0 {
+      fractionDigits = 2
+    } else if magnitude < 100.0 {
+      fractionDigits = 1
+    } else {
+      fractionDigits = 0
+    }
+    
+    return nm.formatted(
+      .measurement(
+        width: .abbreviated,
+        usage: .asProvided,
+        numberFormatStyle: .number.precision(.fractionLength(fractionDigits))
+      )
     )
   }
-
+  
   /// Formats a distance measurement for marine contextual displays.
   /// If the distance is below `MarineFormatters.shortDistanceThreshold` (0.1 NM / 185.2m), formats using the user's iOS measurement system settings (meters or feet).
   /// Otherwise, formats in nautical miles (NM).
@@ -52,12 +69,10 @@ extension Measurement where UnitType == UnitLength {
     if self.converted(to: .meters) < MarineFormatters.shortDistanceThreshold {
       return marineAnchorDistanceFormatted(locale: locale)
     } else {
-      return self.converted(to: .nauticalMiles).formatted(
-        .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(2)))
-      )
+      return self.marineNauticalMilesFormatted
     }
   }
-
+  
   /// Technical Design Choice: Dynamic Anchor Distance Formatting
   /// Formats short distance measurements strictly according to the user's measurement system preference.
   /// Maps `.metric` -> `.meters`, and explicitly maps non-metric systems (`.us`, `.uk`) -> `.feet`.
@@ -70,12 +85,21 @@ extension Measurement where UnitType == UnitLength {
       .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0)))
     )
   }
-
+  
   /// Formats a cross-track error measurement in nautical miles (NM) with 2 decimal places (e.g. "0.02 NM").
   public var marineCrossTrackFormatted: String {
-    self.converted(to: .nauticalMiles).formatted(
-      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(2)))
-    )
+    let value = self.converted(to: .nauticalMiles).value
+    let absMeasurement = Measurement(value: abs(value), unit: UnitLength.nauticalMiles)
+    let formattedMagnitude = absMeasurement.marineNauticalMilesFormatted
+    
+    // Seuil de tolérance pour le zéro technique (0.0001 NM)
+    if value > 0.0001 {
+      return "▶ \(formattedMagnitude)"
+    } else if value < -0.0001 {
+      return "◀ \(formattedMagnitude)"
+    } else {
+      return formattedMagnitude
+    }
   }
 }
 
