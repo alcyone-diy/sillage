@@ -1,5 +1,5 @@
 //
-//  OfflineSelectionOverlayView.swift
+//  OfflineSelectionHUD.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-07-08.
@@ -10,9 +10,9 @@
 
 import SwiftUI
 
-/// An overlay view providing an interactive, resizable crop box for selecting an offline map region.
+/// A HUD providing an interactive, resizable crop box for selecting an offline map region.
 /// This view overlays the MapLibre view and captures drag gestures to compute geographic bounding boxes.
-struct OfflineSelectionOverlayView: View {
+struct OfflineSelectionHUD: View {
   @Environment(OfflineSelectionViewModel.self) private var viewModel: OfflineSelectionViewModel?
   @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel: PanelManagerViewModel?
