@@ -569,6 +569,95 @@ final class ChartViewModelTests: XCTestCase {
       XCTFail("Expected CameraMoveEvent.center event but got \(String(describing: receivedEvent))")
     }
   }
+
+  func testThrottledUpdateCenterCoordinate_AppliesTrailingEdgeThrottlingAndThreshold() async throws {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    let initialCenter = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.updateCenterCoordinateImmediately(initialCenter)
+    XCTAssertEqual(viewModel.centerCoordinate.latitude, 47.0)
+
+    // 1. Movement smaller than 1.0m threshold via throttled update
+    let tinyShift = CLLocationCoordinate2D(latitude: 47.000001, longitude: -3.0) // ~0.1m
+    viewModel.throttledUpdateCenterCoordinate(tinyShift)
+
+    // Wait for throttle interval to expire
+    try await Task.sleep(for: AppConstants.Map.regionThrottleInterval + .milliseconds(50))
+    XCTAssertEqual(viewModel.centerCoordinate.latitude, 47.0, "Sub-meter movement should be ignored by throttled update threshold")
+
+    // 2. Trailing Edge Throttle Test: Multiple rapid updates during throttle sleep window
+    let firstShift = CLLocationCoordinate2D(latitude: 47.01, longitude: -3.0) // ~1.1km
+    let latestShift = CLLocationCoordinate2D(latitude: 47.05, longitude: -3.0) // ~5.5km
+
+    viewModel.throttledUpdateCenterCoordinate(firstShift)
+    // Immediately overwrite with a fresher coordinate before throttle sleep expires
+    viewModel.throttledUpdateCenterCoordinate(latestShift)
+
+    // Right after calling throttled updates, centerCoordinate is not yet updated
+    XCTAssertEqual(viewModel.centerCoordinate.latitude, 47.0)
+
+    // Wait for throttle interval to expire
+    try await Task.sleep(for: AppConstants.Map.regionThrottleInterval + .milliseconds(50))
+    // Trailing edge throttling guarantees latestShift is applied, NOT firstShift
+    XCTAssertEqual(viewModel.centerCoordinate.latitude, 47.05, "Trailing edge throttle must apply the latest coordinate received during the sleep window")
+
+    // 3. Immediate update forces exact coordinate regardless of threshold and clears pending state
+    let exactShift = CLLocationCoordinate2D(latitude: 47.08, longitude: -3.0)
+    viewModel.updateCenterCoordinateImmediately(exactShift)
+    XCTAssertEqual(viewModel.centerCoordinate.latitude, 47.08, "Immediate update should set exact coordinate instantly")
+  }
+
+  func testThrottledUpdateMapScaleAndZoom_AppliesTrailingEdgeThrottling() async throws {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    viewModel.updateMapScaleAndZoomImmediately(metersPerPoint: 10.0, zoomLevel: 12.0)
+    XCTAssertEqual(viewModel.mapScale?.converted(to: .meters).value, 10.0)
+    XCTAssertEqual(viewModel.zoomLevel, 12.0)
+
+    // Trailing Edge Throttle Test: Multiple rapid updates during throttle sleep window
+    viewModel.throttledUpdateMapScaleAndZoom(metersPerPoint: 20.0, zoomLevel: 14.0)
+    viewModel.throttledUpdateMapScaleAndZoom(metersPerPoint: 35.0, zoomLevel: 16.0)
+
+    // Throttled update should not apply immediately
+    XCTAssertEqual(viewModel.mapScale?.converted(to: .meters).value, 10.0)
+    XCTAssertEqual(viewModel.zoomLevel, 12.0)
+
+    // Wait for throttle interval to expire
+    try await Task.sleep(for: AppConstants.Map.regionThrottleInterval + .milliseconds(50))
+    // Trailing edge throttling guarantees latest scale and zoom level are applied
+    XCTAssertEqual(viewModel.mapScale?.converted(to: .meters).value, 35.0)
+    XCTAssertEqual(viewModel.zoomLevel, 16.0)
+  }
 }
 
 

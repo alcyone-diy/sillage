@@ -56,7 +56,7 @@ final class MapCalloutViewModel {
   }
   
   /// Throttles screen/coordinate updates during high-frequency map region changes (60-120Hz).
-  /// Executes synchronously for .fixedGeographic mode (zero lag), and throttles to ~10Hz for .fixedScreen mode.
+  /// Executes synchronously for .fixedGeographic mode (zero lag), and throttles to AppConstants.Map.regionThrottleInterval for .fixedScreen mode.
   func throttledUpdateScreenPosition(from mapView: MLNMapView) {
     guard isCalloutVisible else { return }
     
@@ -68,11 +68,10 @@ final class MapCalloutViewModel {
       performProjectionUpdate(from: mapView)
       
     case .fixedScreen:
-      // Fixed screen mode requires heavy Great Circle navigational math re-computation.
-      // Throttle coordinate updates to ~10Hz (100ms interval) to conserve CPU/battery.
+      // Throttle coordinate updates to AppConstants.Map.regionThrottleInterval to conserve CPU/battery and prevent continuous SwiftUI re-renders.
       guard throttleTask == nil else { return }
       let task = Task { @MainActor [weak self] in
-        try? await Task.sleep(for: .milliseconds(100))
+        try? await Task.sleep(for: AppConstants.Map.regionThrottleInterval)
         guard let self = self, !Task.isCancelled, self.isCalloutVisible else { return }
         self.performProjectionUpdate(from: mapView)
         self.throttleTask = nil
@@ -90,7 +89,6 @@ final class MapCalloutViewModel {
     performProjectionUpdate(from: mapView)
   }
   
-  private static let coordinateUpdateThreshold = Measurement(value: 1.0, unit: UnitLength.meters)
   private static let screenPointUpdateThreshold: CGFloat = 0.5
   
   /// Performs projection re-calculation according to the current anchorMode.
@@ -111,7 +109,7 @@ final class MapCalloutViewModel {
       let newCoord = mapView.convert(self.screenPoint, toCoordinateFrom: mapView)
       if let current = self.targetCoordinate {
         let deltaDistance = current.distance(to: newCoord)
-        if deltaDistance >= Self.coordinateUpdateThreshold {
+        if deltaDistance >= AppConstants.Map.coordinateUpdateThreshold {
           self.targetCoordinate = newCoord
         }
       } else {

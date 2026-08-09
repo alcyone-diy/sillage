@@ -377,16 +377,16 @@ struct MapLibreView: UIViewRepresentable {
     
     func mapViewRegionIsChanging(_ mapView: MLNMapView) {
       let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
-      self.parent.viewModel.mapScale = Measurement(value: mpp, unit: UnitLength.meters)
-      self.parent.viewModel.zoomLevel = mapView.zoomLevel
+      self.parent.viewModel.throttledUpdateMapScaleAndZoom(metersPerPoint: mpp, zoomLevel: mapView.zoomLevel)
       self.parent.viewModel.calloutViewModel.throttledUpdateScreenPosition(from: mapView)
+      self.parent.viewModel.throttledUpdateCenterCoordinate(mapView.centerCoordinate)
     }
     
     func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
       let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
-      self.parent.viewModel.mapScale = Measurement(value: mpp, unit: UnitLength.meters)
-      self.parent.viewModel.zoomLevel = mapView.zoomLevel
+      self.parent.viewModel.updateMapScaleAndZoomImmediately(metersPerPoint: mpp, zoomLevel: mapView.zoomLevel)
       self.parent.viewModel.calloutViewModel.updateScreenPositionImmediately(from: mapView)
+      self.parent.viewModel.updateCenterCoordinateImmediately(mapView.centerCoordinate)
     }
     
     // Called when the map has finished loading its style
@@ -560,8 +560,9 @@ struct MapLibreView: UIViewRepresentable {
         guard let self else { return }
         
         // Keep ViewModel state in sync with the chart.
-        self.parent.viewModel.centerCoordinate = mapView.centerCoordinate
-        self.parent.viewModel.zoomLevel = mapView.zoomLevel
+        let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
+        self.parent.viewModel.updateMapScaleAndZoomImmediately(metersPerPoint: mpp, zoomLevel: mapView.zoomLevel)
+        self.parent.viewModel.updateCenterCoordinateImmediately(mapView.centerCoordinate)
         self.parent.viewModel.chartDirection = Measurement(value: mapView.direction, unit: UnitAngle.degrees)
         
         // Save the camera state to UserDefaults

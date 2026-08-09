@@ -153,8 +153,89 @@ final class ChartViewModel {
   private var waypointSelectionTask: TaskCancellable?
   private var waypointsObservationTask: TaskCancellable?
   private var anchorObservationTask: TaskCancellable?
+  private var centerCoordinateThrottleTask: TaskCancellable?
+  private var mapScaleThrottleTask: TaskCancellable?
+  private var pendingCenterCoordinate: CLLocationCoordinate2D?
+  private var pendingScaleAndZoom: (metersPerPoint: Double, zoomLevel: Double)?
   
   var silentFetchTask: TaskCancellable?
+  
+  // MARK: - Throttled Camera Updates
+  
+  /// Technical Design Choice: Trailing Edge Throttling & Battery Preservation
+  /// Stores the latest incoming `newCenter` in `pendingCenterCoordinate` and throttles updates using `AppConstants.Map.regionThrottleInterval` (100ms).
+  /// Upon Task wake-up, reads `pendingCenterCoordinate` to ensure the freshest geographic position is applied, preventing stale data lag during continuous map gestures.
+  func throttledUpdateCenterCoordinate(_ newCenter: CLLocationCoordinate2D) {
+    self.pendingCenterCoordinate = newCenter
+    
+    guard centerCoordinateThrottleTask == nil else { return }
+    let task = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: AppConstants.Map.regionThrottleInterval)
+      guard let self = self, !Task.isCancelled else { return }
+      if let latest = self.pendingCenterCoordinate {
+        self.performCenterCoordinateUpdate(latest)
+      }
+      self.centerCoordinateThrottleTask = nil
+    }
+    self.centerCoordinateThrottleTask = TaskCancellable(task)
+  }
+
+  /// Forces an immediate update of centerCoordinate from the mapView.
+  /// Called when map region animation or gesture completes. Clears pending state.
+  func updateCenterCoordinateImmediately(_ newCenter: CLLocationCoordinate2D) {
+    centerCoordinateThrottleTask?.cancel()
+    centerCoordinateThrottleTask = nil
+    pendingCenterCoordinate = nil
+    performCenterCoordinateUpdate(newCenter, force: true)
+  }
+
+  private func performCenterCoordinateUpdate(_ newCenter: CLLocationCoordinate2D, force: Bool = false) {
+    if force {
+      self.centerCoordinate = newCenter
+      return
+    }
+    let deltaDistance = self.centerCoordinate.distance(to: newCenter)
+    if deltaDistance >= AppConstants.Map.coordinateUpdateThreshold {
+      self.centerCoordinate = newCenter
+    }
+  }
+
+  /// Technical Design Choice: Trailing Edge Throttling & Battery Preservation
+  /// Stores the latest incoming scale/zoom in `pendingScaleAndZoom` and throttles updates using `AppConstants.Map.regionThrottleInterval` (100ms).
+  /// Upon Task wake-up, reads `pendingScaleAndZoom` to ensure the freshest map scale and zoom level are applied.
+  func throttledUpdateMapScaleAndZoom(metersPerPoint: Double, zoomLevel: Double) {
+    self.pendingScaleAndZoom = (metersPerPoint, zoomLevel)
+    
+    guard mapScaleThrottleTask == nil else { return }
+    let task = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: AppConstants.Map.regionThrottleInterval)
+      guard let self = self, !Task.isCancelled else { return }
+      if let latest = self.pendingScaleAndZoom {
+        self.performMapScaleAndZoomUpdate(metersPerPoint: latest.metersPerPoint, zoomLevel: latest.zoomLevel)
+      }
+      self.mapScaleThrottleTask = nil
+    }
+    self.mapScaleThrottleTask = TaskCancellable(task)
+  }
+
+  /// Forces an immediate update of map scale and zoom level.
+  /// Called when map region animation or gesture completes. Clears pending state.
+  func updateMapScaleAndZoomImmediately(metersPerPoint: Double, zoomLevel: Double) {
+    mapScaleThrottleTask?.cancel()
+    mapScaleThrottleTask = nil
+    pendingScaleAndZoom = nil
+    performMapScaleAndZoomUpdate(metersPerPoint: metersPerPoint, zoomLevel: zoomLevel)
+  }
+
+  private func performMapScaleAndZoomUpdate(metersPerPoint: Double, zoomLevel: Double) {
+    let newScale = Measurement(value: metersPerPoint, unit: UnitLength.meters)
+    if self.mapScale != newScale {
+      self.mapScale = newScale
+    }
+    if self.zoomLevel != zoomLevel {
+      self.zoomLevel = zoomLevel
+    }
+  }
   
   // MARK: - Camera Multicast Stream
   
