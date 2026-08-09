@@ -43,6 +43,7 @@ final class AppEnvironment {
     let offlineSelectionViewModel: OfflineSelectionViewModel
     let networkMonitorService: NetworkMonitorService
     let notificationService: NotificationService
+    let secondaryTelemetryViewModel: SecondaryTelemetryViewModel
   }
   
   public init(metadata: AppMetadata? = nil) {
@@ -177,6 +178,7 @@ final class AppEnvironment {
         offlineMapDownloadService: self.offlineMapDownloadService
       )
       let networkMonitorService = NetworkMonitorService()
+      let secondaryTelemetryViewModel = SecondaryTelemetryViewModel()
       await trackRecordingService.attemptRecoveryIfNeeded()
       
       if let displayedTrackID = preferencesService.displayedTrackSessionID {
@@ -207,7 +209,8 @@ final class AppEnvironment {
         permissionService: permissionService,
         offlineSelectionViewModel: offlineSelectionViewModel,
         networkMonitorService: networkMonitorService,
-        notificationService: notificationService
+        notificationService: notificationService,
+        secondaryTelemetryViewModel: secondaryTelemetryViewModel
       )
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
