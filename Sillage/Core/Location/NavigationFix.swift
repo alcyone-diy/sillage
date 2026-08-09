@@ -54,25 +54,7 @@ public struct NavigationFix: Sendable, Equatable {
     let distanceInMeters = startLocation.distance(from: endLocation)
     return Measurement(value: distanceInMeters, unit: .meters)
   }
-  
-  /// Calculates the initial bearing to another coordinate.
-  public func bearing(to location: NavigationFix) -> Measurement<UnitAngle> {
-    let lat1 = self.coordinate.latitude * .pi / 180.0
-    let lon1 = self.coordinate.longitude * .pi / 180.0
-    let lat2 = location.coordinate.latitude * .pi / 180.0
-    let lon2 = location.coordinate.longitude * .pi / 180.0
-    let dLon = lon2 - lon1
-    
-    let y = sin(dLon) * cos(lat2)
-    let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
-    var bearingRadians = atan2(y, x)
-    if bearingRadians < 0 {
-      bearingRadians += 2 * .pi
-    }
-    
-    return Measurement(value: bearingRadians, unit: .radians)
-  }
-  
+
   /// Explicit Equatable implementation.
   /// A fix is considered identical if it occurs at the exact same geographic point and time.
   public static func == (lhs: NavigationFix, rhs: NavigationFix) -> Bool {
