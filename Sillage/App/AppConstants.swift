@@ -45,4 +45,12 @@ public enum AppConstants {
       public static let maxDownloadArea = Measurement(value: 1500, unit: UnitArea.squareNauticalMiles)
     }
   }
+
+  public struct Map {
+    /// Throttling duration for high-frequency map region projection and telemetry updates (e.g. callout / overlay calculations).
+    nonisolated public static let regionThrottleInterval: Duration = .milliseconds(100)
+    
+    /// Minimum geographic movement required to trigger telemetric coordinate updates during map gestures.
+    nonisolated public static let coordinateUpdateThreshold = Measurement(value: 1.0, unit: UnitLength.meters)
+  }
 }
