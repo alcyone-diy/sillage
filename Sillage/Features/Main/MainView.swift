@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  MainView.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-03-19.
@@ -418,4 +418,3 @@ private struct AnchoringStatusCapsuleView: View {
     }
   }
 }
-

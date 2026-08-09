@@ -1,5 +1,5 @@
 //
-//  MarineListCellModifier.swift
+//  MarineExpandingTextEditor.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-05-30.
