@@ -24,6 +24,20 @@ final class MarineFormattersTests: XCTestCase {
     XCTAssertFalse(formatted.contains("NM"))
   }
 
+  func testSubMeterDistanceDoesNotScaleToCentimetersOrInches() {
+    // Very short distance below 1 meter (0.5 meters / 50cm)
+    let dist = Measurement<UnitLength>(value: 0.5, unit: .meters)
+    let formatted = dist.marineContextualDistanceFormatted
+
+    // Must strictly remain in meters or feet, forbidding sub-unit scaling (cm or in)
+    XCTAssertFalse(formatted.contains("cm"))
+    XCTAssertFalse(formatted.contains("in"))
+
+    let isMetric = Locale.current.measurementSystem == .metric
+    let expectedUnitSymbol = isMetric ? "m" : "ft"
+    XCTAssertTrue(formatted.contains(expectedUnitSymbol))
+  }
+
   func testMarineContextualDistanceFormattedForLongDistance() {
     let dist = Measurement<UnitLength>(value: 500, unit: .meters)
     let formatted = dist.marineContextualDistanceFormatted

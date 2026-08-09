@@ -42,16 +42,18 @@ extension Measurement where UnitType == UnitLength {
   }
 
   /// Formats a distance measurement for marine contextual displays.
-  /// If the distance is below `MarineFormatters.shortDistanceThreshold` (0.1 NM / 185.2m), formats using the user's iOS measurement system settings (e.g. meters in metric locales, feet/yards in imperial locales).
+  /// If the distance is below `MarineFormatters.shortDistanceThreshold` (0.1 NM / 185.2m), formats using the user's iOS measurement system settings (meters or feet).
   /// Otherwise, formats in nautical miles (NM).
   ///
-  /// - Note: Technical Rationale: `self` is explicitly converted to `.meters` prior to `.formatted(...)` for short distances.
-  ///   This ensures Foundation's `MeasurementFormatStyle` operates from a standard metric base unit when converting to system units (feet/yards),
-  ///   preventing unit conversion discrepancies when `self` is initially provided in nautical miles (`.nauticalMiles`).
+  /// - Note: Technical Rationale: To prevent Foundation's `usage: .general` from scaling short distances down to sub-units (centimeters or inches),
+  ///   we explicitly inspect `Locale.current.measurementSystem`. If metric, we convert to `.meters`; otherwise to `.feet`.
+  ///   We then format using `usage: .asProvided` with 0 decimal places, strictly locking the minimum display unit to `m` or `ft`.
   public var marineContextualDistanceFormatted: String {
     if self.converted(to: .meters) < MarineFormatters.shortDistanceThreshold {
-      return self.converted(to: .meters).formatted(
-        .measurement(width: .abbreviated, usage: .general, numberFormatStyle: .number.precision(.fractionLength(0)))
+      let isMetric = Locale.current.measurementSystem == .metric
+      let targetUnit: UnitLength = isMetric ? .meters : .feet
+      return self.converted(to: targetUnit).formatted(
+        .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0)))
       )
     } else {
       return self.converted(to: .nauticalMiles).formatted(
