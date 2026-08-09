@@ -31,12 +31,14 @@ struct MapCalloutOverlayView: View {
         let distance = calloutViewModel.distance(from: vesselCoord)
         
         let screenPoint = calloutViewModel.screenPoint
-        let cardWidth: CGFloat = 260
+        let cardWidth = MarineTheme.Metrics.calloutCardWidth
         
         // Determine whether to place the card above or below the crosshair reticle
-        let isNearTop = screenPoint.y < 160
-        let cardY = isNearTop ? screenPoint.y + 105 : screenPoint.y - 105
-        let cardX = min(max(screenPoint.x, cardWidth / 2 + 16), geometry.size.width - cardWidth / 2 - 16)
+        let isNearTop = screenPoint.y < MarineTheme.Metrics.topToolbarClearance
+        let verticalOffset = MarineTheme.Metrics.calloutVerticalOffset
+        let cardY = isNearTop ? screenPoint.y + verticalOffset : screenPoint.y - verticalOffset
+        let horizontalMargin = MarineTheme.Spacing.medium
+        let cardX = min(max(screenPoint.x, cardWidth / 2 + horizontalMargin), geometry.size.width - cardWidth / 2 - horizontalMargin)
         
         ZStack {
           // 1. Target Crosshair Reticle (Displayed only when targeting empty map space)
@@ -50,13 +52,13 @@ struct MapCalloutOverlayView: View {
             .frame(width: cardWidth)
             .background(
               .regularMaterial,
-              in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+              in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
             )
             .overlay(
-              RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(marineTheme.colors.border.opacity(0.4), lineWidth: 0.5)
+              RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+                .stroke(marineTheme.colors.border.opacity(0.4), lineWidth: MarineTheme.Metrics.borderWidth / 2)
             )
-            .shadow(color: Color.black.opacity(0.15), radius: 12, x: 0, y: 6)
+            .shadow(color: Color.black.opacity(0.15), radius: MarineTheme.Metrics.shadowRadius * 3, x: 0, y: MarineTheme.Metrics.shadowOffset * 3)
             .position(x: cardX, y: cardY)
             .transition(.scale(scale: 0.95).combined(with: .opacity))
         }
@@ -72,48 +74,58 @@ struct MapCalloutOverlayView: View {
       // Telemetry Header (Bearing & Distance)
       HStack(spacing: 0) {
         // Bearing Cell
-        VStack(spacing: 2) {
+        VStack(spacing: MarineTheme.Spacing.tiny / 2) {
           Text("BEARING")
-            .font(.caption2.bold())
+            .bold()
+            .marineFont(.caption)
             .foregroundColor(marineTheme.colors.textSecondary)
           
           if let brg = bearing {
             let degValue = Int(brg.converted(to: .degrees).value.rounded())
             let normalizedDeg = (degValue % 360 + 360) % 360
             Text(String(format: "%03d°", normalizedDeg))
-              .font(.system(.callout, design: .monospaced).bold())
+              .monospacedDigit()
+              .bold()
+              .marineFont(.body)
               .foregroundColor(marineTheme.colors.textPrimary)
           } else {
             Text("---°")
-              .font(.system(.callout, design: .monospaced).bold())
+              .monospacedDigit()
+              .bold()
+              .marineFont(.body)
               .foregroundColor(marineTheme.colors.textSecondary)
           }
         }
         .frame(maxWidth: .infinity)
         
         Divider()
-          .frame(height: 32)
+          .frame(height: MarineTheme.Metrics.calloutDividerHeight)
         
         // Distance Cell
-        VStack(spacing: 2) {
+        VStack(spacing: MarineTheme.Spacing.tiny / 2) {
           Text("DISTANCE")
-            .font(.caption2.bold())
+            .bold()
+            .marineFont(.caption)
             .foregroundColor(marineTheme.colors.textSecondary)
           
           if let dist = distance {
             Text(formatDistance(dist))
-              .font(.system(.callout, design: .monospaced).bold())
+              .monospacedDigit()
+              .bold()
+              .marineFont(.body)
               .foregroundColor(marineTheme.colors.textPrimary)
           } else {
             Text("--")
-              .font(.system(.callout, design: .monospaced).bold())
+              .monospacedDigit()
+              .bold()
+              .marineFont(.body)
               .foregroundColor(marineTheme.colors.textSecondary)
           }
         }
         .frame(maxWidth: .infinity)
       }
-      .padding(.vertical, 10)
-      .padding(.horizontal, 8)
+      .padding(.vertical, MarineTheme.Spacing.small + 2)
+      .padding(.horizontal, MarineTheme.Spacing.small)
       
       Divider()
       
@@ -199,30 +211,19 @@ struct MapCalloutOverlayView: View {
   private func actionRow(title: String, systemImage: String, isDestructive: Bool = false) -> some View {
     HStack {
       Text(title)
-        .font(.subheadline)
-        .foregroundColor(isDestructive ? .red : marineTheme.colors.textPrimary)
+        .marineFont(.body)
+        .foregroundColor(isDestructive ? marineTheme.colors.destructive : marineTheme.colors.textPrimary)
       Spacer()
       Image(systemName: systemImage)
-        .font(.subheadline)
-        .foregroundColor(isDestructive ? .red : marineTheme.colors.textPrimary)
+        .marineFont(.body)
+        .foregroundColor(isDestructive ? marineTheme.colors.destructive : marineTheme.colors.textPrimary)
     }
-    .padding(.horizontal, 14)
-    .frame(height: 44)
+    .padding(.horizontal, MarineTheme.Spacing.actionRowHorizontal)
+    .frame(minHeight: marineTheme.minTouchTarget)
     .contentShape(Rectangle())
   }
   
   private func formatDistance(_ distance: Measurement<UnitLength>) -> String {
-    let meters = distance.converted(to: .meters).value
-    if meters < 185.2 {
-      let mMeasurement = Measurement(value: meters, unit: UnitLength.meters)
-      return mMeasurement.formatted(
-        .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0)))
-      )
-    } else {
-      let nmMeasurement = distance.converted(to: .nauticalMiles)
-      return nmMeasurement.formatted(
-        .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(2)))
-      )
-    }
+    distance.marineContextualDistanceFormatted
   }
 }

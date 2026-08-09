@@ -94,6 +94,16 @@ struct MarineTheme {
     static let paginationDotSize: CGFloat = 6.0
     static let shadowRadius: CGFloat = 4.0
     static let shadowOffset: CGFloat = 2.0
+
+    // MARK: - Map Target Callout Overlay Metrics
+    /// Standard width for map target callout overlay menu cards
+    static let calloutCardWidth: CGFloat = 270.0
+    /// Vertical clearance from top toolbar to invert callout card placement
+    static let topToolbarClearance: CGFloat = 160.0
+    /// Vertical offset from target screen point to callout card center
+    static let calloutVerticalOffset: CGFloat = 110.0
+    /// Divider height in map callout telemetry header
+    static let calloutDividerHeight: CGFloat = 36.0
   }
 
   var metrics: Metrics {
@@ -103,6 +113,7 @@ struct MarineTheme {
   struct Spacing {
     static let tiny: CGFloat = 4
     static let small: CGFloat = 8
+    static let actionRowHorizontal: CGFloat = 14.0
     static let medium: CGFloat = 16
     static let large: CGFloat = 24
     static let extraLarge: CGFloat = 32

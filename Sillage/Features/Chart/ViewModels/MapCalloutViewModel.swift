@@ -90,6 +90,9 @@ final class MapCalloutViewModel {
     performProjectionUpdate(from: mapView)
   }
   
+  private static let coordinateUpdateThreshold = Measurement(value: 1.0, unit: UnitLength.meters)
+  private static let screenPointUpdateThreshold: CGFloat = 0.5
+  
   /// Performs projection re-calculation according to the current anchorMode.
   private func performProjectionUpdate(from mapView: MLNMapView) {
     switch anchorMode {
@@ -97,12 +100,23 @@ final class MapCalloutViewModel {
       guard let targetCoord = targetCoordinate else { return }
       let newPoint = mapView.convert(targetCoord, toPointTo: mapView)
       if mapView.bounds.contains(newPoint) {
-        self.screenPoint = newPoint
+        if abs(self.screenPoint.x - newPoint.x) >= Self.screenPointUpdateThreshold ||
+           abs(self.screenPoint.y - newPoint.y) >= Self.screenPointUpdateThreshold {
+          self.screenPoint = newPoint
+        }
       } else {
         self.dismiss()
       }
     case .fixedScreen:
-      self.targetCoordinate = mapView.convert(self.screenPoint, toCoordinateFrom: mapView)
+      let newCoord = mapView.convert(self.screenPoint, toCoordinateFrom: mapView)
+      if let current = self.targetCoordinate {
+        let deltaDistance = current.distance(to: newCoord)
+        if deltaDistance >= Self.coordinateUpdateThreshold {
+          self.targetCoordinate = newCoord
+        }
+      } else {
+        self.targetCoordinate = newCoord
+      }
     }
   }
   
@@ -119,10 +133,6 @@ final class MapCalloutViewModel {
   /// - Returns: Physical distance as a `Measurement<UnitLength>`, or `nil` if telemetry is incomplete.
   func distance(from vesselCoordinate: CLLocationCoordinate2D?) -> Measurement<UnitLength>? {
     guard let vessel = vesselCoordinate, let target = targetCoordinate else { return nil }
-    let boatLoc = CLLocation(latitude: vessel.latitude, longitude: vessel.longitude)
-    let targetLoc = CLLocation(latitude: target.latitude, longitude: target.longitude)
-    let distanceInMeters = boatLoc.distance(from: targetLoc)
-    guard distanceInMeters >= 0 else { return nil }
-    return Measurement(value: distanceInMeters, unit: UnitLength.meters)
+    return vessel.distance(to: target)
   }
 }
