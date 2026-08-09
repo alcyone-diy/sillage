@@ -86,6 +86,18 @@ extension Measurement where UnitType == UnitAngle {
       .measurement(width: .narrow, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(6)))
     )
   }
+
+  /// Returns the normalized angle value in degrees clamped strictly to [0, 360).
+  public var normalizedDegrees: Double {
+    let degrees = self.converted(to: .degrees).value
+    return (degrees.truncatingRemainder(dividingBy: 360.0) + 360.0).truncatingRemainder(dividingBy: 360.0)
+  }
+
+  /// Formats compass bearings and course angles as a 3-digit normalized degree string (e.g. "045°" or "180°").
+  public var marineBearingFormatted: String {
+    let normalized = Int(normalizedDegrees.rounded())
+    return String(format: "%03d°", normalized % 360)
+  }
 }
 
 extension Measurement where UnitType == UnitArea {
