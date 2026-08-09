@@ -1,5 +1,5 @@
 //
-//  BarometerWidgetView.swift
+//  BarometerAlarmView.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-07-02.
