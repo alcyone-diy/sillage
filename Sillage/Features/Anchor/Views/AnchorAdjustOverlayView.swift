@@ -32,7 +32,7 @@ public struct AnchorAdjustOverlayView: View {
       VStack {
         // 2. Top Sightline Telemetry HUD (Isolated sub-view for 120fps rendering)
         LineOfSightHUDView(chartViewModel: chartViewModel)
-          .padding(.top, 60) // Safe area clearance below top edge
+          .padding(.top, MarineTheme.Spacing.extraLarge * 2) // Safe area clearance below top edge
 
         Spacer()
 
@@ -81,22 +81,13 @@ fileprivate struct LineOfSightHUDView: View {
   let chartViewModel: ChartViewModel
   @Environment(\.marineTheme) private var marineTheme
 
-  private static let distanceFormatter: MeasurementFormatter = {
-    let formatter = MeasurementFormatter()
-    formatter.unitOptions = .providedUnit
-    formatter.numberFormatter.maximumFractionDigits = 0
-    return formatter
-  }()
-
   var body: some View {
     let centerCoord = chartViewModel.centerCoordinate
     let vesselCoord = chartViewModel.currentCoordinate
 
     let distance: Measurement<UnitLength>? = {
       guard let vessel = vesselCoord else { return nil }
-      let boatLoc = CLLocation(latitude: vessel.latitude, longitude: vessel.longitude)
-      let centerLoc = CLLocation(latitude: centerCoord.latitude, longitude: centerCoord.longitude)
-      return Measurement(value: boatLoc.distance(from: centerLoc), unit: UnitLength.meters)
+      return vessel.distance(to: centerCoord)
     }()
 
     let bearing: Measurement<UnitAngle>? = {
@@ -105,53 +96,66 @@ fileprivate struct LineOfSightHUDView: View {
     }()
 
     HStack(spacing: MarineTheme.Spacing.large) {
-      // Distance Telemetry
-      VStack(spacing: 2) {
+      // Distance Telemetry (Uses iOS system unit formatting via marineContextualDistanceFormatted)
+      VStack(spacing: MarineTheme.Spacing.tiny / 2) {
         Text("DISTANCE")
-          .font(.caption2.bold())
+          .bold()
+          .marineFont(.caption)
           .foregroundColor(marineTheme.colors.textSecondary)
 
         if let dist = distance {
-          Text(Self.distanceFormatter.string(from: dist.converted(to: .meters)))
-            .font(.system(.title2, design: .monospaced).bold())
-            .foregroundColor(marineTheme.colors.primary)
+          Text(dist.marineContextualDistanceFormatted)
+            .monospacedDigit()
+            .bold()
+            .marineFont(.body)
+            .foregroundColor(marineTheme.colors.textPrimary)
         } else {
-          Text("-- m")
-            .font(.system(.title2, design: .monospaced).bold())
+          Text("---")
+            .monospacedDigit()
+            .bold()
+            .marineFont(.body)
             .foregroundColor(marineTheme.colors.textSecondary)
         }
       }
 
       Divider()
-        .frame(height: 30)
+        .frame(height: MarineTheme.Metrics.calloutDividerHeight)
 
       // Bearing Telemetry
-      VStack(spacing: 2) {
+      VStack(spacing: MarineTheme.Spacing.tiny / 2) {
         Text("BEARING")
-          .font(.caption2.bold())
+          .bold()
+          .marineFont(.caption)
           .foregroundColor(marineTheme.colors.textSecondary)
 
         if let brg = bearing {
           let degValue = Int(brg.converted(to: .degrees).value)
-          Text(String(format: "%03d°", degValue))
-            .font(.system(.title2, design: .monospaced).bold())
-            .foregroundColor(marineTheme.colors.primary)
+          let normalizedDeg = (degValue % 360 + 360) % 360
+          Text(String(format: "%03d°", normalizedDeg))
+            .monospacedDigit()
+            .bold()
+            .marineFont(.body)
+            .foregroundColor(marineTheme.colors.textPrimary)
         } else {
           Text("---°")
-            .font(.system(.title2, design: .monospaced).bold())
+            .monospacedDigit()
+            .bold()
+            .marineFont(.body)
             .foregroundColor(marineTheme.colors.textSecondary)
         }
       }
     }
     .padding(.horizontal, MarineTheme.Spacing.large)
     .padding(.vertical, MarineTheme.Spacing.medium)
-    .background(Material.ultraThinMaterial)
-    .cornerRadius(MarineTheme.Metrics.cornerRadius)
-    .overlay(
-      RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius)
-        .stroke(marineTheme.colors.primary.opacity(0.5), lineWidth: 1.0)
+    .background(
+      .regularMaterial,
+      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
     )
-    .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 4)
+    .overlay(
+      RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+        .stroke(marineTheme.colors.border.opacity(0.4), lineWidth: MarineTheme.Metrics.borderWidth / 2)
+    )
+    .shadow(color: Color.black.opacity(0.15), radius: MarineTheme.Metrics.shadowRadius * 3, x: 0, y: MarineTheme.Metrics.shadowOffset * 3)
   }
 }
 
