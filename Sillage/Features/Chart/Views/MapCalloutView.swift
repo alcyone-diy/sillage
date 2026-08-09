@@ -1,5 +1,5 @@
 //
-//  MapCalloutOverlayView.swift
+//  MapCalloutView.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-04-05.
@@ -14,7 +14,7 @@ import CoreLocation
 /// A floating Apple-style callout overlay view rendered over MapLibreView.
 /// Features an exact target crosshair at the screen coordinate and an offset material menu card
 /// displaying live bearing & distance telemetry and contextual marine action buttons.
-struct MapCalloutOverlayView: View {
+struct MapCalloutView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.waypointService) private var waypointService
   @Environment(PanelManagerViewModel.self) private var panelManager

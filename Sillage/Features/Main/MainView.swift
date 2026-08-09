@@ -59,7 +59,7 @@ struct ContentView: View {
           }
         }
         
-        MapCalloutOverlayView(
+        MapCalloutView(
           calloutViewModel: chartViewModel.calloutViewModel,
           chartViewModel: chartViewModel
         )
