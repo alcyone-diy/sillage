@@ -31,11 +31,58 @@ final class MarineTelemetryHUDCardTests: XCTestCase {
     XCTAssertTrue(item.isPlaceholder)
   }
 
-  func testHUDCardInitialization_WithTelemetryItems() {
+  func testHUDCardInitialization_WithDefaultHorizontalLayout() {
     let sogItem = MarineTelemetryItem(label: "SOG", value: "10.2 kn")
     let cogItem = MarineTelemetryItem(label: "COG", value: "180°")
     let card = MarineTelemetryHUDCard(items: [sogItem, cogItem])
 
+    XCTAssertEqual(card.layout, .horizontal)
     XCTAssertNotNil(card.body)
+  }
+
+  func testHUDCardInitialization_WithExplicitHorizontalLayout() {
+    let sogItem = MarineTelemetryItem(label: "SOG", value: "10.2 kn")
+    let cogItem = MarineTelemetryItem(label: "COG", value: "180°")
+    let card = MarineTelemetryHUDCard(items: [sogItem, cogItem], layout: .horizontal)
+
+    XCTAssertEqual(card.layout, .horizontal)
+    XCTAssertNotNil(card.body)
+  }
+
+  func testHUDCardInitialization_WithTwoColumnGridLayout() {
+    let sogItem = MarineTelemetryItem(label: "SOG", value: "10.2 kn")
+    let cogItem = MarineTelemetryItem(label: "COG", value: "180°")
+    let card = MarineTelemetryHUDCard(items: [sogItem, cogItem], layout: .grid(columns: 2))
+
+    XCTAssertEqual(card.layout, .grid(columns: 2))
+    XCTAssertNotNil(card.body)
+  }
+
+  func testHUDCardInitialization_WithSingleColumnGridLayout() {
+    let item = MarineTelemetryItem(label: "SOG", value: "12.0 kn")
+    let card = MarineTelemetryHUDCard(items: [item], layout: .grid(columns: 1))
+
+    XCTAssertEqual(card.layout, .grid(columns: 1))
+    XCTAssertNotNil(card.body)
+  }
+
+  func testHUDCardInitialization_WithZeroOrNegativeGridColumns_FailsafeEvaluation() {
+    let item = MarineTelemetryItem(label: "SOG", value: "12.0 kn")
+    let cardZero = MarineTelemetryHUDCard(items: [item], layout: .grid(columns: 0))
+    let cardNegative = MarineTelemetryHUDCard(items: [item], layout: .grid(columns: -2))
+
+    XCTAssertEqual(cardZero.layout, .grid(columns: 0))
+    XCTAssertEqual(cardNegative.layout, .grid(columns: -2))
+    // Verifies body computation evaluates safely without crashing due to max(1, columns) guard
+    XCTAssertNotNil(cardZero.body)
+    XCTAssertNotNil(cardNegative.body)
+  }
+
+  func testHUDCardInitialization_WithEmptyItems() {
+    let emptyHorizontalCard = MarineTelemetryHUDCard(items: [], layout: .horizontal)
+    let emptyGridCard = MarineTelemetryHUDCard(items: [], layout: .grid(columns: 2))
+
+    XCTAssertNotNil(emptyHorizontalCard.body)
+    XCTAssertNotNil(emptyGridCard.body)
   }
 }

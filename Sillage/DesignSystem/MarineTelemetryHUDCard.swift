@@ -25,45 +25,113 @@ public struct MarineTelemetryItem: Identifiable, Sendable {
   }
 }
 
+/// Technical Design Choice: Deterministic HUD Layout Config
+/// Speculative layout containers such as `ViewThatFits` are strictly prohibited in high-frequency marine HUD cards.
+/// Speculative measurement loops trigger CPU/battery thrashing when rendered over a 60-120Hz MapLibre viewport.
+/// `TelemetryHUDLayout` provides explicit, zero-measurement-overhead layout switching between horizontal strips and column grids.
+public enum TelemetryHUDLayout: Sendable, Equatable, Hashable {
+  case horizontal
+  case grid(columns: Int)
+}
+
 /// A unified, highly performant marine telemetry HUD card.
-/// Renders a horizontal strip of telemetry cells separated by vertical dividers.
+/// Renders telemetry cells either in a continuous horizontal strip with vertical dividers
+/// or in an explicit column-based grid without vertical dividers.
 public struct MarineTelemetryHUDCard: View {
   let items: [MarineTelemetryItem]
+  let layout: TelemetryHUDLayout
   @Environment(\.marineTheme) private var marineTheme
 
-  public init(items: [MarineTelemetryItem]) {
+  public init(items: [MarineTelemetryItem], layout: TelemetryHUDLayout = .horizontal) {
     self.items = items
+    self.layout = layout
   }
 
   public var body: some View {
-    HStack(spacing: MarineTheme.Spacing.medium) {
-      ForEach(items) { item in
-        if item.id != items.first?.id {
-          Divider()
-            .frame(height: MarineTheme.Metrics.hudDividerHeight)
+    contentView
+      .padding(.horizontal, MarineTheme.Spacing.medium)
+      .padding(.vertical, MarineTheme.Spacing.small + 2)
+      .background(
+        .regularMaterial,
+        in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+      )
+      .overlay(
+        RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+          .stroke(marineTheme.colors.border.opacity(0.4), lineWidth: MarineTheme.Metrics.borderWidth / 2)
+      )
+      .shadow(color: Color.black.opacity(0.15), radius: MarineTheme.Metrics.shadowRadius * 3, x: 0, y: MarineTheme.Metrics.shadowOffset * 3)
+  }
+
+  @ViewBuilder
+  private var contentView: some View {
+    switch layout {
+    case .horizontal:
+      HStack(spacing: MarineTheme.Spacing.medium) {
+        ForEach(items) { item in
+          if item.id != items.first?.id {
+            Divider()
+              .frame(height: MarineTheme.Metrics.hudDividerHeight)
+          }
+
+          cellView(for: item)
         }
+      }
+    case .grid(let columns):
+      // Technical Design Choice: Safe Column Allocation & Spacing
+      // Uses max(1, columns) to guarantee non-zero column counts and prevent runtime grid crashes.
+      // Horizontal cell separation is managed via MarineTheme.Spacing.medium, and vertical row spacing via MarineTheme.Spacing.small.
+      // Vertical dividers are intentionally omitted in grid mode to avoid visual clutter across grid rows.
+      let gridColumns = Array(
+        repeating: GridItem(.flexible(), spacing: MarineTheme.Spacing.medium),
+        count: max(1, columns)
+      )
 
-        VStack(spacing: 2) {
-          Text(item.label)
-            .marineFont(.instrumentLabel)
-            .foregroundColor(marineTheme.colors.textSecondary)
-
-          Text(verbatim: item.value)
-            .marineFont(.instrumentData)
-            .foregroundColor(item.isPlaceholder ? marineTheme.colors.textSecondary : marineTheme.colors.textPrimary)
+      LazyVGrid(columns: gridColumns, spacing: MarineTheme.Spacing.small) {
+        ForEach(items) { item in
+          cellView(for: item)
+            .frame(maxWidth: .infinity)
         }
       }
     }
-    .padding(.horizontal, MarineTheme.Spacing.medium)
-    .padding(.vertical, MarineTheme.Spacing.small + 2)
-    .background(
-      .regularMaterial,
-      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-        .stroke(marineTheme.colors.border.opacity(0.4), lineWidth: MarineTheme.Metrics.borderWidth / 2)
-    )
-    .shadow(color: Color.black.opacity(0.15), radius: MarineTheme.Metrics.shadowRadius * 3, x: 0, y: MarineTheme.Metrics.shadowOffset * 3)
   }
+
+  @ViewBuilder
+  private func cellView(for item: MarineTelemetryItem) -> some View {
+    VStack(spacing: 2) {
+      Text(item.label)
+        .marineFont(.instrumentLabel)
+        .foregroundColor(marineTheme.colors.textSecondary)
+
+      Text(verbatim: item.value)
+        .marineFont(.instrumentData)
+        .foregroundColor(item.isPlaceholder ? marineTheme.colors.textSecondary : marineTheme.colors.textPrimary)
+    }
+  }
+}
+
+#Preview {
+  let sampleItems = [
+    MarineTelemetryItem(label: "SOG", value: "6.4 kn"),
+    MarineTelemetryItem(label: "COG", value: "215°"),
+    MarineTelemetryItem(label: "BTW", value: "210°"),
+    MarineTelemetryItem(label: "DTW", value: "1.2 NM")
+  ]
+
+  VStack(spacing: MarineTheme.Spacing.large) {
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+      Text("Horizontal Layout")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      MarineTelemetryHUDCard(items: sampleItems, layout: .horizontal)
+    }
+
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+      Text("Grid Layout (2 columns)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      MarineTelemetryHUDCard(items: sampleItems, layout: .grid(columns: 2))
+    }
+  }
+  .padding(MarineTheme.Spacing.medium)
+  .background(Color.gray.opacity(0.2))
 }
