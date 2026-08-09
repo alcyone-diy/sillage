@@ -55,13 +55,13 @@ public struct AnchorAdjustOverlayView: View {
       onCancel: {
         Logger.anchor.info("User canceled anchor position adjustment")
         anchorViewModel.cancelAdjustAnchor()
-        panelManagerViewModel?.openPanel(.command)
+        panelManagerViewModel?.openAnchorAlarmPanel()
       },
       onConfirm: {
         let newCoordinate = chartViewModel.centerCoordinate
         Logger.anchor.info("User confirmed new anchor coordinate at (\(newCoordinate.latitude, privacy: .public), \(newCoordinate.longitude, privacy: .public))")
         anchorViewModel.confirmAdjustAnchor(to: newCoordinate)
-        panelManagerViewModel?.openPanel(.command)
+        panelManagerViewModel?.openAnchorAlarmPanel()
       },
       onHeightChange: { height in
         panelManagerViewModel?.actionConfirmationCardHeight = height
