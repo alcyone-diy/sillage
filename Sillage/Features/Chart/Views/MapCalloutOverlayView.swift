@@ -75,7 +75,7 @@ struct MapCalloutOverlayView: View {
       HStack(spacing: 0) {
         // Bearing Cell
         VStack(spacing: MarineTheme.Spacing.tiny / 2) {
-          Text("BEARING")
+          Text("BTW")
             .bold()
             .marineFont(.caption)
             .foregroundColor(marineTheme.colors.textSecondary)
@@ -103,7 +103,7 @@ struct MapCalloutOverlayView: View {
         
         // Distance Cell
         VStack(spacing: MarineTheme.Spacing.tiny / 2) {
-          Text("DISTANCE")
+          Text("RNG")
             .bold()
             .marineFont(.caption)
             .foregroundColor(marineTheme.colors.textSecondary)
