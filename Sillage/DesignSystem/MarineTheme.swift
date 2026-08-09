@@ -123,6 +123,9 @@ struct MarineTheme {
     /// Standard top offset for floating top telemetry HUD cards below the safe area
     static let hudCardTopPadding: CGFloat = 10.0
 
+    /// Vertical margin offset for native MapLibre compass to clear top telemetry HUD overlay
+    static let compassTopMargin: CGFloat = 90.0
+
     /// Standard margin for full-screen overlay action cards
     static let overlayCardBottom: CGFloat = 40.0
 
