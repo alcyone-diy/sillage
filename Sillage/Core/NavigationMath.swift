@@ -185,7 +185,7 @@ extension CLLocationCoordinate2D {
     let theta12 = bearingToDestination.converted(to: .radians).value
 
     let crossTrackDistanceRadians = asin(sin(delta13) * sin(theta13 - theta12))
-    let crossTrackMeters = abs(crossTrackDistanceRadians * Self.earthRadius.value)
+    let crossTrackMeters = crossTrackDistanceRadians * Self.earthRadius.value
 
     if crossTrackMeters.isNaN || crossTrackMeters.isInfinite {
       return Measurement(value: 0.0, unit: .meters)
