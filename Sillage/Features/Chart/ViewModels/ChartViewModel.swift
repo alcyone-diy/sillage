@@ -509,9 +509,7 @@ final class ChartViewModel {
     
     func observeSetupMode() {
       withObservationTracking {
-        _ = anchorViewModel.isSetupModeActive
-        _ = anchorViewModel.isPreparingDropAnchor
-        _ = anchorViewModel.isAdjustingAnchor
+        _ = anchorViewModel.isDisplayingSetupVisuals
         _ = anchorViewModel.configuredRadius
         _ = anchorViewModel.anchorCoordinate
       } onChange: { [weak self] in
@@ -530,12 +528,11 @@ final class ChartViewModel {
     let currentVesselCoord = vesselCoord ?? currentCoordinate ?? instrumentDampingService.state?.coordinate
     
     if status == .inactive {
-      if (anchorViewModel.isSetupModeActive || anchorViewModel.isPreparingDropAnchor),
-        let coord = currentVesselCoord {
+      if anchorViewModel.isDisplayingSetupVisuals, let coord = currentVesselCoord {
         anchorVisualState = AnchorVisualState(
           status: .setup,
           pointCoordinate: coord,
-          radius: nil,
+          radius: anchorViewModel.configuredRadius,
           vesselCoordinate: nil
         )
       } else {

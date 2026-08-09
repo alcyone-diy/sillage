@@ -329,36 +329,35 @@ struct MapStyleController {
       )
       goToWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       insertLayer(goToWaypointLayer, identifier: .goToWaypoint, into: style)
-
       // 6. Anchor Radius Fill, Stroke, Rode Line & Symbol Point
       let anchorRadiusSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorRadius.rawValue, shape: nil, options: nil)
       style.addSource(anchorRadiusSource)
 
       let anchorRadiusLayer = MLNFillStyleLayer(identifier: MapLayerIdentifier.anchorRadiusFill.rawValue, source: anchorRadiusSource)
       anchorRadiusLayer.fillColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
-      anchorRadiusLayer.fillOpacity = NSExpression(forConstantValue: 0.15)
+      anchorRadiusLayer.fillOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.armedFillOpacity)
       insertLayer(anchorRadiusLayer, identifier: .anchorRadiusFill, into: style)
 
       let anchorRadiusStrokeDashedLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorRadiusStrokeDashed.rawValue, source: anchorRadiusSource)
       anchorRadiusStrokeDashedLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
-      anchorRadiusStrokeDashedLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0] as [NSNumber])
-      anchorRadiusStrokeDashedLayer.lineWidth = NSExpression(forConstantValue: 2.5)
-      anchorRadiusStrokeDashedLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      anchorRadiusStrokeDashedLayer.lineDashPattern = NSExpression(forConstantValue: AnchorStyleMetrics.standardDashPattern)
+      anchorRadiusStrokeDashedLayer.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.thickLineWidth)
+      anchorRadiusStrokeDashedLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.hiddenOpacity)
       insertLayer(anchorRadiusStrokeDashedLayer, identifier: .anchorRadiusStrokeDashed, into: style)
 
       let anchorRadiusStrokeSolidLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorRadiusStrokeSolid.rawValue, source: anchorRadiusSource)
       anchorRadiusStrokeSolidLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorArmed))
-      anchorRadiusStrokeSolidLayer.lineWidth = NSExpression(forConstantValue: 2.0)
-      anchorRadiusStrokeSolidLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      anchorRadiusStrokeSolidLayer.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.standardLineWidth)
+      anchorRadiusStrokeSolidLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.hiddenOpacity)
       insertLayer(anchorRadiusStrokeSolidLayer, identifier: .anchorRadiusStrokeSolid, into: style)
 
       let anchorEvitementSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorEvitement.rawValue, shape: nil, options: nil)
       style.addSource(anchorEvitementSource)
 
       let anchorEvitementLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorEvitementLine.rawValue, source: anchorEvitementSource)
-      anchorEvitementLayer.lineWidth = NSExpression(forConstantValue: 2.5)
+      anchorEvitementLayer.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.thickLineWidth)
       anchorEvitementLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorArmed))
-      anchorEvitementLayer.lineOpacity = NSExpression(forConstantValue: 0.70)
+      anchorEvitementLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.evitementDefaultOpacity)
       insertLayer(anchorEvitementLayer, identifier: .anchorEvitementLine, into: style)
 
 
@@ -366,10 +365,10 @@ struct MapStyleController {
       style.addSource(anchorRodeSource)
 
       let anchorRodeLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorRodeLine.rawValue, source: anchorRodeSource)
-      anchorRodeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
+      anchorRodeLayer.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.standardLineWidth)
       anchorRodeLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.anchorDropped))
-      anchorRodeLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
-      anchorRodeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
+      anchorRodeLayer.lineDashPattern = NSExpression(forConstantValue: AnchorStyleMetrics.standardDashPattern)
+      anchorRodeLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.rodeDefaultOpacity)
       insertLayer(anchorRodeLayer, identifier: .anchorRodeLine, into: style)
 
       let anchorPointSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorPoint.rawValue, shape: nil, options: nil)
@@ -381,7 +380,7 @@ struct MapStyleController {
       anchorPointLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
       anchorPointLayer.iconAnchor = NSExpression(forConstantValue: "center")
       anchorPointLayer.iconScale = NSExpression(forConstantValue: 1.0)
-      anchorPointLayer.iconOpacity = NSExpression(forConstantValue: 1.0)
+      anchorPointLayer.iconOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.visibleOpacity)
       insertLayer(anchorPointLayer, identifier: .anchorPoint, into: style)
     }
   }
@@ -447,7 +446,6 @@ struct MapStyleController {
     }
   }
 
-
   /// Updates fill and stroke styles for the anchor radius, rode line, and point layers based on status.
   private static func updateAnchorLayerStyles(in style: MLNStyle, for status: AnchorVisualStatus, with theme: MarineTheme) {
     if let pointLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorPoint.rawValue) as? MLNSymbolStyleLayer {
@@ -466,7 +464,7 @@ struct MapStyleController {
     let statusColor: UIColor
     switch status {
     case .setup:
-      statusColor = UIColor(theme.colors.anchorDropped).withAlphaComponent(0.6)
+      statusColor = UIColor(theme.colors.anchorDropped).withAlphaComponent(AnchorStyleMetrics.setupColorAlpha)
     case .dropped:
       statusColor = UIColor(theme.colors.anchorDropped)
     case .armed:
@@ -477,72 +475,99 @@ struct MapStyleController {
 
     switch status {
     case .setup:
-      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
-      dashedLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
-      solidLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
-      rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
-      evitementLayer?.lineOpacity = NSExpression(forConstantValue: 0.0)
+      fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
+      fillLayer.fillOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.setupFillOpacity)
+
+      dashedLayer.lineColor = NSExpression(forConstantValue: statusColor)
+      dashedLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.visibleOpacity)
+
+      solidLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.hiddenOpacity)
+      rodeLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.hiddenOpacity)
+      evitementLayer?.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.hiddenOpacity)
 
     case .dropped:
       fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
-      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.0)
+      fillLayer.fillOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.hiddenOpacity)
 
       dashedLayer.lineColor = NSExpression(forConstantValue: statusColor)
-      dashedLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0] as [NSNumber])
-      dashedLayer.lineWidth = NSExpression(forConstantValue: 2.5)
-      dashedLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
+      dashedLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.visibleOpacity)
 
-      solidLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      solidLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.hiddenOpacity)
 
       rodeLayer.lineColor = NSExpression(forConstantValue: statusColor)
-      rodeLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0] as [NSNumber])
-      rodeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
-      rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.8)
+      rodeLayer.lineDashPattern = NSExpression(forConstantValue: AnchorStyleMetrics.standardDashPattern)
+      rodeLayer.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.standardLineWidth)
+      rodeLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.rodeDefaultOpacity)
 
       evitementLayer?.lineColor = NSExpression(forConstantValue: statusColor)
-      evitementLayer?.lineWidth = NSExpression(forConstantValue: 2.5)
-      evitementLayer?.lineOpacity = NSExpression(forConstantValue: 0.70)
+      evitementLayer?.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.thickLineWidth)
+      evitementLayer?.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.evitementDefaultOpacity)
 
     case .armed:
       fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
-      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.10)
+      fillLayer.fillOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.armedFillOpacity)
 
-      dashedLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      dashedLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.hiddenOpacity)
 
       solidLayer.lineColor = NSExpression(forConstantValue: statusColor)
-      solidLayer.lineWidth = NSExpression(forConstantValue: 2.0)
-      solidLayer.lineOpacity = NSExpression(forConstantValue: 0.9)
+      solidLayer.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.standardLineWidth)
+      solidLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.solidArmedOpacity)
 
       rodeLayer.lineColor = NSExpression(forConstantValue: statusColor)
-      rodeLayer.lineDashPattern = NSExpression(forConstantValue: [6.0, 3.0] as [NSNumber])
-      rodeLayer.lineWidth = NSExpression(forConstantValue: 2.0)
-      rodeLayer.lineOpacity = NSExpression(forConstantValue: 0.9)
+      rodeLayer.lineDashPattern = NSExpression(forConstantValue: AnchorStyleMetrics.armedRodeDashPattern)
+      rodeLayer.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.standardLineWidth)
+      rodeLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.rodeArmedOpacity)
 
       evitementLayer?.lineColor = NSExpression(forConstantValue: statusColor)
-      evitementLayer?.lineWidth = NSExpression(forConstantValue: 2.5)
-      evitementLayer?.lineOpacity = NSExpression(forConstantValue: 0.70)
+      evitementLayer?.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.thickLineWidth)
+      evitementLayer?.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.evitementDefaultOpacity)
 
     case .dragging:
       fillLayer.fillColor = NSExpression(forConstantValue: statusColor)
-      fillLayer.fillOpacity = NSExpression(forConstantValue: 0.25)
+      fillLayer.fillOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.draggingFillOpacity)
 
-      dashedLayer.lineOpacity = NSExpression(forConstantValue: 0.0)
+      dashedLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.hiddenOpacity)
 
       solidLayer.lineColor = NSExpression(forConstantValue: statusColor)
-      solidLayer.lineWidth = NSExpression(forConstantValue: 3.0)
-      solidLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
+      solidLayer.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.draggingLineWidth)
+      solidLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.visibleOpacity)
 
       rodeLayer.lineColor = NSExpression(forConstantValue: statusColor)
       rodeLayer.lineDashPattern = nil
-      rodeLayer.lineWidth = NSExpression(forConstantValue: 3.0)
-      rodeLayer.lineOpacity = NSExpression(forConstantValue: 1.0)
+      rodeLayer.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.draggingLineWidth)
+      rodeLayer.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.rodeDraggingOpacity)
 
       evitementLayer?.lineColor = NSExpression(forConstantValue: statusColor)
-      evitementLayer?.lineWidth = NSExpression(forConstantValue: 3.0)
-      evitementLayer?.lineOpacity = NSExpression(forConstantValue: 0.90)
+      evitementLayer?.lineWidth = NSExpression(forConstantValue: AnchorStyleMetrics.draggingLineWidth)
+      evitementLayer?.lineOpacity = NSExpression(forConstantValue: AnchorStyleMetrics.evitementDraggingOpacity)
     }
   }
 
+}
 
+// MARK: - Anchor Style Metrics
+private enum AnchorStyleMetrics {
+  static let standardLineWidth: CGFloat = 2.0
+  static let thickLineWidth: CGFloat = 2.5
+  static let draggingLineWidth: CGFloat = 3.0
+
+  static let standardDashPattern: [NSNumber] = [4.0, 4.0]
+  static let armedRodeDashPattern: [NSNumber] = [6.0, 3.0]
+
+  static let hiddenOpacity: Double = 0.0
+  static let setupFillOpacity: Double = 0.05
+  static let armedFillOpacity: Double = 0.10
+  static let draggingFillOpacity: Double = 0.25
+  static let setupColorAlpha: Double = 0.6
+
+  static let rodeDefaultOpacity: Double = 0.8
+  static let rodeArmedOpacity: Double = 0.9
+  static let rodeDraggingOpacity: Double = 1.0
+
+  static let evitementDefaultOpacity: Double = 0.70
+  static let evitementDraggingOpacity: Double = 0.90
+
+  static let visibleOpacity: Double = 1.0
+  static let solidArmedOpacity: Double = 0.9
 }
 

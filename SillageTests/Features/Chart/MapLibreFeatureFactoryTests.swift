@@ -41,6 +41,22 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     XCTAssertNil(features.rodeLineFeature)
   }
 
+  func testCreateAnchorFeatures_whenSetupStatusWithRadius_returnsPointAndRadius() {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 47.218, longitude: -1.553)
+    let state = AnchorVisualState(
+      status: .setup,
+      pointCoordinate: anchorCoord,
+      radius: Measurement(value: 50, unit: .meters),
+      vesselCoordinate: nil
+    )
+
+    let features = MapLibreFeatureFactory.createAnchorFeatures(from: state)
+
+    XCTAssertNotNil(features.pointFeature)
+    XCTAssertNotNil(features.radiusFeature)
+    XCTAssertNil(features.rodeLineFeature)
+  }
+
   func testCreateAnchorFeatures_whenDroppedStatusWithVessel_returnsPointRadiusAndRodeLine() {
     let anchorCoord = CLLocationCoordinate2D(latitude: 47.218, longitude: -1.553)
     let vesselCoord = CLLocationCoordinate2D(latitude: 47.219, longitude: -1.554)
