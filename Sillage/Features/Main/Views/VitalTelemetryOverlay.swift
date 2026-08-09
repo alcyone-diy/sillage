@@ -10,13 +10,14 @@
 
 import SwiftUI
 
-/// An adaptive overlay displaying vital navigation telemetry metrics (SOG, COG, and optional BTW).
+/// An adaptive overlay displaying vital navigation telemetry metrics (SOG, COG, and optional BTW, RNG, XTE).
 /// Automatically switches between a 2-column grid layout in Compact size classes (iPhone Portrait)
 /// and a continuous horizontal strip in Regular size classes (iPhone Landscape, iPad).
 @MainActor
 public struct VitalTelemetryOverlay: View {
   @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.locale) private var locale
 
   public init() {}
 
@@ -37,16 +38,14 @@ public struct VitalTelemetryOverlay: View {
   }
 
   /// Maps current `ChartViewModel` telemetry state into domain `MarineTelemetryItem` structs.
-  /// Strictly enforces "No Data" rules ("---" for speed, "---°" for bearings) and conditionally appends
-  /// Bearing To Waypoint (BTW) only when an active route or target waypoint is active.
+  /// Strictly enforces "No Data" rules ("---" for speed and distance metrics, "---°" for bearing metrics)
+  /// and conditionally appends Route Navigation metrics (BTW, RNG, XTE) when an active route or waypoint is set.
   private var telemetryItems: [MarineTelemetryItem] {
     let sog = chartViewModel?.smoothedSOG
     let cog = chartViewModel?.smoothedCOG
-    let btw = chartViewModel?.bearingToWaypoint
 
     let sogString = sog?.marineFormatted ?? "---"
     let cogString = cog?.marineBearingFormatted ?? "---°"
-    let btwString = btw?.marineBearingFormatted ?? "---°"
 
     var items = [
       MarineTelemetryItem(label: "SOG", value: sogString, isPlaceholder: sog == nil),
@@ -54,9 +53,17 @@ public struct VitalTelemetryOverlay: View {
     ]
 
     if chartViewModel?.goToWaypointVisualState != nil {
-      items.append(
-        MarineTelemetryItem(label: "BTW", value: btwString, isPlaceholder: btw == nil)
-      )
+      let btw = chartViewModel?.bearingToWaypoint
+      let rng = chartViewModel?.rangeToWaypoint
+      let xte = chartViewModel?.crossTrackError
+
+      let btwString = btw?.marineBearingFormatted ?? "---°"
+      let rngString = rng?.marineContextualDistanceFormatted(locale: locale) ?? "---"
+      let xteString = xte?.marineCrossTrackFormatted ?? "---"
+
+      items.append(MarineTelemetryItem(label: "BTW", value: btwString, isPlaceholder: btw == nil))
+      items.append(MarineTelemetryItem(label: "RNG", value: rngString, isPlaceholder: rng == nil))
+      items.append(MarineTelemetryItem(label: "XTE", value: xteString, isPlaceholder: xte == nil))
     }
 
     return items
@@ -64,21 +71,39 @@ public struct VitalTelemetryOverlay: View {
 }
 
 #Preview("Vital Telemetry Overlay") {
+  let sampleItemsInactive = [
+    MarineTelemetryItem(label: "SOG", value: "6.4 kn"),
+    MarineTelemetryItem(label: "COG", value: "215°")
+  ]
+
+  let sampleItemsActiveRoute = [
+    MarineTelemetryItem(label: "SOG", value: "6.4 kn"),
+    MarineTelemetryItem(label: "COG", value: "215°"),
+    MarineTelemetryItem(label: "BTW", value: "210°"),
+    MarineTelemetryItem(label: "RNG", value: "1.2 NM"),
+    MarineTelemetryItem(label: "XTE", value: "0.02 NM")
+  ]
+
   VStack(spacing: 24) {
     VStack(alignment: .leading, spacing: 6) {
-      Text("Compact / Portrait Mode (.grid)")
+      Text("Compact / Portrait Mode - Standby (.grid)")
         .font(.caption)
         .foregroundStyle(.secondary)
-      VitalTelemetryOverlay()
-        .environment(\.horizontalSizeClass, .compact)
+      MarineTelemetryHUDCard(items: sampleItemsInactive, layout: .grid(columns: 2))
     }
 
     VStack(alignment: .leading, spacing: 6) {
-      Text("Regular / Landscape Mode (.horizontal)")
+      Text("Compact / Portrait Mode - Active Route (.grid 5 items)")
         .font(.caption)
         .foregroundStyle(.secondary)
-      VitalTelemetryOverlay()
-        .environment(\.horizontalSizeClass, .regular)
+      MarineTelemetryHUDCard(items: sampleItemsActiveRoute, layout: .grid(columns: 2))
+    }
+
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Regular / Landscape Mode - Active Route (.horizontal 5 items)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      MarineTelemetryHUDCard(items: sampleItemsActiveRoute, layout: .horizontal)
     }
   }
   .padding()
