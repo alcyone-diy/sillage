@@ -24,7 +24,7 @@ public struct VitalTelemetryHUD: View {
   @Environment(\.locale) private var locale
   @Environment(\.marineTheme) private var marineTheme
 
-  @State private var secondaryViewModel = SecondaryTelemetryViewModel()
+  @Environment(SecondaryTelemetryViewModel.self) private var secondaryViewModel: SecondaryTelemetryViewModel?
   @State private var isEditingHUD: Bool = false
   @State private var isPressingHUD: Bool = false
   @State private var showEditHint: Bool = false
@@ -240,7 +240,7 @@ public struct VitalTelemetryHUD: View {
       return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
     case .battery:
-      let batteryItem = secondaryViewModel.items.first(where: { $0.id == "BATTERY" })
+      let batteryItem = secondaryViewModel?.items.first(where: { $0.id == "BATTERY" })
       let string = batteryItem?.value ?? "---"
       let isPlaceholder = batteryItem?.isPlaceholder ?? true
       return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: isPlaceholder)
