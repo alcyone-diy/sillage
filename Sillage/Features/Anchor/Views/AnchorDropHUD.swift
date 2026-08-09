@@ -1,5 +1,5 @@
 //
-//  AnchorDropOverlayView.swift
+//  AnchorDropHUD.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-08-08.
@@ -11,10 +11,10 @@
 import SwiftUI
 import OSLog
 
-/// Technical Design Choice: Full-Screen Drop Anchor Preparation Overlay
+/// Technical Design Choice: Full-Screen Drop Anchor Preparation HUD
 /// Displays a `MarineActionConfirmationCard` at the bottom of the map viewport,
 /// allowing the user to view the full chart while the anchor symbol dynamically tracks the vessel.
-public struct AnchorDropOverlayView: View {
+public struct AnchorDropHUD: View {
   @Environment(AnchorViewModel.self) private var anchorViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel: PanelManagerViewModel?
   @Environment(\.marineTheme) private var marineTheme
@@ -37,7 +37,7 @@ public struct AnchorDropOverlayView: View {
         confirmTitle: "Drop Anchor",
         confirmIcon: "water.waves.and.arrow.down",
         onConfirm: {
-          Logger.anchor.info("User confirmed drop anchor from full-screen overlay")
+          Logger.anchor.info("User confirmed drop anchor from full-screen HUD")
           anchorViewModel.confirmDropAnchor()
           panelManagerViewModel?.openAnchorAlarmPanel()
         },

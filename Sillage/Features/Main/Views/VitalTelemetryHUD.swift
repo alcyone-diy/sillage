@@ -1,5 +1,5 @@
 //
-//  VitalTelemetryOverlay.swift
+//  VitalTelemetryHUD.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-08-09.
@@ -16,7 +16,7 @@ import SwiftUI
 /// and a continuous horizontal strip in Regular size classes (iPhone Landscape, iPad).
 /// Supports interactive Edit Mode (`isEditingHUD == true`), squish long-press feedback, and ephemeral short-tap hint toasts capped at 2 successful Edit Mode entries.
 @MainActor
-public struct VitalTelemetryOverlay: View {
+public struct VitalTelemetryHUD: View {
   @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
   @Environment(TelemetryPreferences.self) private var envPreferences: TelemetryPreferences?
   @Environment(PreferencesService.self) private var preferencesService: PreferencesService?
@@ -201,12 +201,10 @@ public struct VitalTelemetryOverlay: View {
     .shadow(color: Color.black.opacity(0.2), radius: MarineTheme.Metrics.shadowRadius * 2, x: 0, y: MarineTheme.Metrics.shadowOffset)
   }
 
-  /// Maps active user-configured `TelemetryMetric` cases into `MarineTelemetryItem` structs.
   private var telemetryItems: [MarineTelemetryItem] {
     preferences.activeMetrics.map { createTelemetryItem(for: $0) }
   }
 
-  /// Maps inactive `TelemetryMetric` cases into `MarineTelemetryItem` structs for the reservoir.
   private var inactiveTelemetryItems: [MarineTelemetryItem] {
     let inactiveMetrics = TelemetryMetric.allCases.filter { !preferences.activeMetrics.contains($0) }
     return inactiveMetrics.map { createTelemetryItem(for: $0) }
@@ -250,7 +248,7 @@ public struct VitalTelemetryOverlay: View {
   }
 }
 
-#Preview("Vital Telemetry Overlay") {
+#Preview("Vital Telemetry HUD") {
   struct PreviewContainer: View {
     let defaultPrefs: TelemetryPreferences = TelemetryPreferences()
     let partialPrefs: TelemetryPreferences = {
@@ -265,7 +263,7 @@ public struct VitalTelemetryOverlay: View {
           Text("Compact Mode - Default Active Metrics")
             .font(.caption)
             .foregroundStyle(.secondary)
-          VitalTelemetryOverlay(preferences: defaultPrefs)
+          VitalTelemetryHUD(preferences: defaultPrefs)
             .environment(\.horizontalSizeClass, .compact)
         }
 
@@ -273,7 +271,7 @@ public struct VitalTelemetryOverlay: View {
           Text("Compact Mode - Partial Active Metrics (SOG & COG)")
             .font(.caption)
             .foregroundStyle(.secondary)
-          VitalTelemetryOverlay(preferences: partialPrefs)
+          VitalTelemetryHUD(preferences: partialPrefs)
             .environment(\.horizontalSizeClass, .compact)
         }
       }

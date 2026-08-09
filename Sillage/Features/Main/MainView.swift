@@ -70,13 +70,13 @@ struct ContentView: View {
           }
         }
 
-        OfflineSelectionOverlayView()
+        OfflineSelectionHUD()
 
         if anchorViewModel.isAdjustingAnchor {
-          AnchorAdjustOverlayView()
+          AnchorAdjustHUD()
             .transition(.opacity)
         } else if anchorViewModel.isPreparingDropAnchor {
-          AnchorDropOverlayView()
+          AnchorDropHUD()
             .transition(.opacity)
         }
 
@@ -338,7 +338,7 @@ struct ContentView: View {
 
   // Marine Dashboard View
   private var marineDashboard: some View {
-    VitalTelemetryOverlay()
+    VitalTelemetryHUD()
       .padding(.horizontal)
       .padding(.top, MarineTheme.Spacing.hudCardTopPadding)
   }

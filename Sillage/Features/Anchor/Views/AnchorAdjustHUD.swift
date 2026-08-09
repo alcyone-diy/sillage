@@ -1,5 +1,5 @@
 //
-//  AnchorAdjustOverlayView.swift
+//  AnchorAdjustHUD.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-08-08.
@@ -13,7 +13,7 @@ import CoreLocation
 import OSLog
 
 /// Overlay view providing real-time crosshair aiming and sightline telemetry for manual anchor position adjustment.
-public struct AnchorAdjustOverlayView: View {
+public struct AnchorAdjustHUD: View {
   @Environment(AnchorViewModel.self) private var anchorViewModel
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel: PanelManagerViewModel?
@@ -100,4 +100,3 @@ fileprivate struct LineOfSightHUDView: View {
     MarineTelemetryHUDCard(items: items)
   }
 }
-
