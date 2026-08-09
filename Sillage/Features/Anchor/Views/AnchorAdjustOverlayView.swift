@@ -80,6 +80,7 @@ public struct AnchorAdjustOverlayView: View {
 fileprivate struct LineOfSightHUDView: View {
   let chartViewModel: ChartViewModel
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(\.locale) private var locale
 
   var body: some View {
     let centerCoord = chartViewModel.centerCoordinate
@@ -104,7 +105,7 @@ fileprivate struct LineOfSightHUDView: View {
           .foregroundColor(marineTheme.colors.textSecondary)
 
         if let dist = distance {
-          Text(dist.marineContextualDistanceFormatted)
+          Text(dist.marineContextualDistanceFormatted(locale: locale))
             .monospacedDigit()
             .bold()
             .marineFont(.body)

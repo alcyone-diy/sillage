@@ -122,4 +122,45 @@ final class AnchorViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.anchorCoordinate?.latitude, 47.123, "Step 4 failed: latitude is \(String(describing: viewModel.anchorCoordinate?.latitude))")
     XCTAssertEqual(viewModel.anchorCoordinate?.longitude, -3.456, "Step 4 failed: longitude is \(String(describing: viewModel.anchorCoordinate?.longitude))")
   }
+
+  func testRadiusIncrementAndDecrement() async throws {
+    let preferencesService = MockPreferencesService()
+    let positioningService = AnchorViewModelMockPositioningService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    anchorService.clear()
+    let viewModel = AnchorViewModel(anchorService: anchorService)
+
+    let metricLocale = Locale(components: .init(languageCode: .french, script: nil, languageRegion: .france))
+    let usLocale = Locale(components: .init(languageCode: .english, script: nil, languageRegion: .unitedStates))
+
+    // 1. Test metric stepping (+5m / -5m)
+    let initialMeters = viewModel.configuredRadius.converted(to: .meters).value
+    viewModel.incrementRadius(locale: metricLocale)
+    let incrementedMeters = viewModel.configuredRadius.converted(to: .meters).value
+    XCTAssertEqual(incrementedMeters, initialMeters + 5.0, accuracy: 0.1)
+
+    viewModel.decrementRadius(locale: metricLocale)
+    let decrementedMeters = viewModel.configuredRadius.converted(to: .meters).value
+    XCTAssertEqual(decrementedMeters, initialMeters, accuracy: 0.1)
+
+    // 2. Test US Imperial stepping (+10ft / -10ft)
+    let initialFeet = viewModel.configuredRadius.converted(to: .feet).value // ~82ft for 25m
+    viewModel.incrementRadius(locale: usLocale)
+    let incrementedFeet = viewModel.configuredRadius.converted(to: .feet).value
+    // 82ft rounds to 80ft, then +10ft = 90ft
+    XCTAssertEqual(incrementedFeet, 90.0, accuracy: 0.5)
+
+    viewModel.decrementRadius(locale: usLocale)
+    let decrementedFeet = viewModel.configuredRadius.converted(to: .feet).value
+    // 90ft - 10ft = 80ft
+    XCTAssertEqual(decrementedFeet, 80.0, accuracy: 0.5)
+  }
 }

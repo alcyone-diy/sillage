@@ -46,20 +46,29 @@ extension Measurement where UnitType == UnitLength {
   /// Otherwise, formats in nautical miles (NM).
   ///
   /// - Note: Technical Rationale: To prevent Foundation's `usage: .general` from scaling short distances down to sub-units (centimeters or inches),
-  ///   we explicitly inspect `Locale.current.measurementSystem`. If metric, we convert to `.meters`; otherwise to `.feet`.
+  ///   we explicitly inspect `locale.measurementSystem`. If metric, we convert to `.meters`; otherwise (covering `.us` and `.uk`) to `.feet`.
   ///   We then format using `usage: .asProvided` with 0 decimal places, strictly locking the minimum display unit to `m` or `ft`.
-  public var marineContextualDistanceFormatted: String {
+  public func marineContextualDistanceFormatted(locale: Locale = .autoupdatingCurrent) -> String {
     if self.converted(to: .meters) < MarineFormatters.shortDistanceThreshold {
-      let isMetric = Locale.current.measurementSystem == .metric
-      let targetUnit: UnitLength = isMetric ? .meters : .feet
-      return self.converted(to: targetUnit).formatted(
-        .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0)))
-      )
+      return marineAnchorDistanceFormatted(locale: locale)
     } else {
       return self.converted(to: .nauticalMiles).formatted(
         .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(2)))
       )
     }
+  }
+
+  /// Technical Design Choice: Dynamic Anchor Distance Formatting
+  /// Formats short distance measurements strictly according to the user's measurement system preference.
+  /// Maps `.metric` -> `.meters`, and explicitly maps non-metric systems (`.us`, `.uk`) -> `.feet`.
+  /// Locks display format to `.asProvided` with 0 decimal places to prevent Foundation from scaling
+  /// down to sub-units like centimeters, inches, or yards.
+  public func marineAnchorDistanceFormatted(locale: Locale = .autoupdatingCurrent) -> String {
+    let isMetric = locale.measurementSystem == .metric
+    let targetUnit: UnitLength = isMetric ? .meters : .feet
+    return self.converted(to: targetUnit).formatted(
+      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0)))
+    )
   }
 }
 
