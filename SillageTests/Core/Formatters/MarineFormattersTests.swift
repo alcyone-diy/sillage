@@ -80,4 +80,17 @@ final class MarineFormattersTests: XCTestCase {
     XCTAssertTrue(result.contains("164"), "Expected formatted result to contain '164', got: \(result)")
     XCTAssertTrue(result.contains("ft"), "Expected formatted result to contain 'ft', got: \(result)")
   }
+
+  func testAngleNormalizationAndBearingFormatting() {
+    let angle45 = Measurement<UnitAngle>(value: 45.0, unit: .degrees)
+    XCTAssertEqual(angle45.marineBearingFormatted, "045°")
+
+    let angleNegative10 = Measurement<UnitAngle>(value: -10.0, unit: .degrees)
+    XCTAssertEqual(angleNegative10.normalizedDegrees, 350.0, accuracy: 0.001)
+    XCTAssertEqual(angleNegative10.marineBearingFormatted, "350°")
+
+    let angle365 = Measurement<UnitAngle>(value: 365.0, unit: .degrees)
+    XCTAssertEqual(angle365.normalizedDegrees, 5.0, accuracy: 0.001)
+    XCTAssertEqual(angle365.marineBearingFormatted, "005°")
+  }
 }

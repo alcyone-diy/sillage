@@ -338,88 +338,28 @@ struct ContentView: View {
 
   // Marine Dashboard View
   private var marineDashboard: some View {
-    HStack(spacing: MarineTheme.Spacing.medium) {
-      // SOG Telemetry
-      VStack(spacing: 2) {
-        Text("SOG")
-          .marineFont(.instrumentLabel)
-          .foregroundColor(marineTheme.colors.textSecondary)
+    let sog = chartViewModel.smoothedSOG
+    let cog = chartViewModel.smoothedCOG
+    let btw = chartViewModel.bearingToWaypoint
 
-        if let sogMeasurement = chartViewModel.smoothedSOG {
-          let sogKnots = sogMeasurement.converted(to: .knots).value
-          Text(
-            Measurement(value: sogKnots, unit: UnitSpeed.knots).formatted(
-              .measurement(
-                width: .abbreviated,
-                usage: .asProvided,
-                numberFormatStyle: .number.precision(.fractionLength(1))
-              )
-            )
-          )
-          .marineFont(.instrumentData)
-          .foregroundColor(marineTheme.colors.textPrimary)
-        } else {
-          Text("--")
-            .marineFont(.instrumentData)
-            .foregroundColor(marineTheme.colors.textSecondary)
-        }
-      }
+    let sogString = sog?.marineFormatted ?? "---"
+    let cogString = cog?.marineBearingFormatted ?? "---°"
+    let btwString = btw?.marineBearingFormatted ?? "---°"
 
-      Divider()
-        .frame(height: 28)
+    var items = [
+      MarineTelemetryItem(label: "SOG", value: sogString, isPlaceholder: sog == nil),
+      MarineTelemetryItem(label: "COG", value: cogString, isPlaceholder: cog == nil)
+    ]
 
-      // COG Telemetry
-      VStack(spacing: 2) {
-        Text("COG")
-          .marineFont(.instrumentLabel)
-          .foregroundColor(marineTheme.colors.textSecondary)
-
-        if let cog = chartViewModel.smoothedCOG {
-          Text("\(cog.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
-            .marineFont(.instrumentData)
-            .foregroundColor(marineTheme.colors.textPrimary)
-        } else {
-          Text("--°")
-            .marineFont(.instrumentData)
-            .foregroundColor(marineTheme.colors.textSecondary)
-        }
-      }
-
-      if chartViewModel.goToWaypointVisualState != nil {
-        Divider()
-          .frame(height: 28)
-
-        // BTW Telemetry
-        VStack(spacing: 2) {
-          Text("BTW")
-            .marineFont(.instrumentLabel)
-            .foregroundColor(marineTheme.colors.textSecondary)
-
-          if let btw = chartViewModel.bearingToWaypoint {
-            Text("\(btw.converted(to: .degrees).value.formatted(.number.precision(.fractionLength(0))))°")
-              .marineFont(.instrumentData)
-              .foregroundColor(marineTheme.colors.textPrimary)
-          } else {
-            Text("--°")
-              .marineFont(.instrumentData)
-              .foregroundColor(marineTheme.colors.textSecondary)
-          }
-        }
-      }
+    if chartViewModel.goToWaypointVisualState != nil {
+      items.append(
+        MarineTelemetryItem(label: "BTW", value: btwString, isPlaceholder: btw == nil)
+      )
     }
-    .padding(.horizontal, MarineTheme.Spacing.medium)
-    .padding(.vertical, MarineTheme.Spacing.small + 2)
-    .background(
-      .regularMaterial,
-      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-        .stroke(marineTheme.colors.border.opacity(0.4), lineWidth: MarineTheme.Metrics.borderWidth / 2)
-    )
-    .shadow(color: Color.black.opacity(0.15), radius: MarineTheme.Metrics.shadowRadius * 3, x: 0, y: MarineTheme.Metrics.shadowOffset * 3)
-    .padding(.horizontal)
-    .padding(.top, 10)
+
+    return MarineTelemetryHUDCard(items: items)
+      .padding(.horizontal)
+      .padding(.top, 10)
   }
 }
 
