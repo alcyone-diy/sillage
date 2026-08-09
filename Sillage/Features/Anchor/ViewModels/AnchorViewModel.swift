@@ -59,8 +59,16 @@ final class AnchorViewModel {
     }
   }
 
+  /// Technical Design Choice: Ephemeral Setup Visual State
+  /// Indicates whether the UI is in any setup/preparation mode (manual position adjustment,
+  /// setup panel active, or full-screen drop confirmation) where setup visuals (anchor point & alarm limit circle)
+  /// should be rendered on the chart.
+  public var isDisplayingSetupVisuals: Bool {
+    isSetupModeActive || isPreparingDropAnchor || isAdjustingAnchor
+  }
+
   private func updateLocationUpdatesState() {
-    if isSetupModeActive || isPreparingDropAnchor {
+    if isDisplayingSetupVisuals {
       anchorService.startSetupLocationUpdates()
     } else {
       anchorService.stopSetupLocationUpdates()
