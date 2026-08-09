@@ -152,7 +152,6 @@ final class AnchorViewModelTests: XCTestCase {
     XCTAssertEqual(decrementedMeters, initialMeters, accuracy: 0.1)
 
     // 2. Test US Imperial stepping (+10ft / -10ft)
-    let initialFeet = viewModel.configuredRadius.converted(to: .feet).value // ~82ft for 25m
     viewModel.incrementRadius(locale: usLocale)
     let incrementedFeet = viewModel.configuredRadius.converted(to: .feet).value
     // 82ft rounds to 80ft, then +10ft = 90ft
