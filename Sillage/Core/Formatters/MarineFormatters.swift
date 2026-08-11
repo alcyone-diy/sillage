@@ -94,9 +94,9 @@ extension Measurement where UnitType == UnitLength {
     
     // Seuil de tolérance pour le zéro technique (0.0001 NM)
     if value > 0.0001 {
-      return "▶ \(formattedMagnitude)"
-    } else if value < -0.0001 {
       return "◀ \(formattedMagnitude)"
+    } else if value < -0.0001 {
+      return "▶ \(formattedMagnitude)"
     } else {
       return formattedMagnitude
     }
