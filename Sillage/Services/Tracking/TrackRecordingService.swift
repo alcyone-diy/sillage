@@ -165,7 +165,7 @@ public final class TrackRecordingService {
     
     guard let sessionID = currentSessionID,
           let endTime = telemetry.lastRecordedNavigationFix?.timestamp else {
-      state = .idle
+      resetSessionState()
       throw TrackRecordingError.abortedNoFix
     }
     
@@ -446,8 +446,19 @@ public final class TrackRecordingService {
     }
   }
   
+  /// Transitions the state machine to idle after a successful finalization.
+  /// The `trackPoints` buffer is intentionally preserved so the UI can continue
+  /// displaying the completed track. It will be cleared at the next `startRecording()` call.
   private func stopSavingState() {
     state = .idle
+  }
+
+  /// Resets the full session state, including the track points buffer.
+  /// Use this only on error paths that invalidate the current recording
+  /// (e.g., `abortedNoFix`), where displaying stale points would be misleading.
+  private func resetSessionState() {
+    state = .idle
+    trackPoints.removeAll()
   }
   
   private func startFlushTimer() {
