@@ -14,13 +14,12 @@ import OSLog
 
 // MARK: - Protocol
 
-@MainActor
-protocol GeoGarageDownloadRepositoryProtocol: AnyObject {
-  var downloads: [OfflineChartDownload] { get }
-  func load() async
-  func save(_ download: OfflineChartDownload) async
-  func delete(id: UUID) async
-  func lastDownloadDate(for layerID: String) -> Date?
+protocol GeoGarageDownloadRepositoryProtocol: AnyObject, Sendable {
+  @MainActor var downloads: [OfflineChartDownload] { get }
+  @MainActor func load() async
+  @MainActor func save(_ download: OfflineChartDownload) async
+  @MainActor func delete(id: UUID) async
+  @MainActor func lastDownloadDate(for layerID: String) -> Date?
 }
 
 // MARK: - Implementation

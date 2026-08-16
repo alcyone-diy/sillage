@@ -171,24 +171,12 @@ final class GeoGarageDownloadRepositoryTests: XCTestCase {
     await repo.save(download)
     XCTAssertEqual(repo.downloads.count, 1)
 
-    // Now point persistence to an unwritable location for subsequent delete
-    let unwritableRepo = GeoGarageDownloadRepository(
-      persistence: persistence,
-      fileURL: URL(fileURLWithPath: "/dev/null/invalid_dir/geogarage_downloads.json")
-    )
-    // Manually simulate repo with 1 download via initial valid file
-    let validRepo = GeoGarageDownloadRepository(persistence: persistence, fileURL: tempURL)
-    await validRepo.load()
-    XCTAssertEqual(validRepo.downloads.count, 1)
+    let invalidURL = URL(fileURLWithPath: "/dev/null/invalid_dir/geogarage_downloads.json")
+    let failingRepo = GeoGarageDownloadRepository(persistence: persistence, fileURL: invalidURL)
 
-    // Switch backing URL to invalid path after loading
-    let failingRepo = GeoGarageDownloadRepository(
-      persistence: persistence,
-      fileURL: URL(fileURLWithPath: "/dev/null/invalid/file.json")
-    )
-    // Attempt delete on invalid path repo (starting empty)
+    // Attempt delete on invalid path repo
     await failingRepo.delete(id: download.id)
-    XCTAssertTrue(failingRepo.downloads.isEmpty)
+    XCTAssertTrue(failingRepo.downloads.isEmpty, "Delete failure on disk must not modify in-memory state.")
 
     // Cleanup
     try? FileManager.default.removeItem(at: tempURL)

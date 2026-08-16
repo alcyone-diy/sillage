@@ -377,6 +377,9 @@
     "Download" : {
 
     },
+    "Download failed: %@." : {
+
+    },
     "Download interrupted." : {
 
     },
@@ -447,6 +450,19 @@
 
     },
     "Failed to save changes. Please try again." : {
+
+    },
+    "File integrity check failed. Expected %@, got %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "File integrity check failed. Expected %1$@, got %2$@."
+          }
+        }
+      }
+    },
+    "File system error: %@." : {
 
     },
     "Format: N/S Degrees Minutes." : {
@@ -559,6 +575,9 @@
     "Internal error encoding context." : {
 
     },
+    "Invalid download URL returned by server: %@." : {
+
+    },
     "Invalid Latitude" : {
 
     },
@@ -652,6 +671,9 @@
     "Network error: %@" : {
 
     },
+    "Network error: %@." : {
+
+    },
     "No active recording to stop." : {
 
     },
@@ -695,6 +717,15 @@
 
     },
     "Operation in progress. Please wait." : {
+
+    },
+    "Package generation failed: %@." : {
+
+    },
+    "Package generation timed out. Please try again later." : {
+
+    },
+    "Package request failed with HTTP status %lld." : {
 
     },
     "Password" : {
