@@ -13,6 +13,7 @@ import MapLibre
 
 enum ChartSource: Equatable {
   case localMBTiles(url: URL)
+  case localCaasChart(port: UInt16)
   case remoteGeoGarage(clientID: String, layerID: String)
   case openSeaMap
 
@@ -31,6 +32,14 @@ enum ChartSource: Equatable {
       }
       guard let url = configURL else { return nil }
       return MLNRasterTileSource(identifier: identifier, configurationURL: url, tileSize: AppConstants.Cartography.Tile.rasterTileSize)
+
+    case .localCaasChart(let port):
+      let template = "http://127.0.0.1:\(port)/tiles/{z}/{x}/{y}.png"
+      return MLNRasterTileSource(identifier: identifier, tileURLTemplates: [template], options: [
+        .minimumZoomLevel: AppConstants.Cartography.Zoom.globalMinimum,
+        .maximumZoomLevel: AppConstants.Cartography.Zoom.geoGarageMaximum,
+        .tileSize: 256
+      ])
 
     case .remoteGeoGarage(let clientID, let remoteLayerID):
       let template = "https://tiles.geogarage.com/\(clientID)/\(remoteLayerID)/{z}/{x}/{y}.png"

@@ -320,6 +320,9 @@
     "Debug simulation anchor alarm triggered." : {
 
     },
+    "Decryption failed: %@." : {
+
+    },
     "Default style URL is not available." : {
 
     },
@@ -484,6 +487,9 @@
 
     },
     "GeoGarage Marine Chart" : {
+
+    },
+    "GeoGarage Offline Chart" : {
 
     },
     "GeoGarage Required" : {

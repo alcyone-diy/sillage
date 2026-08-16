@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		020ACF672F6E43C1002C5C1B /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 020ACF662F6E43C1002C5C1B /* MapLibre */; };
 		0265CA132FAFE3FF0077046A /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA122FAFE3FF0077046A /* GRDB */; };
+		0265CA162FAFE4000077046A /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA152FAFE4000077046A /* SQLCipher */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,6 +62,7 @@
 			files = (
 				020ACF672F6E43C1002C5C1B /* MapLibre in Frameworks */,
 				0265CA132FAFE3FF0077046A /* GRDB in Frameworks */,
+				0265CA162FAFE4000077046A /* SQLCipher in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -68,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0265CA162FAFE4000077046A /* SQLCipher in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +128,7 @@
 			packageProductDependencies = (
 				020ACF662F6E43C1002C5C1B /* MapLibre */,
 				0265CA122FAFE3FF0077046A /* GRDB */,
+				0265CA152FAFE4000077046A /* SQLCipher */,
 			);
 			productName = Sillage;
 			productReference = 020ACF262F6C9E66002C5C1B /* Sillage.app */;
@@ -148,6 +152,7 @@
 			);
 			name = SillageTests;
 			packageProductDependencies = (
+				0265CA152FAFE4000077046A /* SQLCipher */,
 			);
 			productName = SillageTests;
 			productReference = 020D21E82FC2B58F00101B1B /* SillageTests.xctest */;
@@ -185,6 +190,7 @@
 				020ACF652F6E43C1002C5C1B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 				0265CA0A2FAFDFC10077046A /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				020D22002FC3BBF900101B1B /* XCRemoteSwiftPackageReference "swift-clocks" */,
+				0265CA142FAFE4000077046A /* XCRemoteSwiftPackageReference "SQLCipher.swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 020ACF272F6C9E66002C5C1B /* Products */;
@@ -309,7 +315,16 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
+					"SQLITE_HAS_CODEC=1",
 					"$(inherited)",
+				);
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
 				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -381,6 +396,18 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -426,6 +453,18 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -466,6 +505,18 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -485,6 +536,18 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sillage.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sillage";
 			};
@@ -505,6 +568,18 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sillage.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sillage";
 			};
@@ -567,6 +642,14 @@
 				kind = branch;
 			};
 		};
+		0265CA142FAFE4000077046A /* XCRemoteSwiftPackageReference "SQLCipher.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sqlcipher/SQLCipher.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.10.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -579,6 +662,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0265CA0A2FAFDFC10077046A /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		0265CA152FAFE4000077046A /* SQLCipher */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0265CA142FAFE4000077046A /* XCRemoteSwiftPackageReference "SQLCipher.swift" */;
+			productName = SQLCipher;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

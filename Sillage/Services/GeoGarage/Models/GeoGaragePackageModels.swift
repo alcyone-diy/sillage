@@ -142,6 +142,7 @@ nonisolated enum CaasError: Error, LocalizedError, Sendable {
   case networkError(underlying: String)
   case invalidDownloadURL(raw: String)
   case fileSystemError(underlying: String)
+  case decryptionFailed(reason: String)
 
   var errorDescription: String? {
     switch self {
@@ -161,6 +162,8 @@ nonisolated enum CaasError: Error, LocalizedError, Sendable {
       return String(localized: "Invalid download URL returned by server: \(raw).")
     case .fileSystemError(let msg):
       return String(localized: "File system error: \(msg).")
+    case .decryptionFailed(let reason):
+      return String(localized: "Decryption failed: \(reason).")
     }
   }
 }
