@@ -93,8 +93,11 @@ final class DebugViewModel {
   }
 
 
+  // MARK: - GPS Accuracy (Debug)
 
-
+  func setGPSAccuracyMode(_ mode: GPSAccuracyMode, appEnvironment: AppEnvironment) {
+    appEnvironment.updateGPSAccuracy(to: mode)
+  }
 
 
 

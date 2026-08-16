@@ -36,6 +36,15 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   
   private enum PositioningConfig {
     static let defaultDistanceFilter: Double = 10.0
+
+    static func clAccuracy(for mode: GPSAccuracyMode) -> CLLocationAccuracy {
+      switch mode {
+      case .bestForNavigation: return kCLLocationAccuracyBestForNavigation
+      case .best:              return kCLLocationAccuracyBest
+      case .tenMeters:         return kCLLocationAccuracyNearestTenMeters
+      case .hundredMeters:     return kCLLocationAccuracyHundredMeters
+      }
+    }
   }
   
   // MARK: - Multicast Streams
@@ -85,13 +94,14 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   
   private var requestedFilters: [String: Double] = [:]
   
-  override init() {
+
+  init(initialAccuracyMode: GPSAccuracyMode) {
     let (stream, continuation) = AsyncStream.makeStream(of: [CLLocation].self)
     self.rawLocationContinuation = continuation
-    
+
     self.locationManager = CLLocationManager()
     super.init()
-    
+
     self.locationFunnelTask.task = Task { @MainActor [weak self] in
       for await locations in stream {
         guard let self = self else { break }
@@ -100,21 +110,32 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
         }
       }
     }
-    
+
     self.locationManager.delegate = self
-    
+
     // Prioritize accuracy over battery for a marine environment.
-    self.locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+    self.locationManager.desiredAccuracy = PositioningConfig.clAccuracy(for: initialAccuracyMode)
+    Logger.telemetry.info("CoreLocationPositioningService initialised with accuracy: \(initialAccuracyMode.displayName, privacy: .public)")
     self.locationManager.distanceFilter = PositioningConfig.defaultDistanceFilter
-    
+
     // Marine Activity Type: Crucial to prevent iOS from aggressively snapping
     // coordinates to the nearest coastal road (automotive algorithm).
     self.locationManager.activityType = .otherNavigation
-    
+
     // Auto-Pause and Background Execution are managed dynamically based on active tokens.
     self.locationManager.pausesLocationUpdatesAutomatically = true
     self.locationManager.allowsBackgroundLocationUpdates = false
     self.locationManager.showsBackgroundLocationIndicator = false
+  }
+
+  // MARK: - Desired Accuracy (Debug)
+
+  /// Applies the given accuracy mode to the underlying CLLocationManager at runtime.
+  /// Must be called exclusively through AppEnvironment.updateGPSAccuracy(to:).
+  func setDesiredAccuracy(_ mode: GPSAccuracyMode) {
+    let accuracy = PositioningConfig.clAccuracy(for: mode)
+    locationManager.desiredAccuracy = accuracy
+    Logger.telemetry.info("GPS desiredAccuracy changed to \(mode.displayName, privacy: .public) (\(accuracy, privacy: .public))")
   }
   
   // MARK: - Foreground Update Tracking
