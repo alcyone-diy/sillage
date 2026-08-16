@@ -18,7 +18,8 @@ public enum GPXExportError: Error {
 }
 
 public struct GPXExportService: Sendable {
-  public nonisolated static func export(cursor: RecordCursor<TrackPointRecord>, to fileURL: URL) throws -> Int {
+  // Added sessionID and sessionName to uniquely identify and properly name the trace in the GPX file.
+  public nonisolated static func export(sessionID: String, sessionName: String? = nil, cursor: RecordCursor<TrackPointRecord>, to fileURL: URL) throws -> Int {
     if !FileManager.default.fileExists(atPath: fileURL.path) {
       guard FileManager.default.createFile(atPath: fileURL.path, contents: nil, attributes: nil) else {
         throw GPXExportError.fileCreationFailure
@@ -28,64 +29,110 @@ public struct GPXExportService: Sendable {
     let fileHandle = try FileHandle(forWritingTo: fileURL)
     defer { try? fileHandle.close() }
 
-    let header = """
-    <?xml version="1.0" encoding="UTF-8"?>
-    <gpx version="1.1" creator="\(AppConstants.appName)" xmlns="http://www.topografix.com/GPX/1/1" xmlns:sillage="\(AppConstants.appURL.absoluteString)/gpx">
-      <trk>
-        <trkseg>
-    """
-    if let headerData = header.data(using: .utf8) {
-      try fileHandle.write(contentsOf: headerData)
-    }
+    do {
+      // Escaping XML special characters to prevent broken GPX files if the user inputs special characters in the session name.
+      let safeName = (sessionName ?? sessionID).xmlEscaped
+      let header = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <gpx version="1.1" creator="\(AppConstants.appName)" xmlns="http://www.topografix.com/GPX/1/1" xmlns:sillage="\(AppConstants.appURL.absoluteString)/gpx">
+        <trk>
+          <name>\(safeName)</name>
+          <desc>Session ID: \(sessionID)</desc>
+          <trkseg>
+      """
+      if let headerData = header.data(using: .utf8) {
+        try fileHandle.write(contentsOf: headerData)
+      }
 
-    var count = 0
-    while let record = try cursor.next() {
-      let point = record.domainModel
-      let latString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.coordinate.latitude)
-      let lonString = String(format: "%.6f", locale: Locale(identifier: "en_US"), point.coordinate.longitude)
-      let timeString = point.timestamp.ISO8601Format()
+      let enUSLocale = Locale(identifier: "en_US")
+      let isoFormatter = ISO8601DateFormatter()
 
-      var pointXml = "\n      <trkpt lat=\"\(latString)\" lon=\"\(lonString)\">"
-      pointXml += "\n        <time>\(timeString)</time>"
+      var pointBuffer = ""
+      var count = 0
 
-      pointXml += "\n        <extensions>"
-      let horizontalAccuracyString = String(format: "%.1f", locale: Locale(identifier: "en_US"), point.horizontalAccuracy.converted(to: .meters).value)
-      pointXml += "\n          <sillage:accuracy unit=\"meter\">\(horizontalAccuracyString)</sillage:accuracy>"
+      while let record = try cursor.next() {
+        let point = record.domainModel
+        let latString = String(format: "%.6f", locale: enUSLocale, point.coordinate.latitude)
+        let lonString = String(format: "%.6f", locale: enUSLocale, point.coordinate.longitude)
+        let timeString = isoFormatter.string(from: point.timestamp)
 
-      if point.speedOverGround != nil || point.courseOverGround != nil {
-        if let speedOverGround = point.speedOverGround {
-          let sogString = String(format: "%.2f", locale: Locale(identifier: "en_US"), speedOverGround.converted(to: .knots).value)
-          pointXml += "\n          <sillage:sog unit=\"knot\">\(sogString)</sillage:sog>"
+        pointBuffer += "\n      <trkpt lat=\"\(latString)\" lon=\"\(lonString)\">"
+        pointBuffer += "\n        <time>\(timeString)</time>"
+        pointBuffer += "\n        <extensions>"
+
+        let horizontalAccuracyString = String(format: "%.1f", locale: enUSLocale, point.horizontalAccuracy.converted(to: .meters).value)
+        pointBuffer += "\n          <sillage:accuracy unit=\"meter\">\(horizontalAccuracyString)</sillage:accuracy>"
+
+        if point.speedOverGround != nil || point.courseOverGround != nil {
+          if let speedOverGround = point.speedOverGround {
+            let sogString = String(format: "%.2f", locale: enUSLocale, speedOverGround.converted(to: .knots).value)
+            pointBuffer += "\n          <sillage:sog unit=\"knot\">\(sogString)</sillage:sog>"
+          }
+
+          if let courseOverGround = point.courseOverGround {
+            let cogString = String(format: "%.1f", locale: enUSLocale, courseOverGround.converted(to: .degrees).value)
+            pointBuffer += "\n          <sillage:cog unit=\"degree\">\(cogString)</sillage:cog>"
+          }
         }
 
-        if let courseOverGround = point.courseOverGround {
-          let cogString = String(format: "%.1f", locale: Locale(identifier: "en_US"), courseOverGround.converted(to: .degrees).value)
-          pointXml += "\n          <sillage:cog unit=\"degree\">\(cogString)</sillage:cog>"
+        pointBuffer += "\n        </extensions>"
+        pointBuffer += "\n      </trkpt>"
+
+        count += 1
+
+        if count % 500 == 0 {
+          if let bufferData = pointBuffer.data(using: .utf8) {
+            try fileHandle.write(contentsOf: bufferData)
+          }
+          pointBuffer = ""
         }
       }
-      pointXml += "\n        </extensions>"
-      pointXml += "\n      </trkpt>"
 
-      if let pointData = pointXml.data(using: .utf8) {
-        try fileHandle.write(contentsOf: pointData)
+      if !pointBuffer.isEmpty {
+        if let bufferData = pointBuffer.data(using: .utf8) {
+          try fileHandle.write(contentsOf: bufferData)
+        }
       }
-      count += 1
+
+      if count == 0 {
+        throw GPXExportError.emptyTrack
+      }
+
+      let footer = """
+
+          </trkseg>
+        </trk>
+      </gpx>
+      """
+      if let footerData = footer.data(using: .utf8) {
+        try fileHandle.write(contentsOf: footerData)
+      }
+
+      return count
+    } catch {
+      // Prevent leaving truncated/corrupt files on the user's storage in case of writing failure.
+      try? FileManager.default.removeItem(at: fileURL)
+      throw error
     }
+  }
+}
 
-    if count == 0 {
-      throw GPXExportError.emptyTrack
+// MARK: - String XML Escaping
+
+extension String {
+  /// Escapes special characters for safe XML inclusion.
+  nonisolated var xmlEscaped: String {
+    var result = ""
+    for character in self {
+      switch character {
+      case "&": result.append("&amp;")
+      case "<": result.append("&lt;")
+      case ">": result.append("&gt;")
+      case "\"": result.append("&quot;")
+      case "'": result.append("&apos;")
+      default: result.append(character)
+      }
     }
-
-    let footer = """
-
-        </trkseg>
-      </trk>
-    </gpx>
-    """
-    if let footerData = footer.data(using: .utf8) {
-      try fileHandle.write(contentsOf: footerData)
-    }
-
-    return count
+    return result
   }
 }
