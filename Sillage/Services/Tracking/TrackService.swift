@@ -105,11 +105,15 @@ public struct TrackService: Sendable {
   /// - Returns: The number of exported track points.
   public func exportSession(id: String, to url: URL) async throws -> Int {
     try await databaseManager.reader.read { db in
+      // Fetching the session record first to retrieve the user-defined name.
+      // This allows us to populate the GPX `<name>` tag with a human-readable title.
+      let sessionName = try TrackSessionRecord.fetchOne(db, key: id)?.name
       let request = TrackPointRecord
         .filter(TrackPointRecord.Columns.sessionID == id)
         .order(TrackPointRecord.Columns.timestamp_unix.asc)
       let cursor = try request.fetchCursor(db)
-      return try GPXExportService.export(cursor: cursor, to: url)
+      // We pass the sessionID and sessionName to ensure the exported GPX contains internal identifiers.
+      return try GPXExportService.export(sessionID: id, sessionName: sessionName, cursor: cursor, to: url)
     }
   }
 }
