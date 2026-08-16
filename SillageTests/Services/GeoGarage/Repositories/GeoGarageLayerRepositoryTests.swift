@@ -33,8 +33,8 @@ final class GeoGarageLayerRepositoryTests: XCTestCase {
 
   func testSaveAndLoadCachedLayers() async {
     let layers = [
-      GeoGarageLayer(layer: "shom", brand_name: "SHOM", version_date: "2026-01-01", valid_until: "2027-01-01"),
-      GeoGarageLayer(layer: "noaa", brand_name: "NOAA", version_date: "2026-01-01", valid_until: "2027-01-01")
+      GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-01-01", validUntil: "2027-01-01"),
+      GeoGarageLayer(layer: "noaa", brandName: "NOAA", versionDate: "2026-01-01", validUntil: "2027-01-01")
     ]
 
     await repository.saveLayers(layers)
@@ -46,12 +46,12 @@ final class GeoGarageLayerRepositoryTests: XCTestCase {
 
     XCTAssertEqual(loaded.count, 2)
     XCTAssertEqual(loaded[0].layer, "shom")
-    XCTAssertEqual(loaded[1].brand_name, "NOAA")
+    XCTAssertEqual(loaded[1].brandName, "NOAA")
   }
 
   func testClearCacheRemovesFileAndResetsState() async {
     let layers = [
-      GeoGarageLayer(layer: "shom", brand_name: "SHOM", version_date: "2026-01-01", valid_until: "2027-01-01")
+      GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-01-01", validUntil: "2027-01-01")
     ]
 
     await repository.saveLayers(layers)

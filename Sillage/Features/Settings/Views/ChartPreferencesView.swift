@@ -119,8 +119,8 @@ struct ChartPreferencesView: View {
               chartViewModel.switchChartSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: layer.layer))
             }) {
               ChartSourceRowView(
-                title: layer.brand_name,
-                subtitle: "Valid until \(layer.valid_until)",
+                title: layer.brandName,
+                subtitle: "Valid until \(layer.validUntil)",
                 isSelected: isSelected
               )
               .marineListCell()

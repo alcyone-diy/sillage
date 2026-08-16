@@ -151,7 +151,7 @@ final class GeoGarageLoginViewModel {
         self?.forceReauthentication = false
 
         // Log successful fetch
-        let layerNames = settingsResponse.layers.map { $0.brand_name }.joined(separator: ", ")
+        let layerNames = settingsResponse.layers.map { $0.brandName }.joined(separator: ", ")
         Logger.network.info("Successfully fetched layers: \(layerNames, privacy: .public)")
         
         // Clear any previous authentication error messages

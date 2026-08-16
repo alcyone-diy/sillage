@@ -45,6 +45,9 @@ protocol PreferencesServiceProtocol {
   var hasAcceptedDisclaimer: Bool { get set }
   var isOpenSeaMapOverlayEnabled: Bool { get set }
   var geoGarageUsername: String? { get set }
+  /// Unique GeoGarage customer account identifier. Non-sensitive — used to reconstruct
+  /// the SQLCipher decryption key dynamically at runtime (never stored alongside the shared secret).
+  var geoGarageCustomerID: String? { get set }
 
   var isCOGVectorEnabled: Bool { get set }
   var cogVectorTimeHorizon: Measurement<UnitDuration> { get set }
@@ -89,6 +92,7 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let hasAcceptedDisclaimerKey = "hasAcceptedDisclaimer"
   @ObservationIgnored private let isOpenSeaMapOverlayEnabledKey = "isOpenSeaMapOverlayEnabled"
   @ObservationIgnored private let geoGarageUsernameKey = "geogarage_username"
+  @ObservationIgnored private let geoGarageCustomerIDKey = "geogarage_customer_id"
 
   @ObservationIgnored private let isCOGVectorEnabledKey = "isCOGVectorEnabled"
   @ObservationIgnored private let cogVectorTimeHorizonSecondsKey = "cogVectorTimeHorizonSeconds"
@@ -152,6 +156,16 @@ class PreferencesService: PreferencesServiceProtocol {
         defaults.set(value, forKey: geoGarageUsernameKey)
       } else {
         defaults.removeObject(forKey: geoGarageUsernameKey)
+      }
+    }
+  }
+
+  var geoGarageCustomerID: String? {
+    didSet {
+      if let value = geoGarageCustomerID {
+        defaults.set(value, forKey: geoGarageCustomerIDKey)
+      } else {
+        defaults.removeObject(forKey: geoGarageCustomerIDKey)
       }
     }
   }
@@ -248,6 +262,7 @@ class PreferencesService: PreferencesServiceProtocol {
     self.hasAcceptedDisclaimer = defaults.bool(forKey: hasAcceptedDisclaimerKey)
     self.isOpenSeaMapOverlayEnabled = defaults.bool(forKey: isOpenSeaMapOverlayEnabledKey)
     self.geoGarageUsername = defaults.string(forKey: geoGarageUsernameKey)
+    self.geoGarageCustomerID = defaults.string(forKey: geoGarageCustomerIDKey)
 
     self.isCOGVectorEnabled = defaults.object(forKey: isCOGVectorEnabledKey) as? Bool ?? true
     self.isCOGVectorTicksEnabled = defaults.object(forKey: isCOGVectorTicksEnabledKey) as? Bool ?? true

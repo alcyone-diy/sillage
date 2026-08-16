@@ -121,6 +121,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
         self.isGeoGarageAuthenticated = true
         return successResponse
       } catch {
+        Logger.network.error("Failed to decode AuthSuccessResponse: \(error, privacy: .public)")
         throw AuthError.invalidResponse
       }
     } else if httpResponse.statusCode == 400 || httpResponse.statusCode == 401 {
@@ -148,7 +149,8 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     } catch {
       let cached = layerRepository.layers
       if !cached.isEmpty {
-        return GeoGarageSettingsResponse(layers: cached)
+        let customerID = preferencesService.geoGarageCustomerID ?? ""
+        return GeoGarageSettingsResponse(customerID: customerID, layers: cached)
       }
       throw AuthError.networkError(error)
     }
@@ -161,9 +163,13 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
       do {
         let settingsResponse = try JSONDecoder().decode(GeoGarageSettingsResponse.self, from: data)
         self.authError = nil
+        // Persist customerID — non-sensitive, used to build the SQLCipher decryption key at runtime.
+        preferencesService.geoGarageCustomerID = settingsResponse.customerID
+        Logger.network.debug("GeoGarage customerID captured from settings response.")
         await layerRepository.saveLayers(settingsResponse.layers)
         return settingsResponse
       } catch {
+        Logger.network.error("Failed to decode GeoGarageSettingsResponse: \(error, privacy: .public)")
         throw AuthError.invalidResponse
       }
     } else if httpResponse.statusCode == 401 {

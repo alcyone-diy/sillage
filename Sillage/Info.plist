@@ -17,6 +17,10 @@
 	</array>
 	<key>GEOGARAGE_CLIENT_ID</key>
 	<string>$(GEOGARAGE_CLIENT_ID)</string>
+	<key>GEOGARAGE_CAAS_API_KEY</key>
+	<string>$(GEOGARAGE_CAAS_API_KEY)</string>
+	<key>GEOGARAGE_SHARED_SECRET</key>
+	<string>$(GEOGARAGE_SHARED_SECRET)</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
