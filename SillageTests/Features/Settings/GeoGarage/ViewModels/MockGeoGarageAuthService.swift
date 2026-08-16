@@ -37,14 +37,14 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
   func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse {
     if shouldFailWithNetworkError {
       if !availableLayers.isEmpty {
-        return GeoGarageSettingsResponse(layers: availableLayers)
+        return GeoGarageSettingsResponse(customerID: "cus_mock123", layers: availableLayers)
       }
       throw AuthError.networkError(NSError(domain: "Network", code: -1009, userInfo: nil))
     }
     if shouldFailFetchAccountSettings {
       throw AuthError.tokenExpired
     }
-    return GeoGarageSettingsResponse(layers: availableLayers)
+    return GeoGarageSettingsResponse(customerID: "cus_mock123", layers: availableLayers)
   }
 
   func logout() async {

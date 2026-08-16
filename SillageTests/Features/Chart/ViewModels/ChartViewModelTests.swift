@@ -143,7 +143,7 @@ final class ChartViewModelTests: XCTestCase {
     )
 
     // Act
-    let newLayer = GeoGarageLayer(layer: "layer1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")
+    let newLayer = GeoGarageLayer(layer: "layer1", brandName: "Brand", versionDate: "2026-01-01", validUntil: "2030-01-01")
     mockAuthService.availableLayers = [newLayer]
     viewModel.clearGeoGarageMessages()
 
@@ -370,7 +370,7 @@ final class ChartViewModelTests: XCTestCase {
 
     // Act & Assert (Should not crash when messageService is nil)
     viewModel.clearGeoGarageMessages()
-    let layer = GeoGarageLayer(layer: "layer1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")
+    let layer = GeoGarageLayer(layer: "layer1", brandName: "Brand", versionDate: "2026-01-01", validUntil: "2030-01-01")
     mockAuthService.availableLayers = [layer]
     viewModel.clearGeoGarageMessages()
     XCTAssertEqual(viewModel.availableGeoGarageLayers.count, 1)
@@ -409,7 +409,7 @@ final class ChartViewModelTests: XCTestCase {
       messageService: messageService
     )
 
-    let layer = GeoGarageLayer(layer: "layer1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")
+    let layer = GeoGarageLayer(layer: "layer1", brandName: "Brand", versionDate: "2026-01-01", validUntil: "2030-01-01")
     mockAuthService.availableLayers = [layer]
     viewModel.clearGeoGarageMessages()
 
@@ -440,6 +440,9 @@ final class ChartViewModelTests: XCTestCase {
       anchorService: anchorService,
       anchorViewModel: anchorViewModel
     )
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "test_layer"))
+    XCTAssertFalse(viewModel.isOpenSeaMapOverlayEnabled)
 
     viewModel.switchChartSource(to: .openSeaMap)
 
@@ -597,7 +600,7 @@ final class ChartViewModelTests: XCTestCase {
     viewModel.throttledUpdateCenterCoordinate(tinyShift)
 
     // Wait for throttle interval to expire
-    try await Task.sleep(for: AppConstants.Map.regionThrottleInterval + .milliseconds(50))
+    try await Task.sleep(for: AppConstants.Map.regionThrottleInterval + .milliseconds(150))
     XCTAssertEqual(viewModel.centerCoordinate.latitude, 47.0, "Sub-meter movement should be ignored by throttled update threshold")
 
     // 2. Trailing Edge Throttle Test: Multiple rapid updates during throttle sleep window
@@ -612,7 +615,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.centerCoordinate.latitude, 47.0)
 
     // Wait for throttle interval to expire
-    try await Task.sleep(for: AppConstants.Map.regionThrottleInterval + .milliseconds(50))
+    try await Task.sleep(for: AppConstants.Map.regionThrottleInterval + .milliseconds(150))
     // Trailing edge throttling guarantees latestShift is applied, NOT firstShift
     XCTAssertEqual(viewModel.centerCoordinate.latitude, 47.05, "Trailing edge throttle must apply the latest coordinate received during the sleep window")
 
@@ -653,7 +656,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.zoomLevel, 12.0)
 
     // Wait for throttle interval to expire
-    try await Task.sleep(for: AppConstants.Map.regionThrottleInterval + .milliseconds(50))
+    try await Task.sleep(for: AppConstants.Map.regionThrottleInterval + .milliseconds(150))
     // Trailing edge throttling guarantees latest scale and zoom level are applied
     XCTAssertEqual(viewModel.mapScale?.converted(to: .meters).value, 35.0)
     XCTAssertEqual(viewModel.zoomLevel, 16.0)

@@ -202,7 +202,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     )
 
     let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
-    viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")]
+    viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brandName: "Brand", versionDate: "2026-01-01", validUntil: "2030-01-01")]
     viewModel.isAuthorizationReady = true
     mockAuthService.availableLayers = viewModel.availableLayers
     chartViewModel.clearGeoGarageMessages()
@@ -234,7 +234,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 1)
 
     let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
-    viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brand_name: "Brand", version_date: "2026-01-01", valid_until: "2030-01-01")]
+    viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brandName: "Brand", versionDate: "2026-01-01", validUntil: "2030-01-01")]
     viewModel.isAuthorizationReady = true
 
     let positioningService = MockPositioningService()

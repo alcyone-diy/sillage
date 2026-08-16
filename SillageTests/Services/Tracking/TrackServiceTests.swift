@@ -57,6 +57,7 @@ struct TrackServiceTests {
     var savedChartSource: String?
     var savedGeoGarageLayerID: String?
     var geoGarageUsername: String?
+    var geoGarageCustomerID: String?
     var savedLatitude: Double?
     var savedLongitude: Double?
     var savedZoom: Double?
