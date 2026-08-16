@@ -31,6 +31,9 @@ final class AppEnvironment {
     let trackService: TrackService
     let waypointService: WaypointService
     let geoGarageAuthService: GeoGarageAuthService
+    let geoGarageDownloadRepository: GeoGarageDownloadRepository
+    let geoGaragePackageService: GeoGaragePackageService
+    let geoGarageChartDownloader: GeoGarageChartDownloader
     let anchorService: AnchorService
     
     let appViewModel: AppViewModel
@@ -129,6 +132,16 @@ final class AppEnvironment {
 
       let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService)
       await geoGarageAuthService.bootstrap()
+
+      let geoGaragePersistenceActor = LocalFilePersistenceActor()
+      let geoGarageDownloadRepository = GeoGarageDownloadRepository(persistence: geoGaragePersistenceActor)
+      await geoGarageDownloadRepository.load()
+
+      let geoGaragePackageService = GeoGaragePackageService()
+      let geoGarageChartDownloader = GeoGarageChartDownloader(
+        packageService: geoGaragePackageService,
+        downloadRepository: geoGarageDownloadRepository
+      )
       
       let backgroundMonitoringService = DefaultBackgroundMonitoringService(
         positioningService: positioningService
@@ -198,6 +211,9 @@ final class AppEnvironment {
         trackService: trackService,
         waypointService: waypointService,
         geoGarageAuthService: geoGarageAuthService,
+        geoGarageDownloadRepository: geoGarageDownloadRepository,
+        geoGaragePackageService: geoGaragePackageService,
+        geoGarageChartDownloader: geoGarageChartDownloader,
         anchorService: anchorService,
         appViewModel: appViewModel,
         chartViewModel: chartViewModel,
