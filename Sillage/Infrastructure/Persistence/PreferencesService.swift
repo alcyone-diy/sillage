@@ -12,6 +12,26 @@ import Foundation
 import CoreLocation
 import Observation
 
+// MARK: - GPS Accuracy Mode
+
+/// Available GPS accuracy levels. Mapped to CLLocationAccuracy exclusively
+/// inside CoreLocationPositioningService, keeping this type free of CoreLocation.
+enum GPSAccuracyMode: String, CaseIterable, Sendable {
+  case bestForNavigation = "bestForNavigation"
+  case best             = "best"
+  case tenMeters        = "tenMeters"
+  case hundredMeters    = "hundredMeters"
+
+  var displayName: String {
+    switch self {
+    case .bestForNavigation: return "Best for Navigation"
+    case .best:              return "Best"
+    case .tenMeters:         return "~10 m"
+    case .hundredMeters:     return "~100 m"
+    }
+  }
+}
+
 @MainActor
 protocol PreferencesServiceProtocol {
   var savedChartSource: String? { get set }
@@ -50,6 +70,9 @@ protocol PreferencesServiceProtocol {
 
   // MARK: - HUD Settings
   var hudEditOpenCount: Int { get set }
+
+  // MARK: - GPS Debug Settings
+  var gpsAccuracyMode: GPSAccuracyMode { get set }
 }
 
 @Observable
@@ -79,6 +102,7 @@ class PreferencesService: PreferencesServiceProtocol {
 
   @ObservationIgnored private let savedAnchorRadiusMetersKey = "savedAnchorRadiusMeters"
   @ObservationIgnored private let hudEditOpenCountKey = "sillage.prefs.hudEditOpenCount"
+  @ObservationIgnored private let gpsAccuracyModeKey = "gpsAccuracyMode"
 
   @ObservationIgnored private let defaults = UserDefaults.standard
 
@@ -201,6 +225,15 @@ class PreferencesService: PreferencesServiceProtocol {
     didSet { defaults.set(hudEditOpenCount, forKey: hudEditOpenCountKey) }
   }
 
+  private var rawGPSAccuracyMode: String {
+    didSet { defaults.set(rawGPSAccuracyMode, forKey: gpsAccuracyModeKey) }
+  }
+
+  var gpsAccuracyMode: GPSAccuracyMode {
+    get { GPSAccuracyMode(rawValue: rawGPSAccuracyMode) ?? .best }
+    set { rawGPSAccuracyMode = newValue.rawValue }
+  }
+
   init() {
     self.savedChartSource = defaults.string(forKey: chartSourceKey)
     self.savedGeoGarageLayerID = defaults.string(forKey: savedGeoGarageLayerIDKey)
@@ -229,6 +262,7 @@ class PreferencesService: PreferencesServiceProtocol {
 
     self.rawAnchorRadiusMeters = defaults.object(forKey: savedAnchorRadiusMetersKey) as? Double ?? 25.0
     self.hudEditOpenCount = defaults.integer(forKey: hudEditOpenCountKey)
+    self.rawGPSAccuracyMode = defaults.string(forKey: gpsAccuracyModeKey) ?? GPSAccuracyMode.bestForNavigation.rawValue
   }
 
   func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double) {

@@ -75,7 +75,7 @@ final class AppEnvironment {
       
       let preferencesService = PreferencesService()
       
-      let positioningService = CoreLocationPositioningService()
+      let positioningService = CoreLocationPositioningService(initialAccuracyMode: preferencesService.gpsAccuracyMode)
       
       let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
       instrumentDampingService.start()
@@ -220,6 +220,16 @@ final class AppEnvironment {
       Logger.system.error("❌ AppEnvironment bootstrap failed: \(error.localizedDescription, privacy: .public)")
       state = .error(error)
     }
+  }
+
+  // MARK: - GPS Accuracy
+
+  /// Single entry point for changing GPS accuracy at runtime.
+  /// Keeps PreferencesService and CoreLocationPositioningService in sync.
+  func updateGPSAccuracy(to mode: GPSAccuracyMode) {
+    guard case .ready(let container) = state else { return }
+    container.preferencesService.gpsAccuracyMode = mode
+    container.positioningService.setDesiredAccuracy(mode)
   }
   
   nonisolated private func setupFileSystem() throws {

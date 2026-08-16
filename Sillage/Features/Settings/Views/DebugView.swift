@@ -70,6 +70,23 @@ struct DebugView: View {
             .foregroundColor(gpsStateColor)
         }
         .marineListCell()
+
+        if case .ready(let container) = appEnvironment.state {
+          Picker(
+            selection: Binding(
+              get: { container.preferencesService.gpsAccuracyMode },
+              set: { viewModel.setGPSAccuracyMode($0, appEnvironment: appEnvironment) }
+            ),
+            label: Text("Desired Accuracy")
+              .marineFont(.body)
+          ) {
+            ForEach(GPSAccuracyMode.allCases, id: \.self) { mode in
+              Text(mode.displayName).tag(mode)
+            }
+          }
+          .pickerStyle(.menu)
+          .marineListCell()
+        }
       }
       
       Section(header: Text("Course Over Ground (COG)")) {
