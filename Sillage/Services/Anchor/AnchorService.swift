@@ -313,7 +313,10 @@ final class AnchorService {
       )
       monitoringToken = backgroundMonitoringService.startMonitoring(
         ownerIdentifier: "AnchorWatch",
-        distanceFilter: Measurement(value: 1, unit: .meters),
+        // A 5-meter filter allows the CPU to sleep during small swings at anchor,
+        // preserving battery for overnight watches (10-12h), while still
+        // guaranteeing a rapid wakeup if the anchor actually drags.
+        distanceFilter: Measurement(value: 5, unit: .meters),
         watchdog: watchdog
       )
     }
