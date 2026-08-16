@@ -110,8 +110,7 @@ struct SillageApp: App {
       
       // Note: This XPC call to UNUserNotificationCenter suffers from a race condition 
       // during a crash or OOM kill (willTerminate is not even called for OOM). 
-      // This is a "Best Effort" for explicit force-quits.
-      // A background watchdog is used for robust death detection.
+      // This is a "Best Effort" for explicit user force-quits.
       let request = UNNotificationRequest(identifier: NotificationIntent.appTerminated.rawValue, content: content, trigger: nil)
       UNUserNotificationCenter.current().add(request) { error in
         if let error = error {

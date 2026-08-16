@@ -10,32 +10,17 @@
 
 import Foundation
 
-public struct WatchdogConfiguration: Sendable {
-    public let identifier: String
-    public let title: String
-    public let body: String
-    public let timeout: TimeInterval
-    
-    public init(identifier: String, title: String, body: String, timeout: TimeInterval) {
-        self.identifier = identifier
-        self.title = title
-        self.body = body
-        self.timeout = timeout
-    }
-}
-
 @MainActor
 public protocol BackgroundMonitoringToken: AnyObject {
-    /// Stoppe la session : libère le GPS en arrière-plan, retire les filtres de distance et annule le watchdog.
+    /// Stops the session: releases background GPS and removes distance filters.
     func invalidate()
 }
 
 @MainActor
 public protocol BackgroundMonitoringService {
-    /// Démarre une session de monitoring avec un filtre de distance et un Watchdog optionnel.
+    /// Starts a monitoring session with a distance filter.
     func startMonitoring(
         ownerIdentifier: String,
-        distanceFilter: Measurement<UnitLength>,
-        watchdog: WatchdogConfiguration?
+        distanceFilter: Measurement<UnitLength>
     ) -> any BackgroundMonitoringToken
 }

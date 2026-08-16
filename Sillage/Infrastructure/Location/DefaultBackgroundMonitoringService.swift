@@ -14,28 +14,21 @@ import OSLog
 @MainActor
 final class DefaultBackgroundMonitoringService: BackgroundMonitoringService {
   private let positioningService: PositioningService
-  private let notificationService: NotificationService
-
   private var activeSessions: [UUID: SessionState] = [:]
 
   private struct SessionState {
     let ownerIdentifier: String
     let backgroundLocationToken: any BackgroundLocationToken
     let locationUpdateToken: any LocationUpdateToken
-    let watchdog: WatchdogConfiguration?
   }
 
-  private var gpsUpdateTask: Task<Void, Never>?
-
-  init(positioningService: PositioningService, notificationService: NotificationService) {
+  init(positioningService: PositioningService) {
     self.positioningService = positioningService
-    self.notificationService = notificationService
   }
 
   func startMonitoring(
     ownerIdentifier: String,
-    distanceFilter: Measurement<UnitLength>,
-    watchdog: WatchdogConfiguration?
+    distanceFilter: Measurement<UnitLength>
   ) -> any BackgroundMonitoringToken {
     let tokenID = UUID()
     let bgToken = positioningService.requestBackgroundLocation()
@@ -45,13 +38,8 @@ final class DefaultBackgroundMonitoringService: BackgroundMonitoringService {
     activeSessions[tokenID] = SessionState(
       ownerIdentifier: ownerIdentifier,
       backgroundLocationToken: bgToken,
-      locationUpdateToken: updateToken,
-      watchdog: watchdog
+      locationUpdateToken: updateToken
     )
-    
-    if gpsUpdateTask == nil {
-      startGPSLoop()
-    }
     
     return MonitoringToken(id: tokenID) { @Sendable [weak self] id in
       guard let self = self else { return }
@@ -67,51 +55,6 @@ final class DefaultBackgroundMonitoringService: BackgroundMonitoringService {
     session.backgroundLocationToken.invalidate()
     session.locationUpdateToken.invalidate()
     positioningService.removeDistanceFilter(for: session.ownerIdentifier)
-    
-    if let watchdog = session.watchdog {
-      Task {
-        await notificationService.cancelWatchdog(identifier: watchdog.identifier)
-      }
-    }
-    
-    if activeSessions.isEmpty {
-      stopGPSLoop()
-    }
-  }
-
-  private func startGPSLoop() {
-    gpsUpdateTask?.cancel()
-    gpsUpdateTask = Task { [weak self] in
-      guard let self = self else { return }
-      for await state in self.positioningService.locationUpdates {
-        guard !Task.isCancelled else { break }
-        
-        switch state {
-        case .active, .degraded:
-          await self.pingWatchdogs()
-        case .lost:
-          break
-        }
-      }
-    }
-  }
-
-  private func stopGPSLoop() {
-    gpsUpdateTask?.cancel()
-    gpsUpdateTask = nil
-  }
-
-  private func pingWatchdogs() async {
-    for session in activeSessions.values {
-      if let watchdog = session.watchdog {
-        await notificationService.checkIn(
-          identifier: watchdog.identifier,
-          title: watchdog.title,
-          body: watchdog.body,
-          timeout: watchdog.timeout
-        )
-      }
-    }
   }
 }
 

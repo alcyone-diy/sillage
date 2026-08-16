@@ -72,7 +72,7 @@ final class AnchorViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let positioningService = AnchorViewModelMockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
-    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
       positioningService: positioningService,
       preferencesService: preferencesService,
@@ -127,7 +127,7 @@ final class AnchorViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let positioningService = AnchorViewModelMockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
-    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
       positioningService: positioningService,
       preferencesService: preferencesService,
