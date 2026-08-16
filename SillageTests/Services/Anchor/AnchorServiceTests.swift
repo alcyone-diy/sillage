@@ -209,7 +209,7 @@ final class MockBackgroundMonitoringToken: BackgroundMonitoringToken {
 @MainActor
 final class MockBackgroundMonitoringService: BackgroundMonitoringService {
   var requestedToken: MockBackgroundMonitoringToken?
-  func startMonitoring(ownerIdentifier: String, distanceFilter: Measurement<UnitLength>, watchdog: WatchdogConfiguration?) -> any BackgroundMonitoringToken {
+  func startMonitoring(ownerIdentifier: String, distanceFilter: Measurement<UnitLength>) -> any BackgroundMonitoringToken {
     let token = MockBackgroundMonitoringToken()
     requestedToken = token
     return token

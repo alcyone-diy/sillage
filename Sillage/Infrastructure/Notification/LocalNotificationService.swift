@@ -15,25 +15,6 @@ import OSLog
 /// Concrete implementation of NotificationService using iOS local notifications.
 public struct LocalNotificationService: NotificationService {
   
-  private actor WatchdogThrottler {
-    private var lastCheckIns: [String: Date] = [:]
-    
-    func shouldCheckIn(identifier: String) -> Bool {
-      let now = Date()
-      if let last = lastCheckIns[identifier], now.timeIntervalSince(last) < 60 {
-        return false
-      }
-      lastCheckIns[identifier] = now
-      return true
-    }
-    
-    func reset(identifier: String) {
-      lastCheckIns.removeValue(forKey: identifier)
-    }
-  }
-  
-  private let throttler = WatchdogThrottler()
-  
   public init() {
     registerNotificationCategories()
   }
@@ -141,21 +122,5 @@ public struct LocalNotificationService: NotificationService {
     center.removePendingNotificationRequests(withIdentifiers: [identifier])
     center.removeDeliveredNotifications(withIdentifiers: [identifier])
     Logger.system.info("Cancelled notification: \(identifier)")
-  }
-  
-  public func checkIn(identifier: String, title: String, body: String, timeout: TimeInterval) async {
-    let shouldProceed = await throttler.shouldCheckIn(identifier: identifier)
-    guard shouldProceed else { return }
-    
-    do {
-      try await sendNotification(title: title, body: body, identifier: identifier, delay: timeout)
-    } catch {
-      Logger.system.error("Failed to check in watchdog \(identifier): \(error.localizedDescription)")
-    }
-  }
-  
-  public func cancelWatchdog(identifier: String) async {
-    cancelNotification(identifier: identifier)
-    await throttler.reset(identifier: identifier)
   }
 }

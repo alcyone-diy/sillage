@@ -305,19 +305,12 @@ final class AnchorService {
   
   private func startMonitoringSession() {
     if monitoringToken == nil {
-      let watchdog = WatchdogConfiguration(
-        identifier: NotificationIntent.anchorWatchdog.rawValue,
-        title: String(localized: "⚠️ Sillage Inactive"),
-        body: String(localized: "Anchor alarm is active but the app has stopped receiving GPS updates."),
-        timeout: 300
-      )
       monitoringToken = backgroundMonitoringService.startMonitoring(
         ownerIdentifier: "AnchorWatch",
         // A 5-meter filter allows the CPU to sleep during small swings at anchor,
         // preserving battery for overnight watches (10-12h), while still
         // guaranteeing a rapid wakeup if the anchor actually drags.
-        distanceFilter: Measurement(value: 5, unit: .meters),
-        watchdog: watchdog
+        distanceFilter: Measurement(value: 5, unit: .meters)
       )
     }
   }

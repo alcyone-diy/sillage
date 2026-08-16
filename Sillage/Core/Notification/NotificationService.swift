@@ -50,13 +50,6 @@ public protocol NotificationService: Sendable {
   /// Cancels a specific pending notification.
   /// - Parameter identifier: The unique identifier of the notification to cancel.
   func cancelNotification(identifier: String)
-  
-  /// Registers a check-in for a watchdog notification.
-  /// Throttles requests automatically (e.g. 60 seconds) to save CPU/battery.
-  func checkIn(identifier: String, title: String, body: String, timeout: TimeInterval) async
-  
-  /// Cancels a pending watchdog notification.
-  func cancelWatchdog(identifier: String) async
 }
 
 public extension NotificationService {

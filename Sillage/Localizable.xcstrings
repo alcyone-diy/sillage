@@ -107,9 +107,6 @@
     "⚠️ Offline maps require GeoGarage. Switch to GeoGarage in Chart Preferences to download offline charts." : {
 
     },
-    "⚠️ Sillage Inactive" : {
-
-    },
     "🔇 Silence" : {
 
     },
@@ -174,9 +171,6 @@
 
     },
     "Anchor Alarm" : {
-
-    },
-    "Anchor alarm is active but the app has stopped receiving GPS updates." : {
 
     },
     "Anchor Alerts" : {

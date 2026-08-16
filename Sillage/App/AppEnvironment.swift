@@ -131,8 +131,7 @@ final class AppEnvironment {
       await geoGarageAuthService.bootstrap()
       
       let backgroundMonitoringService = DefaultBackgroundMonitoringService(
-        positioningService: positioningService,
-        notificationService: notificationService
+        positioningService: positioningService
       )
       
       let anchorService = AnchorService(
