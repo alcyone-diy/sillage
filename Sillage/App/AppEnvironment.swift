@@ -237,6 +237,28 @@ final class AppEnvironment {
     }
   }
 
+  // MARK: - GeoGarage Offline Services
+
+  var geoGarageChartDownloader: GeoGarageChartDownloader? {
+    guard case .ready(let container) = state else { return nil }
+    return container.geoGarageChartDownloader
+  }
+
+  var geoGaragePackageService: GeoGaragePackageService? {
+    guard case .ready(let container) = state else { return nil }
+    return container.geoGaragePackageService
+  }
+
+  var geoGarageDownloadRepository: GeoGarageDownloadRepository? {
+    guard case .ready(let container) = state else { return nil }
+    return container.geoGarageDownloadRepository
+  }
+
+  var preferencesService: PreferencesService? {
+    guard case .ready(let container) = state else { return nil }
+    return container.preferencesService
+  }
+
   // MARK: - GPS Accuracy
 
   /// Single entry point for changing GPS accuracy at runtime.

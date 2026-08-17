@@ -17,10 +17,10 @@ nonisolated enum PackageFormat: String, Codable, Sendable {
   case mbtiles = "MBTiles"
 }
 
-/// SQLCipher encryption version used for the generated offline package.
+/// SQLCipher encryption version token accepted by the GeoGarage CAAS API backend.
 nonisolated enum CipherVersion: String, Sendable {
-  case v3 = "SQLCipher3"
-  case v4 = "SQLCipher4"
+  case v3 = "127deda9fa683ec879f231e7a403570e"
+  case v4 = "a123d80f80f30a78e40e01220ccdc0ca"
 }
 
 /// Request payload parameters for offline package generation (POST /packages/request/).

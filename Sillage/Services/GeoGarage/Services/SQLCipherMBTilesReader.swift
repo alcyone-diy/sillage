@@ -53,62 +53,62 @@ actor SQLCipherMBTilesReader: SQLCipherMBTilesReaderProtocol {
       throw CaasError.fileSystemError(underlying: "MBTiles file does not exist at \(fileURL.path)")
     }
 
-    var localDB: OpaquePointer?
-    let openResult = sqlite3_open_v2(fileURL.path, &localDB, SQLITE_OPEN_READONLY, nil)
-    guard openResult == SQLITE_OK, let localDB else {
-      let errorMsg = localDB != nil ? String(cString: sqlite3_errmsg(localDB)) : "Error code \(openResult)"
-      if let localDB { sqlite3_close_v2(localDB) }
-      throw CaasError.fileSystemError(underlying: "Failed to open MBTiles file: \(errorMsg)")
+    let keyData = Data(encryptionKey.utf8)
+
+    // 1. Try opening with SQLCipher 4 (default)
+    if let result = tryOpen(fileURL: fileURL, keyData: keyData, v3Compatibility: false) {
+      return result
     }
 
-    // 1. Apply key immediately after opening
-    let keyData = Data(encryptionKey.utf8)
+    // 2. Fallback: Try opening with SQLCipher 3 legacy compatibility
+    if let result = tryOpen(fileURL: fileURL, keyData: keyData, v3Compatibility: true) {
+      return result
+    }
+
+    throw CaasError.decryptionFailed(reason: "Invalid encryption key or corrupt MBTiles database.")
+  }
+
+  nonisolated private static func tryOpen(
+    fileURL: URL,
+    keyData: Data,
+    v3Compatibility: Bool
+  ) -> (db: OpaquePointer, statement: OpaquePointer)? {
+    var localDB: OpaquePointer?
+    guard sqlite3_open_v2(fileURL.path, &localDB, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let localDB else {
+      if let localDB { sqlite3_close_v2(localDB) }
+      return nil
+    }
+
     let keyResult = keyData.withUnsafeBytes { rawBuffer in
       sqlite3_key(localDB, rawBuffer.baseAddress, Int32(keyData.count))
     }
     guard keyResult == SQLITE_OK else {
       sqlite3_close_v2(localDB)
-      throw CaasError.decryptionFailed(reason: "sqlite3_key failed with code \(keyResult)")
+      return nil
     }
 
-    // 2. Configure SQLCipher v3 legacy compatibility PRAGMAs
-    let pragmaCommands = "PRAGMA cipher_compatibility = 3;"
-
-    var execErrMsg: UnsafeMutablePointer<CChar>?
-    let pragmaResult = sqlite3_exec(localDB, pragmaCommands, nil, nil, &execErrMsg)
-    if pragmaResult != SQLITE_OK {
-      let reason = execErrMsg != nil ? String(cString: execErrMsg!) : "Error code \(pragmaResult)"
-      sqlite3_free(execErrMsg)
-      sqlite3_close_v2(localDB)
-      throw CaasError.decryptionFailed(reason: "Failed executing PRAGMA settings: \(reason)")
+    if v3Compatibility {
+      let v3Pragma = "PRAGMA cipher_compatibility = 3;"
+      sqlite3_exec(localDB, v3Pragma, nil, nil, nil)
     }
 
-    // 3. Test database decryption integrity immediately
     var testStmt: OpaquePointer?
     let testSQL = "SELECT count(*) FROM sqlite_master;"
     let prepareTest = sqlite3_prepare_v2(localDB, testSQL, -1, &testStmt, nil)
-    guard prepareTest == SQLITE_OK, let testStmt else {
-      let reason = String(cString: sqlite3_errmsg(localDB))
-      sqlite3_close_v2(localDB)
-      throw CaasError.decryptionFailed(reason: "Decryption validation failed: \(reason)")
-    }
-
-    let stepTest = sqlite3_step(testStmt)
+    let stepTest = prepareTest == SQLITE_OK ? sqlite3_step(testStmt) : SQLITE_ERROR
     sqlite3_finalize(testStmt)
+
     guard stepTest == SQLITE_ROW || stepTest == SQLITE_DONE else {
-      let reason = String(cString: sqlite3_errmsg(localDB))
       sqlite3_close_v2(localDB)
-      throw CaasError.decryptionFailed(reason: "Invalid encryption key or corrupt database: \(reason)")
+      return nil
     }
 
-    // 4. Precompile the high-throughput prepared statement
     let tileSQL = "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ? LIMIT 1;"
     var localStmt: OpaquePointer?
     let prepResult = sqlite3_prepare_v2(localDB, tileSQL, -1, &localStmt, nil)
     guard prepResult == SQLITE_OK, let localStmt else {
-      let reason = String(cString: sqlite3_errmsg(localDB))
       sqlite3_close_v2(localDB)
-      throw CaasError.decryptionFailed(reason: "Failed to prepare tile query statement: \(reason)")
+      return nil
     }
 
     return (localDB, localStmt)

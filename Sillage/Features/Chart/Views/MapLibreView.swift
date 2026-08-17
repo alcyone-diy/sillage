@@ -570,6 +570,12 @@ struct MapLibreView: UIViewRepresentable {
         // Save the camera state to UserDefaults
         self.parent.viewModel.saveCameraState()
         
+        let visibleBounds = mapView.visibleCoordinateBounds
+        self.parent.viewModel.currentVisibleBounds = GeographicBoundingBox(
+          southWest: visibleBounds.sw,
+          northEast: visibleBounds.ne
+        )
+        
         // Compute geographic bounding box for offline selection locally and pass it down
         self.updateOfflineSelectionBounds(mapView: mapView)
         

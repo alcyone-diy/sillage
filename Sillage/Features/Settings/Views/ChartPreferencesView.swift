@@ -25,6 +25,12 @@ struct ChartPreferencesView: View {
   /// Controls the presentation of the system file picker for importing charts.
   @State private var showingFileImporter = false
 
+  /// Routing destination enum for value-based navigation in ChartPreferencesView.
+  private enum GeoGarageRoute: Hashable {
+    case login
+    case offlineDownload
+  }
+
   /// An internal helper enum to simplify determining which broad category of map source is currently active,
   /// facilitating UI updates (like showing checkmarks on the correct row).
   private enum ChartSourceSelection {
@@ -132,11 +138,28 @@ struct ChartPreferencesView: View {
 
       // MARK: - Accounts & Services
       Section(header: Text("Accounts & Services").marineFont(.headline)) {
-        NavigationLink(destination: GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)) {
+        NavigationLink(value: GeoGarageRoute.login) {
           Text(chartViewModel.isGeoGarageAuthenticated ? "Manage GeoGarage Account" : "Login to GeoGarage")
             .marineFont(.body)
         }
         .marineListCell()
+
+        if chartViewModel.isGeoGarageAuthenticated,
+           let downloadRepo = appEnvironment.geoGarageDownloadRepository {
+          NavigationLink(value: GeoGarageRoute.offlineDownload) {
+            HStack {
+              Text("GeoGarage Offline Downloads")
+                .marineFont(.body)
+              Spacer()
+              if !downloadRepo.downloads.isEmpty {
+                Text("\(downloadRepo.downloads.count)")
+                  .marineFont(.subheadline)
+                  .foregroundColor(.secondary)
+              }
+            }
+          }
+          .marineListCell()
+        }
 
         // Button triggering the iOS native file picker
         Button("Import Offline Map (.mbtiles)…") {
@@ -145,6 +168,27 @@ struct ChartPreferencesView: View {
         .marineFont(.body)
         .foregroundColor(.primary)
         .marineListCell()
+      }
+    }
+    .navigationDestination(for: GeoGarageRoute.self) { route in
+      switch route {
+      case .login:
+        GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)
+      case .offlineDownload:
+        if let downloader = appEnvironment.geoGarageChartDownloader,
+           let packageService = appEnvironment.geoGaragePackageService,
+           let downloadRepo = appEnvironment.geoGarageDownloadRepository,
+           let preferences = appEnvironment.preferencesService {
+          GeoGarageOfflineDownloadView(
+            viewModel: GeoGarageOfflineViewModel(
+              downloader: downloader,
+              packageService: packageService,
+              downloadRepository: downloadRepo,
+              preferencesService: preferences,
+              chartViewModel: chartViewModel
+            )
+          )
+        }
       }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)

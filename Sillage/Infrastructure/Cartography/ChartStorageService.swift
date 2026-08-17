@@ -35,6 +35,13 @@ public actor ChartStorageService {
     return files.compactMap { fileURL in
       // Filter only .mbtiles files
       guard fileURL.pathExtension.lowercased() == "mbtiles" else { return nil }
+
+      // Validate standard unencrypted SQLite header (first 16 bytes: "SQLite format 3\0")
+      // Encrypted SQLCipher files will not match this header and must not be loaded via mbtiles://
+      guard let handle = try? FileHandle(forReadingFrom: fileURL) else { return nil }
+      let header = (try? handle.read(upToCount: 16)) ?? Data()
+      try? handle.close()
+      guard header == Data("SQLite format 3\0".utf8) else { return nil }
       
       var fileSizeMeasurement: Measurement<UnitInformationStorage>? = nil
       

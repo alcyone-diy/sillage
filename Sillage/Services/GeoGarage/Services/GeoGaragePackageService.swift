@@ -41,7 +41,9 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
     apiKey: String,
     userID: String
   ) async throws(CaasError) -> UUID {
-    let endpoint = baseURL.appendingPathComponent("packages").appendingPathComponent("request")
+    guard let endpoint = URL(string: "packages/request/", relativeTo: baseURL)?.absoluteURL else {
+      throw CaasError.invalidDownloadURL(raw: "packages/request/")
+    }
 
     var urlRequest = URLRequest(url: endpoint)
     urlRequest.httpMethod = "POST"
@@ -105,8 +107,11 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
     apiKey: String
   ) async throws(CaasError) -> PackageStatusResponse {
     let lowerUUID = packageID.uuidString.lowercased()
+    guard let baseURLWithUUID = URL(string: "packages/\(lowerUUID)", relativeTo: baseURL)?.absoluteURL else {
+      throw CaasError.invalidDownloadURL(raw: "packages/\(lowerUUID)")
+    }
     var components = URLComponents(
-      url: baseURL.appendingPathComponent("packages/\(lowerUUID)"),
+      url: baseURLWithUUID,
       resolvingAgainstBaseURL: true
     )
     components?.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
@@ -153,8 +158,11 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
     apiKey: String
   ) async throws(CaasError) {
     let lowerUUID = packageID.uuidString.lowercased()
+    guard let baseURLWithUUID = URL(string: "packages/\(lowerUUID)", relativeTo: baseURL)?.absoluteURL else {
+      throw CaasError.invalidDownloadURL(raw: "packages/\(lowerUUID)")
+    }
     var components = URLComponents(
-      url: baseURL.appendingPathComponent("packages/\(lowerUUID)"),
+      url: baseURLWithUUID,
       resolvingAgainstBaseURL: true
     )
     components?.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
