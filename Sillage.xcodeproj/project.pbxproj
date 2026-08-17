@@ -25,19 +25,19 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		020ACF262F6C9E66002C5C1B /* Sillage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sillage.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		020ACF262F6C9E66002C5C1B /* Alcyone Sillage.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Alcyone Sillage.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		020ACFC02F6F699B002C5C1B /* LaRochelle_Test.gpx */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = LaRochelle_Test.gpx; sourceTree = "<group>"; };
 		020D21E82FC2B58F00101B1B /* SillageTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SillageTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1D1F25430CE99BC84D383856 /* Secrets.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		0229A83D2F82CD2400A37C2B /* Exceptions for "Sillage" folder in "Sillage" target */ = {
+		0229A83D2F82CD2400A37C2B /* Exceptions for "Sillage" folder in "Alcyone Sillage" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 020ACF252F6C9E66002C5C1B /* Sillage */;
+			target = 020ACF252F6C9E66002C5C1B /* Alcyone Sillage */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -45,7 +45,7 @@
 		020ACF282F6C9E66002C5C1B /* Sillage */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				0229A83D2F82CD2400A37C2B /* Exceptions for "Sillage" folder in "Sillage" target */,
+				0229A83D2F82CD2400A37C2B /* Exceptions for "Sillage" folder in "Alcyone Sillage" target */,
 			);
 			path = Sillage;
 			sourceTree = "<group>";
@@ -95,7 +95,7 @@
 		020ACF272F6C9E66002C5C1B /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				020ACF262F6C9E66002C5C1B /* Sillage.app */,
+				020ACF262F6C9E66002C5C1B /* Alcyone Sillage.app */,
 				020D21E82FC2B58F00101B1B /* SillageTests.xctest */,
 			);
 			name = Products;
@@ -111,9 +111,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		020ACF252F6C9E66002C5C1B /* Sillage */ = {
+		020ACF252F6C9E66002C5C1B /* Alcyone Sillage */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 020ACF312F6C9E67002C5C1B /* Build configuration list for PBXNativeTarget "Sillage" */;
+			buildConfigurationList = 020ACF312F6C9E67002C5C1B /* Build configuration list for PBXNativeTarget "Alcyone Sillage" */;
 			buildPhases = (
 				020ACF222F6C9E66002C5C1B /* Sources */,
 				020ACF232F6C9E66002C5C1B /* Frameworks */,
@@ -127,14 +127,14 @@
 			fileSystemSynchronizedGroups = (
 				020ACF282F6C9E66002C5C1B /* Sillage */,
 			);
-			name = Sillage;
+			name = "Alcyone Sillage";
 			packageProductDependencies = (
 				020ACF662F6E43C1002C5C1B /* MapLibre */,
 				0265CA122FAFE3FF0077046A /* GRDB */,
 				0265CA152FAFE4000077046A /* SQLCipher */,
 			);
 			productName = Sillage;
-			productReference = 020ACF262F6C9E66002C5C1B /* Sillage.app */;
+			productReference = 020ACF262F6C9E66002C5C1B /* Alcyone Sillage.app */;
 			productType = "com.apple.product-type.application";
 		};
 		020D21E72FC2B58F00101B1B /* SillageTests */ = {
@@ -200,7 +200,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				020ACF252F6C9E66002C5C1B /* Sillage */,
+				020ACF252F6C9E66002C5C1B /* Alcyone Sillage */,
 				020D21E72FC2B58F00101B1B /* SillageTests */,
 			);
 		};
@@ -266,7 +266,7 @@
 /* Begin PBXTargetDependency section */
 		020D21ED2FC2B58F00101B1B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 020ACF252F6C9E66002C5C1B /* Sillage */;
+			target = 020ACF252F6C9E66002C5C1B /* Alcyone Sillage */;
 			targetProxy = 020D21EC2FC2B58F00101B1B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -582,7 +582,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		020ACF312F6C9E67002C5C1B /* Build configuration list for PBXNativeTarget "Sillage" */ = {
+		020ACF312F6C9E67002C5C1B /* Build configuration list for PBXNativeTarget "Alcyone Sillage" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				020ACF322F6C9E67002C5C1B /* Debug */,
