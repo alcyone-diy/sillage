@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "020ACF252F6C9E66002C5C1B"
-               BuildableName = "Sillage.app"
-               BlueprintName = "Sillage"
+               BuildableName = "Alcyone Sillage.app"
+               BlueprintName = "Alcyone Sillage"
                ReferencedContainer = "container:Sillage.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -59,8 +59,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "020ACF252F6C9E66002C5C1B"
-            BuildableName = "Sillage.app"
-            BlueprintName = "Sillage"
+            BuildableName = "Alcyone Sillage.app"
+            BlueprintName = "Alcyone Sillage"
             ReferencedContainer = "container:Sillage.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -80,8 +80,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "020ACF252F6C9E66002C5C1B"
-            BuildableName = "Sillage.app"
-            BlueprintName = "Sillage"
+            BuildableName = "Alcyone Sillage.app"
+            BlueprintName = "Alcyone Sillage"
             ReferencedContainer = "container:Sillage.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

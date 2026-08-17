@@ -21,6 +21,8 @@
 	<string>$(GEOGARAGE_CAAS_API_KEY)</string>
 	<key>GEOGARAGE_SHARED_SECRET</key>
 	<string>$(GEOGARAGE_SHARED_SECRET)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
