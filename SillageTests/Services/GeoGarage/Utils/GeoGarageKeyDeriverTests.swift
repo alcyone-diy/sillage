@@ -14,16 +14,12 @@ import CryptoKit
 
 final class GeoGarageKeyDeriverTests: XCTestCase {
 
-  func testDerivePassphrase_producesExpectedSHA256Hex() {
-    let secret = "my_secret_key"
-    let customerID = "cus_12345"
+  func testDerivePassphrase_producesExpectedConcatenation() {
+    let secret = "dummy_secret_xyz"
+    let customerID = "cus_999"
     let derived = GeoGarageKeyDeriver.derivePassphrase(sharedSecret: secret, customerID: customerID)
 
-    let expectedRaw = "\(secret):\(customerID)"
-    let expectedHash = SHA256.hash(data: Data(expectedRaw.utf8)).map { String(format: "%02x", $0) }.joined()
-
-    XCTAssertEqual(derived, expectedHash)
-    XCTAssertEqual(derived.count, 64)
+    XCTAssertEqual(derived, "cus_999dummy_secret_xyz")
   }
 
   func testDerivePassphrase_isDeterministic() {

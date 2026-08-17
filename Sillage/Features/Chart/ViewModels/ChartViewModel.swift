@@ -31,6 +31,7 @@ final class ChartViewModel {
   var trackingMode: ChartTrackingMode = .free
   var currentChartSource: ChartSource?
   var chartBounds: MBTilesBounds?
+  var currentVisibleBounds: GeographicBoundingBox?
   var maxZoom: Double?
   var minZoom: Double?
   
@@ -981,7 +982,7 @@ final class ChartViewModel {
     if savedSource == "remoteGeoGarage", let savedLayerID = preferencesService.savedGeoGarageLayerID {
       switchChartSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: savedLayerID))
       
-    } else if let savedFileName = savedSource {
+    } else if let savedFileName = savedSource, savedFileName != "localCaasChart" {
       let fileManager = FileManager.default
       if let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
         let chartURL = documentsDirectory
@@ -989,7 +990,16 @@ final class ChartViewModel {
           .appendingPathComponent(savedFileName)
           .appendingPathExtension("mbtiles")
         
-        if fileManager.fileExists(atPath: chartURL.path) {
+        var isUnencryptedSQLite = false
+        if fileManager.fileExists(atPath: chartURL.path),
+           let handle = try? FileHandle(forReadingFrom: chartURL),
+           let header = try? handle.read(upToCount: 16),
+           header == Data("SQLite format 3\0".utf8) {
+          try? handle.close()
+          isUnencryptedSQLite = true
+        }
+
+        if isUnencryptedSQLite {
           switchChartSource(to: .localMBTiles(url: chartURL))
         } else if let bundleURL = Bundle.main.url(forResource: savedFileName, withExtension: "mbtiles") {
           // Fallback to internal app bundle if the chart is a shipped default

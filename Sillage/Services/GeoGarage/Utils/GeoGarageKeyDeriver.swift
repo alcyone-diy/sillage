@@ -14,14 +14,12 @@ import CryptoKit
 /// Helper utility for deriving the SQLCipher encryption key from the customer ID and shared secret.
 nonisolated enum GeoGarageKeyDeriver {
   /// Derives the passphrase string used for SQLCipher PRAGMA key.
-  /// Computed as the SHA256 hex digest of "\(sharedSecret):\(customerID)".
+  /// Computed as the direct concatenation "\(customerID)\(sharedSecret)".
   /// - Parameters:
   ///   - sharedSecret: Partner shared secret issued by GeoGarage.
   ///   - customerID: User's GeoGarage customer identifier (`customer_id`).
-  /// - Returns: Lowercase 64-character SHA256 hex string.
+  /// - Returns: Passphrase string passed to SQLCipher.
   static func derivePassphrase(sharedSecret: String, customerID: String) -> String {
-    let raw = "\(sharedSecret):\(customerID)"
-    let hash = SHA256.hash(data: Data(raw.utf8))
-    return hash.map { String(format: "%02x", $0) }.joined()
+    return "\(customerID)\(sharedSecret)"
   }
 }

@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		020ACF672F6E43C1002C5C1B /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = 020ACF662F6E43C1002C5C1B /* MapLibre */; };
+		0238E1893032657B001F3B1F /* (null) in Frameworks */ = {isa = PBXBuildFile; };
+		0238E18A3032657B001F3B1F /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA152FAFE4000077046A /* SQLCipher */; };
 		0265CA132FAFE3FF0077046A /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA122FAFE3FF0077046A /* GRDB */; };
 		0265CA162FAFE4000077046A /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA152FAFE4000077046A /* SQLCipher */; };
 /* End PBXBuildFile section */
@@ -70,7 +72,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0265CA162FAFE4000077046A /* SQLCipher in Frameworks */,
+				0238E18A3032657B001F3B1F /* SQLCipher in Frameworks */,
+				0238E1893032657B001F3B1F /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -318,14 +321,6 @@
 					"SQLITE_HAS_CODEC=1",
 					"$(inherited)",
 				);
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
@@ -337,6 +332,11 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = "$(inherited) -DSQLITE_HAS_CODEC";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
@@ -387,6 +387,10 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
@@ -396,19 +400,12 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"SQLITE_HAS_CODEC=1",
-					"$(inherited)",
-				);
+				MTL_FAST_MATH = YES;
 				OTHER_CFLAGS = (
 					"$(inherited)",
 					"-DSQLITE_HAS_CODEC",
 				);
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
-				MTL_FAST_MATH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -DSQLITE_HAS_CODEC";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -427,6 +424,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sillage/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Sillage;
@@ -443,6 +444,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = "$(inherited) -DSQLITE_HAS_CODEC";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alcyone-sillage.app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -453,18 +459,6 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"SQLITE_HAS_CODEC=1",
-					"$(inherited)",
-				);
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -479,6 +473,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sillage/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Sillage;
@@ -495,6 +493,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = "$(inherited) -DSQLITE_HAS_CODEC";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alcyone-sillage.sillage";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -505,18 +508,6 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"SQLITE_HAS_CODEC=1",
-					"$(inherited)",
-				);
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -528,26 +519,23 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2XJ35D8M93;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = "$(inherited) -DSQLITE_HAS_CODEC";
 				PRODUCT_BUNDLE_IDENTIFIER = jeromelebel.SillageTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"SQLITE_HAS_CODEC=1",
-					"$(inherited)",
-				);
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sillage.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sillage";
 			};
@@ -560,26 +548,23 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2XJ35D8M93;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"SQLITE_HAS_CODEC=1",
+					"$(inherited)",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DSQLITE_HAS_CODEC",
+				);
+				OTHER_SWIFT_FLAGS = "$(inherited) -DSQLITE_HAS_CODEC";
 				PRODUCT_BUNDLE_IDENTIFIER = jeromelebel.SillageTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"SQLITE_HAS_CODEC=1",
-					"$(inherited)",
-				);
-				OTHER_CFLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
-				OTHER_SWIFT_FLAGS = (
-					"$(inherited)",
-					"-DSQLITE_HAS_CODEC",
-				);
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sillage.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sillage";
 			};

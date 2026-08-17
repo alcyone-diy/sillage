@@ -87,6 +87,16 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
            abs(northEast.latitude - other.northEast.latitude) < tolerance &&
            shortestLongitudeDelta(from: northEast.longitude, to: other.northEast.longitude) < tolerance
   }
+
+  /// Generates a standard WKT (Well-Known Text) POLYGON representation of the bounding box
+  /// in the format `POLYGON((minLon minLat, maxLon minLat, maxLon maxLat, minLon maxLat, minLon minLat))`.
+  public func toWKT() -> String {
+    let minLon = southWest.longitude
+    let minLat = southWest.latitude
+    let maxLon = northEast.longitude
+    let maxLat = northEast.latitude
+    return "POLYGON((\(minLon) \(minLat), \(maxLon) \(minLat), \(maxLon) \(maxLat), \(minLon) \(maxLat), \(minLon) \(minLat)))"
+  }
   
   // MARK: - Private Math
   

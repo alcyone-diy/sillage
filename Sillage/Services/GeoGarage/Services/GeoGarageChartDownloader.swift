@@ -75,12 +75,12 @@ actor GeoGarageChartDownloader: GeoGarageChartDownloaderProtocol {
     try await StreamingMD5Validator.validateMD5(for: tempLocation, expectedMD5: expectedMD5)
     Logger.caas.info("MD5 checksum successfully verified for package \(packageID.uuidString, privacy: .public)")
 
-    // 2. Prepare Destination in Documents/Charts/
+    // 2. Prepare Destination in Documents/GeoGarage/
     let destinationDirectory: URL
     if let customDir = chartsDirectoryURL {
       destinationDirectory = customDir
     } else if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-      destinationDirectory = documentsURL.appendingPathComponent("Charts", isDirectory: true)
+      destinationDirectory = documentsURL.appendingPathComponent("GeoGarage", isDirectory: true)
     } else {
       throw CaasError.fileSystemError(underlying: "Documents directory is inaccessible.")
     }
@@ -89,13 +89,13 @@ actor GeoGarageChartDownloader: GeoGarageChartDownloaderProtocol {
       do {
         try FileManager.default.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
       } catch {
-        throw CaasError.fileSystemError(underlying: "Unable to create Charts directory: \(error.localizedDescription)")
+        throw CaasError.fileSystemError(underlying: "Unable to create GeoGarage directory: \(error.localizedDescription)")
       }
     }
 
     let fileName = "\(layerID)_\(packageID.uuidString.lowercased()).mbtiles"
     let destinationFileURL = destinationDirectory.appendingPathComponent(fileName)
-    let relativePath = "Charts/\(fileName)"
+    let relativePath = "GeoGarage/\(fileName)"
 
     // Remove existing file at destination if present (e.g. retry)
     if FileManager.default.fileExists(atPath: destinationFileURL.path) {
