@@ -265,5 +265,42 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
 
     _ = viewModel
   }
+
+  func testPasswordWipedFromMemoryAfterLoginAttempt() async {
+    // Arrange
+    let mockAuthService = MockGeoGarageAuthService()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
+    viewModel.username = "testuser"
+    viewModel.password = "secret_password_123"
+
+    // Act
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
+    await viewModel.loginTask?.value
+
+    // Assert
+    XCTAssertEqual(viewModel.password, "", "Password must be wiped from memory immediately after login completion")
+
+    _ = viewModel
+  }
+
+  func testInvalidCredentialsSetsSpecificErrorMessage() async {
+    // Arrange
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.authErrorToThrow = AuthError.invalidCredentials
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
+    viewModel.username = "baduser"
+    viewModel.password = "wrongpass"
+
+    // Act
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
+    await viewModel.loginTask?.value
+
+    // Assert
+    XCTAssertFalse(viewModel.isAuthorizationReady)
+    XCTAssertEqual(viewModel.errorMessage, AuthError.invalidCredentials.localizedDescription)
+    XCTAssertEqual(viewModel.password, "", "Password must be wiped even when authentication fails")
+
+    _ = viewModel
+  }
 }
 

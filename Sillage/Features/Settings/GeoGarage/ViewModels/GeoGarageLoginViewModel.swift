@@ -44,11 +44,11 @@ final class GeoGarageLoginViewModel {
     authService.savedUsername
   }
   
-  func discoverURL(authService: GeoGarageAuthServiceProtocol) -> URL {
+  func discoverURL(authService: GeoGarageAuthServiceProtocol) -> URL? {
     authService.discoverURL
   }
   
-  func accountManagementURL(authService: GeoGarageAuthServiceProtocol) -> URL {
+  func accountManagementURL(authService: GeoGarageAuthServiceProtocol) -> URL? {
     authService.accountManagementURL
   }
 
@@ -91,6 +91,7 @@ final class GeoGarageLoginViewModel {
     chartViewModel: ChartViewModel
   ) async {
     loginTask?.cancel()
+    password = ""
     availableLayers = []
     isAuthorizationReady = false
     errorMessage = nil
@@ -124,7 +125,10 @@ final class GeoGarageLoginViewModel {
     loginTask = Task { [weak self] in
       self?.isLoading = true
 
-      defer { self?.isLoading = false }
+      defer {
+        self?.isLoading = false
+        self?.password = ""
+      }
 
       guard let username = self?.username, let password = self?.password else { return }
 

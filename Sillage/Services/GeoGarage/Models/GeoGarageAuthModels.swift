@@ -24,6 +24,7 @@ struct AuthErrorResponse: Codable {
 }
 
 enum AuthError: Error, LocalizedError {
+  case invalidCredentials
   case apiError(description: String)
   case networkError(Error)
   case invalidResponse
@@ -35,6 +36,8 @@ enum AuthError: Error, LocalizedError {
   var errorDescription: String? {
     let fallback = String(localized: "Authentication failed. Please check your network connection or credentials.")
     switch self {
+    case .invalidCredentials:
+      return String(localized: "Invalid username or password. Please verify your GeoGarage credentials.")
     case .apiError(let description):
       return description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? fallback : description
     case .networkError(let error):

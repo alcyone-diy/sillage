@@ -110,10 +110,12 @@ struct GeoGarageLoginView: View {
       }
       .buttonStyle(MarinePrimaryButtonStyle(isDestructive: true, minHeight: marineTheme.minTouchTarget * scaleFactor))
       
-      Link("My Account", destination: viewModel.accountManagementURL(authService: authService))
-        .buttonStyle(.borderless)
-        .tint(marineTheme.colors.primary)
-        .padding(.top, MarineTheme.Spacing.small)
+      if let accountURL = viewModel.accountManagementURL(authService: authService) {
+        Link("My Account", destination: accountURL)
+          .buttonStyle(.borderless)
+          .tint(marineTheme.colors.primary)
+          .padding(.top, MarineTheme.Spacing.small)
+      }
     }
   }
 
@@ -166,9 +168,15 @@ struct GeoGarageLoginView: View {
 
       VStack(spacing: MarineTheme.Spacing.medium) {
         Button(action: {
+          focusedField = nil
           viewModel.login(authService: authService, messageService: messageService)
         }) {
-          Text("Log In")
+          if viewModel.isLoading {
+            ProgressView()
+              .progressViewStyle(CircularProgressViewStyle(tint: .white))
+          } else {
+            Text("Log In")
+          }
         }
         .buttonStyle(MarinePrimaryButtonStyle(isDestructive: false, minHeight: marineTheme.minTouchTarget * scaleFactor))
         .disabled(viewModel.isLoading)
@@ -208,10 +216,12 @@ struct GeoGarageLoginView: View {
         .buttonStyle(MarinePrimaryButtonStyle(isDestructive: false, minHeight: marineTheme.minTouchTarget * scaleFactor))
         .disabled(viewModel.isLoading)
         
-        Link("Discover GeoGarage", destination: viewModel.discoverURL(authService: authService))
-          .buttonStyle(.borderless)
-          .tint(marineTheme.colors.primary)
-          .padding(.top, MarineTheme.Spacing.large)
+        if let discoverURL = viewModel.discoverURL(authService: authService) {
+          Link("Discover GeoGarage", destination: discoverURL)
+            .buttonStyle(.borderless)
+            .tint(marineTheme.colors.primary)
+            .padding(.top, MarineTheme.Spacing.large)
+        }
       }
     }.padding(.top, MarineTheme.Spacing.small)
   }
