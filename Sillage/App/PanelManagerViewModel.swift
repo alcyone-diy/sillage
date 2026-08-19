@@ -23,6 +23,11 @@ public final class PanelManagerViewModel {
   }
 
   /// Represents the UI destinations within the Command Panel.
+  ///
+  /// - Important: `CommandPanelView` uses a homogeneous `NavigationStack(path: $commandPath)`
+  ///   typed to `[CommandDestination]`. Do NOT declare local navigation enums or nested
+  ///   `.navigationDestination(for:)` in child views. All pushable destinations must be added
+  ///   here and declared at the root level in `CommandPanelView.swift`.
   public enum CommandDestination: Hashable {
     case settings
     case tracks
@@ -34,6 +39,7 @@ public final class PanelManagerViewModel {
     case geoGarageLogin
     case offlineCharts
     case chartPreferences
+    case geoGarageOfflineDownload
   }
 
   /// The currently active panel visible to the user.

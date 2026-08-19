@@ -223,6 +223,21 @@ struct CommandPanelView: View {
           AnchorAlarmView()
         case .geoGarageLogin:
           GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)
+        case .geoGarageOfflineDownload:
+          if let downloader = appEnvironment.geoGarageChartDownloader,
+             let packageService = appEnvironment.geoGaragePackageService,
+             let downloadRepo = appEnvironment.geoGarageDownloadRepository,
+             let preferences = appEnvironment.preferencesService {
+            GeoGarageOfflineDownloadView(
+              viewModel: GeoGarageOfflineViewModel(
+                downloader: downloader,
+                packageService: packageService,
+                downloadRepository: downloadRepo,
+                preferencesService: preferences,
+                chartViewModel: chartViewModel
+              )
+            )
+          }
         case .offlineCharts:
           OfflineRegionsManagerView()
         case .chartPreferences:
