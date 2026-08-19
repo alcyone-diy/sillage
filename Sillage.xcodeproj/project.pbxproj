@@ -119,6 +119,7 @@
 				020ACF232F6C9E66002C5C1B /* Frameworks */,
 				020ACF242F6C9E66002C5C1B /* Resources */,
 				020D20D92FC0D42900101B1B /* Run Script */,
+				020D22102FC3C00000101B1B /* Copy MapLibre dSYM */,
 			);
 			buildRules = (
 			);
@@ -243,6 +244,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "GIT_SHA=$(git rev-parse --short HEAD)\nDEST_PATH=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GitHash.txt\"\necho \"$GIT_SHA\" > \"$DEST_PATH\"\necho \"$GIT_SHA > $DEST_PATH\"\n";
+		};
+		020D22102FC3C00000101B1B /* Copy MapLibre dSYM */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Scripts/copy-maplibre-dsym.sh",
+			);
+			name = "Copy MapLibre dSYM";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Scripts/copy-maplibre-dsym.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -450,6 +471,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -DSQLITE_HAS_CODEC";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alcyone-sillage.app";
+				PRODUCT_MODULE_NAME = Sillage;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -501,6 +523,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -DSQLITE_HAS_CODEC";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alcyone-sillage.sillage";
+				PRODUCT_MODULE_NAME = Sillage;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -541,7 +564,8 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sillage.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sillage";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Alcyone Sillage.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Alcyone Sillage";
+				TEST_TARGET_NAME = "Alcyone Sillage";
 			};
 			name = Debug;
 		};
@@ -570,7 +594,8 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sillage.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Sillage";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Alcyone Sillage.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Alcyone Sillage";
+				TEST_TARGET_NAME = "Alcyone Sillage";
 			};
 			name = Release;
 		};

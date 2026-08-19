@@ -86,4 +86,6 @@ iOSInjectionProject/
 Secrets.xcconfig
 ROADMAP.md
 gpx
+Frameworks/dSYMs/
+*.xcarchive
 
