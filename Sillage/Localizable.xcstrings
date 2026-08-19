@@ -658,6 +658,9 @@
     "Invalid response from the server." : {
 
     },
+    "Invalid username or password. Please verify your GeoGarage credentials." : {
+
+    },
     "Legal & Licenses" : {
 
     },

@@ -18,8 +18,8 @@ protocol GeoGarageAuthServiceProtocol: AnyObject {
   var availableLayers: [GeoGarageLayer] { get }
   var authError: Error? { get set }
   var savedUsername: String? { get set }
-  var discoverURL: URL { get }
-  var accountManagementURL: URL { get }
+  var discoverURL: URL? { get }
+  var accountManagementURL: URL? { get }
   func bootstrap() async
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse
   func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse
@@ -43,11 +43,19 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     set { preferencesService.geoGarageUsername = newValue }
   }
 
-  var discoverURL: URL { URL(string: "https://geogarage.com/")! }
-  var accountManagementURL: URL { URL(string: "https://accounts.geogarage.com/")! }
+  var discoverURL: URL? {
+    URL(string: "https://geogarage.com/")
+  }
+  var accountManagementURL: URL? {
+    URL(string: "https://accounts.geogarage.com/")
+  }
 
-  private let endpoint = URL(string: "https://accounts.geogarage.com/o/token/")!
-  private let settingsEndpoint = URL(string: "https://accounts.geogarage.com/api/account/settings")!
+  private var endpoint: URL? {
+    URL(string: "https://accounts.geogarage.com/o/token/")
+  }
+  private var settingsEndpoint: URL? {
+    URL(string: "https://accounts.geogarage.com/api/account/settings")
+  }
 
   init(
     preferencesService: PreferencesServiceProtocol,
@@ -85,6 +93,10 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   }
 
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse {
+    guard let endpoint else {
+      throw AuthError.invalidResponse
+    }
+
     var request = URLRequest(url: endpoint)
     request.httpMethod = "POST"
     request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -125,19 +137,29 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
         throw AuthError.invalidResponse
       }
     } else if httpResponse.statusCode == 400 || httpResponse.statusCode == 401 {
-      if let errorResponse = try? JSONDecoder().decode(AuthErrorResponse.self, from: data),
-         let description = errorResponse.error_description, !description.isEmpty {
-        let error = AuthError.apiError(description: description)
-        throw error
-      } else {
-        throw AuthError.unknown
+      if let errorResponse = try? JSONDecoder().decode(AuthErrorResponse.self, from: data) {
+        if errorResponse.error == "invalid_grant" {
+          let error = AuthError.invalidCredentials
+          self.authError = error
+          throw error
+        }
+        if let description = errorResponse.error_description, !description.isEmpty {
+          let error = AuthError.apiError(description: description)
+          self.authError = error
+          throw error
+        }
       }
+      throw AuthError.unknown
     } else {
       throw AuthError.invalidResponse
     }
   }
 
   func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse {
+    guard let settingsEndpoint else {
+      throw AuthError.invalidResponse
+    }
+
     var request = URLRequest(url: settingsEndpoint)
     request.httpMethod = "GET"
     request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")

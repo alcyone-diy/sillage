@@ -16,9 +16,10 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
   var availableLayers: [GeoGarageLayer] = []
   var authError: Error?
   var savedUsername: String?
-  var discoverURL: URL { URL(string: "https://geogarage.com/")! }
-  var accountManagementURL: URL { URL(string: "https://accounts.geogarage.com/")! }
+  var discoverURL: URL? { URL(string: "https://geogarage.com/") }
+  var accountManagementURL: URL? { URL(string: "https://accounts.geogarage.com/") }
   var shouldFailAuthenticate = false
+  var authErrorToThrow: AuthError?
   var shouldFailFetchAccountSettings = false
   var shouldFailWithNetworkError = false
 
@@ -27,6 +28,9 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
   }
 
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse {
+    if let error = authErrorToThrow {
+      throw error
+    }
     if shouldFailAuthenticate {
       throw AuthError.invalidResponse
     }

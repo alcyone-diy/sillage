@@ -65,7 +65,7 @@ struct KeychainManager: Sendable {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrAccount as String: account,
-      kSecReturnData as String: kCFBooleanTrue!,
+      kSecReturnData as String: kCFBooleanTrue as Any,
       kSecMatchLimit as String: kSecMatchLimitOne
     ]
 
