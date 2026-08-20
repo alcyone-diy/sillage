@@ -43,15 +43,25 @@ if [ ! -d "$DSYM_BUNDLE" ]; then
   fi
 fi
 
+# Make sure cached files are user-writable
+chmod -R u+w "$CACHE_DIR" 2>/dev/null || true
+
 # Copy dSYM to the archive/build dSYM directory
 if [ -d "$DSYM_BUNDLE" ]; then
   echo "Copying MapLibre dSYM (v${VERSION}) to ${DWARF_DSYM_FOLDER_PATH}..."
   mkdir -p "$DWARF_DSYM_FOLDER_PATH"
+  
+  # Remove any existing destination dSYM bundles to avoid "Permission denied" when overwriting read-only files
+  rm -rf "${DWARF_DSYM_FOLDER_PATH}/MapLibre.framework.dSYM"
+  rm -rf "${DWARF_DSYM_FOLDER_PATH}/MapLibre_ios_device.framework.dSYM"
+  
   cp -R "$DSYM_BUNDLE" "${DWARF_DSYM_FOLDER_PATH}/"
   if [ -d "${CACHE_DIR}/MapLibre_ios_device.framework.dSYM" ]; then
     cp -R "${CACHE_DIR}/MapLibre_ios_device.framework.dSYM" "${DWARF_DSYM_FOLDER_PATH}/"
   fi
+  chmod -R u+w "${DWARF_DSYM_FOLDER_PATH}/MapLibre.framework.dSYM" "${DWARF_DSYM_FOLDER_PATH}/MapLibre_ios_device.framework.dSYM" 2>/dev/null || true
   echo "Successfully copied MapLibre dSYM."
 else
   echo "Warning: MapLibre dSYM could not be prepared."
 fi
+
