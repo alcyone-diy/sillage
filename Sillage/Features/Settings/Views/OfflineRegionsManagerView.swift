@@ -78,20 +78,14 @@ struct OfflineRegionsManagerView: View {
             OfflineRegionsHeaderView()
 
             ForEach(downloadedCharts, id: \.id) { download in
-              OfflineDownloadRowView(
-                download: download,
-                onActivate: { activateDownload(download) },
-                onDelete: { downloadToDelete = download }
-              )
-              .swipeActions(edge: .trailing) {
-                Button(role: .destructive) {
-                  Task {
-                    await deleteDownload(download)
+              OfflineDownloadRowView(download: download)
+                .swipeActions(edge: .trailing) {
+                  Button(role: .destructive) {
+                    downloadToDelete = download
+                  } label: {
+                    Label("Delete", systemImage: "trash")
                   }
-                } label: {
-                  Label("Delete", systemImage: "trash")
                 }
-              }
             }
           } header: {
             Text("Downloaded Charts")
@@ -121,6 +115,7 @@ struct OfflineRegionsManagerView: View {
         get: { downloadToDelete != nil },
         set: { if !$0 { downloadToDelete = nil } }
       ),
+      titleVisibility: .visible,
       presenting: downloadToDelete
     ) { download in
       Button("Delete \"\(download.layerName)\"", role: .destructive) {
@@ -147,21 +142,6 @@ struct OfflineRegionsManagerView: View {
   }
 
   // MARK: - Actions
-
-  private func activateDownload(_ download: OfflineChartDownload) {
-    let sharedSecret = AppConfiguration.shared.geoGarageSharedSecret
-    guard let customerID = environment.preferencesService?.geoGarageCustomerID, !customerID.isEmpty else {
-      errorMessage = String(localized: "User is not authenticated with GeoGarage.")
-      return
-    }
-    Task {
-      do {
-        try await offlineSelectionViewModel.activateDownload(download, sharedSecret: sharedSecret, customerID: customerID)
-      } catch {
-        errorMessage = error.localizedDescription
-      }
-    }
-  }
 
   private func deleteDownload(_ download: OfflineChartDownload) async {
     do {
@@ -246,8 +226,6 @@ private struct OfflineRegionsHeaderView: View {
 
 private struct OfflineDownloadRowView: View {
   let download: OfflineChartDownload
-  let onActivate: () -> Void
-  let onDelete: () -> Void
 
   var body: some View {
     HStack(spacing: 12) {
@@ -276,18 +254,6 @@ private struct OfflineDownloadRowView: View {
       }
 
       Spacer()
-
-      Button(action: onActivate) {
-        Image(marineIcon: .trackingFree)
-          .foregroundColor(.blue)
-      }
-      .buttonStyle(.plain)
-
-      Button(action: onDelete) {
-        Image(marineIcon: .delete)
-          .foregroundColor(.red)
-      }
-      .buttonStyle(.plain)
     }
     .marineListCell()
   }
