@@ -12,16 +12,6 @@ import Foundation
 import Observation
 import OSLog
 
-/// Represents the high-level observable state of a GeoGarage CAAS offline download workflow.
-enum GeoGarageDownloadPhaseState: Equatable, Sendable {
-  case idle
-  case requesting
-  case generating(progress: Double?, message: String)
-  case downloading(receivedBytes: Int64, totalBytes: Int64)
-  case completed(OfflineChartDownload)
-  case failed(errorMessage: String)
-  case cancelled
-}
 
 /// Observable ViewModel managing the end-to-end GeoGarage offline chart downloading pipeline,
 /// camera viewport extraction, layer selection, download progress observation, and cancellation.

@@ -93,7 +93,9 @@ final class GeoGarageOfflineViewModelTests: XCTestCase {
     func pollUntilComplete(
       packageID: UUID,
       apiKey: String,
-      interval: Duration,
+      initialInterval: Duration,
+      maxInterval: Duration,
+      backoffMultiplier: Double,
       timeout: Duration
     ) async -> AsyncThrowingStream<PackageStatusResponse, Error> {
       let statuses = statusSequence.isEmpty ? [

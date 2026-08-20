@@ -59,4 +59,46 @@ final class PreferencesServiceTests: XCTestCase {
       defaults.removeObject(forKey: key)
     }
   }
+
+  func testPendingCAASDownload_persistenceRoundTrip() throws {
+    let defaults = UserDefaults.standard
+    let key = "pendingCAASDownload"
+    let backupValue = defaults.object(forKey: key)
+
+    defaults.removeObject(forKey: key)
+
+    let service = PreferencesService()
+    XCTAssertNil(service.pendingCAASDownload)
+
+    let packageID = UUID()
+    let createdAt = Date(timeIntervalSince1970: 1_737_900_000)
+    let pending = PendingCAASDownload(
+      packageID: packageID,
+      layerID: "shom",
+      layerName: "SHOM France",
+      boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
+      zoomMax: 14,
+      createdAt: createdAt
+    )
+
+    service.pendingCAASDownload = pending
+    XCTAssertEqual(service.pendingCAASDownload, pending)
+
+    // Reload from new instance
+    let reloadedService = PreferencesService()
+    XCTAssertEqual(reloadedService.pendingCAASDownload, pending)
+
+    // Clear value
+    service.pendingCAASDownload = nil
+    XCTAssertNil(service.pendingCAASDownload)
+
+    let clearedService = PreferencesService()
+    XCTAssertNil(clearedService.pendingCAASDownload)
+
+    if let backup = backupValue {
+      defaults.set(backup, forKey: key)
+    } else {
+      defaults.removeObject(forKey: key)
+    }
+  }
 }

@@ -249,6 +249,9 @@
     "Authentication required" : {
 
     },
+    "Authentication required. Please check your credentials or log in again." : {
+
+    },
     "Available Instruments" : {
 
     },

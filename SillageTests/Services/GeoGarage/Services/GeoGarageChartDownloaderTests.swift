@@ -66,7 +66,9 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
     func pollUntilComplete(
       packageID: UUID,
       apiKey: String,
-      interval: Duration,
+      initialInterval: Duration,
+      maxInterval: Duration,
+      backoffMultiplier: Double,
       timeout: Duration
     ) async -> AsyncThrowingStream<PackageStatusResponse, Error> {
       AsyncThrowingStream { $0.finish() }

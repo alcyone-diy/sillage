@@ -246,4 +246,27 @@ final class GeoGaragePackageModelsTests: XCTestCase {
     let error = CaasError.pollingTimeout
     XCTAssertFalse(error.errorDescription?.isEmpty ?? true)
   }
+
+  func testCaasError_authenticationRequiredHasDescription() {
+    let error = CaasError.authenticationRequired
+    XCTAssertFalse(error.errorDescription?.isEmpty ?? true)
+  }
+
+  // MARK: - GeoGarageDownloadPhaseState Equatable
+
+  func testDownloadPhaseState_equatable() {
+    let idle: GeoGarageDownloadPhaseState = .idle
+    let requesting: GeoGarageDownloadPhaseState = .requesting
+    let generating1: GeoGarageDownloadPhaseState = .generating(progress: 0.5, message: "PROGRESS: 500/1000")
+    let generating2: GeoGarageDownloadPhaseState = .generating(progress: 0.5, message: "PROGRESS: 500/1000")
+    let downloading: GeoGarageDownloadPhaseState = .downloading(receivedBytes: 100, totalBytes: 200)
+    let cancelled: GeoGarageDownloadPhaseState = .cancelled
+    let failed: GeoGarageDownloadPhaseState = .failed(errorMessage: "Network error")
+
+    XCTAssertEqual(idle, .idle)
+    XCTAssertEqual(generating1, generating2)
+    XCTAssertNotEqual(idle, requesting)
+    XCTAssertNotEqual(downloading, cancelled)
+    XCTAssertNotEqual(failed, cancelled)
+  }
 }
