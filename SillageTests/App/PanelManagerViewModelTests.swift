@@ -99,8 +99,7 @@ final class PanelManagerViewModelTests: XCTestCase {
       .anchorAlarm,
       .geoGarageLogin,
       .offlineCharts,
-      .chartPreferences,
-      .geoGarageOfflineDownload
+      .chartPreferences
     ]
 
     let set = Set(destinations)
@@ -122,8 +121,8 @@ final class PanelManagerViewModelTests: XCTestCase {
     viewModel.commandPath.removeLast()
     XCTAssertEqual(viewModel.commandPath.last, .chartPreferences)
 
-    // Simulates navigating to GeoGarage Offline Downloads
-    viewModel.commandPath.append(.geoGarageOfflineDownload)
-    XCTAssertEqual(viewModel.commandPath.last, .geoGarageOfflineDownload)
+    // Simulates navigating to Offline Charts
+    viewModel.commandPath.append(.offlineCharts)
+    XCTAssertEqual(viewModel.commandPath.last, .offlineCharts)
   }
 }

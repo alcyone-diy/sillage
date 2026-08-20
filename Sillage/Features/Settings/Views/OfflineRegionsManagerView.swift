@@ -9,29 +9,30 @@
 //
 
 import SwiftUI
-import os
+import OSLog
 
+@MainActor
 struct OfflineRegionsManagerView: View {
   @Environment(AppEnvironment.self) private var environment
   @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
   @Environment(\.marineTheme) private var marineTheme
-  
-  fileprivate struct RegionToDelete: Identifiable, Equatable {
-    let id: String
-    let name: String
+
+  @State private var downloadToDelete: OfflineChartDownload?
+  @State private var errorMessage: String?
+
+  private var downloadedCharts: [OfflineChartDownload] {
+    environment.geoGarageDownloadRepository?.downloads ?? []
   }
-  
-  @State private var regionToDelete: RegionToDelete?
-  
+
   private var isOfflineAreaDisabled: Bool {
     offlineSelectionViewModel.isSelectionModeActive || !chartViewModel.isOfflineAreaEnabled
   }
-  
+
   var body: some View {
     Group {
-      if environment.offlineMapManager.downloadedRegions.isEmpty {
+      if downloadedCharts.isEmpty && !offlineSelectionViewModel.isDownloading {
         ContentUnavailableView {
           Label("No Offline Charts", systemImage: "map.slash")
         } description: {
@@ -56,12 +57,12 @@ struct OfflineRegionsManagerView: View {
                 HStack(alignment: .top, spacing: 12) {
                   Text("⚠️")
                     .font(.title2)
-                  
+
                   VStack(alignment: .leading, spacing: 4) {
                     Text("GeoGarage Required")
                       .marineFont(.headline)
                       .foregroundStyle(.primary)
-                    
+
                     Text("Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences.")
                       .marineFont(.subheadline)
                       .foregroundStyle(.secondary)
@@ -72,29 +73,30 @@ struct OfflineRegionsManagerView: View {
               .marineListCell()
             }
           }
-          
+
           Section {
             OfflineRegionsHeaderView()
-            
-            let activeDownloadIndex = environment.offlineMapManager.activeDownloadIndex
-            
-            ForEach(Array(environment.offlineMapManager.downloadedRegions.enumerated()), id: \.element.id) { index, region in
-              let isActive = (index == activeDownloadIndex)
-              
-              OfflineRegionRowView(region: region, isActive: isActive)
-                .swipeActions(edge: .trailing) {
-                  Button {
-                    regionToDelete = RegionToDelete(id: region.id, name: region.name)
-                  } label: {
-                    Label("Delete", systemImage: "trash")
+
+            ForEach(downloadedCharts, id: \.id) { download in
+              OfflineDownloadRowView(
+                download: download,
+                onActivate: { activateDownload(download) },
+                onDelete: { downloadToDelete = download }
+              )
+              .swipeActions(edge: .trailing) {
+                Button(role: .destructive) {
+                  Task {
+                    await deleteDownload(download)
                   }
-                  .tint(.red)
+                } label: {
+                  Label("Delete", systemImage: "trash")
                 }
+              }
             }
           } header: {
             Text("Downloaded Charts")
           }
-          .animation(.default, value: environment.offlineMapManager.downloadedRegions)
+          .animation(.default, value: downloadedCharts)
         }
         .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
         .marineListBackground()
@@ -113,62 +115,126 @@ struct OfflineRegionsManagerView: View {
         .disabled(isOfflineAreaDisabled)
       }
     }
-    .alert(
-      "Delete Offline Chart?",
+    .confirmationDialog(
+      "Delete Offline Chart",
       isPresented: Binding(
-        get: { regionToDelete != nil },
-        set: { if !$0 { regionToDelete = nil } }
+        get: { downloadToDelete != nil },
+        set: { if !$0 { downloadToDelete = nil } }
       ),
-      presenting: regionToDelete
-    ) { region in
-      Button("Delete", role: .destructive) {
+      presenting: downloadToDelete
+    ) { download in
+      Button("Delete \"\(download.layerName)\"", role: .destructive) {
         Task {
-          do {
-            try await environment.offlineMapManager.deletePack(id: region.id)
-          } catch {
-            Logger.offline.error("Failed to delete offline chart \(region.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
-          }
+          await deleteDownload(download)
         }
       }
       Button("Cancel", role: .cancel) {}
-    } message: { region in
-      Text("Are you sure you want to delete \"\(region.name)\"? This action cannot be undone.")
+    } message: { _ in
+      Text("Are you sure you want to delete this downloaded chart package?")
     }
-    .sensoryFeedback(.warning, trigger: regionToDelete)
+    .alert("Error", isPresented: Binding(
+      get: { errorMessage != nil },
+      set: { if !$0 { errorMessage = nil } }
+    )) {
+      Button("OK", role: .cancel) {
+        errorMessage = nil
+      }
+    } message: {
+      if let errorMessage {
+        Text(errorMessage)
+      }
+    }
+  }
+
+  // MARK: - Actions
+
+  private func activateDownload(_ download: OfflineChartDownload) {
+    let sharedSecret = AppConfiguration.shared.geoGarageSharedSecret
+    guard let customerID = environment.preferencesService?.geoGarageCustomerID, !customerID.isEmpty else {
+      errorMessage = String(localized: "User is not authenticated with GeoGarage.")
+      return
+    }
+    Task {
+      do {
+        try await offlineSelectionViewModel.activateDownload(download, sharedSecret: sharedSecret, customerID: customerID)
+      } catch {
+        errorMessage = error.localizedDescription
+      }
+    }
+  }
+
+  private func deleteDownload(_ download: OfflineChartDownload) async {
+    do {
+      if let downloader = environment.geoGarageChartDownloader {
+        try await downloader.deleteLocalChart(id: download.id)
+      } else {
+        try await offlineSelectionViewModel.deleteDownload(download)
+      }
+    } catch {
+      Logger.offline.error("Failed to delete offline chart \(download.layerName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+      errorMessage = error.localizedDescription
+    }
   }
 }
 
+// MARK: - Subviews
+
 private struct OfflineRegionsHeaderView: View {
   @Environment(AppEnvironment.self) private var environment
-  
+  @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
+
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      if environment.offlineMapManager.totalPendingDownloads > 0 {
-        Text("\(environment.offlineMapManager.totalPendingDownloads) downloads pending")
-          .marineFont(.headline)
-        
-        if let eta = environment.offlineMapManager.totalEstimatedTimeRemaining, eta > 0 {
-          Text("Total time: \(Duration.seconds(eta).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .abbreviated)))")
-            .marineFont(.subheadline)
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
-        }
-        
-        if let progress = environment.offlineMapManager.globalDownloadProgress {
-          ProgressView(value: progress)
-            .progressViewStyle(.linear)
-            .tint(.accentColor)
-        } else {
+      if offlineSelectionViewModel.isDownloading {
+        switch offlineSelectionViewModel.downloadPhase {
+        case .requesting:
+          Text("Requesting chart package…")
+            .marineFont(.headline)
           ProgressView()
             .controlSize(.small)
+
+        case .generating(let progress, let message):
+          Text(message)
+            .marineFont(.headline)
+          if let progress {
+            ProgressView(value: progress)
+              .progressViewStyle(.linear)
+              .tint(.accentColor)
+          } else {
+            ProgressView()
+              .controlSize(.small)
+          }
+
+        case .downloading(let received, let total):
+          HStack {
+            Text("Downloading chart…")
+              .marineFont(.headline)
+            Spacer()
+            if total > 0 {
+              Text("\(Int64(received).formatted(.byteCount(style: .file))) / \(Int64(total).formatted(.byteCount(style: .file)))")
+                .marineFont(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+          }
+          if total > 0 {
+            ProgressView(value: Double(received), total: Double(total))
+              .progressViewStyle(.linear)
+              .tint(.accentColor)
+          } else {
+            ProgressView()
+              .controlSize(.small)
+          }
+
+        default:
+          EmptyView()
         }
       } else {
-        let totalMaps = environment.offlineMapManager.downloadedRegions.count
-        let totalSize = environment.offlineMapManager.totalDownloadedSize
-        
-        Text("\(totalMaps) offline charts")
+        let downloads = environment.geoGarageDownloadRepository?.downloads ?? []
+        let totalSize = downloads.reduce(0) { $0 + $1.fileSizeBytes }
+
+        Text("\(downloads.count) offline charts")
           .marineFont(.headline)
-        
+
         Text("Total size: \(totalSize.formatted(.byteCount(style: .file)))")
           .marineFont(.subheadline)
           .foregroundStyle(.secondary)
@@ -178,49 +244,50 @@ private struct OfflineRegionsHeaderView: View {
   }
 }
 
-private struct OfflineRegionRowView: View {
-  let region: OfflineRegionInfo
-  let isActive: Bool
-  
+private struct OfflineDownloadRowView: View {
+  let download: OfflineChartDownload
+  let onActivate: () -> Void
+  let onDelete: () -> Void
+
   var body: some View {
-    let sizeStr = Int64(region.sizeInBytes).formatted(.byteCount(style: .file))
-    
-    HStack {
-      VStack(alignment: .leading, spacing: 8) {
-        VStack(alignment: .leading, spacing: 4) {
-          Text(region.name)
-            .marineFont(.body)
-          
-          if !region.isComplete {
-            if isActive, let eta = region.estimatedTimeRemaining, eta > 0 {
-              let etaStr = Duration.seconds(eta).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .abbreviated))
-              Text("\(sizeStr) / \(etaStr)")
-                .marineFont(.subheadline)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-            } else {
-              Text("\(sizeStr) - Pending")
-                .marineFont(.subheadline)
-                .foregroundStyle(.secondary)
-            }
-          } else {
-            Text(sizeStr)
-              .marineFont(.subheadline)
-              .foregroundStyle(.secondary)
-          }
-        }
-        
-        if !region.isComplete && isActive {
-          if let progress = region.progress {
-            ProgressView(value: progress)
-              .progressViewStyle(.linear)
-              .tint(.accentColor)
-          } else {
-            ProgressView()
-          }
+    HStack(spacing: 12) {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(download.layerName)
+          .marineFont(.body)
+          .foregroundColor(.primary)
+        HStack(spacing: 8) {
+          Text(download.layerID.uppercased())
+            .marineFont(.caption)
+            .fontWeight(.bold)
+            .foregroundColor(.blue)
+          Text("•")
+            .marineFont(.caption)
+            .foregroundColor(.secondary)
+          Text(download.fileSizeBytes.formatted(.byteCount(style: .file)))
+            .marineFont(.caption)
+            .foregroundColor(.secondary)
+          Text("•")
+            .marineFont(.caption)
+            .foregroundColor(.secondary)
+          Text(download.downloadDate.formatted(date: .abbreviated, time: .omitted))
+            .marineFont(.caption)
+            .foregroundColor(.secondary)
         }
       }
+
       Spacer()
+
+      Button(action: onActivate) {
+        Image(marineIcon: .trackingFree)
+          .foregroundColor(.blue)
+      }
+      .buttonStyle(.plain)
+
+      Button(action: onDelete) {
+        Image(marineIcon: .delete)
+          .foregroundColor(.red)
+      }
+      .buttonStyle(.plain)
     }
     .marineListCell()
   }

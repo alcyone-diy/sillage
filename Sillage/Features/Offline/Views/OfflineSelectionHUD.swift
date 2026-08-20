@@ -331,7 +331,7 @@ struct OfflineSelectionHUD: View {
         },
         confirmTitle: "Download",
         confirmIcon: "arrow.down.circle",
-        isConfirmDisabled: !viewModel.isValidSize,
+        isConfirmDisabled: !viewModel.isValidSize || viewModel.isDownloading,
         onConfirm: {
           viewModel.startDownload(chartSource: chartViewModel?.currentChartSource)
           viewModel.isSelectionModeActive = false

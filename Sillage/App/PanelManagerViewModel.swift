@@ -39,7 +39,6 @@ public final class PanelManagerViewModel {
     case geoGarageLogin
     case offlineCharts
     case chartPreferences
-    case geoGarageOfflineDownload
   }
 
   /// The currently active panel visible to the user.

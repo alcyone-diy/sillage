@@ -73,6 +73,11 @@ final class OfflineSelectionViewModel {
     downloadRepository.downloads
   }
 
+  /// Total size in bytes of all locally downloaded offline packages.
+  var totalDownloadedSizeBytes: Int64 {
+    downloadedCharts.reduce(0) { $0 + $1.fileSizeBytes }
+  }
+
   var isDownloading: Bool {
     switch downloadPhase {
     case .requesting, .generating, .downloading:
@@ -149,6 +154,8 @@ final class OfflineSelectionViewModel {
     offlineMapManager?.reset()
     isSelectionModeActive = false
     selectedBounds = nil
+    estimatedArea = nil
+    isValidSize = false
     cropRect = nil
     calculationTask?.cancel()
   }
@@ -443,12 +450,8 @@ final class OfflineSelectionViewModel {
 
   /// Deletes a previously downloaded offline chart from disk and repository.
   /// - Parameter download: Record to delete.
-  func deleteDownload(_ download: OfflineChartDownload) async {
-    do {
-      try await downloader.deleteLocalChart(id: download.id)
-    } catch {
-      Logger.caas.error("Failed to delete local chart \(download.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
-    }
+  func deleteDownload(_ download: OfflineChartDownload) async throws(CaasError) {
+    try await downloader.deleteLocalChart(id: download.id)
   }
 
   /// Activates the selected offline chart on the main map.

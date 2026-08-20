@@ -133,7 +133,6 @@ final class OfflineSelectionViewModelTests: XCTestCase {
               return
             }
             continuation.yield(status)
-            try? await Task.sleep(nanoseconds: 10_000_000)
           }
           continuation.finish()
         }
@@ -297,7 +296,10 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertTrue(sut.isDownloading)
 
     // Wait for the pipeline tasks to complete
-    try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+    for _ in 0..<100 {
+      if case .completed = sut.downloadPhase { break }
+      try await Task.sleep(nanoseconds: 10_000_000) // 10ms
+    }
 
     XCTAssertEqual(sut.downloadPhase, .completed(mockRecord))
     XCTAssertFalse(sut.isDownloading)
@@ -312,7 +314,10 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     sut.startDownload(apiKey: "token123", customerID: "cust123")
 
-    try await Task.sleep(nanoseconds: 50_000_000)
+    for _ in 0..<100 {
+      if case .failed = sut.downloadPhase { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
 
     if case .failed = sut.downloadPhase {
       XCTAssertFalse(sut.isDownloading)
@@ -356,7 +361,10 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     await sut.resumePendingDownloadIfNeeded()
 
     // Wait for the pipeline tasks to complete
-    try await Task.sleep(nanoseconds: 100_000_000)
+    for _ in 0..<100 {
+      if case .completed = sut.downloadPhase { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
 
     if case .completed(let record) = sut.downloadPhase {
       XCTAssertEqual(record.id, downloadID)
@@ -400,7 +408,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(sut.downloadPhase, .idle)
   }
 
-  func testDeleteDownload_callsDownloader() async {
+  func testDeleteDownload_callsDownloader() async throws {
     let downloader = MockChartDownloader()
     let downloadRepo = MockDownloadRepository()
     let download = OfflineChartDownload(
@@ -417,7 +425,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     let (sut, _, _, _, _, _) = makeSUT(downloader: downloader, downloadRepository: downloadRepo)
 
-    await sut.deleteDownload(download)
+    try await sut.deleteDownload(download)
 
     XCTAssertEqual(downloader.deletedIDs.count, 1)
     XCTAssertEqual(downloader.deletedIDs.first, download.id)

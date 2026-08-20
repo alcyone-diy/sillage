@@ -11,7 +11,6 @@
 import SwiftUI
 import OSLog
 import CoreLocation
-
 @MainActor
 struct CommandPanelView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
@@ -24,225 +23,33 @@ struct CommandPanelView: View {
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(BarometerViewModel.self) private var barometerViewModel
   @Environment(PermissionService.self) private var permissionService
-  
+
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
-  
+
   @State private var permissionGateType: PermissionGateType? = nil
-  
+
   var body: some View {
     @Bindable var bindableViewModel = viewModel
-    @Bindable var bindableAppViewModel = appViewModel
-    @Bindable var bindableActiveTrackViewModel = activeTrackViewModel
-    
+
     NavigationStack(path: $bindableViewModel.commandPath) {
       VStack(spacing: 0) {
         MessageCarouselView()
           .background(marineTheme.colors.panelBackground)
-          
+
         List {
-          // Zone 1: Quick Actions
-        Section(header: Text("Quick Actions")) {
-          HStack(spacing: MarineTheme.Spacing.medium) {
-            Toggle("Glove Mode", isOn: $bindableAppViewModel.isGloveModeEnabled)
-              .toggleStyle(.marine(icon: .gloveMode))
-            
-            Button {
-              activeTrackViewModel.requestRecordingState(!activeTrackViewModel.isRecording)
-            } label: {
-              VStack(spacing: MarineTheme.Spacing.small) {
-                Image(marineIcon: .record)
-                  .font(.title2)
-                Text("Track")
-                  .marineFont(.caption)
-              }
-              .frame(maxWidth: .infinity, minHeight: marineTheme.metrics.touchTarget)
-              .foregroundColor(activeTrackViewModel.isRecording ? marineTheme.colors.textOnActive : marineTheme.colors.textSecondary)
-              .background {
-                if activeTrackViewModel.isRecording {
-                  marineTheme.colors.activeToggle
-                } else {
-                  CellBackgroundView()
-                }
-              }
-            }
-            .buttonStyle(MarineButtonStyle())
-            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
-            .disabled(activeTrackViewModel.isSaving)
-          }
-          .listRowBackground(Color.clear)
-          .listRowInsets(EdgeInsets())
+          quickActionsSection
+          safetySection
+          navigationSection
+          systemSection
         }
-
-        // Zone 2: Safety
-        Section(header: Text("Safety")) {
-          Button {
-            if let gate = viewModel.executeOrRequestPermission(
-                type: .location(trigger: .anchorAlarm),
-                in: permissionService,
-                action: { [weak viewModel] in
-                    viewModel?.commandPath.append(.anchorAlarm)
-                }
-            ) {
-                permissionGateType = gate
-            }
-          } label: {
-            HStack {
-              Label {
-                Text("Anchor Alarm").foregroundStyle(.primary)
-              } icon: {
-                Image(marineIcon: .anchorAlarm).foregroundStyle(.blue)
-              }
-              .marineFont(.body)
-              Spacer()
-              Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundColor(Color(uiColor: .tertiaryLabel))
-            }
-          }
-          .tint(.primary)
-          .marineListCell()
-          
-          Button {
-            if let gate = viewModel.executeOrRequestPermission(
-                type: .motion,
-                in: permissionService,
-                action: { [weak viewModel] in
-                    viewModel?.commandPath.append(.baroAlarm)
-                }
-            ) {
-                permissionGateType = gate
-            }
-          } label: {
-            HStack {
-              Label {
-                Text("Baro Alarm").foregroundStyle(.primary)
-              } icon: {
-                Image(marineIcon: .instruments).foregroundStyle(.blue)
-              }
-              .marineFont(.body)
-              Spacer()
-              Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundColor(Color(uiColor: .tertiaryLabel))
-            }
-          }
-          .tint(.primary)
-          .marineListCell()
-        }
-        
-        Section(header: Text("Navigation")) {
-          NavigationLink(value: PanelManagerViewModel.CommandDestination.offlineCharts) {
-            HStack {
-              Label {
-                VStack(alignment: .leading, spacing: 4) {
-                  Text("Offline Charts").foregroundStyle(.primary)
-                  if let progress = appEnvironment.offlineMapManager.globalDownloadProgress, appEnvironment.offlineMapManager.totalPendingDownloads > 0 {
-                    ProgressView(value: progress)
-                      .progressViewStyle(.linear)
-                      .tint(.blue)
-                  }
-                }
-              } icon: {
-                Image(systemName: "square.and.arrow.down.on.square").foregroundStyle(.blue)
-              }
-              .marineFont(.body)
-              Spacer()
-            }
-          }
-          .animation(.default, value: appEnvironment.offlineMapManager.totalPendingDownloads > 0)
-          .marineListCell()
-
-          NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
-            Label {
-              Text("Tracks").foregroundStyle(.primary)
-            } icon: {
-              Image(marineIcon: .track).foregroundStyle(.blue)
-            }
-            .marineFont(.body)
-          }
-          .marineListCell()
-          
-          NavigationLink(value: PanelManagerViewModel.CommandDestination.waypoints) {
-            Label {
-              Text("Waypoints").foregroundStyle(.primary)
-            } icon: {
-              Image(marineIcon: .waypoint).foregroundStyle(.blue)
-            }
-            .marineFont(.body)
-          }
-          .marineListCell()
-        }
-        
-        // Zone 3: System
-        Section(header: Text("System")) {
-          NavigationLink(value: PanelManagerViewModel.CommandDestination.settings) {
-            Label("Settings", systemImage: MarineIcon.settings.rawValue)
-              .marineFont(.body)
-          }
-          .marineListCell()
-        }
-      }
-      .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-      .listStyle(.insetGrouped)
-      .marineListBackground()
+        .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
+        .listStyle(.insetGrouped)
+        .marineListBackground()
       }
       .navigationTitle("Command Panel")
       .navigationBarTitleDisplayMode(.inline)
       .navigationDestination(for: PanelManagerViewModel.CommandDestination.self) { destination in
-        switch destination {
-        case .settings:
-          SettingsView()
-        case .tracks:
-          TracksManagerView()
-        case .waypoints:
-          if let waypointService {
-            let model = WaypointListViewModel(waypointService: waypointService)
-            WaypointListView(viewModel: model)
-          }
-        case .sessionDetail(let sessionID):
-          if let trackService {
-            let model = TrackDetailViewModel(
-              sessionID: sessionID,
-              trackService: trackService,
-              trackRecordingService: trackRecordingService
-            )
-            TrackDetailView(viewModel: model) { id in
-              try await chartViewModel.loadAndDisplaySavedTrack(
-                sessionID: id,
-                trackService: trackService,
-                edgePadding: MarineTheme.Spacing.large
-              )
-              viewModel.closePanel()
-            }
-          }
-        case .waypointDetail(let id):
-          WaypointDetailContainer(waypointID: id)
-        case .baroAlarm:
-          BarometerAlarmView(viewModel: barometerViewModel)
-        case .anchorAlarm:
-          AnchorAlarmView()
-        case .geoGarageLogin:
-          GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)
-        case .geoGarageOfflineDownload:
-          if let downloader = appEnvironment.geoGarageChartDownloader,
-             let packageService = appEnvironment.geoGaragePackageService,
-             let downloadRepo = appEnvironment.geoGarageDownloadRepository,
-             let preferences = appEnvironment.preferencesService {
-            GeoGarageOfflineDownloadView(
-              viewModel: GeoGarageOfflineViewModel(
-                downloader: downloader,
-                packageService: packageService,
-                downloadRepository: downloadRepo,
-                preferencesService: preferences,
-                chartViewModel: chartViewModel
-              )
-            )
-          }
-        case .offlineCharts:
-          OfflineRegionsManagerView()
-        case .chartPreferences:
-          ChartPreferencesView()
-        }
+        destinationView(for: destination)
       }
       .handleTrackRecordingErrors()
       .alert(
@@ -290,6 +97,206 @@ struct CommandPanelView: View {
           permissionGateType = nil
         }
       }
+    }
+  }
+
+  // MARK: - Sections
+
+  @ViewBuilder
+  private var quickActionsSection: some View {
+    @Bindable var bindableAppViewModel = appViewModel
+
+    Section(header: Text("Quick Actions")) {
+      HStack(spacing: MarineTheme.Spacing.medium) {
+        Toggle("Glove Mode", isOn: $bindableAppViewModel.isGloveModeEnabled)
+          .toggleStyle(.marine(icon: .gloveMode))
+
+        Button {
+          activeTrackViewModel.requestRecordingState(!activeTrackViewModel.isRecording)
+        } label: {
+          VStack(spacing: MarineTheme.Spacing.small) {
+            Image(marineIcon: .record)
+              .font(.title2)
+            Text("Track")
+              .marineFont(.caption)
+          }
+          .frame(maxWidth: .infinity, minHeight: marineTheme.metrics.touchTarget)
+          .foregroundColor(activeTrackViewModel.isRecording ? marineTheme.colors.textOnActive : marineTheme.colors.textSecondary)
+          .background {
+            if activeTrackViewModel.isRecording {
+              marineTheme.colors.activeToggle
+            } else {
+              CellBackgroundView()
+            }
+          }
+        }
+        .buttonStyle(MarineButtonStyle())
+        .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
+        .disabled(activeTrackViewModel.isSaving)
+      }
+      .listRowBackground(Color.clear)
+      .listRowInsets(EdgeInsets())
+    }
+  }
+
+  @ViewBuilder
+  private var safetySection: some View {
+    Section(header: Text("Safety")) {
+      Button {
+        if let gate = viewModel.executeOrRequestPermission(
+          type: .location(trigger: .anchorAlarm),
+          in: permissionService,
+          action: { [weak viewModel] in
+            viewModel?.commandPath.append(.anchorAlarm)
+          }
+        ) {
+          permissionGateType = gate
+        }
+      } label: {
+        HStack {
+          Label {
+            Text("Anchor Alarm").foregroundStyle(.primary)
+          } icon: {
+            Image(marineIcon: .anchorAlarm).foregroundStyle(.blue)
+          }
+          .marineFont(.body)
+          Spacer()
+          Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundColor(Color(uiColor: .tertiaryLabel))
+        }
+      }
+      .tint(.primary)
+      .marineListCell()
+
+      Button {
+        if let gate = viewModel.executeOrRequestPermission(
+          type: .motion,
+          in: permissionService,
+          action: { [weak viewModel] in
+            viewModel?.commandPath.append(.baroAlarm)
+          }
+        ) {
+          permissionGateType = gate
+        }
+      } label: {
+        HStack {
+          Label {
+            Text("Baro Alarm").foregroundStyle(.primary)
+          } icon: {
+            Image(marineIcon: .instruments).foregroundStyle(.blue)
+          }
+          .marineFont(.body)
+          Spacer()
+          Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundColor(Color(uiColor: .tertiaryLabel))
+        }
+      }
+      .tint(.primary)
+      .marineListCell()
+    }
+  }
+
+  @ViewBuilder
+  private var navigationSection: some View {
+    Section(header: Text("Navigation")) {
+      NavigationLink(value: PanelManagerViewModel.CommandDestination.offlineCharts) {
+        HStack {
+          Label {
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Offline Charts").foregroundStyle(.primary)
+              if let progress = appEnvironment.offlineMapManager.globalDownloadProgress, appEnvironment.offlineMapManager.totalPendingDownloads > 0 {
+                ProgressView(value: progress)
+                  .progressViewStyle(.linear)
+                  .tint(.blue)
+              }
+            }
+          } icon: {
+            Image(systemName: "square.and.arrow.down.on.square").foregroundStyle(.blue)
+          }
+          .marineFont(.body)
+          Spacer()
+        }
+      }
+      .animation(.default, value: appEnvironment.offlineMapManager.totalPendingDownloads > 0)
+      .marineListCell()
+
+      NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
+        Label {
+          Text("Tracks").foregroundStyle(.primary)
+        } icon: {
+          Image(marineIcon: .track).foregroundStyle(.blue)
+        }
+        .marineFont(.body)
+      }
+      .marineListCell()
+
+      NavigationLink(value: PanelManagerViewModel.CommandDestination.waypoints) {
+        Label {
+          Text("Waypoints").foregroundStyle(.primary)
+        } icon: {
+          Image(marineIcon: .waypoint).foregroundStyle(.blue)
+        }
+        .marineFont(.body)
+      }
+      .marineListCell()
+    }
+  }
+
+  @ViewBuilder
+  private var systemSection: some View {
+    Section(header: Text("System")) {
+      NavigationLink(value: PanelManagerViewModel.CommandDestination.settings) {
+        Label("Settings", systemImage: MarineIcon.settings.rawValue)
+          .marineFont(.body)
+      }
+      .marineListCell()
+    }
+  }
+
+  // MARK: - Navigation Destination Router
+
+  @ViewBuilder
+  private func destinationView(for destination: PanelManagerViewModel.CommandDestination) -> some View {
+    switch destination {
+    case .settings:
+      SettingsView()
+    case .tracks:
+      TracksManagerView()
+    case .waypoints:
+      if let waypointService {
+        let model = WaypointListViewModel(waypointService: waypointService)
+        WaypointListView(viewModel: model)
+      }
+    case .sessionDetail(let sessionID):
+      if let trackService {
+        let model = TrackDetailViewModel(
+          sessionID: sessionID,
+          trackService: trackService,
+          trackRecordingService: trackRecordingService
+        )
+        TrackDetailView(viewModel: model) { id in
+          try await chartViewModel.loadAndDisplaySavedTrack(
+            sessionID: id,
+            trackService: trackService,
+            edgePadding: MarineTheme.Spacing.large
+          )
+          viewModel.closePanel()
+        }
+      }
+    case .waypointDetail(let id):
+      WaypointDetailContainer(waypointID: id)
+    case .baroAlarm:
+      BarometerAlarmView(viewModel: barometerViewModel)
+    case .anchorAlarm:
+      AnchorAlarmView()
+    case .geoGarageLogin:
+      GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)
+    case .offlineCharts:
+      OfflineRegionsManagerView()
+    case .chartPreferences:
+      ChartPreferencesView()
     }
   }
 }
