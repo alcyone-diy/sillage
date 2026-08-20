@@ -558,7 +558,7 @@ final class ChartViewModelTests: XCTestCase {
     await Task.yield()
 
     positioningService.locationContinuation?.yield(.active(fix))
-    await Task.yield()
+    try? await Task.sleep(for: .milliseconds(50))
 
     viewModel.centerOnUserLocation()
 
