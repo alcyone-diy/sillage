@@ -120,13 +120,21 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
   // MARK: Helpers
 
   /// Resolves the relative path into an absolute file URL within the app Documents directory.
-  /// Returns `nil` if the Documents directory cannot be accessed.
+  /// Dynamically reconstructs the absolute URL based on the current sandbox Documents container
+  /// to ensure persistence survives iOS sandbox container UUID rotations across app updates.
   func resolvedFileURL() -> URL? {
     guard let documentsURL = FileManager.default.urls(
       for: .documentDirectory,
       in: .userDomainMask
     ).first else { return nil }
-    return documentsURL.appendingPathComponent(relativePath)
+
+    let cleanRelative: String
+    if relativePath.hasPrefix("/") {
+      cleanRelative = (relativePath as NSString).lastPathComponent
+    } else {
+      cleanRelative = relativePath
+    }
+    return documentsURL.appendingPathComponent(cleanRelative)
   }
 
   /// Size in bytes of the local package archive on disk, or 0 if unreachable.

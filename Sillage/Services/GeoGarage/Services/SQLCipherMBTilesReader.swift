@@ -12,116 +12,57 @@ import Foundation
 import SQLCipher
 import OSLog
 
-/// Swift 6 actor that opens an encrypted SQLCipher v3 MBTiles package in read-only mode,
-/// configures PRAGMA settings, maintains a precompiled SQLite statement for high-throughput tile requests,
-/// and returns decrypted tile bytes directly into RAM without temporary disk writes.
-actor SQLCipherMBTilesReader: SQLCipherMBTilesReaderProtocol {
+/// High-performance MBTiles reader delegating connection lifecycle and bounded pooling to `SQLiteConnectionPool`.
+final class SQLCipherMBTilesReader: SQLCipherMBTilesReaderProtocol, Sendable {
 
-  private let fileURL: URL
-  private var db: OpaquePointer?
-  private var statement: OpaquePointer?
+  private let pool: SQLiteConnectionPool
 
   // MARK: - Initializer
 
-  /// Initializes the SQLCipher reader, decrypts the database in memory, and prepares the tile query statement.
+  /// Initializes the reader and pre-warms the SQLite connection pool.
   /// - Parameters:
   ///   - fileURL: Local `.mbtiles` file path.
-  ///   - encryptionKey: Hex or string key derived from partner secret and customer ID.
+  ///   - encryptionKey: Key derived from partner secret and customer ID.
+  ///   - maxConnections: Strict upper bound of concurrent open database handles (default 6).
+  ///   - prewarmCount: Number of connections to open immediately during init (default 2).
   /// - Throws: `CaasError.fileSystemError` or `CaasError.decryptionFailed`.
-  init(fileURL: URL, encryptionKey: String) async throws(CaasError) {
-    let (openedDB, preparedStmt) = try Self.openAndPrepare(fileURL: fileURL, encryptionKey: encryptionKey)
-    self.fileURL = fileURL
-    self.db = openedDB
-    self.statement = preparedStmt
-    Logger.caas.info("SQLCipherMBTilesReader initialized and verified for \(fileURL.lastPathComponent, privacy: .public)")
-  }
-
-  deinit {
-    if let statement {
-      sqlite3_finalize(statement)
-    }
-    if let db {
-      sqlite3_close_v2(db)
-    }
-  }
-
-  nonisolated private static func openAndPrepare(
+  init(
     fileURL: URL,
-    encryptionKey: String
-  ) throws(CaasError) -> (db: OpaquePointer, statement: OpaquePointer) {
-    guard FileManager.default.fileExists(atPath: fileURL.path) else {
-      throw CaasError.fileSystemError(underlying: "MBTiles file does not exist at \(fileURL.path)")
-    }
-
-    let keyData = Data(encryptionKey.utf8)
-
-    // 1. Try opening with SQLCipher 4 (default)
-    if let result = tryOpen(fileURL: fileURL, keyData: keyData, v3Compatibility: false) {
-      return result
-    }
-
-    // 2. Fallback: Try opening with SQLCipher 3 legacy compatibility
-    if let result = tryOpen(fileURL: fileURL, keyData: keyData, v3Compatibility: true) {
-      return result
-    }
-
-    throw CaasError.decryptionFailed(reason: "Invalid encryption key or corrupt MBTiles database.")
-  }
-
-  nonisolated private static func tryOpen(
-    fileURL: URL,
-    keyData: Data,
-    v3Compatibility: Bool
-  ) -> (db: OpaquePointer, statement: OpaquePointer)? {
-    var localDB: OpaquePointer?
-    guard sqlite3_open_v2(fileURL.path, &localDB, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let localDB else {
-      if let localDB { sqlite3_close_v2(localDB) }
-      return nil
-    }
-
-    let keyResult = keyData.withUnsafeBytes { rawBuffer in
-      sqlite3_key(localDB, rawBuffer.baseAddress, Int32(keyData.count))
-    }
-    guard keyResult == SQLITE_OK else {
-      sqlite3_close_v2(localDB)
-      return nil
-    }
-
-    if v3Compatibility {
-      let v3Pragma = "PRAGMA cipher_compatibility = 3;"
-      sqlite3_exec(localDB, v3Pragma, nil, nil, nil)
-    }
-
-    var testStmt: OpaquePointer?
-    let testSQL = "SELECT count(*) FROM sqlite_master;"
-    let prepareTest = sqlite3_prepare_v2(localDB, testSQL, -1, &testStmt, nil)
-    let stepTest = prepareTest == SQLITE_OK ? sqlite3_step(testStmt) : SQLITE_ERROR
-    sqlite3_finalize(testStmt)
-
-    guard stepTest == SQLITE_ROW || stepTest == SQLITE_DONE else {
-      sqlite3_close_v2(localDB)
-      return nil
-    }
-
-    let tileSQL = "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ? LIMIT 1;"
-    var localStmt: OpaquePointer?
-    let prepResult = sqlite3_prepare_v2(localDB, tileSQL, -1, &localStmt, nil)
-    guard prepResult == SQLITE_OK, let localStmt else {
-      sqlite3_close_v2(localDB)
-      return nil
-    }
-
-    return (localDB, localStmt)
+    encryptionKey: String,
+    maxConnections: Int = 6,
+    prewarmCount: Int = 2
+  ) throws(CaasError) {
+    self.pool = try SQLiteConnectionPool(
+      fileURL: fileURL,
+      encryptionKey: encryptionKey,
+      maxConnections: maxConnections,
+      prewarmCount: prewarmCount
+    )
   }
 
   // MARK: - Tile Retrieval
 
-  func tile(z: Int, x: Int, y: Int) -> Data? {
-    guard let statement else { return nil }
+  func tile(z: Int, x: Int, y: Int) async -> Data? {
+    guard z >= 0, x >= 0, y >= 0 else { return nil }
+
+    let handle: SQLiteConnectionHandle
+    do {
+      handle = try await pool.borrow()
+    } catch {
+      Logger.caas.error("Failed to borrow SQLite connection from pool: \(error.localizedDescription, privacy: .public)")
+      return nil
+    }
+
+    // Short-circuit disk I/O if MapLibre or caller cancelled the task while waiting in the pool
+    guard !Task.isCancelled else {
+      await pool.returnHandle(handle)
+      return nil
+    }
 
     // Convert XYZ row (top-left origin) to TMS row (bottom-left origin)
     let tmsY = (1 << z) - 1 - y
 
+    let statement = handle.statement
     sqlite3_bind_int(statement, 1, Int32(z))
     sqlite3_bind_int(statement, 2, Int32(x))
     sqlite3_bind_int(statement, 3, Int32(tmsY))
@@ -136,24 +77,13 @@ actor SQLCipherMBTilesReader: SQLCipherMBTilesReaderProtocol {
       }
     }
 
-    // Reset prepared statement and clear parameter bindings for reuse
-    sqlite3_reset(statement)
-    sqlite3_clear_bindings(statement)
-
+    await pool.returnHandle(handle)
     return tileData
   }
 
   // MARK: - Close
 
-  func close() {
-    if let statement {
-      sqlite3_finalize(statement)
-      self.statement = nil
-    }
-    if let db {
-      sqlite3_close_v2(db)
-      self.db = nil
-    }
-    Logger.caas.info("SQLCipherMBTilesReader closed.")
+  func close() async {
+    await pool.close()
   }
 }
