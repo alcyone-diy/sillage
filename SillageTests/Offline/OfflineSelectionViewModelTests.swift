@@ -126,15 +126,24 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       ] : statusSequence
 
       return AsyncThrowingStream { continuation in
-        Task {
+        let task = Task {
           for status in statuses {
             if Task.isCancelled {
               continuation.finish(throwing: CancellationError())
               return
             }
             continuation.yield(status)
+            do {
+              try await Task.sleep(nanoseconds: 10_000_000)
+            } catch {
+              continuation.finish(throwing: CancellationError())
+              return
+            }
           }
           continuation.finish()
+        }
+        continuation.onTermination = { _ in
+          task.cancel()
         }
       }
     }

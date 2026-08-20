@@ -262,6 +262,11 @@ final class AppEnvironment {
     return container.preferencesService
   }
 
+  var offlineSelectionViewModel: OfflineSelectionViewModel? {
+    guard case .ready(let container) = state else { return nil }
+    return container.offlineSelectionViewModel
+  }
+
   // MARK: - GPS Accuracy
 
   /// Single entry point for changing GPS accuracy at runtime.
