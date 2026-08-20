@@ -285,4 +285,57 @@ final class GeoGaragePackageServiceTests: XCTestCase {
     // Should terminate gracefully without deadlock
     XCTAssertNotNil(result)
   }
+
+  func testPollUntilComplete_withExponentialBackoff() async throws {
+    let packageUUID = UUID(uuidString: "3FA85F64-5717-4562-B3FC-2C963F66AFA6")!
+    var callCount = 0
+
+    MockURLProtocol.setHandler { request in
+      callCount += 1
+      let json: Data
+      if callCount < 3 {
+        json = """
+        {
+          "uuid": "\(packageUUID.uuidString.lowercased())",
+          "state": "PROGRESS",
+          "monitor": "\(callCount * 250)/1000"
+        }
+        """.data(using: .utf8)!
+      } else {
+        json = """
+        {
+          "uuid": "\(packageUUID.uuidString.lowercased())",
+          "state": "SUCCESS",
+          "url": "https://caas.geogarage.com/download",
+          "md5": "d41d8cd98f00b204e9800998ecf8427e",
+          "size": 1048576
+        }
+        """.data(using: .utf8)!
+      }
+      let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+      return (response, json)
+    }
+
+    let service = GeoGaragePackageService(
+      baseURL: URL(string: "https://caas.geogarage.com")!,
+      session: session
+    )
+
+    var states: [PackageState] = []
+    let stream = await service.pollUntilComplete(
+      packageID: packageUUID,
+      apiKey: "test_api_key",
+      initialInterval: .milliseconds(20),
+      maxInterval: .milliseconds(100),
+      backoffMultiplier: 2.0,
+      timeout: .seconds(5)
+    )
+
+    for try await update in stream {
+      states.append(update.state)
+    }
+
+    XCTAssertEqual(states, [.progress, .progress, .success])
+    XCTAssertEqual(callCount, 3)
+  }
 }

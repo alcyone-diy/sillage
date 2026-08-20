@@ -201,12 +201,15 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
   func pollUntilComplete(
     packageID: UUID,
     apiKey: String,
-    interval: Duration = .seconds(5),
-    timeout: Duration = .seconds(900)
+    initialInterval: Duration,
+    maxInterval: Duration,
+    backoffMultiplier: Double,
+    timeout: Duration
   ) -> AsyncThrowingStream<PackageStatusResponse, Error> {
     AsyncThrowingStream { continuation in
       let pollingTask = Task { [weak self] in
         let startTime = ContinuousClock.now
+        var currentInterval = initialInterval
 
         while !Task.isCancelled {
           guard let self else {
@@ -245,11 +248,19 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
             }
 
             do {
-              try await Task.sleep(for: interval)
+              try await Task.sleep(for: currentInterval)
             } catch {
               // Task cancellation during sleep (cooperative cancellation)
               continuation.finish(throwing: error)
               return
+            }
+
+            let nextIntervalSeconds = currentInterval.timeInterval * backoffMultiplier
+            let maxIntervalSeconds = maxInterval.timeInterval
+            if nextIntervalSeconds >= maxIntervalSeconds {
+              currentInterval = maxInterval
+            } else {
+              currentInterval = .nanoseconds(Int64(nextIntervalSeconds * 1_000_000_000))
             }
           }
         }

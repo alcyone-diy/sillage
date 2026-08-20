@@ -91,6 +91,7 @@ struct TrackServiceTests {
     var savedAnchorRadius: Measurement<UnitLength> = Measurement(value: 25.0, unit: .meters)
     var hudEditOpenCount: Int = 0
     var gpsAccuracyMode: GPSAccuracyMode = .best
+    var pendingCAASDownload: PendingCAASDownload?
   }
   
   // MARK: - Helpers

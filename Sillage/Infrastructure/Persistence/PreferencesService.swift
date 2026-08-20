@@ -32,8 +32,20 @@ enum GPSAccuracyMode: String, CaseIterable, Sendable {
   }
 }
 
+// MARK: - Pending CAAS Download State Preservation
+
+/// Persistent record of an in-flight CAAS download to survive iOS app termination or crashes.
+struct PendingCAASDownload: Codable, Equatable, Sendable {
+  let packageID: UUID
+  let layerID: String
+  let layerName: String
+  let boundsWKT: String
+  let zoomMax: Int
+  let createdAt: Date
+}
+
 @MainActor
-protocol PreferencesServiceProtocol {
+protocol PreferencesServiceProtocol: AnyObject {
   var savedChartSource: String? { get set }
   var savedGeoGarageLayerID: String? { get set }
   var savedLatitude: Double? { get set }
@@ -48,6 +60,7 @@ protocol PreferencesServiceProtocol {
   /// Unique GeoGarage customer account identifier. Non-sensitive — used to reconstruct
   /// the SQLCipher decryption key dynamically at runtime (never stored alongside the shared secret).
   var geoGarageCustomerID: String? { get set }
+  var pendingCAASDownload: PendingCAASDownload? { get set }
 
   var isCOGVectorEnabled: Bool { get set }
   var cogVectorTimeHorizon: Measurement<UnitDuration> { get set }
@@ -93,6 +106,7 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let isOpenSeaMapOverlayEnabledKey = "isOpenSeaMapOverlayEnabled"
   @ObservationIgnored private let geoGarageUsernameKey = "geogarage_username"
   @ObservationIgnored private let geoGarageCustomerIDKey = "geogarage_customer_id"
+  @ObservationIgnored private let pendingCAASDownloadKey = "pendingCAASDownload"
 
   @ObservationIgnored private let isCOGVectorEnabledKey = "isCOGVectorEnabled"
   @ObservationIgnored private let cogVectorTimeHorizonSecondsKey = "cogVectorTimeHorizonSeconds"
@@ -243,6 +257,18 @@ class PreferencesService: PreferencesServiceProtocol {
     didSet { defaults.set(rawGPSAccuracyMode, forKey: gpsAccuracyModeKey) }
   }
 
+  var pendingCAASDownload: PendingCAASDownload? {
+    didSet {
+      if let pendingCAASDownload {
+        if let data = try? JSONEncoder().encode(pendingCAASDownload) {
+          defaults.set(data, forKey: pendingCAASDownloadKey)
+        }
+      } else {
+        defaults.removeObject(forKey: pendingCAASDownloadKey)
+      }
+    }
+  }
+
   var gpsAccuracyMode: GPSAccuracyMode {
     get { GPSAccuracyMode(rawValue: rawGPSAccuracyMode) ?? .best }
     set { rawGPSAccuracyMode = newValue.rawValue }
@@ -263,6 +289,13 @@ class PreferencesService: PreferencesServiceProtocol {
     self.isOpenSeaMapOverlayEnabled = defaults.bool(forKey: isOpenSeaMapOverlayEnabledKey)
     self.geoGarageUsername = defaults.string(forKey: geoGarageUsernameKey)
     self.geoGarageCustomerID = defaults.string(forKey: geoGarageCustomerIDKey)
+
+    if let data = defaults.data(forKey: pendingCAASDownloadKey),
+       let pending = try? JSONDecoder().decode(PendingCAASDownload.self, from: data) {
+      self.pendingCAASDownload = pending
+    } else {
+      self.pendingCAASDownload = nil
+    }
 
     self.isCOGVectorEnabled = defaults.object(forKey: isCOGVectorEnabledKey) as? Bool ?? true
     self.isCOGVectorTicksEnabled = defaults.object(forKey: isCOGVectorTicksEnabledKey) as? Bool ?? true
