@@ -140,23 +140,6 @@ struct ChartPreferencesView: View {
         }
         .marineListCell()
 
-        if chartViewModel.isGeoGarageAuthenticated,
-           let downloadRepo = appEnvironment.geoGarageDownloadRepository {
-          NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageOfflineDownload) {
-            HStack {
-              Text("GeoGarage Offline Downloads")
-                .marineFont(.body)
-              Spacer()
-              if !downloadRepo.downloads.isEmpty {
-                Text("\(downloadRepo.downloads.count)")
-                  .marineFont(.subheadline)
-                  .foregroundColor(.secondary)
-              }
-            }
-          }
-          .marineListCell()
-        }
-
         // Button triggering the iOS native file picker
         Button("Import Offline Map (.mbtiles)…") {
           showingFileImporter = true

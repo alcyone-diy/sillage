@@ -19,9 +19,6 @@
     "'" : {
 
     },
-    "%@ - Pending" : {
-
-    },
     "%@ (MIT License)" : {
 
     },
@@ -71,26 +68,7 @@
     "%@/3h" : {
       "comment" : "Format for 3-hour barometric trend suffix"
     },
-    "%lld" : {
-
-    },
-    "%lld downloads pending" : {
-
-    },
-    "%lld MB / %lld MB" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld MB / %2$lld MB"
-          }
-        }
-      }
-    },
     "%lld offline charts" : {
-
-    },
-    "%lld%%" : {
 
     },
     "%lldm out of zone" : {
@@ -219,9 +197,6 @@
     "App Information" : {
 
     },
-    "Are you sure you want to delete \"%@\"? This action cannot be undone." : {
-
-    },
     "Are you sure you want to delete this downloaded chart package?" : {
 
     },
@@ -232,9 +207,6 @@
 
     },
     "Are you sure you want to stop recording this track?" : {
-
-    },
-    "Area Name" : {
 
     },
     "Arm Alarm" : {
@@ -273,16 +245,6 @@
     "BEARING" : {
 
     },
-    "Bounds: %@ to %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Bounds: %1$@ to %2$@"
-          }
-        }
-      }
-    },
     "BTW" : {
 
     },
@@ -293,9 +255,6 @@
 
     },
     "Cancel" : {
-
-    },
-    "Cancel Download" : {
 
     },
     "Cancel Navigation" : {
@@ -355,9 +314,6 @@
     "Critical GPS accuracy. Anchor alarm is temporarily unreliable." : {
 
     },
-    "Current Download" : {
-
-    },
     "Debug" : {
 
     },
@@ -377,9 +333,6 @@
 
     },
     "Delete Offline Chart" : {
-
-    },
-    "Delete Offline Chart?" : {
 
     },
     "Delete Track?" : {
@@ -427,9 +380,6 @@
     "Download" : {
 
     },
-    "Download Current Viewport" : {
-
-    },
     "Download failed: %@." : {
 
     },
@@ -439,7 +389,7 @@
     "Downloaded Charts" : {
 
     },
-    "Downloading archive…" : {
+    "Downloading chart…" : {
 
     },
     "Drag map to adjust anchor position" : {
@@ -459,9 +409,6 @@
     },
     "E" : {
       "comment" : "East cardinal point"
-    },
-    "e.g. South Brittany" : {
-
     },
     "Edit" : {
 
@@ -545,13 +492,7 @@
     "GeoGarage Marine Chart" : {
 
     },
-    "GeoGarage Offline" : {
-
-    },
     "GeoGarage Offline Chart" : {
-
-    },
-    "GeoGarage Offline Downloads" : {
 
     },
     "GeoGarage Required" : {
@@ -610,9 +551,6 @@
       "comment" : "High sensitivity"
     },
     "hPa" : {
-
-    },
-    "Hydrographic Layer" : {
 
     },
     "I Accept" : {
@@ -748,16 +686,7 @@
     "Network error: %@." : {
 
     },
-    "New Offline Area" : {
-
-    },
-    "No active map viewport detected. Pan or zoom the chart first." : {
-
-    },
     "No active recording to stop." : {
-
-    },
-    "No GeoGarage offline charts downloaded yet." : {
 
     },
     "No Offline Charts" : {
@@ -856,7 +785,7 @@
     "Recording Status" : {
 
     },
-    "Requesting chart package from server…" : {
+    "Requesting chart package…" : {
 
     },
     "Retry" : {
@@ -900,9 +829,6 @@
 
     },
     "Select Drop Point" : {
-
-    },
-    "Selected Viewport Area" : {
 
     },
     "Sensor Offset" : {
@@ -996,9 +922,6 @@
 
     },
     "Total size: %@" : {
-
-    },
-    "Total time: %@" : {
 
     },
     "Track" : {
