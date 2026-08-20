@@ -772,7 +772,7 @@ final class ChartViewModel {
     }
 
     let key = GeoGarageKeyDeriver.derivePassphrase(sharedSecret: sharedSecret, customerID: customerID)
-    let reader = try await SQLCipherMBTilesReader(fileURL: fileURL, encryptionKey: key)
+    let reader = try SQLCipherMBTilesReader(fileURL: fileURL, encryptionKey: key)
     let server = LocalTileServer(reader: reader)
 
     let port: UInt16
