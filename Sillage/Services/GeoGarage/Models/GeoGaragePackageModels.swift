@@ -13,18 +13,18 @@ import Foundation
 // MARK: - Request
 
 /// Supported package format. MBTiles is the recommended format for GeoGarage.
-enum PackageFormat: String, Codable, Sendable {
+nonisolated enum PackageFormat: String, Codable, Sendable {
   case mbtiles = "MBTiles"
 }
 
 /// SQLCipher encryption version token accepted by the GeoGarage CAAS API backend.
-enum CipherVersion: String, Sendable {
+nonisolated enum CipherVersion: String, Sendable {
   case v3 = "127deda9fa683ec879f231e7a403570e"
   case v4 = "a123d80f80f30a78e40e01220ccdc0ca"
 }
 
 /// Request payload parameters for offline package generation (POST /packages/request/).
-struct PackageRequest: Sendable {
+nonisolated struct PackageRequest: Sendable {
   let layerID: String
   /// Geographic boundary as a rectangular WKT POLYGON (BBOX).
   /// Example: "POLYGON((minLon minLat, maxLon minLat, maxLon maxLat, minLon maxLat, minLon minLat))"
@@ -40,7 +40,7 @@ struct PackageRequest: Sendable {
 // MARK: - Polling Response
 
 /// Progress state returned by GET /packages/{id}.
-enum PackageState: String, Codable, Sendable {
+nonisolated enum PackageState: String, Codable, Sendable {
   case started    = "STARTED"
   case progress   = "PROGRESS"
   case encryption = "ENCRYPTION"
@@ -52,7 +52,7 @@ enum PackageState: String, Codable, Sendable {
 ///
 /// Expected decoding strategies:
 /// - `JSONDecoder.dateDecodingStrategy = .secondsSince1970` (for `eta`)
-struct PackageStatusResponse: Codable, Sendable {
+nonisolated struct PackageStatusResponse: Codable, Sendable {
   let uuid: UUID
   let state: PackageState
   let tileNumbers: Int?
@@ -101,7 +101,7 @@ struct PackageStatusResponse: Codable, Sendable {
 /// Local record of a downloaded CAAS MBTiles package.
 ///
 /// Persisted as JSON in `Documents/geogarage_downloads.json`.
-struct OfflineChartDownload: Identifiable, Codable, Equatable, Sendable {
+nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Sendable {
   let id: UUID
   let layerID: String
   let layerName: String
@@ -133,7 +133,7 @@ struct OfflineChartDownload: Identifiable, Codable, Equatable, Sendable {
 // MARK: - Download State Machine
 
 /// Represents the high-level observable state of a GeoGarage CAAS offline download workflow.
-enum GeoGarageDownloadPhaseState: Equatable, Sendable {
+nonisolated enum GeoGarageDownloadPhaseState: Equatable, Sendable {
   case idle
   case requesting
   case generating(progress: Double?, message: String)
@@ -146,7 +146,7 @@ enum GeoGarageDownloadPhaseState: Equatable, Sendable {
 // MARK: - Errors
 
 /// Strongly-typed errors for the CAAS pipeline (request, download, verification).
-enum CaasError: Error, LocalizedError, Sendable {
+nonisolated enum CaasError: Error, LocalizedError, Sendable {
   case requestFailed(statusCode: Int)
   case packageGenerationFailed(message: String)
   case downloadFailed(underlying: String)
