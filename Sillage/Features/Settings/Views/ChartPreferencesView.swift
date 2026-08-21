@@ -37,7 +37,7 @@ struct ChartPreferencesView: View {
   /// to a generic `ChartSourceSelection` category for UI rendering.
   private var currentSelection: ChartSourceSelection {
     switch chartViewModel.currentChartSource {
-    case .localMBTiles, .localCaasChart:
+    case .localMBTiles:
       return .local
     case .remoteGeoGarage:
       return .remote
