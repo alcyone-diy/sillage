@@ -274,7 +274,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       downloadRepository: downloadRepository,
       preferencesService: preferences,
       chartViewModel: chartVM,
-      offlineMapManager: MockOfflineMapManager()
+      offlineMapManager: MockOfflineMapManager(),
+      downloader: downloader
     )
 
     return (sut, downloadService, downloader, packageService, chartVM, downloadRepository, networkMonitor, preferences)
@@ -594,7 +595,41 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(sut.downloadPhase, .idle)
   }
 
-  func testDeleteDownload_callsDownloader() async throws {
+  func testDownloadedCharts_andTotalDownloadedSize() {
+    let downloadRepo = MockDownloadRepository()
+    let download1 = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM Brest",
+      downloadDate: Date(),
+      relativePath: "Charts/brest.mbtiles",
+      md5: "hash1",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)",
+      customFileSizeBytes: 1000
+    )
+    let download2 = OfflineChartDownload(
+      id: UUID(),
+      layerID: "ukho",
+      layerName: "UKHO Solent",
+      downloadDate: Date(),
+      relativePath: "Charts/solent.mbtiles",
+      md5: "hash2",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)",
+      customFileSizeBytes: 2500
+    )
+    downloadRepo.downloads = [download1, download2]
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(downloadRepository: downloadRepo)
+
+    XCTAssertEqual(sut.downloadedCharts.count, 2)
+    XCTAssertEqual(sut.downloadedCharts[0].layerName, "SHOM Brest")
+    XCTAssertEqual(sut.downloadedCharts[1].layerName, "UKHO Solent")
+    XCTAssertEqual(sut.totalDownloadedSize, 3500)
+  }
+
+  func testDeleteDownload_withDownloader_callsDownloader() async throws {
     let downloader = MockChartDownloader()
     let downloadRepo = MockDownloadRepository()
     let download = OfflineChartDownload(
@@ -615,6 +650,42 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     XCTAssertEqual(downloader.deletedIDs.count, 1)
     XCTAssertEqual(downloader.deletedIDs.first, download.id)
+  }
+
+  func testDeleteDownload_withoutDownloader_fallsBackToDownloadService() async throws {
+    let mockDownloadService = MockGeoGarageDownloadService()
+    let downloadRepo = MockDownloadRepository()
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "Fallback Chart",
+      downloadDate: Date(),
+      relativePath: "Charts/fallback.mbtiles",
+      md5: "md5hash",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)"
+    )
+    downloadRepo.downloads = [download]
+
+    let (_, _, _, _, chartVM, _, _, prefs) = makeSUT(
+      downloadRepository: downloadRepo,
+      customDownloadService: mockDownloadService
+    )
+
+    // Construct SUT explicitly without downloader
+    let sutWithoutDownloader = OfflineSelectionViewModel(
+      downloadService: mockDownloadService,
+      downloadRepository: downloadRepo,
+      preferencesService: prefs,
+      chartViewModel: chartVM,
+      offlineMapManager: MockOfflineMapManager(),
+      downloader: nil
+    )
+
+    try await sutWithoutDownloader.deleteDownload(download)
+
+    XCTAssertEqual(mockDownloadService.deletedDownloads.count, 1)
+    XCTAssertEqual(mockDownloadService.deletedDownloads.first?.id, download.id)
   }
 
   // MARK: - Download Progress Tests

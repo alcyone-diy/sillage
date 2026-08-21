@@ -13,7 +13,6 @@ import OSLog
 
 @MainActor
 struct OfflineRegionsManagerView: View {
-  @Environment(AppEnvironment.self) private var environment
   @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
@@ -23,7 +22,7 @@ struct OfflineRegionsManagerView: View {
   @State private var errorMessage: String?
 
   private var downloadedCharts: [OfflineChartDownload] {
-    environment.geoGarageDownloadRepository?.downloads ?? []
+    offlineSelectionViewModel.downloadedCharts
   }
 
   private var isOfflineAreaDisabled: Bool {
@@ -145,11 +144,7 @@ struct OfflineRegionsManagerView: View {
 
   private func deleteDownload(_ download: OfflineChartDownload) async {
     do {
-      if let downloader = environment.geoGarageChartDownloader {
-        try await downloader.deleteLocalChart(id: download.id)
-      } else {
-        try await offlineSelectionViewModel.deleteDownload(download)
-      }
+      try await offlineSelectionViewModel.deleteDownload(download)
     } catch {
       Logger.offline.error("Failed to delete offline chart \(download.layerName, privacy: .public): \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
@@ -160,7 +155,6 @@ struct OfflineRegionsManagerView: View {
 // MARK: - Subviews
 
 private struct OfflineRegionsHeaderView: View {
-  @Environment(AppEnvironment.self) private var environment
   @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
 
   var body: some View {
@@ -220,10 +214,10 @@ private struct OfflineRegionsHeaderView: View {
           EmptyView()
         }
       } else {
-        let downloads = environment.geoGarageDownloadRepository?.downloads ?? []
-        let totalSize = downloads.reduce(0) { $0 + $1.fileSizeBytes }
+        let downloadsCount = offlineSelectionViewModel.downloadedCharts.count
+        let totalSize = offlineSelectionViewModel.totalDownloadedSize
 
-        Text("\(downloads.count) offline charts")
+        Text("\(downloadsCount) offline charts")
           .marineFont(.headline)
 
         Text("Total size: \(totalSize.formatted(.byteCount(style: .file)))")

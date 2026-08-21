@@ -229,7 +229,8 @@ final class AppEnvironment {
         downloadRepository: geoGarageDownloadRepository,
         preferencesService: preferencesService,
         chartViewModel: chartViewModel,
-        offlineMapManager: self.offlineMapManager
+        offlineMapManager: self.offlineMapManager,
+        downloader: geoGarageChartDownloader
       )
       let secondaryTelemetryViewModel = SecondaryTelemetryViewModel()
       await trackRecordingService.attemptRecoveryIfNeeded()
