@@ -74,6 +74,21 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     }
   }
 
+  /// Normalized progress value strictly between 0.0 and 1.0 when available, or nil for indeterminate state.
+  var downloadProgress: Double? {
+    switch downloadPhase {
+    case .generating(let progress, _):
+      guard let progress else { return nil }
+      return min(max(progress, 0.0), 1.0)
+    case .downloading(let receivedBytes, let totalBytes):
+      guard totalBytes > 0 else { return nil }
+      let ratio = Double(receivedBytes) / Double(totalBytes)
+      return min(max(ratio, 0.0), 1.0)
+    case .idle, .waitingForNetwork, .requesting, .completed, .failed, .cancelled:
+      return nil
+    }
+  }
+
   // MARK: - Initializer
 
   init(

@@ -318,6 +318,23 @@ final class AppEnvironment {
     return container.offlineSelectionViewModel
   }
 
+  // MARK: - Global Offline Charts Download Status
+
+  /// Indicates whether an offline chart download is currently in progress across GeoGarage or MapLibre engines.
+  var isDownloadingOfflineCharts: Bool {
+    (geoGarageDownloadService?.isDownloading == true) || (offlineMapManager.totalPendingDownloads > 0)
+  }
+
+  /// Normalized download progress value (0.0 to 1.0) when available, or nil for indeterminate state.
+  var offlineChartsDownloadProgress: Double? {
+    if geoGarageDownloadService?.isDownloading == true {
+      return geoGarageDownloadService?.downloadProgress
+    } else if offlineMapManager.totalPendingDownloads > 0 {
+      return offlineMapManager.globalDownloadProgress
+    }
+    return nil
+  }
+
   // MARK: - GPS Accuracy
 
   /// Single entry point for changing GPS accuracy at runtime.
