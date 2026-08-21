@@ -206,20 +206,27 @@ struct CommandPanelView: View {
           Label {
             VStack(alignment: .leading, spacing: 4) {
               Text("Offline Charts").foregroundStyle(.primary)
-              if let progress = appEnvironment.offlineMapManager.globalDownloadProgress, appEnvironment.offlineMapManager.totalPendingDownloads > 0 {
-                ProgressView(value: progress)
-                  .progressViewStyle(.linear)
-                  .tint(.blue)
+              if appEnvironment.isDownloadingOfflineCharts {
+                if let progress = appEnvironment.offlineChartsDownloadProgress {
+                  ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+                    .tint(marineTheme.colors.accent)
+                } else {
+                  ProgressView()
+                    .progressViewStyle(.linear)
+                    .tint(marineTheme.colors.accent)
+                }
               }
             }
           } icon: {
-            Image(systemName: "square.and.arrow.down.on.square").foregroundStyle(.blue)
+            Image(systemName: "square.and.arrow.down.on.square")
+              .foregroundStyle(marineTheme.colors.accent)
           }
           .marineFont(.body)
           Spacer()
         }
       }
-      .animation(.default, value: appEnvironment.offlineMapManager.totalPendingDownloads > 0)
+      .animation(.default, value: appEnvironment.isDownloadingOfflineCharts)
       .marineListCell()
 
       NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {

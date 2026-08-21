@@ -206,11 +206,12 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     packageService: MockPackageService? = nil,
     downloadRepository: MockDownloadRepository? = nil,
     networkMonitor: MockNetworkMonitorService? = nil,
+    customDownloadService: GeoGarageDownloadServiceProtocol? = nil,
     setupVisibleBounds: Bool = true,
     authenticated: Bool = true
   ) -> (
     sut: OfflineSelectionViewModel,
-    downloadService: GeoGarageDownloadService,
+    downloadService: GeoGarageDownloadServiceProtocol,
     downloader: MockChartDownloader,
     packageService: MockPackageService,
     chartVM: ChartViewModel,
@@ -260,7 +261,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       )
     }
 
-    let downloadService = GeoGarageDownloadService(
+    let downloadService: GeoGarageDownloadServiceProtocol = customDownloadService ?? GeoGarageDownloadService(
       packageService: packageService,
       downloader: downloader,
       downloadRepository: downloadRepository,
@@ -614,5 +615,77 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     XCTAssertEqual(downloader.deletedIDs.count, 1)
     XCTAssertEqual(downloader.deletedIDs.first, download.id)
+  }
+
+  // MARK: - Download Progress Tests
+
+  func testDownloadProgress_acrossVariousPhases() {
+    let mockDownloadService = MockGeoGarageDownloadService()
+    let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
+
+    // 1. Idle
+    mockDownloadService.downloadPhase = .idle
+    XCTAssertNil(sut.downloadProgress)
+    XCTAssertFalse(sut.isDownloading)
+
+    // 2. Requesting
+    mockDownloadService.downloadPhase = .requesting
+    XCTAssertNil(sut.downloadProgress)
+    XCTAssertTrue(sut.isDownloading)
+
+    // 3. Waiting for network
+    mockDownloadService.downloadPhase = .waitingForNetwork(message: "Offline")
+    XCTAssertNil(sut.downloadProgress)
+    XCTAssertTrue(sut.isDownloading)
+
+    // 4. Generating (determinate)
+    mockDownloadService.downloadPhase = .generating(progress: 0.65, message: "Progress: 65%")
+    XCTAssertEqual(sut.downloadProgress, 0.65)
+    XCTAssertTrue(sut.isDownloading)
+
+    // 5. Generating (indeterminate)
+    mockDownloadService.downloadPhase = .generating(progress: nil, message: "Generating...")
+    XCTAssertNil(sut.downloadProgress)
+    XCTAssertTrue(sut.isDownloading)
+
+    // 6. Downloading (determinate)
+    mockDownloadService.downloadPhase = .downloading(receivedBytes: 250, totalBytes: 1000)
+    XCTAssertEqual(sut.downloadProgress, 0.25)
+    XCTAssertTrue(sut.isDownloading)
+
+    // 7. Downloading (clamping verification)
+    mockDownloadService.downloadPhase = .downloading(receivedBytes: 1500, totalBytes: 1000)
+    XCTAssertEqual(sut.downloadProgress, 1.0)
+    XCTAssertTrue(sut.isDownloading)
+
+    // 8. Downloading (indeterminate / zero total bytes)
+    mockDownloadService.downloadPhase = .downloading(receivedBytes: 0, totalBytes: 0)
+    XCTAssertNil(sut.downloadProgress)
+    XCTAssertTrue(sut.isDownloading)
+
+    // 9. Completed
+    let dummyRecord = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM",
+      downloadDate: Date(),
+      relativePath: "Charts/test.mbtiles",
+      md5: "abc",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)"
+    )
+    mockDownloadService.downloadPhase = .completed(dummyRecord)
+    XCTAssertNil(sut.downloadProgress)
+    XCTAssertFalse(sut.isDownloading)
+
+    // 10. Cancelled
+    mockDownloadService.downloadPhase = .cancelled
+    XCTAssertNil(sut.downloadProgress)
+    XCTAssertFalse(sut.isDownloading)
+
+    // 11. Failed
+    mockDownloadService.downloadPhase = .failed(errorMessage: "Failed")
+    XCTAssertNil(sut.downloadProgress)
+    XCTAssertFalse(sut.isDownloading)
   }
 }

@@ -82,6 +82,11 @@ final class OfflineSelectionViewModel {
     downloadService.isDownloading
   }
 
+  /// Normalized progress value between 0.0 and 1.0 if known during generation or downloading, or nil if indeterminate.
+  var downloadProgress: Double? {
+    downloadService.downloadProgress
+  }
+
   var currentViewportBounds: GeographicBoundingBox? {
     chartViewModel.currentVisibleBounds
   }

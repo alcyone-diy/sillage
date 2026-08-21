@@ -93,4 +93,41 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertTrue(offlineVM.isDownloading, "OfflineSelectionViewModel must be in downloading state after resume")
     XCTAssertNotEqual(offlineVM.downloadPhase, .idle, "Download phase must transition away from .idle upon resumption")
   }
+
+  func testGlobalOfflineChartsDownloadStatus_initialState() {
+    XCTAssertFalse(environment.isDownloadingOfflineCharts)
+    XCTAssertNil(environment.offlineChartsDownloadProgress)
+  }
+
+  func testGlobalOfflineChartsDownloadStatus_whenOfflineMapManagerHasPendingDownloadsAndGeoGarageInactive() async {
+    let pendingRegion = OfflineRegionInfo(
+      id: "legacy_pack_1",
+      name: "Legacy Chart",
+      sizeInBytes: 1024,
+      isComplete: false,
+      progress: 0.4,
+      expectedResources: 100,
+      completedResources: 40,
+      estimatedTimeRemaining: nil
+    )
+    environment.offlineMapManager.downloadedRegions = [pendingRegion]
+
+    // 1. Before bootstrap (geoGarageDownloadService is nil, offlineMapManager > 0)
+    XCTAssertTrue(environment.isDownloadingOfflineCharts)
+    XCTAssertEqual(environment.offlineChartsDownloadProgress, 0.4)
+
+    // 2. After bootstrap (geoGarageDownloadService is present but isDownloading == false)
+    await environment.bootstrap()
+    XCTAssertEqual(environment.geoGarageDownloadService?.isDownloading, false)
+    XCTAssertTrue(environment.isDownloadingOfflineCharts, "isDownloadingOfflineCharts must return true when GeoGarage is inactive but offlineMapManager has pending downloads")
+    XCTAssertEqual(environment.offlineChartsDownloadProgress, 0.4)
+  }
+
+  func testGlobalOfflineChartsDownloadStatus_whenNeitherIsDownloading() async {
+    environment.offlineMapManager.downloadedRegions = []
+    await environment.bootstrap()
+
+    XCTAssertFalse(environment.isDownloadingOfflineCharts)
+    XCTAssertNil(environment.offlineChartsDownloadProgress)
+  }
 }
