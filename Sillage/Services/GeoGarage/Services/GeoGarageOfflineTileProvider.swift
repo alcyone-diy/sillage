@@ -39,9 +39,11 @@ final class GeoGarageOfflineTileProvider: GeoGarageOfflineTileProviderProtocol, 
   func tile(layerID: String, z: Int, x: Int, y: Int) async -> Data? {
     guard !layerID.isEmpty, z >= 0, x >= 0, y >= 0 else { return nil }
 
+    let normalizedKey = layerID.lowercased()
+
     // Fast atomic snapshot of active readers for this layer
     let entries = readersLock.withLock { registry in
-      registry[layerID] ?? []
+      registry[normalizedKey] ?? []
     }
 
     guard !entries.isEmpty else { return nil }
@@ -72,10 +74,10 @@ final class GeoGarageOfflineTileProvider: GeoGarageOfflineTileProviderProtocol, 
 
     let encryptionKey = GeoGarageKeyDeriver.derivePassphrase(sharedSecret: sharedSecret, customerID: customerID)
 
-    // Group downloads by layerID
+    // Group downloads by normalized layerID
     var targetDownloadsByLayer: [String: [OfflineChartDownload]] = [:]
     for download in downloads {
-      targetDownloadsByLayer[download.layerID, default: []].append(download)
+      targetDownloadsByLayer[download.layerID.lowercased(), default: []].append(download)
     }
 
     // Capture existing readers to reuse already opened readers

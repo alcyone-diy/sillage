@@ -227,4 +227,39 @@ final class TileProxyProtocolTests: XCTestCase {
     // If task was cancelled early, it should complete gracefully returning nil or throwing URLError.cancelled
     XCTAssertNil(result)
   }
+
+  // MARK: - Offline Resilience (Airplane Mode / Sea Navigation)
+
+  func testTileProxyProtocol_servesOfflineTileEvenWithoutNetworkToken() async throws {
+    guard let mockOfflineProvider, let customSession else {
+      XCTFail("Missing test fixtures")
+      return
+    }
+
+    // Simulate airplane mode or expired token
+    KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token")
+
+    guard let sampleOfflineData = "OFFLINE_LA_ROCHELLE_BYTES".data(using: .utf8) else {
+      XCTFail("Failed to encode test tile data")
+      return
+    }
+
+    mockOfflineProvider.setTileData(sampleOfflineData, layerID: "shom", z: 12, x: 2048, y: 1360)
+
+    guard let tileURL = URL(string: "https://tiles.geogarage.com/cus_999/shom/12/2048/1360.png") else {
+      XCTFail("Failed to create tile URL")
+      return
+    }
+
+    let (data, response) = try await customSession.data(from: tileURL)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      XCTFail("Response must be HTTPURLResponse")
+      return
+    }
+
+    XCTAssertEqual(httpResponse.statusCode, 200)
+    XCTAssertEqual(data, sampleOfflineData, "Must serve local offline tile without network token")
+    XCTAssertEqual(httpResponse.allHeaderFields["Cache-Control"] as? String, "no-store")
+  }
 }
