@@ -88,14 +88,6 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
       lockState = Task { [weak self] in
         guard let self = self else { return }
 
-        // 1. Intercept & Verify: Local Authorization Firewall
-        let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
-        guard let validToken = token, !validToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-          // Rule 2: Fail-Closed
-          self.client?.urlProtocol(self, didFailWithError: URLError(.userAuthenticationRequired))
-          return
-        }
-
         do {
           guard let (data, source) = try await fetchTileData(for: url) else {
             try Task.checkCancellation()
@@ -156,7 +148,7 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
     // 1. Safe parsing of XYZ tile coordinates
     if let components = Self.parseTileURL(url) {
-      // 2. Query offline MBTiles packages first
+      // 2. Query offline MBTiles packages first (offline priority)
       if let offlineProvider = Self.offlineTileProvider {
         if let offlineData = await offlineProvider.tile(
           layerID: components.layerID,
@@ -169,13 +161,20 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
       }
     }
 
-    // 3. Fallback to remote network fetch via TileProxyManager
+    // 3. Intercept & Verify: Local Authorization Firewall for remote network calls
+    let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
+    guard let validToken = token, !validToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      // Rule 2: Fail-Closed for remote network streaming if unauthenticated
+      return nil
+    }
+
+    // 4. Fallback to remote network fetch via TileProxyManager
     let networkManager = Self.tileProxyManager ?? TileProxyManager.shared
     if let data = try await networkManager.fetchTile(url: url) {
       return (data, .network)
     }
 
-    // 4. Overzoom / 404 fallback logic (parent tile upscaling or transparent tile)
+    // 5. Overzoom / 404 fallback logic (parent tile upscaling or transparent tile)
     if depth >= 2 {
       if let data = generateTransparentTile() {
         return (data, .transparent)

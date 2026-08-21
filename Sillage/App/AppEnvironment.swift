@@ -143,21 +143,22 @@ final class AppEnvironment {
       )
 
       let sharedSecret = AppConfiguration.shared.geoGarageSharedSecret
-      let customerID = AppConfiguration.shared.geoGarageClientID
+      let initialCustomerID = preferencesService.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
       await geoGarageOfflineTileProvider.reloadDownloads(
         geoGarageDownloadRepository.downloads,
         sharedSecret: sharedSecret,
-        customerID: customerID
+        customerID: initialCustomerID
       )
 
       func observeGeoGarageDownloads() {
         withObservationTracking {
           _ = geoGarageDownloadRepository.downloads
+          _ = preferencesService.geoGarageCustomerID
         } onChange: {
-          Task { @MainActor [weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider] in
+          Task { @MainActor [weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider, weak preferencesService] in
             guard let repo = geoGarageDownloadRepository, let provider = geoGarageOfflineTileProvider else { return }
             let secret = AppConfiguration.shared.geoGarageSharedSecret
-            let client = AppConfiguration.shared.geoGarageClientID
+            let client = preferencesService?.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
             await provider.reloadDownloads(repo.downloads, sharedSecret: secret, customerID: client)
             observeGeoGarageDownloads()
           }
