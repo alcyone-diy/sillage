@@ -33,6 +33,7 @@ final class AppEnvironment {
     let geoGarageDownloadRepository: GeoGarageDownloadRepository
     let geoGaragePackageService: GeoGaragePackageService
     let geoGarageChartDownloader: GeoGarageChartDownloader
+    let geoGarageOfflineTileProvider: GeoGarageOfflineTileProvider
     let anchorService: AnchorService
     
     let appViewModel: AppViewModel
@@ -135,6 +136,35 @@ final class AppEnvironment {
       let geoGarageDownloadRepository = GeoGarageDownloadRepository(persistence: geoGaragePersistenceActor)
       await geoGarageDownloadRepository.load()
 
+      let geoGarageOfflineTileProvider = GeoGarageOfflineTileProvider()
+      TileProxyProtocol.configure(
+        offlineTileProvider: geoGarageOfflineTileProvider,
+        tileProxyManager: TileProxyManager.shared
+      )
+
+      let sharedSecret = AppConfiguration.shared.geoGarageSharedSecret
+      let customerID = AppConfiguration.shared.geoGarageClientID
+      await geoGarageOfflineTileProvider.reloadDownloads(
+        geoGarageDownloadRepository.downloads,
+        sharedSecret: sharedSecret,
+        customerID: customerID
+      )
+
+      func observeGeoGarageDownloads() {
+        withObservationTracking {
+          _ = geoGarageDownloadRepository.downloads
+        } onChange: {
+          Task { @MainActor [weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider] in
+            guard let repo = geoGarageDownloadRepository, let provider = geoGarageOfflineTileProvider else { return }
+            let secret = AppConfiguration.shared.geoGarageSharedSecret
+            let client = AppConfiguration.shared.geoGarageClientID
+            await provider.reloadDownloads(repo.downloads, sharedSecret: secret, customerID: client)
+            observeGeoGarageDownloads()
+          }
+        }
+      }
+      observeGeoGarageDownloads()
+
       let geoGaragePackageService = GeoGaragePackageService()
       let geoGarageChartDownloader = GeoGarageChartDownloader(
         packageService: geoGaragePackageService,
@@ -217,6 +247,7 @@ final class AppEnvironment {
         geoGarageDownloadRepository: geoGarageDownloadRepository,
         geoGaragePackageService: geoGaragePackageService,
         geoGarageChartDownloader: geoGarageChartDownloader,
+        geoGarageOfflineTileProvider: geoGarageOfflineTileProvider,
         anchorService: anchorService,
         appViewModel: appViewModel,
         chartViewModel: chartViewModel,
@@ -255,6 +286,11 @@ final class AppEnvironment {
   var geoGarageDownloadRepository: GeoGarageDownloadRepository? {
     guard case .ready(let container) = state else { return nil }
     return container.geoGarageDownloadRepository
+  }
+
+  var geoGarageOfflineTileProvider: GeoGarageOfflineTileProvider? {
+    guard case .ready(let container) = state else { return nil }
+    return container.geoGarageOfflineTileProvider
   }
 
   var preferencesService: PreferencesService? {
