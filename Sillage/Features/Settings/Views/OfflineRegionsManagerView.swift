@@ -25,6 +25,11 @@ struct OfflineRegionsManagerView: View {
     offlineSelectionViewModel.downloadedCharts
   }
 
+  /// Downloaded charts grouped by GeoGarage layer type and sorted alphabetically by section title.
+  private var groupedDownloadedCharts: [OfflineChartTypeGroup] {
+    offlineSelectionViewModel.groupedDownloadedCharts
+  }
+
   private var isOfflineAreaDisabled: Bool {
     offlineSelectionViewModel.isSelectionModeActive || !chartViewModel.isOfflineAreaEnabled
   }
@@ -78,30 +83,32 @@ struct OfflineRegionsManagerView: View {
             OfflineRegionsHeaderView()
           }
 
-          // Downloaded charts list section (always kept in the view hierarchy for smooth row removal animations)
-          Section {
-            if downloadedCharts.isEmpty {
+          // Downloaded charts sections grouped by GeoGarage chart type
+          if downloadedCharts.isEmpty {
+            Section(header: Text("Downloaded Charts")) {
               Text("No offline charts")
                 .marineFont(.body)
                 .foregroundStyle(.secondary)
                 .marineListCell()
-            } else {
-              ForEach(downloadedCharts, id: \.id) { download in
-                OfflineDownloadRowView(download: download)
-                  .swipeActions(edge: .trailing) {
-                    Button(role: .destructive) {
-                      downloadToDelete = download
-                    } label: {
-                      Label("Delete", systemImage: "trash")
+            }
+          } else {
+            ForEach(groupedDownloadedCharts) { group in
+              Section(header: Text(group.title)) {
+                ForEach(group.downloads, id: \.id) { download in
+                  OfflineDownloadRowView(download: download)
+                    .swipeActions(edge: .trailing) {
+                      Button(role: .destructive) {
+                        downloadToDelete = download
+                      } label: {
+                        Label("Delete", systemImage: "trash")
+                      }
                     }
-                  }
+                }
               }
             }
-          } header: {
-            Text("Downloaded Charts")
           }
-          .animation(.default, value: downloadedCharts)
         }
+        .animation(.default, value: downloadedCharts)
         .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
         .marineListBackground()
       }
@@ -246,24 +253,17 @@ private struct OfflineDownloadRowView: View {
   var body: some View {
     HStack(spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
-        Text(download.layerName)
+        Text(download.downloadDate.formatted(date: .abbreviated, time: .shortened))
           .marineFont(.body)
           .foregroundColor(.primary)
         HStack(spacing: 8) {
-          Text(download.layerID.uppercased())
-            .marineFont(.caption)
-            .fontWeight(.bold)
-            .foregroundColor(.blue)
-          Text("•")
-            .marineFont(.caption)
-            .foregroundColor(.secondary)
           Text(download.fileSizeBytes.formatted(.byteCount(style: .file)))
             .marineFont(.caption)
             .foregroundColor(.secondary)
           Text("•")
             .marineFont(.caption)
             .foregroundColor(.secondary)
-          Text(download.downloadDate.formatted(date: .abbreviated, time: .omitted))
+          Text("Max Zoom \(download.zoomMax)")
             .marineFont(.caption)
             .foregroundColor(.secondary)
         }
