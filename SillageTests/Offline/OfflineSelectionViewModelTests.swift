@@ -629,6 +629,110 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(sut.totalDownloadedSize, 3500)
   }
 
+  func testGroupedDownloadedCharts_areSortedAlphabeticallyByTitle() {
+    let downloadRepo = MockDownloadRepository()
+    let now = Date()
+
+    let ukho = OfflineChartDownload(
+      id: UUID(),
+      layerID: "ukho",
+      layerName: "UKHO",
+      downloadDate: now.addingTimeInterval(-100),
+      relativePath: "Charts/ukho.mbtiles",
+      md5: "hash_ukho",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)",
+      customFileSizeBytes: 1000
+    )
+    let shomRecent = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM",
+      downloadDate: now,
+      relativePath: "Charts/shom2.mbtiles",
+      md5: "hash_shom2",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)",
+      customFileSizeBytes: 2000
+    )
+    let shomOld = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM",
+      downloadDate: now.addingTimeInterval(-200),
+      relativePath: "Charts/shom1.mbtiles",
+      md5: "hash_shom1",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)",
+      customFileSizeBytes: 1500
+    )
+    let bsh = OfflineChartDownload(
+      id: UUID(),
+      layerID: "bsh",
+      layerName: "BSH Germany",
+      downloadDate: now.addingTimeInterval(-50),
+      relativePath: "Charts/bsh.mbtiles",
+      md5: "hash_bsh",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)",
+      customFileSizeBytes: 3000
+    )
+
+    downloadRepo.downloads = [ukho, shomRecent, shomOld, bsh]
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(downloadRepository: downloadRepo)
+    let groups = sut.groupedDownloadedCharts
+
+    // Should have 3 groups: BSH Germany, SHOM, UKHO (alphabetical order)
+    XCTAssertEqual(groups.count, 3)
+    XCTAssertEqual(groups.map(\.title), ["BSH Germany", "SHOM", "UKHO"])
+
+    // SHOM group should have 2 downloads sorted chronologically descending
+    let shomGroup = groups.first(where: { $0.layerID == "shom" })
+    XCTAssertNotNil(shomGroup)
+    XCTAssertEqual(shomGroup?.downloads.count, 2)
+    XCTAssertEqual(shomGroup?.downloads.first?.id, shomRecent.id)
+    XCTAssertEqual(shomGroup?.downloads.last?.id, shomOld.id)
+  }
+
+  func testGroupedDownloadedCharts_usesAvailableLayerBrandNameForSorting() {
+    let now = Date()
+    let downloads = [
+      OfflineChartDownload(
+        id: UUID(),
+        layerID: "ukho",
+        layerName: "UKHO",
+        downloadDate: now,
+        relativePath: "Charts/ukho.mbtiles",
+        md5: "hash1",
+        zoomMax: 14,
+        boundsWKT: "POLYGON(...)"
+      ),
+      OfflineChartDownload(
+        id: UUID(),
+        layerID: "shom",
+        layerName: "SHOM",
+        downloadDate: now,
+        relativePath: "Charts/shom.mbtiles",
+        md5: "hash2",
+        zoomMax: 14,
+        boundsWKT: "POLYGON(...)"
+      )
+    ]
+
+    let availableLayers = [
+      GeoGarageLayer(layer: "ukho", brandName: "Admiralty (UKHO)", versionDate: "2026", validUntil: "2027"),
+      GeoGarageLayer(layer: "shom", brandName: "SHOM France", versionDate: "2026", validUntil: "2027")
+    ]
+
+    let groups = OfflineChartTypeGroup.group(downloads, availableLayers: availableLayers)
+
+    XCTAssertEqual(groups.count, 2)
+    // "Admiralty (UKHO)" comes before "SHOM France" alphabetically
+    XCTAssertEqual(groups[0].title, "Admiralty (UKHO)")
+    XCTAssertEqual(groups[1].title, "SHOM France")
+  }
+
   func testDeleteDownload_withDownloader_callsDownloader() async throws {
     let downloader = MockChartDownloader()
     let downloadRepo = MockDownloadRepository()

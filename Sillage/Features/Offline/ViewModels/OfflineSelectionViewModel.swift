@@ -96,6 +96,11 @@ final class OfflineSelectionViewModel {
     chartViewModel.availableGeoGarageLayers
   }
 
+  /// Downloaded offline charts grouped by GeoGarage chart type, sorted in alphabetical order.
+  var groupedDownloadedCharts: [OfflineChartTypeGroup] {
+    OfflineChartTypeGroup.group(downloadedCharts, availableLayers: availableLayers)
+  }
+
   // MARK: - Initializers
 
   init(
@@ -301,6 +306,38 @@ final class OfflineSelectionViewModel {
     } else {
       try await downloadService.deleteDownload(download)
     }
+  }
+}
+
+/// Represents a grouped collection of downloaded offline charts for a specific GeoGarage chart type (layer).
+struct OfflineChartTypeGroup: Identifiable, Equatable, Sendable {
+  var id: String { layerID }
+  let layerID: String
+  let title: String
+  let downloads: [OfflineChartDownload]
+
+  /// Groups offline downloads by their GeoGarage layer ID and sorts sections in strictly alphabetical order by title.
+  /// Inside each group, downloads are sorted in descending chronological order (most recent first).
+  static func group(
+    _ downloads: [OfflineChartDownload],
+    availableLayers: [GeoGarageLayer] = []
+  ) -> [OfflineChartTypeGroup] {
+    let grouped = Dictionary(grouping: downloads) { $0.layerID.lowercased() }
+
+    return grouped.map { layerID, groupDownloads in
+      let title: String = {
+        if let matchingLayer = availableLayers.first(where: { $0.layer.lowercased() == layerID }) {
+          return matchingLayer.brandName
+        }
+        if let firstLayerName = groupDownloads.first?.layerName, !firstLayerName.isEmpty {
+          return firstLayerName
+        }
+        return layerID.uppercased()
+      }()
+      let sortedDownloads = groupDownloads.sorted { $0.downloadDate > $1.downloadDate }
+      return OfflineChartTypeGroup(layerID: layerID, title: title, downloads: sortedDownloads)
+    }
+    .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
   }
 }
 

@@ -659,6 +659,9 @@
     "Max Speed" : {
 
     },
+    "Max Zoom %lld" : {
+
+    },
     "Medium" : {
       "comment" : "Medium sensitivity"
     },
