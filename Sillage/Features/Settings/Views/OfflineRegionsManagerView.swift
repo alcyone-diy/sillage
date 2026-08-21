@@ -73,18 +73,29 @@ struct OfflineRegionsManagerView: View {
             }
           }
 
+          // Summary and download progress in its own dedicated section
           Section {
             OfflineRegionsHeaderView()
+          }
 
-            ForEach(downloadedCharts, id: \.id) { download in
-              OfflineDownloadRowView(download: download)
-                .swipeActions(edge: .trailing) {
-                  Button(role: .destructive) {
-                    downloadToDelete = download
-                  } label: {
-                    Label("Delete", systemImage: "trash")
+          // Downloaded charts list section (always kept in the view hierarchy for smooth row removal animations)
+          Section {
+            if downloadedCharts.isEmpty {
+              Text("No offline charts")
+                .marineFont(.body)
+                .foregroundStyle(.secondary)
+                .marineListCell()
+            } else {
+              ForEach(downloadedCharts, id: \.id) { download in
+                OfflineDownloadRowView(download: download)
+                  .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                      downloadToDelete = download
+                    } label: {
+                      Label("Delete", systemImage: "trash")
+                    }
                   }
-                }
+              }
             }
           } header: {
             Text("Downloaded Charts")
