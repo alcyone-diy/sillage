@@ -167,6 +167,17 @@ private struct OfflineRegionsHeaderView: View {
     VStack(alignment: .leading, spacing: 8) {
       if offlineSelectionViewModel.isDownloading {
         switch offlineSelectionViewModel.downloadPhase {
+        case .waitingForNetwork(let message):
+          Text(message)
+            .marineFont(.headline)
+          HStack(spacing: 8) {
+            ProgressView()
+              .controlSize(.small)
+            Text("Will resume automatically when online")
+              .marineFont(.subheadline)
+              .foregroundStyle(.secondary)
+          }
+
         case .requesting:
           Text("Requesting chart package…")
             .marineFont(.headline)

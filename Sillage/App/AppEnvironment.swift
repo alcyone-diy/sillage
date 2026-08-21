@@ -33,6 +33,7 @@ final class AppEnvironment {
     let geoGarageDownloadRepository: GeoGarageDownloadRepository
     let geoGaragePackageService: GeoGaragePackageService
     let geoGarageChartDownloader: GeoGarageChartDownloader
+    let geoGarageDownloadService: GeoGarageDownloadService
     let geoGarageOfflineTileProvider: GeoGarageOfflineTileProvider
     let anchorService: AnchorService
     
@@ -214,18 +215,25 @@ final class AppEnvironment {
         preferencesService: preferencesService
       )
       
-      let offlineSelectionViewModel = OfflineSelectionViewModel(
-        downloader: geoGarageChartDownloader,
+      let networkMonitorService = NetworkMonitorService()
+      let geoGarageDownloadService = GeoGarageDownloadService(
         packageService: geoGaragePackageService,
+        downloader: geoGarageChartDownloader,
+        downloadRepository: geoGarageDownloadRepository,
+        preferencesService: preferencesService,
+        networkMonitor: networkMonitorService
+      )
+      
+      let offlineSelectionViewModel = OfflineSelectionViewModel(
+        downloadService: geoGarageDownloadService,
         downloadRepository: geoGarageDownloadRepository,
         preferencesService: preferencesService,
         chartViewModel: chartViewModel,
         offlineMapManager: self.offlineMapManager
       )
-      let networkMonitorService = NetworkMonitorService()
       let secondaryTelemetryViewModel = SecondaryTelemetryViewModel()
       await trackRecordingService.attemptRecoveryIfNeeded()
-      await offlineSelectionViewModel.resumePendingDownloadIfNeeded()
+      await geoGarageDownloadService.resumePendingDownloadIfNeeded()
       
       if let displayedTrackID = preferencesService.displayedTrackSessionID {
         Task { @MainActor in
@@ -248,6 +256,7 @@ final class AppEnvironment {
         geoGarageDownloadRepository: geoGarageDownloadRepository,
         geoGaragePackageService: geoGaragePackageService,
         geoGarageChartDownloader: geoGarageChartDownloader,
+        geoGarageDownloadService: geoGarageDownloadService,
         geoGarageOfflineTileProvider: geoGarageOfflineTileProvider,
         anchorService: anchorService,
         appViewModel: appViewModel,
@@ -273,6 +282,11 @@ final class AppEnvironment {
   }
 
   // MARK: - GeoGarage Offline Services
+
+  var geoGarageDownloadService: GeoGarageDownloadService? {
+    guard case .ready(let container) = state else { return nil }
+    return container.geoGarageDownloadService
+  }
 
   var geoGarageChartDownloader: GeoGarageChartDownloader? {
     guard case .ready(let container) = state else { return nil }

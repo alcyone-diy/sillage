@@ -32,7 +32,10 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       zoomMax: Int,
       apiKey: String
     ) async throws(CaasError) -> OfflineChartDownload {
-      if shouldThrowError != nil {
+      if let error = shouldThrowError {
+        if let caas = error as? CaasError {
+          throw caas
+        }
         throw CaasError.requestFailed(statusCode: 500)
       }
 
@@ -60,14 +63,17 @@ final class OfflineSelectionViewModelTests: XCTestCase {
   private final class MockPackageService: GeoGaragePackageServiceProtocol, @unchecked Sendable {
     var packageIDToReturn = UUID()
     var statusSequence: [PackageStatusResponse] = []
-    var shouldThrowOnRequest: Bool = false
+    var shouldThrowOnRequest: Error?
 
     func requestPackage(
       _ request: PackageRequest,
       apiKey: String,
       userID: String
     ) async throws(CaasError) -> UUID {
-      if shouldThrowOnRequest {
+      if let error = shouldThrowOnRequest {
+        if let caas = error as? CaasError {
+          throw caas
+        }
         throw CaasError.requestFailed(statusCode: 500)
       }
       return packageIDToReturn
@@ -162,6 +168,36 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     func lastDownloadDate(for layerID: String) -> Date? { nil }
   }
 
+  @MainActor
+  private final class MockNetworkMonitorService: NetworkMonitorServiceProtocol, @unchecked Sendable {
+    var isConnected: Bool = true
+    private var continuations: [UUID: AsyncStream<Bool>.Continuation] = [:]
+
+    func setConnected(_ connected: Bool) {
+      self.isConnected = connected
+      for cont in continuations.values {
+        cont.yield(connected)
+      }
+    }
+
+    func connectionStream() -> AsyncStream<Bool> {
+      let id = UUID()
+      return AsyncStream { [weak self] continuation in
+        guard let self = self else {
+          continuation.finish()
+          return
+        }
+        continuation.yield(self.isConnected)
+        self.continuations[id] = continuation
+        continuation.onTermination = { [weak self] _ in
+          Task { @MainActor [weak self] in
+            self?.continuations.removeValue(forKey: id)
+          }
+        }
+      }
+    }
+  }
+
   // MARK: - Helpers
 
   @MainActor
@@ -169,19 +205,23 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     downloader: MockChartDownloader? = nil,
     packageService: MockPackageService? = nil,
     downloadRepository: MockDownloadRepository? = nil,
+    networkMonitor: MockNetworkMonitorService? = nil,
     setupVisibleBounds: Bool = true,
     authenticated: Bool = true
   ) -> (
     sut: OfflineSelectionViewModel,
+    downloadService: GeoGarageDownloadService,
     downloader: MockChartDownloader,
     packageService: MockPackageService,
     chartVM: ChartViewModel,
     downloadRepo: MockDownloadRepository,
+    networkMonitor: MockNetworkMonitorService,
     prefs: PreferencesService
   ) {
     let downloader = downloader ?? MockChartDownloader()
     let packageService = packageService ?? MockPackageService()
     let downloadRepository = downloadRepository ?? MockDownloadRepository()
+    let networkMonitor = networkMonitor ?? MockNetworkMonitorService()
     let preferences = PreferencesService()
     if authenticated {
       preferences.geoGarageCustomerID = "cust123"
@@ -220,22 +260,29 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       )
     }
 
-    let sut = OfflineSelectionViewModel(
-      downloader: downloader,
+    let downloadService = GeoGarageDownloadService(
       packageService: packageService,
+      downloader: downloader,
+      downloadRepository: downloadRepository,
+      preferencesService: preferences,
+      networkMonitor: networkMonitor
+    )
+
+    let sut = OfflineSelectionViewModel(
+      downloadService: downloadService,
       downloadRepository: downloadRepository,
       preferencesService: preferences,
       chartViewModel: chartVM,
       offlineMapManager: MockOfflineMapManager()
     )
 
-    return (sut, downloader, packageService, chartVM, downloadRepository, preferences)
+    return (sut, downloadService, downloader, packageService, chartVM, downloadRepository, networkMonitor, preferences)
   }
 
   // MARK: - Selection State Tests
 
   func testStartDownloadResetsSelectionStateSynchronously() {
-    let (viewModel, _, _, _, _, _) = makeSUT()
+    let (viewModel, _, _, _, _, _, _, _) = makeSUT()
 
     viewModel.isSelectionModeActive = true
     let bounds = GeographicBoundingBox(southWest: .init(latitude: 44, longitude: 0), northEast: .init(latitude: 45, longitude: 1))
@@ -250,34 +297,110 @@ final class OfflineSelectionViewModelTests: XCTestCase {
   }
 
   func testInitialState_isIdle() {
-    let (sut, _, _, _, _, _) = makeSUT()
+    let (sut, _, _, _, _, _, _, _) = makeSUT()
     XCTAssertEqual(sut.downloadPhase, .idle)
     XCTAssertFalse(sut.isDownloading)
   }
 
   func testStartDownload_withoutVisibleBounds_setsFailedState() {
-    let (sut, _, _, chartVM, _, _) = makeSUT(setupVisibleBounds: false)
+    let (sut, _, _, _, chartVM, _, _, _) = makeSUT(setupVisibleBounds: false)
     chartVM.currentVisibleBounds = nil
 
     sut.startDownload(apiKey: "token123", customerID: "cust123")
 
     if case .failed(let error) = sut.downloadPhase {
       XCTAssertFalse(error.isEmpty)
+      XCTAssertTrue(error.contains("viewport") || error.contains("zoom") || error.contains("Pan"))
     } else {
       XCTFail("Expected .failed state when visible bounds are missing, got \(sut.downloadPhase)")
     }
+    XCTAssertFalse(sut.isDownloading)
   }
 
   func testStartDownload_unauthenticated_setsFailedState() {
-    let (sut, _, _, _, _, _) = makeSUT(authenticated: false)
+    let (sut, _, _, _, _, _, _, _) = makeSUT(authenticated: false)
 
     sut.startDownload(chartSource: nil)
 
     if case .failed(let error) = sut.downloadPhase {
-      XCTAssertTrue(error.contains("authenticated"))
+      XCTAssertTrue(error.contains("authenticated") || error.contains("login"))
     } else {
-      XCTFail("Expected .failed state when customer ID is missing")
+      XCTFail("Expected .failed state when customer ID is missing, got \(sut.downloadPhase)")
     }
+    XCTAssertFalse(sut.isDownloading)
+  }
+
+  func testStartDownload_offline_persistsPendingStateAndEntersWaitingForNetwork() async throws {
+    let networkMonitor = MockNetworkMonitorService()
+    networkMonitor.isConnected = false
+
+    let (sut, _, _, _, _, _, _, prefs) = makeSUT(networkMonitor: networkMonitor)
+
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+
+    for _ in 0..<100 {
+      if case .waitingForNetwork = sut.downloadPhase { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    if case .waitingForNetwork = sut.downloadPhase {
+      XCTAssertTrue(sut.isDownloading)
+    } else {
+      XCTFail("Expected .waitingForNetwork state, got \(sut.downloadPhase)")
+    }
+
+    XCTAssertNotNil(prefs.pendingCAASDownload, "Pending download must be persisted synchronously before network check")
+    XCTAssertNil(prefs.pendingCAASDownload?.packageID, "PackageID must be nil when queued offline")
+  }
+
+  func testStartDownload_offline_autoResumesWhenNetworkReconnects() async throws {
+    let networkMonitor = MockNetworkMonitorService()
+    networkMonitor.isConnected = false
+
+    let downloader = MockChartDownloader()
+    let packageService = MockPackageService()
+    let downloadID = UUID()
+    packageService.packageIDToReturn = downloadID
+
+    let mockRecord = OfflineChartDownload(
+      id: downloadID,
+      layerID: "shom",
+      layerName: "SHOM",
+      downloadDate: Date(),
+      relativePath: "Charts/\(downloadID.uuidString.lowercased()).mbtiles",
+      md5: "d41d8cd98f00b204e9800998ecf8427e",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-3.0 47.0, -2.0 47.0, -2.0 48.0, -3.0 48.0, -3.0 47.0))"
+    )
+    downloader.downloadedRecord = mockRecord
+
+    let (sut, _, _, _, _, _, _, prefs) = makeSUT(
+      downloader: downloader,
+      packageService: packageService,
+      networkMonitor: networkMonitor
+    )
+
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+
+    for _ in 0..<100 {
+      if case .waitingForNetwork = sut.downloadPhase { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    XCTAssertEqual(sut.downloadPhase, .waitingForNetwork(message: String(localized: "Waiting for network connection…")))
+    XCTAssertNotNil(prefs.pendingCAASDownload)
+
+    // Reconnect network
+    networkMonitor.setConnected(true)
+
+    // Wait for the pipeline to finish
+    for _ in 0..<150 {
+      if case .completed = sut.downloadPhase { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    XCTAssertEqual(sut.downloadPhase, .completed(mockRecord))
+    XCTAssertNil(prefs.pendingCAASDownload, "Pending download must be cleared after completion")
   }
 
   func testStartDownload_transitionsThroughPhasesToCompleted_andPersistsPendingState() async throws {
@@ -298,11 +421,9 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     )
     downloader.downloadedRecord = mockRecord
 
-    let (sut, _, _, _, _, prefs) = makeSUT(downloader: downloader, packageService: packageService)
+    let (sut, _, _, _, _, _, _, prefs) = makeSUT(downloader: downloader, packageService: packageService)
 
     sut.startDownload(apiKey: "token123", customerID: "cust123")
-    XCTAssertEqual(sut.downloadPhase, .requesting)
-    XCTAssertTrue(sut.isDownloading)
 
     // Wait for the pipeline tasks to complete
     for _ in 0..<100 {
@@ -315,11 +436,11 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertNil(prefs.pendingCAASDownload, "Pending download must be cleared after completion")
   }
 
-  func testStartDownload_whenErrorOccurs_setsFailedState_andClearsPendingState() async throws {
+  func testStartDownload_whenFatalErrorOccurs_setsFailedState_andClearsPendingState() async throws {
     let packageService = MockPackageService()
-    packageService.shouldThrowOnRequest = true
+    packageService.shouldThrowOnRequest = CaasError.requestFailed(statusCode: 500)
 
-    let (sut, _, _, _, _, prefs) = makeSUT(packageService: packageService)
+    let (sut, _, _, _, _, _, _, prefs) = makeSUT(packageService: packageService)
 
     sut.startDownload(apiKey: "token123", customerID: "cust123")
 
@@ -333,11 +454,32 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     } else {
       XCTFail("Expected .failed state, got \(sut.downloadPhase)")
     }
-    XCTAssertNil(prefs.pendingCAASDownload, "Pending download must be cleared on error")
+    XCTAssertNil(prefs.pendingCAASDownload, "Pending download must be cleared on fatal server error")
+  }
+
+  func testStartDownload_whenConnectivityErrorOccurs_entersWaitingState_andRetainsPendingState() async throws {
+    let packageService = MockPackageService()
+    packageService.shouldThrowOnRequest = CaasError.networkError(underlying: "The Internet connection appears to be offline.")
+
+    let (sut, _, _, _, _, _, _, prefs) = makeSUT(packageService: packageService)
+
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+
+    for _ in 0..<100 {
+      if case .waitingForNetwork = sut.downloadPhase { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    if case .waitingForNetwork = sut.downloadPhase {
+      XCTAssertTrue(sut.isDownloading)
+    } else {
+      XCTFail("Expected .waitingForNetwork state, got \(sut.downloadPhase)")
+    }
+    XCTAssertNotNil(prefs.pendingCAASDownload, "Pending download must be retained on connectivity error")
   }
 
   func testCancelDownload_cancelsTask_setsCancelledState_andClearsPendingState() {
-    let (sut, _, _, _, _, prefs) = makeSUT()
+    let (sut, _, _, _, _, _, _, prefs) = makeSUT()
 
     sut.startDownload(apiKey: "token123", customerID: "cust123")
     XCTAssertTrue(sut.isDownloading)
@@ -349,16 +491,50 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertNil(prefs.pendingCAASDownload, "Pending download must be cleared on cancel")
   }
 
-  func testResumePendingDownloadIfNeeded_resumesUnfinishedDownload() async throws {
+  func testResumePendingDownloadIfNeeded_resumesUnfinishedDownloadWithPackageID() async throws {
     let downloader = MockChartDownloader()
     let packageService = MockPackageService()
     let downloadID = UUID()
     packageService.packageIDToReturn = downloadID
 
-    let (sut, _, _, _, _, prefs) = makeSUT(downloader: downloader, packageService: packageService)
+    let (sut, _, _, _, _, _, _, prefs) = makeSUT(downloader: downloader, packageService: packageService)
 
     let pending = PendingCAASDownload(
       packageID: downloadID,
+      layerID: "shom",
+      layerName: "SHOM France",
+      boundsWKT: "POLYGON((-3 47, -2 47, -2 48, -3 48, -3 47))",
+      zoomMax: 14,
+      createdAt: Date()
+    )
+    prefs.pendingCAASDownload = pending
+
+    await sut.resumePendingDownloadIfNeeded()
+
+    // Wait for the pipeline tasks to complete
+    for _ in 0..<100 {
+      if case .completed = sut.downloadPhase { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    if case .completed(let record) = sut.downloadPhase {
+      XCTAssertEqual(record.id, downloadID)
+    } else {
+      XCTFail("Expected completed state, got \(sut.downloadPhase)")
+    }
+    XCTAssertNil(prefs.pendingCAASDownload)
+  }
+
+  func testResumePendingDownloadIfNeeded_resumesUnfinishedDownloadWithoutPackageID() async throws {
+    let downloader = MockChartDownloader()
+    let packageService = MockPackageService()
+    let downloadID = UUID()
+    packageService.packageIDToReturn = downloadID
+
+    let (sut, _, _, _, _, _, _, prefs) = makeSUT(downloader: downloader, packageService: packageService)
+
+    let pending = PendingCAASDownload(
+      packageID: nil,
       layerID: "shom",
       layerName: "SHOM France",
       boundsWKT: "POLYGON((-3 47, -2 47, -2 48, -3 48, -3 47))",
@@ -398,7 +574,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     )
     downloadRepo.downloads = [existingRecord]
 
-    let (sut, _, _, _, _, prefs) = makeSUT(downloadRepository: downloadRepo)
+    let (sut, _, _, _, _, _, _, prefs) = makeSUT(downloadRepository: downloadRepo)
 
     let pending = PendingCAASDownload(
       packageID: downloadID,
@@ -432,7 +608,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     )
     downloadRepo.downloads = [download]
 
-    let (sut, _, _, _, _, _) = makeSUT(downloader: downloader, downloadRepository: downloadRepo)
+    let (sut, _, _, _, _, _, _, _) = makeSUT(downloader: downloader, downloadRepository: downloadRepo)
 
     try await sut.deleteDownload(download)
 
@@ -440,4 +616,3 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(downloader.deletedIDs.first, download.id)
   }
 }
-

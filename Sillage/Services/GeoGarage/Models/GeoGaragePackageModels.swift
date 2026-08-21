@@ -153,6 +153,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
 /// Represents the high-level observable state of a GeoGarage CAAS offline download workflow.
 nonisolated enum GeoGarageDownloadPhaseState: Equatable, Sendable {
   case idle
+  case waitingForNetwork(message: String)
   case requesting
   case generating(progress: Double?, message: String)
   case downloading(receivedBytes: Int64, totalBytes: Int64)

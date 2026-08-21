@@ -36,7 +36,7 @@ enum GPSAccuracyMode: String, CaseIterable, Sendable {
 
 /// Persistent record of an in-flight CAAS download to survive iOS app termination or crashes.
 nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable {
-  let packageID: UUID
+  let packageID: UUID?
   let layerID: String
   let layerName: String
   let boundsWKT: String
