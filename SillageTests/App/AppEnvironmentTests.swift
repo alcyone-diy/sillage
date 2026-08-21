@@ -55,6 +55,7 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertNotNil(environment.geoGarageDownloadRepository)
     XCTAssertNotNil(environment.geoGaragePackageService)
     XCTAssertNotNil(environment.geoGarageChartDownloader)
+    XCTAssertNotNil(environment.geoGarageOfflineTileProvider)
   }
 
   func testBootstrap_triggersPendingDownloadRecoveryOnOfflineSelectionViewModel() async {
