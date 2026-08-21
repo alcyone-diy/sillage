@@ -453,23 +453,6 @@ final class OfflineSelectionViewModel {
   func deleteDownload(_ download: OfflineChartDownload) async throws(CaasError) {
     try await downloader.deleteLocalChart(id: download.id)
   }
-
-  /// Activates the selected offline chart on the main map.
-  /// - Parameters:
-  ///   - download: Offline chart record.
-  ///   - sharedSecret: Partner secret.
-  ///   - customerID: User customer ID.
-  func activateDownload(
-    _ download: OfflineChartDownload,
-    sharedSecret: String,
-    customerID: String
-  ) async throws(CaasError) {
-    try await chartViewModel.switchToDownloadedCaasChart(
-      download: download,
-      sharedSecret: sharedSecret,
-      customerID: customerID
-    )
-  }
 }
 
 typealias GeoGarageOfflineViewModel = OfflineSelectionViewModel

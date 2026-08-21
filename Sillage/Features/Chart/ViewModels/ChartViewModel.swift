@@ -148,7 +148,6 @@ final class ChartViewModel {
   let anchorViewModel: AnchorViewModel
   let calloutViewModel = MapCalloutViewModel()
   private let messageService: MessageService?
-  private var activeCaasServer: LocalTileServerProtocol?
   
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
   /// when the ViewModel is deallocated, adhering to Swift 6 strict concurrency rules
@@ -696,16 +695,6 @@ final class ChartViewModel {
   /// Changes the active chart source and reconfigures chart limits (bounds, zoom) accordingly.
   func switchChartSource(to source: ChartSource) {
     self.currentChartSource = source
-    
-    // If switching away from CAAS offline chart, stop and release the local server
-    if case .localCaasChart = source {
-      // Kept active
-    } else if let server = activeCaasServer {
-      self.activeCaasServer = nil
-      Task {
-        await server.stop()
-      }
-    }
 
     switch source {
     case .localMBTiles(let url):
@@ -721,16 +710,6 @@ final class ChartViewModel {
       resetToDefaultsIfNeeded(defaultZoom: metadata.defaultZoom ?? 10.0, defaultCenter: metadata.center)
       self.isOpenSeaMapOverlayEnabled = false
 
-    case .localCaasChart:
-      preferencesService.savedChartSource = "localCaasChart"
-      self.chartLayer = ChartLayer(name: LocalizedStringResource("GeoGarage Offline Chart"), source: source)
-      self.chartBounds = nil
-      self.minZoom = 0.0
-      self.maxZoom = 20.0
-      
-      resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: instrumentDampingService.state?.coordinate)
-      self.isOpenSeaMapOverlayEnabled = false
-      
     case .remoteGeoGarage(_, let layerID):
       preferencesService.savedChartSource = "remoteGeoGarage"
       preferencesService.savedGeoGarageLayerID = layerID
@@ -753,38 +732,6 @@ final class ChartViewModel {
       resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: instrumentDampingService.state?.coordinate)
       self.isOpenSeaMapOverlayEnabled = true
     }
-  }
-
-  /// Activates an encrypted offline CAAS chart by creating a SQLCipher reader in RAM,
-  /// starting the local HTTP loopback server, and switching the chart source to the dynamic port.
-  func switchToDownloadedCaasChart(
-    download: OfflineChartDownload,
-    sharedSecret: String,
-    customerID: String
-  ) async throws(CaasError) {
-    guard let fileURL = download.resolvedFileURL(), FileManager.default.fileExists(atPath: fileURL.path) else {
-      throw CaasError.fileSystemError(underlying: "Downloaded chart file not found at path.")
-    }
-
-    if let server = activeCaasServer {
-      self.activeCaasServer = nil
-      await server.stop()
-    }
-
-    let key = GeoGarageKeyDeriver.derivePassphrase(sharedSecret: sharedSecret, customerID: customerID)
-    let reader = try SQLCipherMBTilesReader(fileURL: fileURL, encryptionKey: key)
-    let server = LocalTileServer(reader: reader)
-
-    let port: UInt16
-    do {
-      port = try await server.start()
-    } catch {
-      await reader.close()
-      throw CaasError.networkError(underlying: "Failed to start local tile server: \(error.localizedDescription)")
-    }
-
-    self.activeCaasServer = server
-    self.switchChartSource(to: .localCaasChart(port: port))
   }
   
   /// Applies default chart position settings only if the user hasn't previously saved a camera state.
