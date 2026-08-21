@@ -16,15 +16,54 @@ import os
 import OSLog
 
 fileprivate enum TileSource: Sendable {
+  case localPackage
   case network
   case fallback
   case transparent
+}
+
+struct TileURLComponents: Sendable {
+  let clientID: String
+  let layerID: String
+  let z: Int
+  let x: Int
+  let y: Int
 }
 
 class TileProxyProtocol: URLProtocol, @unchecked Sendable {
   private let taskLock = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
 
   private static let tilePathRegex = #/^/([^/]+)/([^/]+)/(\d+)/(\d+)/(\d+)\.png$/#
+
+  // MARK: - Dependency Injection
+
+  private static let dependenciesLock = OSAllocatedUnfairLock<(
+    offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)?,
+    tileProxyManager: (any TileProxyManagerProtocol)?
+  )>(initialState: (offlineTileProvider: nil, tileProxyManager: nil))
+
+  static var offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)? {
+    dependenciesLock.withLock { $0.offlineTileProvider }
+  }
+
+  static var tileProxyManager: (any TileProxyManagerProtocol)? {
+    dependenciesLock.withLock { $0.tileProxyManager }
+  }
+
+  /// Injects runtime dependencies without singletons.
+  static func configure(
+    offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)?,
+    tileProxyManager: (any TileProxyManagerProtocol)? = nil
+  ) {
+    dependenciesLock.withLock { state in
+      state.offlineTileProvider = offlineTileProvider
+      if let tileProxyManager {
+        state.tileProxyManager = tileProxyManager
+      }
+    }
+  }
+
+  // MARK: - URLProtocol Lifecycle
 
   override class func canInit(with request: URLRequest) -> Bool {
     guard let url = request.url else { return false }
@@ -68,9 +107,10 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
           guard !Task.isCancelled else { return }
 
           let cacheControl: String
-          if case .network = source {
+          switch source {
+          case .network:
             cacheControl = "max-age=604800, public"
-          } else {
+          case .localPackage, .fallback, .transparent:
             cacheControl = "no-store"
           }
           let headers = [
@@ -78,7 +118,7 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
             "Cache-Control": cacheControl
           ]
           guard let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: headers) else {
-            Logger.network.error("Failed to create HTTPURLResponse for offline tile: \(url.absoluteString, privacy: .public)")
+            Logger.network.error("Failed to create HTTPURLResponse for tile: \(url.absoluteString, privacy: .public)")
             self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
           }
@@ -109,16 +149,33 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     taskLock.withLock { let t = $0; $0 = nil; t?.cancel() }
   }
 
+  // MARK: - Tile Resolution (Hybrid Offline/Online Pipeline)
+
   private func fetchTileData(for url: URL, depth: Int = 0) async throws -> (Data, TileSource)? {
-    // URL is now natively https://tiles.geogarage.com/<clientID>/<layerID>/{z}/{x}/{y}.png
     guard let host = url.host, host == "tiles.geogarage.com" else { return nil }
 
-    // Use TileProxyManager to fetch with request coalescing
-    if let data = try await TileProxyManager.shared.fetchTile(url: url) {
+    // 1. Safe parsing of XYZ tile coordinates
+    if let components = Self.parseTileURL(url) {
+      // 2. Query offline MBTiles packages first
+      if let offlineProvider = Self.offlineTileProvider {
+        if let offlineData = await offlineProvider.tile(
+          layerID: components.layerID,
+          z: components.z,
+          x: components.x,
+          y: components.y
+        ), !offlineData.isEmpty {
+          return (offlineData, .localPackage)
+        }
+      }
+    }
+
+    // 3. Fallback to remote network fetch via TileProxyManager
+    let networkManager = Self.tileProxyManager ?? TileProxyManager.shared
+    if let data = try await networkManager.fetchTile(url: url) {
       return (data, .network)
     }
 
-    // 404 Case: fallback logic
+    // 4. Overzoom / 404 fallback logic (parent tile upscaling or transparent tile)
     if depth >= 2 {
       if let data = generateTransparentTile() {
         return (data, .transparent)
@@ -128,6 +185,29 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
     return try await generateFallbackTile(for: url, depth: depth)
   }
+
+  // MARK: - URL Parsing
+
+  private static func parseTileURL(_ url: URL) -> TileURLComponents? {
+    guard let match = url.path.firstMatch(of: tilePathRegex) else {
+      Logger.network.warning("Failed to match GeoGarage tile URL path format: \(url.path, privacy: .public)")
+      return nil
+    }
+
+    let clientID = String(match.output.1)
+    let layerID = String(match.output.2)
+    guard let z = Int(String(match.output.3)),
+          let x = Int(String(match.output.4)),
+          let y = Int(String(match.output.5)),
+          z >= 0, x >= 0, y >= 0 else {
+      Logger.network.warning("Invalid coordinate integers in GeoGarage tile URL: \(url.path, privacy: .public)")
+      return nil
+    }
+
+    return TileURLComponents(clientID: clientID, layerID: layerID, z: z, x: x, y: y)
+  }
+
+  // MARK: - Fallback & Overzooming
 
   private func generateFallbackTile(for url: URL, depth: Int) async throws -> (Data, TileSource)? {
     guard let match = url.path.firstMatch(of: Self.tilePathRegex) else { return nil }
@@ -139,6 +219,7 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
           let y = Int(String(match.output.5)) else { return nil }
 
     let parentZ = z - 1
+    guard parentZ >= 0 else { return nil }
     let parentX = x / 2
     let parentY = y / 2
 
@@ -155,11 +236,9 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     let quadrantX = x % 2
     let quadrantY = y % 2
 
-    // We use a structured Task instead of Task.detached to inherit the caller's
-    // cancellation context. This ensures that if stopLoading() cancels the main Task,
-    // the heavy image processing is aborted to save CPU cycles.
+    // Inherit cancellation context so that heavy image cropping is cancelled if tile goes off-screen
     let data = try? await Task {
-      try Task.checkCancellation() // Prevent CPU starvation if tile is already off-screen
+      try Task.checkCancellation()
       return Self.cropAndScaleImage(parentImage, quadrantX: quadrantX, quadrantY: quadrantY)
     }.value
 

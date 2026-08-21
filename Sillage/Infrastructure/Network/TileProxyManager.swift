@@ -12,7 +12,13 @@ import Foundation
 import CoreGraphics
 import OSLog
 
-actor TileProxyManager {
+/// Protocol for network tile downloading with authentication headers.
+protocol TileProxyManagerProtocol: Sendable {
+  func fetchTile(z: Int, x: Int, y: Int, layerID: String) async throws -> Data?
+  func fetchTile(url: URL) async throws -> Data?
+}
+
+actor TileProxyManager: TileProxyManagerProtocol {
   static let shared = TileProxyManager()
 
   private let session: URLSession = {
