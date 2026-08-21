@@ -117,6 +117,78 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
   /// TODO: Replace with a `BoundingBox` model based on `CLLocationCoordinate2D`.
   let boundsWKT: String
 
+  /// Optional size override (useful for testing or when metadata is pre-cached without querying the filesystem).
+  private let customFileSizeBytes: Int64?
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case layerID
+    case layerName
+    case downloadDate
+    case relativePath
+    case md5
+    case zoomMax
+    case boundsWKT
+  }
+
+  init(
+    id: UUID,
+    layerID: String,
+    layerName: String,
+    downloadDate: Date,
+    relativePath: String,
+    md5: String,
+    zoomMax: Int,
+    boundsWKT: String,
+    customFileSizeBytes: Int64? = nil
+  ) {
+    self.id = id
+    self.layerID = layerID
+    self.layerName = layerName
+    self.downloadDate = downloadDate
+    self.relativePath = relativePath
+    self.md5 = md5
+    self.zoomMax = zoomMax
+    self.boundsWKT = boundsWKT
+    self.customFileSizeBytes = customFileSizeBytes
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.id = try container.decode(UUID.self, forKey: .id)
+    self.layerID = try container.decode(String.self, forKey: .layerID)
+    self.layerName = try container.decode(String.self, forKey: .layerName)
+    self.downloadDate = try container.decode(Date.self, forKey: .downloadDate)
+    self.relativePath = try container.decode(String.self, forKey: .relativePath)
+    self.md5 = try container.decode(String.self, forKey: .md5)
+    self.zoomMax = try container.decode(Int.self, forKey: .zoomMax)
+    self.boundsWKT = try container.decode(String.self, forKey: .boundsWKT)
+    self.customFileSizeBytes = nil
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(id, forKey: .id)
+    try container.encode(layerID, forKey: .layerID)
+    try container.encode(layerName, forKey: .layerName)
+    try container.encode(downloadDate, forKey: .downloadDate)
+    try container.encode(relativePath, forKey: .relativePath)
+    try container.encode(md5, forKey: .md5)
+    try container.encode(zoomMax, forKey: .zoomMax)
+    try container.encode(boundsWKT, forKey: .boundsWKT)
+  }
+
+  static func == (lhs: OfflineChartDownload, rhs: OfflineChartDownload) -> Bool {
+    lhs.id == rhs.id &&
+    lhs.layerID == rhs.layerID &&
+    lhs.layerName == rhs.layerName &&
+    lhs.downloadDate == rhs.downloadDate &&
+    lhs.relativePath == rhs.relativePath &&
+    lhs.md5 == rhs.md5 &&
+    lhs.zoomMax == rhs.zoomMax &&
+    lhs.boundsWKT == rhs.boundsWKT
+  }
+
   // MARK: Helpers
 
   /// Resolves the relative path into an absolute file URL within the app Documents directory.
@@ -139,6 +211,9 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
 
   /// Size in bytes of the local package archive on disk, or 0 if unreachable.
   var fileSizeBytes: Int64 {
+    if let customFileSizeBytes {
+      return customFileSizeBytes
+    }
     guard let url = resolvedFileURL(),
           let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
           let size = attrs[.size] as? Int64 else {

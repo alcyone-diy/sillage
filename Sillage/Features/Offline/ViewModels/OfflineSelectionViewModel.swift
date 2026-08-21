@@ -27,6 +27,7 @@ final class OfflineSelectionViewModel {
   private let preferencesService: PreferencesServiceProtocol
   let chartViewModel: ChartViewModel
   let offlineMapManager: OfflineMapManagerProtocol?
+  private let downloader: GeoGarageChartDownloaderProtocol?
 
   // MARK: - Selection State Properties
 
@@ -74,7 +75,7 @@ final class OfflineSelectionViewModel {
   }
 
   /// Total size in bytes of all locally downloaded offline packages.
-  var totalDownloadedSizeBytes: Int64 {
+  var totalDownloadedSize: Int64 {
     downloadedCharts.reduce(0) { $0 + $1.fileSizeBytes }
   }
 
@@ -102,13 +103,15 @@ final class OfflineSelectionViewModel {
     downloadRepository: GeoGarageDownloadRepositoryProtocol,
     preferencesService: PreferencesServiceProtocol,
     chartViewModel: ChartViewModel,
-    offlineMapManager: OfflineMapManagerProtocol? = nil
+    offlineMapManager: OfflineMapManagerProtocol? = nil,
+    downloader: GeoGarageChartDownloaderProtocol? = nil
   ) {
     self.downloadService = downloadService
     self.downloadRepository = downloadRepository
     self.preferencesService = preferencesService
     self.chartViewModel = chartViewModel
     self.offlineMapManager = offlineMapManager
+    self.downloader = downloader
 
     if let firstLayer = chartViewModel.availableGeoGarageLayers.first {
       self.selectedLayerID = firstLayer.layer
@@ -138,7 +141,8 @@ final class OfflineSelectionViewModel {
       downloadRepository: downloadRepository,
       preferencesService: preferencesService,
       chartViewModel: chartViewModel,
-      offlineMapManager: offlineMapManager
+      offlineMapManager: offlineMapManager,
+      downloader: downloader
     )
   }
 
@@ -289,9 +293,14 @@ final class OfflineSelectionViewModel {
   }
 
   /// Deletes a previously downloaded offline chart from disk and repository.
+  /// Encapsulates the routing choice between `GeoGarageChartDownloaderProtocol` and `GeoGarageDownloadServiceProtocol`.
   /// - Parameter download: Record to delete.
-  func deleteDownload(_ download: OfflineChartDownload) async throws(CaasError) {
-    try await downloadService.deleteDownload(download)
+  func deleteDownload(_ download: OfflineChartDownload) async throws {
+    if let downloader {
+      try await downloader.deleteLocalChart(id: download.id)
+    } else {
+      try await downloadService.deleteDownload(download)
+    }
   }
 }
 
