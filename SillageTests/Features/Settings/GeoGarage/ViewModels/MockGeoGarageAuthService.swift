@@ -9,8 +9,10 @@
 //
 
 import Foundation
+import Observation
 @testable import Sillage
 
+@Observable
 final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked Sendable {
   var isGeoGarageAuthenticated: Bool = false
   var availableLayers: [GeoGarageLayer] = []

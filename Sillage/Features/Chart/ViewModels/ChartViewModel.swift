@@ -37,9 +37,9 @@ final class ChartViewModel {
   
   // MARK: - Chart Sources Data
   
-  var availableGeoGarageLayers: [GeoGarageLayer] {
-    authService.availableLayers
-  }
+  /// Stored list of authorized GeoGarage layers sorted alphabetically by brand name.
+  /// Automatically updated and sorted once whenever `authService.availableLayers` changes.
+  private(set) var availableGeoGarageLayers: [GeoGarageLayer] = []
   
   var isGeoGarageAuthenticated: Bool {
     authService.isGeoGarageAuthenticated
@@ -289,17 +289,46 @@ final class ChartViewModel {
     setupWaypointService()
     setupAnchorService()
     silentlyFetchGeoGarageLayers()
+    setupGeoGarageLayersObservation()
     startObservingLocalCharts()
     observePreferences()
   }
   
   // MARK: - Data Observation & Management
   
+  private func setupGeoGarageLayersObservation() {
+    func observeLayers() {
+      withObservationTracking {
+        _ = authService.availableLayers
+      } onChange: { [weak self] in
+        Task { @MainActor [weak self] in
+          guard let self = self else { return }
+          self.updateAvailableGeoGarageLayers()
+          observeLayers()
+        }
+      }
+    }
+
+    updateAvailableGeoGarageLayers()
+    observeLayers()
+  }
+
+  private func updateAvailableGeoGarageLayers() {
+    availableGeoGarageLayers = authService.availableLayers.sorted {
+      $0.brandName.localizedStandardCompare($1.brandName) == .orderedAscending
+    }
+  }
+
   private func startObservingLocalCharts() {
-    observationTask = TaskCancellable(Task { [weak self] in
+    observationTask = TaskCancellable(Task { @MainActor [weak self] in
       guard let storageService = self?.chartStorageService else { return }
-      for await files in await storageService.observeMBTilesDirectory() {
-        self?.localOfflineCharts = files
+      let stream = await storageService.observeMBTilesDirectory()
+      for await files in stream {
+        guard let self = self else { return }
+        // Keep local charts sorted alphabetically by filename for predictable UI presentation
+        self.localOfflineCharts = files.sorted {
+          $0.filename.localizedStandardCompare($1.filename) == .orderedAscending
+        }
       }
     })
   }
