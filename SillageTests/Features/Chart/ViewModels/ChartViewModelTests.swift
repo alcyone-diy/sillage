@@ -110,7 +110,7 @@ final class ChartViewModelTests: XCTestCase {
     _ = viewModel // Keep strong reference alive
   }
 
-  func testUpdateGeoGarageLayersClearsGeoGarageMessages() async {
+  func testUpdateGeoGarageLayersClearsGeoGarageMessages() async throws {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let messageService = MessageService()
@@ -145,11 +145,48 @@ final class ChartViewModelTests: XCTestCase {
     // Act
     let newLayer = GeoGarageLayer(layer: "layer1", brandName: "Brand", versionDate: "2026-01-01", validUntil: "2030-01-01")
     mockAuthService.availableLayers = [newLayer]
+    try await waitFor(timeout: .seconds(1)) { viewModel.availableGeoGarageLayers.count == 1 }
     viewModel.clearGeoGarageMessages()
 
     // Assert
     XCTAssertEqual(messageService.messages.count, 0, "Calling updateGeoGarageLayers should clear .geoGarage messages in MessageService")
     XCTAssertEqual(viewModel.availableGeoGarageLayers.count, 1)
+    _ = viewModel
+  }
+
+  func testAvailableGeoGarageLayers_AreSortedAlphabeticallyByBrandName() async throws {
+    // Arrange
+    let mockAuthService = MockGeoGarageAuthService()
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: nil,
+      messageService: MessageService()
+    )
+
+    let layerZ = GeoGarageLayer(layer: "z", brandName: "Zulu Charts", versionDate: "2026-01-01", validUntil: "2030-01-01")
+    let layerA = GeoGarageLayer(layer: "a", brandName: "Alpha Charts", versionDate: "2026-01-01", validUntil: "2030-01-01")
+    let layerM = GeoGarageLayer(layer: "m", brandName: "Mike Charts", versionDate: "2026-01-01", validUntil: "2030-01-01")
+    mockAuthService.availableLayers = [layerZ, layerA, layerM]
+    try await waitFor(timeout: .seconds(1)) { viewModel.availableGeoGarageLayers.count == 3 }
+
+    // Act
+    let sortedLayers = viewModel.availableGeoGarageLayers
+
+    // Assert
+    XCTAssertEqual(sortedLayers.map { $0.brandName }, ["Alpha Charts", "Mike Charts", "Zulu Charts"])
     _ = viewModel
   }
 
@@ -346,7 +383,7 @@ final class ChartViewModelTests: XCTestCase {
     _ = viewModel
   }
 
-  func testUpdateGeoGarageLayersWithNilMessageServiceDoesNotCrash() async {
+  func testUpdateGeoGarageLayersWithNilMessageServiceDoesNotCrash() async throws {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let positioningService = MockPositioningService()
@@ -372,6 +409,7 @@ final class ChartViewModelTests: XCTestCase {
     viewModel.clearGeoGarageMessages()
     let layer = GeoGarageLayer(layer: "layer1", brandName: "Brand", versionDate: "2026-01-01", validUntil: "2030-01-01")
     mockAuthService.availableLayers = [layer]
+    try await waitFor(timeout: .seconds(1)) { viewModel.availableGeoGarageLayers.count == 1 }
     viewModel.clearGeoGarageMessages()
     XCTAssertEqual(viewModel.availableGeoGarageLayers.count, 1)
     _ = viewModel
