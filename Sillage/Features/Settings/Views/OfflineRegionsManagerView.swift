@@ -208,17 +208,9 @@ private struct OfflineDownloadRowView: View {
         Text(download.downloadDate.formatted(date: .abbreviated, time: .shortened))
           .marineFont(.body)
           .foregroundColor(.primary)
-        HStack(spacing: 8) {
-          Text(download.fileSizeBytes.formatted(.byteCount(style: .file)))
-            .marineFont(.caption)
-            .foregroundColor(.secondary)
-          Text("•")
-            .marineFont(.caption)
-            .foregroundColor(.secondary)
-          Text("Max Zoom \(download.zoomMax)")
-            .marineFont(.caption)
-            .foregroundColor(.secondary)
-        }
+        Text(download.fileSizeBytes.formatted(.byteCount(style: .file)))
+          .marineFont(.caption)
+          .foregroundColor(.secondary)
       }
 
       Spacer()
@@ -245,17 +237,9 @@ private struct OfflineInProgressRowView: View {
 
       progressBar
 
-      HStack(spacing: 8) {
-        statusDetailText
-          .marineFont(.caption)
-          .foregroundColor(.secondary)
-        Text("•")
-          .marineFont(.caption)
-          .foregroundColor(.secondary)
-        Text("Max Zoom \(pending.zoomMax)")
-          .marineFont(.caption)
-          .foregroundColor(.secondary)
-      }
+      statusDetailText
+        .marineFont(.caption)
+        .foregroundColor(.secondary)
     }
     .marineListCell()
   }
