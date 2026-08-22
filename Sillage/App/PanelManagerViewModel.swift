@@ -38,6 +38,7 @@ public final class PanelManagerViewModel {
     case anchorAlarm
     case geoGarageLogin
     case offlineCharts
+    case offlineChartDetail(id: UUID)
     case chartPreferences
   }
 

@@ -192,7 +192,10 @@ private struct OfflineChartItemRowView: View {
   var body: some View {
     switch item {
     case .downloaded(let download):
-      OfflineDownloadRowView(download: download)
+      NavigationLink(value: PanelManagerViewModel.CommandDestination.offlineChartDetail(id: download.id)) {
+        OfflineDownloadRowView(download: download)
+      }
+      .marineListCell()
     case .inProgress(let pending, let phase):
       OfflineInProgressRowView(pending: pending, phase: phase)
     }
@@ -205,17 +208,28 @@ private struct OfflineDownloadRowView: View {
   var body: some View {
     HStack(spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
-        Text(download.downloadDate.formatted(date: .abbreviated, time: .shortened))
+        Text(download.layerName.isEmpty ? download.downloadDate.formatted(date: .abbreviated, time: .shortened) : download.layerName)
           .marineFont(.body)
           .foregroundColor(.primary)
-        Text(download.fileSizeBytes.formatted(.byteCount(style: .file)))
-          .marineFont(.caption)
-          .foregroundColor(.secondary)
+
+        HStack(spacing: 6) {
+          Text(download.downloadDate.formatted(date: .abbreviated, time: .shortened))
+            .marineFont(.caption)
+            .foregroundColor(.secondary)
+
+          if let size = download.fileSizeBytes {
+            Text("•")
+              .marineFont(.caption)
+              .foregroundColor(.secondary)
+            Text(size.formatted(.byteCount(style: .file)))
+              .marineFont(.caption)
+              .foregroundColor(.secondary)
+          }
+        }
       }
 
       Spacer()
     }
-    .marineListCell()
   }
 }
 

@@ -19,6 +19,19 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   public private(set) var southWest: CLLocationCoordinate2D
   /// (Maximums)
   public private(set) var northEast: CLLocationCoordinate2D
+
+  /// The center coordinate of the geographic bounding box.
+  public nonisolated var center: CLLocationCoordinate2D {
+    let centerLat = (southWest.latitude + northEast.latitude) / 2.0
+    let centerLon: CLLocationDegrees
+    if southWest.longitude <= northEast.longitude {
+      centerLon = (southWest.longitude + northEast.longitude) / 2.0
+    } else {
+      let rawLon = (southWest.longitude + northEast.longitude + 360.0) / 2.0
+      centerLon = rawLon > 180.0 ? rawLon - 360.0 : rawLon
+    }
+    return CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon)
+  }
   
   // MARK: - Initialization
   

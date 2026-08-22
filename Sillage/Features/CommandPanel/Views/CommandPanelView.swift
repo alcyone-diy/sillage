@@ -25,6 +25,7 @@ struct CommandPanelView: View {
   @Environment(PermissionService.self) private var permissionService
 
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
+  @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel: OfflineSelectionViewModel?
 
   @State private var permissionGateType: PermissionGateType? = nil
 
@@ -298,6 +299,15 @@ struct CommandPanelView: View {
       GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)
     case .offlineCharts:
       OfflineRegionsManagerView()
+    case .offlineChartDetail(let id):
+      if let offlineSelectionViewModel {
+        let detailVM = OfflineChartDetailViewModel(
+          chartID: id,
+          downloadRepository: offlineSelectionViewModel.downloadRepository,
+          downloadService: offlineSelectionViewModel.downloadService
+        )
+        OfflineChartDetailView(viewModel: detailVM)
+      }
     case .chartPreferences:
       ChartPreferencesView()
     }

@@ -74,6 +74,9 @@
     "%lldm out of zone" : {
 
     },
+    "•" : {
+
+    },
     "°" : {
 
     },
@@ -200,6 +203,9 @@
     "Are you sure you want to delete this downloaded chart package?" : {
 
     },
+    "Are you sure you want to delete this offline chart package? This will remove the map files from local storage." : {
+
+    },
     "Are you sure you want to delete this track? This action cannot be undone." : {
 
     },
@@ -263,7 +269,19 @@
     "Cannot delete a track while it is actively recording." : {
 
     },
+    "Center Coordinates" : {
+
+    },
+    "Characteristics" : {
+
+    },
+    "Chart Details" : {
+
+    },
     "Chart Preferences" : {
+
+    },
+    "Checking…" : {
 
     },
     "Clear Cache" : {
@@ -332,6 +350,9 @@
     "Delete \"%@\"" : {
 
     },
+    "Delete Chart" : {
+
+    },
     "Delete Offline Chart" : {
 
     },
@@ -384,6 +405,9 @@
 
     },
     "Download interrupted." : {
+
+    },
+    "Downloaded On" : {
 
     },
     "Downloading" : {
@@ -471,6 +495,15 @@
         }
       }
     },
+    "File Missing" : {
+
+    },
+    "File Not Found on Disk" : {
+
+    },
+    "File Size" : {
+
+    },
     "File system error: %@." : {
 
     },
@@ -505,6 +538,9 @@
 
     },
     "GeoGarage Testing" : {
+
+    },
+    "Geographic Coverage" : {
 
     },
     "Git Hash" : {
@@ -668,6 +704,12 @@
     "Max Speed" : {
 
     },
+    "Max Zoom Level" : {
+
+    },
+    "MBTiles" : {
+
+    },
     "Medium" : {
       "comment" : "Medium sensitivity"
     },
@@ -705,6 +747,9 @@
 
     },
     "No visible map viewport found. Pan or zoom the chart first." : {
+
+    },
+    "North-East Bound" : {
 
     },
     "Note: The alarm only works in the background if you are recording a track or the anchor alarm is active." : {
@@ -855,6 +900,9 @@
     "Show Details" : {
 
     },
+    "Show on Chart" : {
+
+    },
     "Show Time Ticks" : {
 
     },
@@ -876,6 +924,9 @@
     "SOG" : {
 
     },
+    "South-West Bound" : {
+
+    },
     "Squall Imminent" : {
       "comment" : "Weather alarm"
     },
@@ -893,6 +944,9 @@
     },
     "Storm Warning" : {
       "comment" : "Weather alarm"
+    },
+    "Surface Area" : {
+
     },
     "swift-clocks" : {
 
@@ -913,6 +967,9 @@
 
     },
     "The provided URL is not a valid file." : {
+
+    },
+    "The underlying .mbtiles file is missing or unreachable in local storage. You can delete this orphaned record." : {
 
     },
     "Third-Party Licenses" : {
@@ -971,6 +1028,12 @@
     },
     "Triggers on drops ≥ 5.0 hPa within 3h. Recommended offshore to avoid alarm fatigue." : {
       "comment" : "Low sensitivity explanation"
+    },
+    "Unavailable" : {
+
+    },
+    "Unknown Chart" : {
+
     },
     "Unnamed Track" : {
 

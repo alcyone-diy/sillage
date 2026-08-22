@@ -99,6 +99,7 @@ final class PanelManagerViewModelTests: XCTestCase {
       .anchorAlarm,
       .geoGarageLogin,
       .offlineCharts,
+      .offlineChartDetail(id: UUID()),
       .chartPreferences
     ]
 

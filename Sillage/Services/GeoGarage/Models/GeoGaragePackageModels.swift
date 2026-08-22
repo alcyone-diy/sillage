@@ -209,15 +209,15 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     return documentsURL.appendingPathComponent(cleanRelative)
   }
 
-  /// Size in bytes of the local package archive on disk, or 0 if unreachable.
-  var fileSizeBytes: Int64 {
+  /// Physical size in bytes of the local package archive on disk, or nil if unreachable/missing.
+  var fileSizeBytes: Int64? {
     if let customFileSizeBytes {
       return customFileSizeBytes
     }
     guard let url = resolvedFileURL(),
           let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
           let size = attrs[.size] as? Int64 else {
-      return 0
+      return nil
     }
     return size
   }
