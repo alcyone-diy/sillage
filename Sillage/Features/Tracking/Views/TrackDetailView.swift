@@ -225,6 +225,7 @@ struct TrackDetailView: View {
           } label: {
             Image(marineIcon: .close)
           }
+          .accessibilityLabel(String(localized: "Cancel"))
         }
         
         ToolbarItem(placement: .navigationBarTrailing) {
@@ -241,6 +242,7 @@ struct TrackDetailView: View {
           }
           .fontWeight(.semibold)
           .disabled(viewModel.isSaving)
+          .accessibilityLabel(String(localized: "Save"))
         }
       } else {
         ToolbarItem(placement: .navigationBarTrailing) {
