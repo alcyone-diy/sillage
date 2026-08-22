@@ -29,31 +29,28 @@ struct MapScaleView: View {
   var body: some View {
     Group {
       if let scaleData = scaleData, showOverlay {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
           Text(scaleData.measurement.formatted(
             .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0...1)))
           ))
             .marineFont(.instrumentData)
             .foregroundColor(.white)
           
-          // Scale Bar
-          ZStack(alignment: .leading) {
-            // Outline line
-            ScaleBarShape()
-              .stroke(Color.black, style: StrokeStyle(lineWidth: 5, lineCap: .square, lineJoin: .miter))
-              .frame(width: scaleData.width, height: 8)
-            
-            // Main white line
-            ScaleBarShape()
-              .stroke(Color.white, style: StrokeStyle(lineWidth: 3, lineCap: .square, lineJoin: .miter))
-              .frame(width: scaleData.width, height: 8)
-          }
-          .animation(.linear(duration: 0.05), value: scaleData.width)
+          // Segmented Scale Bar
+          SegmentedScaleBar(width: scaleData.width)
+            .animation(.linear(duration: 0.05), value: scaleData.width)
         }
-        .padding(10)
-        .background(Material.ultraThinMaterial)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+          RoundedRectangle(cornerRadius: 8)
+            .fill(Material.ultraThinMaterial)
+            .overlay(
+              RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+            )
+        )
         .environment(\.colorScheme, .dark)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
         .transition(.opacity)
@@ -148,16 +145,53 @@ struct MapScaleView: View {
   }
 }
 
-struct ScaleBarShape: Shape {
-  func path(in rect: CGRect) -> Path {
-    var path = Path()
-    // Left tick
-    path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-    path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-    // Bottom line
-    path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-    // Right tick
-    path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-    return path
+struct SegmentedScaleBar: View {
+  let width: CGFloat
+  private let segments: Int = 4 // Division en quarts (moitié, quart)
+  private let barHeight: CGFloat = 3.0
+  private let tickHeight: CGFloat = 5.0
+  private let tickWidth: CGFloat = 1.0
+
+  var body: some View {
+    ZStack {
+      // Barre segmentée (alternance Noir / Blanc)
+      HStack(spacing: 0) {
+        ForEach(0..<segments, id: \.self) { index in
+          if index % 2 == 0 {
+            Color.black
+          } else {
+            Color.white
+          }
+        }
+      }
+      .frame(width: width, height: barHeight)
+      .overlay(
+        Rectangle()
+          .strokeBorder(Color.black.opacity(0.35), lineWidth: 0.5)
+      )
+
+      // Ticks aux extrémités
+      HStack {
+        Rectangle()
+          .fill(Color.white)
+          .frame(width: tickWidth, height: tickHeight)
+          .overlay(
+            Rectangle()
+              .stroke(Color.black.opacity(0.4), lineWidth: 0.5)
+          )
+
+        Spacer()
+
+        Rectangle()
+          .fill(Color.white)
+          .frame(width: tickWidth, height: tickHeight)
+          .overlay(
+            Rectangle()
+              .stroke(Color.black.opacity(0.4), lineWidth: 0.5)
+          )
+      }
+      .frame(width: width)
+    }
+    .frame(width: width, height: tickHeight)
   }
 }
