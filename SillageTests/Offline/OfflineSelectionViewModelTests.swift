@@ -20,6 +20,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let prefs = PreferencesService()
     prefs.pendingCAASDownloads = []
     prefs.geoGarageCustomerID = nil
+    prefs.savedChartSource = nil
+    prefs.savedGeoGarageLayerID = nil
     await KeychainManager.shared.save(token: "token123", for: "geogarage_access_token")
   }
 
@@ -27,6 +29,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let prefs = PreferencesService()
     prefs.pendingCAASDownloads = []
     prefs.geoGarageCustomerID = nil
+    prefs.savedChartSource = nil
+    prefs.savedGeoGarageLayerID = nil
     await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     try await super.tearDown()
   }
@@ -229,6 +233,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     packageService: MockPackageService? = nil,
     downloadRepository: MockDownloadRepository? = nil,
     networkMonitor: MockNetworkMonitorService? = nil,
+    authService: MockGeoGarageAuthService? = nil,
     customDownloadService: GeoGarageDownloadServiceProtocol? = nil,
     setupVisibleBounds: Bool = true,
     authenticated: Bool = true
@@ -254,7 +259,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       preferences.geoGarageCustomerID = nil
     }
 
-    let authService = MockGeoGarageAuthService()
+    let authService = authService ?? MockGeoGarageAuthService()
     let posService = MockPositioningService()
     let dampService = InstrumentDampingService(positioningService: posService)
     let permService = PermissionService(positioningService: posService, notificationService: LocalNotificationService())
@@ -301,6 +306,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       offlineMapManager: MockOfflineMapManager(),
       downloader: downloader
     )
+    sut.selectedLayerID = "shom"
 
     return (sut, downloadService, downloader, packageService, chartVM, downloadRepository, networkMonitor, preferences)
   }
@@ -352,6 +358,22 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       XCTAssertTrue(error.contains("authenticated") || error.contains("login"))
     } else {
       XCTFail("Expected .failed state when customer ID is missing, got \(sut.downloadPhase)")
+    }
+    XCTAssertFalse(sut.isDownloading)
+  }
+
+  func testStartDownload_withoutAvailableOrSelectedLayer_setsFailedState() {
+    let (sut, _, _, _, chartVM, _, _, _) = makeSUT(authenticated: true)
+    sut.selectedLayerID = ""
+    chartVM.currentChartSource = nil
+
+    // Without chart source and without available layers, startDownload(apiKey:customerID:) must fail
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+
+    if case .failed(let error) = sut.downloadPhase {
+      XCTAssertTrue(error.contains("No chart layer available"))
+    } else {
+      XCTFail("Expected .failed state when no layer is available or selected, got \(sut.downloadPhase)")
     }
     XCTAssertFalse(sut.isDownloading)
   }

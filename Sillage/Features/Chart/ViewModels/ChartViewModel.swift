@@ -816,13 +816,13 @@ final class ChartViewModel {
       return
     }
 
-    let targetLayer: String
+    let targetLayer: String?
     if let id = activeLayerID, !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       targetLayer = id
-    } else if case .remoteGeoGarage(_, let layerID) = currentChartSource {
+    } else if case .remoteGeoGarage(_, let layerID) = currentChartSource, !layerID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       targetLayer = layerID
     } else {
-      targetLayer = availableGeoGarageLayers.first?.layer ?? ""
+      targetLayer = availableGeoGarageLayers.first?.layer
     }
 
     let availableLayers = self.availableGeoGarageLayers
@@ -830,11 +830,9 @@ final class ChartViewModel {
     let task = Task.detached(priority: .userInitiated) { [weak self] in
       if Task.isCancelled { return }
 
-      let targetLower = targetLayer.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
       let matchingDownloads: [OfflineChartDownload]
-      if targetLower.isEmpty {
-        matchingDownloads = []
-      } else {
+      if let targetLayer = targetLayer?.trimmingCharacters(in: .whitespacesAndNewlines), !targetLayer.isEmpty {
+        let targetLower = targetLayer.lowercased()
         var validTargetIdentifiers: Set<String> = [targetLower]
         if let matchingLayer = availableLayers.first(where: {
           $0.layer.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == targetLower ||
@@ -861,6 +859,8 @@ final class ChartViewModel {
 
           return false
         }
+      } else {
+        matchingDownloads = []
       }
 
       if Task.isCancelled { return }

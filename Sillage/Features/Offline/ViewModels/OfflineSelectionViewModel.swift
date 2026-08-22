@@ -219,20 +219,50 @@ final class OfflineSelectionViewModel {
     )
   }
 
+  /// Resolves the target GeoGarage layer identifier to download according to priority:
+  /// 1. Explicitly selected layer (`selectedLayerID`)
+  /// 2. Active chart layer from `chartViewModel.currentChartSource` (or optional override) if it's a remote GeoGarage layer
+  /// 3. First available authorized layer (`availableLayers.first?.layer`)
+  private func resolveTargetLayerID(explicitSource: ChartSource? = nil) -> String? {
+    if !selectedLayerID.isEmpty {
+      return selectedLayerID
+    }
+    let source = explicitSource ?? chartViewModel.currentChartSource
+    if let source, case .remoteGeoGarage(_, let layerID) = source, !layerID.isEmpty {
+      return layerID
+    }
+    return availableLayers.first?.layer
+  }
+
+  private var targetLayerID: String? {
+    resolveTargetLayerID()
+  }
+
+  /// Validates and returns the target layer ID, failing the download service if unavailable.
+  private func requireTargetLayerID(explicitSource: ChartSource? = nil) -> String? {
+    guard let layerID = resolveTargetLayerID(explicitSource: explicitSource), !layerID.isEmpty else {
+      Logger.offline.warning("OfflineSelectionViewModel: startDownload called but no chart layer is available or selected.")
+      downloadService.failDownload(with: String(localized: "No chart layer available for download. Please select a valid layer."))
+      return nil
+    }
+    return layerID
+  }
+
+  /// Validates and returns the geographic bounding box for download, failing the download service if unavailable.
+  private func requireDownloadBounds() -> GeographicBoundingBox? {
+    guard let bounds = selectedBounds ?? chartViewModel.currentVisibleBounds else {
+      Logger.offline.warning("OfflineSelectionViewModel: startDownload called but no valid bounds found.")
+      downloadService.failDownload(with: String(localized: "No visible map viewport found. Pan or zoom the chart first."))
+      return nil
+    }
+    return bounds
+  }
+
   /// Triggers asynchronous calculation of the offline mask visual state on ChartViewModel.
   func refreshOfflineMask() {
-    let layerToFilter: String
-    if !selectedLayerID.isEmpty {
-      layerToFilter = selectedLayerID
-    } else if let source = chartViewModel.currentChartSource, case .remoteGeoGarage(_, let layerID) = source {
-      layerToFilter = layerID
-    } else {
-      layerToFilter = availableLayers.first?.layer ?? ""
-    }
-
     chartViewModel.updateOfflineMaskState(
       isSelectionActive: isSelectionModeActive,
-      activeLayerID: layerToFilter,
+      activeLayerID: targetLayerID,
       selectedBounds: isSelectionModeActive ? selectedBounds : nil,
       downloads: downloadedCharts
     )
@@ -241,13 +271,9 @@ final class OfflineSelectionViewModel {
   // MARK: - CAAS Download Actions
 
   /// Initiates an offline map download using the current selection or displayed chart source.
-  /// - Parameter chartSource: The active chart source to derive layer information.
-  func startDownload(chartSource: ChartSource?) {
-    guard let bounds = selectedBounds ?? chartViewModel.currentVisibleBounds else {
-      Logger.offline.warning("OfflineSelectionViewModel: startDownload called but no valid bounds found.")
-      downloadService.failDownload(with: String(localized: "No visible map viewport found. Pan or zoom the chart first."))
-      return
-    }
+  /// - Parameter chartSource: Optional explicit chart source override (defaults to `chartViewModel.currentChartSource`).
+  func startDownload(chartSource: ChartSource? = nil) {
+    guard let bounds = requireDownloadBounds() else { return }
 
     guard let customerID = preferencesService.geoGarageCustomerID, !customerID.isEmpty else {
       Logger.offline.warning("OfflineSelectionViewModel: startDownload called without authenticated customer ID.")
@@ -255,21 +281,14 @@ final class OfflineSelectionViewModel {
       return
     }
 
+    guard let layerToDownload = requireTargetLayerID(explicitSource: chartSource) else { return }
+
     // UI reset MUST be synchronous on the MainActor BEFORE the async download process
     isSelectionModeActive = false
     let zoneWKT = bounds.toWKT()
     selectedBounds = nil
     cropRect = nil
     calculationTask?.cancel()
-
-    let layerToDownload: String
-    if !selectedLayerID.isEmpty {
-      layerToDownload = selectedLayerID
-    } else if let source = chartSource, case .remoteGeoGarage(_, let layerID) = source {
-      layerToDownload = layerID
-    } else {
-      layerToDownload = availableLayers.first?.layer ?? "shom"
-    }
 
     let selectedLayer = availableLayers.first(where: { $0.layer == layerToDownload })
     let layerName = selectedLayer?.brandName ?? layerToDownload.uppercased()
@@ -298,19 +317,15 @@ final class OfflineSelectionViewModel {
   ///   - apiKey: Dedicated CAAS API key (or OAuth token).
   ///   - customerID: User's GeoGarage customer identifier.
   func startDownload(apiKey: String, customerID: String) {
-    guard let bounds = selectedBounds ?? chartViewModel.currentVisibleBounds else {
-      Logger.offline.warning("OfflineSelectionViewModel: startDownload called but no valid bounds found.")
-      downloadService.failDownload(with: String(localized: "No visible map viewport found. Pan or zoom the chart first."))
-      return
-    }
+    guard let bounds = requireDownloadBounds() else { return }
+    guard let layerToDownload = requireTargetLayerID() else { return }
 
-    let zoneWKT = bounds.toWKT()
     isSelectionModeActive = false
+    let zoneWKT = bounds.toWKT()
     selectedBounds = nil
     cropRect = nil
     calculationTask?.cancel()
 
-    let layerToDownload = selectedLayerID.isEmpty ? (availableLayers.first?.layer ?? "shom") : selectedLayerID
     let selectedLayer = availableLayers.first(where: { $0.layer == layerToDownload })
     let layerName = selectedLayer?.brandName ?? layerToDownload.uppercased()
     let zoomMax = self.zoomMax

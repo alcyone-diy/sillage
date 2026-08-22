@@ -34,7 +34,7 @@ actor TileProxyManager: TileProxyManagerProtocol {
     return URLSession(configuration: config)
   }()
 
-  func fetchTile(z: Int, x: Int, y: Int, layerID: String = "shom") async throws -> Data? {
+  func fetchTile(z: Int, x: Int, y: Int, layerID: String) async throws -> Data? {
     let clientID = await AppConfiguration.shared.geoGarageClientID
     // Construct the GeoGarage URL. Note that GeoGarage tile APIs usually require the layer ID.
     guard let url = URL(string: "https://tiles.geogarage.com/\(clientID)/\(layerID)/\(z)/\(x)/\(y).png") else {
