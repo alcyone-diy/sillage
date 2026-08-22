@@ -87,11 +87,36 @@ struct OfflineRegionsManagerView: View {
             Section(header: Text(group.title)) {
               ForEach(group.items) { item in
                 OfflineChartItemRowView(item: item)
-                  .swipeActions(edge: .trailing) {
-                    Button(role: .destructive) {
+                  .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button {
                       itemToDelete = item
                     } label: {
                       Label("Delete", systemImage: "trash")
+                    }
+                    .tint(.red)
+                  }
+                  .confirmationDialog(
+                    "Delete Offline Chart",
+                    isPresented: Binding(
+                      get: { itemToDelete?.id == item.id },
+                      set: { if !$0 && itemToDelete?.id == item.id { itemToDelete = nil } }
+                    ),
+                    titleVisibility: .visible
+                  ) {
+                    Button("Delete \"\(item.displayName)\"", role: .destructive) {
+                      Task { @MainActor in
+                        await deleteItem(item)
+                      }
+                    }
+                    Button("Cancel", role: .cancel) {
+                      itemToDelete = nil
+                    }
+                  } message: {
+                    switch item {
+                    case .downloaded:
+                      Text("Are you sure you want to delete this downloaded chart package?")
+                    case .inProgress:
+                      Text("Are you sure you want to cancel and delete this in-progress chart download?")
                     }
                   }
               }
@@ -114,29 +139,6 @@ struct OfflineRegionsManagerView: View {
           Image(systemName: "plus")
         }
         .disabled(isOfflineAreaDisabled)
-      }
-    }
-    .confirmationDialog(
-      "Delete Offline Chart",
-      isPresented: Binding(
-        get: { itemToDelete != nil },
-        set: { if !$0 { itemToDelete = nil } }
-      ),
-      titleVisibility: .visible,
-      presenting: itemToDelete
-    ) { item in
-      Button("Delete \"\(item.displayName)\"", role: .destructive) {
-        Task { @MainActor in
-          await deleteItem(item)
-        }
-      }
-      Button("Cancel", role: .cancel) {}
-    } message: { item in
-      switch item {
-      case .downloaded:
-        Text("Are you sure you want to delete this downloaded chart package?")
-      case .inProgress:
-        Text("Are you sure you want to cancel and delete this in-progress chart download?")
       }
     }
     .alert("Error", isPresented: Binding(
