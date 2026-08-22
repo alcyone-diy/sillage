@@ -20,6 +20,7 @@ struct OfflineChartDetailView: View {
   @Environment(\.dismiss) private var dismiss
 
   @State private var showDeleteConfirmation = false
+  @FocusState private var isNameFieldFocused: Bool
 
   var body: some View {
     List {
@@ -48,35 +49,67 @@ struct OfflineChartDetailView: View {
 
       // MARK: - Identity Section
       Section {
-        VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-          Text("Name")
-            .marineFont(.caption)
-            .foregroundStyle(.secondary)
-
-          Text(viewModel.chartName)
-            .marineFont(.title3)
-            .foregroundStyle(.primary)
-
-          HStack(spacing: 6) {
-            Text(viewModel.layerBrand)
+        if viewModel.isEditing {
+          VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+            Text("Name")
               .marineFont(.caption)
-              .padding(.horizontal, 8)
-              .padding(.vertical, 4)
-              .background(marineTheme.colors.accent.opacity(0.15))
-              .foregroundStyle(marineTheme.colors.accent)
-              .clipShape(Capsule())
-
-            Text("MBTiles")
-              .marineFont(.caption)
-              .padding(.horizontal, 8)
-              .padding(.vertical, 4)
-              .background(Color.secondary.opacity(0.15))
               .foregroundStyle(.secondary)
-              .clipShape(Capsule())
+
+            HStack(spacing: 8) {
+              TextField("Chart Name", text: $viewModel.editableName)
+                .marineFont(.body)
+                .focused($isNameFieldFocused)
+                .submitLabel(.done)
+                .onSubmit {
+                  performSave()
+                }
+                .frame(minHeight: max(44, marineTheme.minTouchTarget))
+
+              if !viewModel.editableName.isEmpty {
+                Button {
+                  viewModel.editableName = ""
+                } label: {
+                  Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+                    .frame(minWidth: 44, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear text")
+              }
+            }
           }
-          .padding(.top, 2)
+          .marineListCell()
+        } else {
+          VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+            Text("Name")
+              .marineFont(.caption)
+              .foregroundStyle(.secondary)
+
+            Text(viewModel.chartName)
+              .marineFont(.title3)
+              .foregroundStyle(.primary)
+
+            HStack(spacing: 6) {
+              Text(viewModel.layerBrand)
+                .marineFont(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(marineTheme.colors.accent.opacity(0.15))
+                .foregroundStyle(marineTheme.colors.accent)
+                .clipShape(Capsule())
+
+              Text("MBTiles")
+                .marineFont(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.15))
+                .foregroundStyle(.secondary)
+                .clipShape(Capsule())
+            }
+            .padding(.top, 2)
+          }
+          .marineListCell()
         }
-        .marineListCell()
       }
 
       // MARK: - Package Characteristics
@@ -186,6 +219,33 @@ struct OfflineChartDetailView: View {
     }
     .navigationTitle("Chart Details")
     .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      if viewModel.isEditing {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") {
+            viewModel.cancelEditing()
+          }
+        }
+
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") {
+            performSave()
+          }
+          .disabled(viewModel.isSaveDisabled)
+        }
+      } else {
+        ToolbarItem(placement: .primaryAction) {
+          Button("Edit") {
+            viewModel.startEditing()
+          }
+        }
+      }
+    }
+    .onChange(of: viewModel.isEditing) { _, isEditing in
+      if isEditing {
+        isNameFieldFocused = true
+      }
+    }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .marineListBackground()
     .confirmationDialog(
@@ -216,13 +276,24 @@ struct OfflineChartDetailView: View {
 
   // MARK: - Private Helpers
 
+  private func performSave() {
+    guard !viewModel.isSaveDisabled else { return }
+    Task { @MainActor in
+      do {
+        try await viewModel.saveCustomName()
+      } catch {
+        viewModel.errorMessage = error.localizedDescription
+      }
+    }
+  }
+
   private func performDelete() {
     Task { @MainActor in
       do {
         try await viewModel.deleteChart()
         dismiss()
       } catch {
-        // Handled by viewModel.errorMessage
+        viewModel.errorMessage = error.localizedDescription
       }
     }
   }

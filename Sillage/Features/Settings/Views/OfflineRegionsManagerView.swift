@@ -125,7 +125,7 @@ struct OfflineRegionsManagerView: View {
       titleVisibility: .visible,
       presenting: itemToDelete
     ) { item in
-      Button("Delete \"\(item.layerName)\"", role: .destructive) {
+      Button("Delete \"\(item.displayName)\"", role: .destructive) {
         Task { @MainActor in
           await deleteItem(item)
         }
@@ -159,7 +159,7 @@ struct OfflineRegionsManagerView: View {
     do {
       try await offlineSelectionViewModel.deleteItem(item)
     } catch {
-      Logger.offline.error("Failed to delete offline chart \(item.layerName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+      Logger.offline.error("Failed to delete offline chart \(item.displayName, privacy: .public): \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
     }
   }
@@ -205,10 +205,17 @@ private struct OfflineChartItemRowView: View {
 private struct OfflineDownloadRowView: View {
   let download: OfflineChartDownload
 
+  private var title: String {
+    if let custom = download.customName, !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return custom.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    return download.layerName.isEmpty ? download.downloadDate.formatted(date: .abbreviated, time: .shortened) : download.layerName
+  }
+
   var body: some View {
     HStack(spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
-        Text(download.layerName.isEmpty ? download.downloadDate.formatted(date: .abbreviated, time: .shortened) : download.layerName)
+        Text(title)
           .marineFont(.body)
           .foregroundColor(.primary)
 

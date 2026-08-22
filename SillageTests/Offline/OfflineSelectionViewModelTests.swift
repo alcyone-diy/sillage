@@ -178,10 +178,14 @@ final class OfflineSelectionViewModelTests: XCTestCase {
   private final class MockDownloadRepository: GeoGarageDownloadRepositoryProtocol, @unchecked Sendable {
     var downloads: [OfflineChartDownload] = []
     func load() async {}
-    func save(_ download: OfflineChartDownload) async {
-      downloads.append(download)
+    func save(_ download: OfflineChartDownload) async throws {
+      if let index = downloads.firstIndex(where: { $0.id == download.id }) {
+        downloads[index] = download
+      } else {
+        downloads.append(download)
+      }
     }
-    func delete(id: UUID) async {
+    func delete(id: UUID) async throws {
       downloads.removeAll { $0.id == id }
     }
     func lastDownloadDate(for layerID: String) -> Date? { nil }

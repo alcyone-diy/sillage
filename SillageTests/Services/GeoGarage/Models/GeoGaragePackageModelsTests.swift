@@ -216,7 +216,78 @@ final class GeoGaragePackageModelsTests: XCTestCase {
     XCTAssertEqual(decoded.md5, original.md5)
     XCTAssertEqual(decoded.zoomMax, original.zoomMax)
     XCTAssertEqual(decoded.boundsWKT, original.boundsWKT)
+    XCTAssertNil(decoded.customName)
     XCTAssertEqual(decoded.downloadDate.timeIntervalSince1970, original.downloadDate.timeIntervalSince1970, accuracy: 1.0)
+  }
+
+  func testOfflineChartDownload_customNameCodableRoundTrip() throws {
+    let id = UUID()
+    let date = Date(timeIntervalSince1970: 1_737_900_000)
+    let original = OfflineChartDownload(
+      id: id,
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: date,
+      relativePath: "Charts/shom_2026-08-16.mbtiles",
+      md5: "d41d8cd98f00b204e9800998ecf8427e",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-5.0 47.0, 0.0 47.0, 0.0 50.0, -5.0 50.0, -5.0 47.0))",
+      customName: "Bretagne Sud - Houat"
+    )
+
+    let encoder = LocalFilePersistenceActor.defaultEncoder()
+    let decoder = LocalFilePersistenceActor.defaultDecoder()
+
+    let data = try encoder.encode(original)
+    let decoded = try decoder.decode(OfflineChartDownload.self, from: data)
+
+    XCTAssertEqual(decoded.customName, "Bretagne Sud - Houat")
+    XCTAssertEqual(decoded, original)
+  }
+
+  func testOfflineChartDownload_legacyJSONWithoutCustomNameDecodesSuccessfully() throws {
+    let legacyJSON = """
+    {
+      "id": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+      "layerID": "shom",
+      "layerName": "SHOM France",
+      "downloadDate": "2026-08-16T12:00:00Z",
+      "relativePath": "Charts/shom_legacy.mbtiles",
+      "md5": "d41d8cd98f00b204e9800998ecf8427e",
+      "zoomMax": 14,
+      "boundsWKT": "POLYGON((-5.0 47.0, 0.0 47.0, 0.0 50.0, -5.0 50.0, -5.0 47.0))"
+    }
+    """.data(using: .utf8)!
+
+    let decoder = LocalFilePersistenceActor.defaultDecoder()
+    let decoded = try decoder.decode(OfflineChartDownload.self, from: legacyJSON)
+
+    XCTAssertEqual(decoded.id.uuidString, "A1B2C3D4-E5F6-7890-ABCD-EF1234567890")
+    XCTAssertEqual(decoded.layerID, "shom")
+    XCTAssertEqual(decoded.layerName, "SHOM France")
+    XCTAssertNil(decoded.customName, "Legacy records without customName key must decode with nil customName")
+  }
+
+  func testOfflineChartDownload_updatingCustomNameReturnsUpdatedInstance() {
+    let original = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/shom.mbtiles",
+      md5: "abc",
+      zoomMax: 14,
+      boundsWKT: ""
+    )
+
+    let renamed = original.updatingCustomName("Golfe du Morbihan")
+    XCTAssertEqual(renamed.customName, "Golfe du Morbihan")
+    XCTAssertEqual(renamed.id, original.id)
+    XCTAssertEqual(renamed.layerID, original.layerID)
+    XCTAssertEqual(renamed.layerName, original.layerName)
+
+    let cleared = renamed.updatingCustomName(nil)
+    XCTAssertNil(cleared.customName)
   }
 
   // MARK: - OfflineChartDownload.resolvedFileURL

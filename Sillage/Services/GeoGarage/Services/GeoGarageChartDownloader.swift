@@ -183,8 +183,13 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
       boundsWKT: boundsWKT
     )
 
-    await downloadRepository.save(record)
-    Logger.caas.info("Successfully registered download record for package \(packageID.uuidString, privacy: .public)")
+    do {
+      try await downloadRepository.save(record)
+      Logger.caas.info("Successfully registered download record for package \(packageID.uuidString, privacy: .public)")
+    } catch {
+      Logger.caas.error("Failed to persist download record for package \(packageID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+      throw CaasError.fileSystemError(underlying: "Failed to persist download repository: \(error.localizedDescription)")
+    }
 
     return record
   }
@@ -208,7 +213,11 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
       }
     }
 
-    await downloadRepository.delete(id: id)
+    do {
+      try await downloadRepository.delete(id: id)
+    } catch {
+      throw CaasError.fileSystemError(underlying: "Failed to update download repository after deleting file: \(error.localizedDescription)")
+    }
   }
 
   // MARK: - URLSessionDownloadDelegate

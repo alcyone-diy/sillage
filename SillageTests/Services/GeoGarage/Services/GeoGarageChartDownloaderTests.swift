@@ -204,7 +204,7 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
       zoomMax: 14,
       boundsWKT: "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
     )
-    await repository.save(record)
+    try await repository.save(record)
     let downloadsBefore = repository.downloads
     XCTAssertEqual(downloadsBefore.count, 1)
 
