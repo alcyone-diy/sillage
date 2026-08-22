@@ -30,7 +30,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       layerName: String,
       boundsWKT: String,
       zoomMax: Int,
-      apiKey: String
+      apiKey: String,
+      localID: UUID? = nil
     ) async throws(CaasError) -> OfflineChartDownload {
       if let error = shouldThrowError {
         if let caas = error as? CaasError {
@@ -43,12 +44,13 @@ final class OfflineSelectionViewModelTests: XCTestCase {
         return downloadedRecord
       }
 
+      let recordID = localID ?? packageID
       return OfflineChartDownload(
-        id: packageID,
+        id: recordID,
         layerID: layerID,
         layerName: layerName,
         downloadDate: Date(),
-        relativePath: "Charts/\(packageID.uuidString.lowercased()).mbtiles",
+        relativePath: "Charts/\(recordID.uuidString.lowercased()).mbtiles",
         md5: expectedMD5,
         zoomMax: zoomMax,
         boundsWKT: boundsWKT
@@ -536,6 +538,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let (sut, _, _, _, _, _, _, prefs) = makeSUT(downloader: downloader, packageService: packageService)
 
     let pending = PendingCAASDownload(
+      id: downloadID,
       packageID: nil,
       layerID: "shom",
       layerName: "SHOM France",
@@ -794,47 +797,55 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
   // MARK: - Download Progress Tests
 
-  func testDownloadProgress_acrossVariousPhases() {
+  func testDownloadProgress_acrossVariousPhases() async throws {
     let mockDownloadService = MockGeoGarageDownloadService()
     let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
 
+    func waitForPhase(_ target: GeoGarageDownloadPhaseState) async throws {
+      mockDownloadService.downloadPhase = target
+      for _ in 0..<50 {
+        if sut.currentDownloadPhase == target { return }
+        try await Task.sleep(nanoseconds: 5_000_000)
+      }
+    }
+
     // 1. Idle
-    mockDownloadService.downloadPhase = .idle
+    try await waitForPhase(.idle)
     XCTAssertNil(sut.downloadProgress)
     XCTAssertFalse(sut.isDownloading)
 
     // 2. Requesting
-    mockDownloadService.downloadPhase = .requesting
+    try await waitForPhase(.requesting)
     XCTAssertNil(sut.downloadProgress)
     XCTAssertTrue(sut.isDownloading)
 
     // 3. Waiting for network
-    mockDownloadService.downloadPhase = .waitingForNetwork(message: "Offline")
+    try await waitForPhase(.waitingForNetwork(message: "Offline"))
     XCTAssertNil(sut.downloadProgress)
     XCTAssertTrue(sut.isDownloading)
 
     // 4. Generating (determinate)
-    mockDownloadService.downloadPhase = .generating(progress: 0.65, message: "Progress: 65%")
+    try await waitForPhase(.generating(progress: 0.65, message: "Progress: 65%"))
     XCTAssertEqual(sut.downloadProgress, 0.65)
     XCTAssertTrue(sut.isDownloading)
 
     // 5. Generating (indeterminate)
-    mockDownloadService.downloadPhase = .generating(progress: nil, message: "Generating...")
+    try await waitForPhase(.generating(progress: nil, message: "Generating..."))
     XCTAssertNil(sut.downloadProgress)
     XCTAssertTrue(sut.isDownloading)
 
     // 6. Downloading (determinate)
-    mockDownloadService.downloadPhase = .downloading(receivedBytes: 250, totalBytes: 1000)
+    try await waitForPhase(.downloading(receivedBytes: 250, totalBytes: 1000))
     XCTAssertEqual(sut.downloadProgress, 0.25)
     XCTAssertTrue(sut.isDownloading)
 
     // 7. Downloading (clamping verification)
-    mockDownloadService.downloadPhase = .downloading(receivedBytes: 1500, totalBytes: 1000)
+    try await waitForPhase(.downloading(receivedBytes: 1500, totalBytes: 1000))
     XCTAssertEqual(sut.downloadProgress, 1.0)
     XCTAssertTrue(sut.isDownloading)
 
     // 8. Downloading (indeterminate / zero total bytes)
-    mockDownloadService.downloadPhase = .downloading(receivedBytes: 0, totalBytes: 0)
+    try await waitForPhase(.downloading(receivedBytes: 0, totalBytes: 0))
     XCTAssertNil(sut.downloadProgress)
     XCTAssertTrue(sut.isDownloading)
 
@@ -849,18 +860,251 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       zoomMax: 14,
       boundsWKT: "POLYGON(...)"
     )
-    mockDownloadService.downloadPhase = .completed(dummyRecord)
+    try await waitForPhase(.completed(dummyRecord))
     XCTAssertNil(sut.downloadProgress)
     XCTAssertFalse(sut.isDownloading)
 
     // 10. Cancelled
-    mockDownloadService.downloadPhase = .cancelled
+    try await waitForPhase(.cancelled)
     XCTAssertNil(sut.downloadProgress)
     XCTAssertFalse(sut.isDownloading)
 
     // 11. Failed
-    mockDownloadService.downloadPhase = .failed(errorMessage: "Failed")
+    try await waitForPhase(.failed(errorMessage: "Failed"))
+    XCTAssertNil(sut.downloadProgress)
+    XCTAssertFalse(sut.isDownloading)
+  }
+
+  // MARK: - All Chart Items & Grouping Tests
+
+  func testAllChartItems_whenIdle_containsOnlyDownloadedCharts() {
+    let downloadRepo = MockDownloadRepository()
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM",
+      downloadDate: Date(),
+      relativePath: "Charts/shom.mbtiles",
+      md5: "md5",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)"
+    )
+    downloadRepo.downloads = [download]
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(downloadRepository: downloadRepo)
+
+    XCTAssertEqual(sut.allChartItems.count, 1)
+    if case .downloaded(let d) = sut.allChartItems.first {
+      XCTAssertEqual(d.id, download.id)
+    } else {
+      XCTFail("Expected .downloaded item")
+    }
+  }
+
+  func testAllChartItems_whenDownloading_includesInProgressItemWithStableID() {
+    let mockDownloadService = MockGeoGarageDownloadService()
+    let downloadID = UUID()
+    let pending = PendingCAASDownload(
+      id: downloadID,
+      packageID: nil,
+      layerID: "ukho",
+      layerName: "UKHO Solent",
+      boundsWKT: "POLYGON(...)",
+      zoomMax: 12,
+      createdAt: Date()
+    )
+    mockDownloadService.pendingDownload = pending
+    mockDownloadService.downloadPhase = .generating(progress: 0.5, message: "50/100")
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
+
+    XCTAssertEqual(sut.allChartItems.count, 1)
+    guard let firstItem = sut.allChartItems.first else {
+      XCTFail("Expected an item")
+      return
+    }
+
+    XCTAssertEqual(firstItem.id, downloadID.uuidString, "Item ID must match pending download ID for stable SwiftUI identity")
+    XCTAssertEqual(firstItem.layerID, "ukho")
+    XCTAssertEqual(firstItem.layerName, "UKHO Solent")
+
+    if case .inProgress(let itemPending, let phase) = firstItem {
+      XCTAssertEqual(itemPending.id, downloadID)
+      XCTAssertEqual(phase, .generating(progress: 0.5, message: "50/100"))
+    } else {
+      XCTFail("Expected .inProgress item")
+    }
+
+    // Verify it groups into UKHO section
+    let groups = sut.groupedCharts
+    XCTAssertEqual(groups.count, 1)
+    XCTAssertEqual(groups.first?.layerID, "ukho")
+    XCTAssertEqual(groups.first?.items.count, 1)
+  }
+
+  func testAllChartItems_whenWaitingForNetwork_includesPendingItemInCorrectLayerSection() {
+    let mockDownloadService = MockGeoGarageDownloadService()
+    let downloadID = UUID()
+    let pending = PendingCAASDownload(
+      id: downloadID,
+      packageID: nil,
+      layerID: "shom",
+      layerName: "SHOM Brest",
+      boundsWKT: "POLYGON(...)",
+      zoomMax: 14,
+      createdAt: Date()
+    )
+    mockDownloadService.pendingDownload = pending
+    mockDownloadService.downloadPhase = .waitingForNetwork(message: "Waiting for network connection…")
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
+
+    XCTAssertEqual(sut.allChartItems.count, 1)
+    let groups = sut.groupedCharts
+    XCTAssertEqual(groups.count, 1)
+    XCTAssertEqual(groups.first?.layerID, "shom")
+    XCTAssertEqual(groups.first?.items.first?.id, downloadID.uuidString)
+  }
+
+  func testDeleteItem_whenDownloaded_deletesFromRepository() async throws {
+    let downloader = MockChartDownloader()
+    let downloadRepo = MockDownloadRepository()
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM",
+      downloadDate: Date(),
+      relativePath: "Charts/shom.mbtiles",
+      md5: "md5",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)"
+    )
+    downloadRepo.downloads = [download]
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(
+      downloader: downloader,
+      downloadRepository: downloadRepo
+    )
+
+    let item = OfflineChartItem.downloaded(download)
+    try await sut.deleteItem(item)
+
+    XCTAssertEqual(downloader.deletedIDs.count, 1)
+    XCTAssertEqual(downloader.deletedIDs.first, download.id)
+  }
+
+  func testDeleteItem_whenInProgress_cancelsDownload() async throws {
+    let mockDownloadService = MockGeoGarageDownloadService()
+    let downloadID = UUID()
+    let pending = PendingCAASDownload(
+      id: downloadID,
+      packageID: nil,
+      layerID: "shom",
+      layerName: "SHOM",
+      boundsWKT: "POLYGON(...)",
+      zoomMax: 14,
+      createdAt: Date()
+    )
+    mockDownloadService.pendingDownload = pending
+    mockDownloadService.downloadPhase = .generating(progress: 0.2, message: "20/100")
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
+
+    let item = OfflineChartItem.inProgress(pending, phase: mockDownloadService.downloadPhase)
+    try await sut.deleteItem(item)
+
+    XCTAssertTrue(mockDownloadService.cancelDownloadCalled)
+  }
+
+  func testGroupedCharts_groupsBothDownloadedAndInProgressByLayer_sortedChronologically() {
+    let mockDownloadService = MockGeoGarageDownloadService()
+    let downloadRepo = MockDownloadRepository()
+    let now = Date()
+
+    let oldDownloadedSHOM = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM Old",
+      downloadDate: now.addingTimeInterval(-500),
+      relativePath: "Charts/shom_old.mbtiles",
+      md5: "md5_1",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)"
+    )
+    downloadRepo.downloads = [oldDownloadedSHOM]
+
+    let inProgressSHOM = PendingCAASDownload(
+      id: UUID(),
+      packageID: nil,
+      layerID: "shom",
+      layerName: "SHOM InProgress",
+      boundsWKT: "POLYGON(...)",
+      zoomMax: 14,
+      createdAt: now
+    )
+    mockDownloadService.pendingDownload = inProgressSHOM
+    mockDownloadService.downloadPhase = .downloading(receivedBytes: 100, totalBytes: 500)
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(
+      downloadRepository: downloadRepo,
+      customDownloadService: mockDownloadService
+    )
+
+    let groups = sut.groupedCharts
+    XCTAssertEqual(groups.count, 1)
+    XCTAssertEqual(groups.first?.layerID, "shom")
+    XCTAssertEqual(groups.first?.items.count, 2)
+
+    // Most recent item (inProgressSHOM with createdAt == now) should come first
+    XCTAssertEqual(groups.first?.items[0].id, inProgressSHOM.id.uuidString)
+    XCTAssertEqual(groups.first?.items[1].id, oldDownloadedSHOM.id.uuidString)
+  }
+
+  func testViewModel_reactivelyObservesDownloadStateStream() async throws {
+    let mockDownloadService = MockGeoGarageDownloadService()
+    mockDownloadService.downloadPhase = .idle
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
+
+    XCTAssertEqual(sut.currentDownloadPhase, .idle)
+    XCTAssertNil(sut.downloadProgress)
+    XCTAssertFalse(sut.isDownloading)
+
+    // Simulate service emitting new phase via stream
+    mockDownloadService.downloadPhase = .generating(progress: 0.42, message: "42/100")
+
+    // Give MainActor task a tick to receive the stream event
+    for _ in 0..<50 {
+      if sut.currentDownloadPhase == .generating(progress: 0.42, message: "42/100") { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    XCTAssertEqual(sut.currentDownloadPhase, .generating(progress: 0.42, message: "42/100"))
+    XCTAssertEqual(sut.downloadProgress, 0.42)
+    XCTAssertTrue(sut.isDownloading)
+
+    // Simulate phase completing
+    let record = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/test.mbtiles",
+      md5: "md5",
+      zoomMax: 14,
+      boundsWKT: "POLYGON(...)"
+    )
+    mockDownloadService.downloadPhase = .completed(record)
+
+    for _ in 0..<50 {
+      if sut.currentDownloadPhase == .completed(record) { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    XCTAssertEqual(sut.currentDownloadPhase, .completed(record))
     XCTAssertNil(sut.downloadProgress)
     XCTAssertFalse(sut.isDownloading)
   }
 }
+
+

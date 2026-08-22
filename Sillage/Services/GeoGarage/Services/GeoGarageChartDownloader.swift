@@ -43,7 +43,8 @@ actor GeoGarageChartDownloader: GeoGarageChartDownloaderProtocol {
     layerName: String,
     boundsWKT: String,
     zoomMax: Int,
-    apiKey: String
+    apiKey: String,
+    localID: UUID? = nil
   ) async throws(CaasError) -> OfflineChartDownload {
     Logger.caas.info("Initiating download for package \(packageID.uuidString, privacy: .public) from \(downloadURL.absoluteString, privacy: .public)")
 
@@ -93,7 +94,8 @@ actor GeoGarageChartDownloader: GeoGarageChartDownloaderProtocol {
       }
     }
 
-    let fileName = "\(layerID)_\(packageID.uuidString.lowercased()).mbtiles"
+    let recordID = localID ?? packageID
+    let fileName = "\(layerID)_\(recordID.uuidString.lowercased()).mbtiles"
     let destinationFileURL = destinationDirectory.appendingPathComponent(fileName)
     let relativePath = "GeoGarage/\(fileName)"
 
@@ -119,7 +121,7 @@ actor GeoGarageChartDownloader: GeoGarageChartDownloaderProtocol {
 
     // 4. Register download record in repository on MainActor
     let record = OfflineChartDownload(
-      id: packageID,
+      id: recordID,
       layerID: layerID,
       layerName: layerName,
       downloadDate: Date(),

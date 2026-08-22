@@ -10,6 +10,7 @@
 
 import Foundation
 import Observation
+import os
 import OSLog
 
 /// A global, persistent service responsible for orchestrating GeoGarage CAAS chart package
@@ -55,7 +56,17 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
   // MARK: - State Properties
 
-  private(set) var downloadPhase: GeoGarageDownloadPhaseState = .idle
+  private(set) var downloadPhase: GeoGarageDownloadPhaseState = .idle {
+    didSet {
+      let continuations = stateContinuationsLock.withLock { Array($0.values) }
+      for cont in continuations {
+        cont.yield(downloadPhase)
+      }
+    }
+  }
+
+  @ObservationIgnored
+  private let stateContinuationsLock = OSAllocatedUnfairLock<[UUID: AsyncStream<GeoGarageDownloadPhaseState>.Continuation]>(initialState: [:])
 
   @ObservationIgnored
   private var currentDownloadTask: Task<Void, Never>?
@@ -64,6 +75,10 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
   private var networkObservationTask: Task<Void, Never>?
 
   // MARK: - Computed Properties
+
+  var pendingDownload: PendingCAASDownload? {
+    preferencesService.pendingCAASDownload
+  }
 
   var isDownloading: Bool {
     switch downloadPhase {
@@ -86,6 +101,22 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       return min(max(ratio, 0.0), 1.0)
     case .idle, .waitingForNetwork, .requesting, .completed, .failed, .cancelled:
       return nil
+    }
+  }
+
+  func downloadStateStream() -> AsyncStream<GeoGarageDownloadPhaseState> {
+    let id = UUID()
+    let initialPhase = self.downloadPhase
+    return AsyncStream { [stateContinuationsLock] continuation in
+      continuation.yield(initialPhase)
+      stateContinuationsLock.withLock {
+        $0[id] = continuation
+      }
+      continuation.onTermination = { [stateContinuationsLock] _ in
+        stateContinuationsLock.withLock {
+          _ = $0.removeValue(forKey: id)
+        }
+      }
     }
   }
 
@@ -133,8 +164,10 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
   ) {
     guard !isDownloading else { return }
 
-    // Technical Design: Immediate synchronous persistence to survive crashes before network execution starts
+    // Technical Design: Generate stable local UUID before network execution starts
+    let localID = UUID()
     let pending = PendingCAASDownload(
+      id: localID,
       packageID: nil,
       layerID: layerID,
       layerName: layerName,
@@ -155,7 +188,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
         layerName: layerName,
         zoneWKT: zoneWKT,
         zoomMax: zoomMax,
-        existingPackageID: nil
+        existingPackageID: nil,
+        localID: localID
       )
     }
   }
@@ -164,8 +198,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     guard let pending = preferencesService.pendingCAASDownload else { return }
 
     // If package was already completely downloaded and registered, purge pending state
-    if let pkgID = pending.packageID, downloadRepository.downloads.contains(where: { $0.id == pkgID }) {
-      Logger.offline.info("Pending download \(pkgID.uuidString, privacy: .public) already completed in repository. Clearing pending state.")
+    if let pkgID = pending.packageID, downloadRepository.downloads.contains(where: { $0.id == pkgID || $0.id == pending.id }) {
+      Logger.offline.info("Pending download \(pending.id.uuidString, privacy: .public) already completed in repository. Clearing pending state.")
       preferencesService.pendingCAASDownload = nil
       downloadPhase = .idle
       return
@@ -197,7 +231,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       }
     }
 
-    Logger.offline.info("Resuming pending CAAS download for layer '\(pending.layerID, privacy: .public)' (packageID: \(pending.packageID?.uuidString ?? "nil", privacy: .public))")
+    let localID = pending.id
+    Logger.offline.info("Resuming pending CAAS download for layer '\(pending.layerID, privacy: .public)' (localID: \(localID.uuidString, privacy: .public), packageID: \(pending.packageID?.uuidString ?? "nil", privacy: .public))")
     downloadPhase = .requesting
 
     currentDownloadTask?.cancel()
@@ -210,7 +245,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
         layerName: pending.layerName,
         zoneWKT: pending.boundsWKT,
         zoomMax: pending.zoomMax,
-        existingPackageID: pending.packageID
+        existingPackageID: pending.packageID,
+        localID: localID
       )
     }
   }
@@ -244,7 +280,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     layerName: String,
     zoneWKT: String,
     zoomMax: Int,
-    existingPackageID: UUID?
+    existingPackageID: UUID?,
+    localID: UUID
   ) async {
     guard !Task.isCancelled else {
       downloadPhase = .cancelled
@@ -288,8 +325,9 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
         try Task.checkCancellation()
 
-        // Persist the assigned packageID immediately after server acknowledges creation
+        // Persist the assigned packageID while preserving the initial stable localID
         let updatedPending = PendingCAASDownload(
+          id: localID,
           packageID: packageID,
           layerID: layerID,
           layerName: layerName,
@@ -304,6 +342,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
       try await pollAndDownloadArchive(
         packageID: packageID,
+        localID: localID,
         apiKey: apiKey,
         layerID: layerID,
         layerName: layerName,
@@ -327,6 +366,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
   private func pollAndDownloadArchive(
     packageID: UUID,
+    localID: UUID,
     apiKey: String,
     layerID: String,
     layerName: String,
@@ -377,7 +417,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       layerName: layerName,
       boundsWKT: boundsWKT,
       zoomMax: zoomMax,
-      apiKey: apiKey
+      apiKey: apiKey,
+      localID: localID
     )
 
     downloadPhase = .completed(record)

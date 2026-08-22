@@ -22,9 +22,35 @@ protocol GeoGarageChartDownloaderProtocol: Sendable {
     layerName: String,
     boundsWKT: String,
     zoomMax: Int,
-    apiKey: String
+    apiKey: String,
+    localID: UUID?
   ) async throws(CaasError) -> OfflineChartDownload
 
   /// Deletes the local MBTiles file from disk and removes the record from the download repository.
   func deleteLocalChart(id: UUID) async throws(CaasError)
+}
+
+extension GeoGarageChartDownloaderProtocol {
+  func download(
+    packageID: UUID,
+    downloadURL: URL,
+    expectedMD5: String,
+    layerID: String,
+    layerName: String,
+    boundsWKT: String,
+    zoomMax: Int,
+    apiKey: String
+  ) async throws(CaasError) -> OfflineChartDownload {
+    try await download(
+      packageID: packageID,
+      downloadURL: downloadURL,
+      expectedMD5: expectedMD5,
+      layerID: layerID,
+      layerName: layerName,
+      boundsWKT: boundsWKT,
+      zoomMax: zoomMax,
+      apiKey: apiKey,
+      localID: nil
+    )
+  }
 }

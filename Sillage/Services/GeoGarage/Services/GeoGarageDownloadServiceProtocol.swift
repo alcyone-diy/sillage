@@ -18,11 +18,17 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
   /// Current observable state of the CAAS download workflow.
   var downloadPhase: GeoGarageDownloadPhaseState { get }
 
+  /// Persistent in-flight or queued download metadata, if any.
+  var pendingDownload: PendingCAASDownload? { get }
+
   /// Indicates whether a download is actively requesting, generating, downloading, or waiting for network.
   var isDownloading: Bool { get }
 
   /// Normalized progress value between 0.0 and 1.0 when available during package generation or downloading, or nil if indeterminate.
   var downloadProgress: Double? { get }
+
+  /// An asynchronous stream emitting download phase state transitions for reactive, decoupled observers.
+  func downloadStateStream() -> AsyncStream<GeoGarageDownloadPhaseState>
 
   /// Initiates an offline chart package generation and download pipeline.
   /// Synchronously persists the pending request before any network attempt.
