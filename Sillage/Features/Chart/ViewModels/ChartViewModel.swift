@@ -93,6 +93,27 @@ final class ChartViewModel {
   var showOfflineAreaWarning: Bool {
     return !isOfflineAreaEnabled
   }
+
+  /// Returns the identifier of the active GeoGarage layer if one is currently selected.
+  var currentGeoGarageLayerID: String? {
+    if case .remoteGeoGarage(_, let layerID) = currentChartSource {
+      return layerID
+    }
+    return nil
+  }
+
+  /// Returns whether the provided GeoGarage layer ID matches the currently active chart layer.
+  func isGeoGarageLayerActive(_ layerID: String) -> Bool {
+    guard !layerID.isEmpty, let activeID = currentGeoGarageLayerID else { return false }
+    if activeID.caseInsensitiveCompare(layerID) == .orderedSame {
+      return true
+    }
+    if let activeLayer = availableGeoGarageLayers.first(where: { $0.layer.caseInsensitiveCompare(activeID) == .orderedSame }),
+       activeLayer.brandName.caseInsensitiveCompare(layerID) == .orderedSame {
+      return true
+    }
+    return false
+  }
   
   // MARK: - Navigation & Telemetry
   

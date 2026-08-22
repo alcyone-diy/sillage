@@ -86,12 +86,24 @@ struct OfflineRegionsManagerView: View {
           ForEach(groupedCharts) { group in
             Section(header: Text(group.title)) {
               ForEach(group.items) { item in
+                let isEnabled = isMatchingChartSelected(for: item)
                 OfflineChartItemRowView(item: item)
+                  .swipeActions(edge: .leading, allowsFullSwipe: isEnabled) {
+                    Button {
+                      if isEnabled {
+                        showOnChart(item)
+                      }
+                    } label: {
+                      Label("Show on chart", systemImage: MarineIcon.offlineChart.rawValue)
+                    }
+                    .tint(isEnabled ? .blue : Color(uiColor: .systemGray3))
+                    .disabled(!isEnabled)
+                  }
                   .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button {
                       itemToDelete = item
                     } label: {
-                      Label("Delete", systemImage: "trash")
+                      Label("Delete", systemImage: MarineIcon.delete.rawValue)
                     }
                     .tint(.red)
                   }
@@ -156,6 +168,20 @@ struct OfflineRegionsManagerView: View {
   }
 
   // MARK: - Actions
+
+  private func isMatchingChartSelected(for item: OfflineChartItem) -> Bool {
+    guard item.geographicBounds != nil else { return false }
+    return chartViewModel.isGeoGarageLayerActive(item.layerID)
+  }
+
+  private func showOnChart(_ item: OfflineChartItem) {
+    guard let bounds = item.geographicBounds else {
+      Logger.offline.warning("Cannot show offline chart on map: bounds are missing.")
+      return
+    }
+    chartViewModel.fitBounds(bounds)
+    panelManagerViewModel.closePanel()
+  }
 
   private func deleteItem(_ item: OfflineChartItem) async {
     do {

@@ -204,7 +204,7 @@ struct CommandPanelView: View {
     Section(header: Text("Navigation")) {
       NavigationLink(value: PanelManagerViewModel.CommandDestination.offlineCharts) {
         HStack(spacing: MarineTheme.Spacing.medium) {
-          Image(systemName: "square.and.arrow.down.on.square")
+          Image(marineIcon: .offlineChart)
             .foregroundStyle(marineTheme.colors.accent)
             .marineFont(.body)
 

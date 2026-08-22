@@ -17,6 +17,7 @@ enum MarineIcon: String {
     case instruments = "barometer"
     case anchorAlarm = "location.viewfinder"
     case settings = "gearshape.fill"
+    case offlineChart = "square.and.arrow.down.on.square"
     
     // Actions
     case add = "plus"
