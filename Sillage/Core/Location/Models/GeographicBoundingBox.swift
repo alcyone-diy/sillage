@@ -22,26 +22,26 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   
   // MARK: - Initialization
   
-  public init(southWest: CLLocationCoordinate2D, northEast: CLLocationCoordinate2D) {
+  public nonisolated init(southWest: CLLocationCoordinate2D, northEast: CLLocationCoordinate2D) {
     self.southWest = southWest
     self.northEast = northEast
   }
   
-  public init(coordinate: CLLocationCoordinate2D) {
+  public nonisolated init(coordinate: CLLocationCoordinate2D) {
     self.southWest = coordinate
     self.northEast = coordinate
   }
 
   /// Parses a standard WKT (Well-Known Text) POLYGON string into a `GeographicBoundingBox`.
   /// Uses strict `en_US_POSIX` scanning to avoid locale-specific decimal separator bugs (e.g. French comma).
-  public init?(wkt: String) {
+  public nonisolated init?(wkt: String) {
     guard let box = Self.fromWKT(wkt) else { return nil }
     self = box
   }
   
   // MARK: - Public
   
-  public mutating func expand(toInclude coordinate: CLLocationCoordinate2D) {
+  public nonisolated mutating func expand(toInclude coordinate: CLLocationCoordinate2D) {
     if coordinate.latitude < southWest.latitude { southWest.latitude = coordinate.latitude }
     if coordinate.latitude > northEast.latitude { northEast.latitude = coordinate.latitude }
     
@@ -67,12 +67,12 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   // MARK: - Geometry & Topology
 
   /// Indicates whether the bounding box crosses the international anti-meridian (-180° / +180° longitude).
-  public var crossesAntiMeridian: Bool {
+  public nonisolated var crossesAntiMeridian: Bool {
     southWest.longitude > northEast.longitude
   }
 
   /// Returns the 5 closed polygon vertices (SW, SE, NE, NW, SW) for rendering or clipping.
-  public var polygonCoordinates: [CLLocationCoordinate2D] {
+  public nonisolated var polygonCoordinates: [CLLocationCoordinate2D] {
     [
       CLLocationCoordinate2D(latitude: southWest.latitude, longitude: southWest.longitude),
       CLLocationCoordinate2D(latitude: southWest.latitude, longitude: northEast.longitude),
@@ -85,7 +85,7 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   /// Splits an anti-meridian-crossing bounding box into two standard rectangular bounding boxes
   /// (one west of the anti-meridian extending to +180°, and one east extending from -180°).
   /// If the bounding box does not cross the anti-meridian, returns an array containing only `self`.
-  public func splitAtAntiMeridian() -> [GeographicBoundingBox] {
+  public nonisolated func splitAtAntiMeridian() -> [GeographicBoundingBox] {
     guard crossesAntiMeridian else { return [self] }
 
     let westSegment = GeographicBoundingBox(
@@ -103,7 +103,7 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
 
   /// Determines whether this bounding box intersects with another bounding box.
   /// Correctly evaluates multi-part boxes when crossing the anti-meridian.
-  public func intersects(_ other: GeographicBoundingBox) -> Bool {
+  public nonisolated func intersects(_ other: GeographicBoundingBox) -> Bool {
     let selfParts = self.splitAtAntiMeridian()
     let otherParts = other.splitAtAntiMeridian()
 
@@ -117,7 +117,7 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
     return false
   }
 
-  private func intersectsStandard(_ other: GeographicBoundingBox) -> Bool {
+  private nonisolated func intersectsStandard(_ other: GeographicBoundingBox) -> Bool {
     let latOverlap = max(self.southWest.latitude, other.southWest.latitude) <= min(self.northEast.latitude, other.northEast.latitude)
     let lonOverlap = max(self.southWest.longitude, other.southWest.longitude) <= min(self.northEast.longitude, other.northEast.longitude)
     return latOverlap && lonOverlap
@@ -132,7 +132,7 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   /// - Parameter boxes: The input bounding boxes to merge.
   /// - Returns: An array of closed coordinate rings (where the first coordinate equals the last coordinate),
   ///            ready to be passed directly as MapLibre / GeoJSON interior rings (holes).
-  public static func mergeIntoNonIntersectingPolygons(_ boxes: [GeographicBoundingBox]) -> [[CLLocationCoordinate2D]] {
+  public nonisolated static func mergeIntoNonIntersectingPolygons(_ boxes: [GeographicBoundingBox]) -> [[CLLocationCoordinate2D]] {
     guard !boxes.isEmpty else { return [] }
 
     // 1. Normalize by splitting any anti-meridian crossing boxes into standard rectangular boxes
@@ -292,7 +292,7 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   }
   
   /// Estimated area (approximation via Haversine for the bounding box)
-  public var estimatedArea: Measurement<UnitArea> {
+  public nonisolated var estimatedArea: Measurement<UnitArea> {
     let heightPoint = CLLocation(latitude: northEast.latitude, longitude: 0)
     let swPoint = CLLocation(latitude: southWest.latitude, longitude: 0)
     let heightMeters = heightPoint.distance(from: swPoint)
@@ -313,7 +313,7 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   ///   - other: The other `GeographicBoundingBox` to compare against.
   ///   - tolerance: The maximum allowed coordinate deviation (epsilon) in degrees. Defaults to `1e-6`.
   /// - Returns: `true` if all corner coordinates are within the specified tolerance; otherwise `false`.
-  public func isApproximatelyEqual(to other: GeographicBoundingBox, tolerance: CLLocationDegrees = 1e-6) -> Bool {
+  public nonisolated func isApproximatelyEqual(to other: GeographicBoundingBox, tolerance: CLLocationDegrees = 1e-6) -> Bool {
     return abs(southWest.latitude - other.southWest.latitude) < tolerance &&
            shortestLongitudeDelta(from: southWest.longitude, to: other.southWest.longitude) < tolerance &&
            abs(northEast.latitude - other.northEast.latitude) < tolerance &&
@@ -322,7 +322,7 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
 
   /// Generates a standard WKT (Well-Known Text) POLYGON representation of the bounding box
   /// in the format `POLYGON((minLon minLat, maxLon minLat, maxLon maxLat, minLon maxLat, minLon minLat))`.
-  public func toWKT() -> String {
+  public nonisolated func toWKT() -> String {
     let minLon = southWest.longitude
     let minLat = southWest.latitude
     let maxLon = northEast.longitude
@@ -333,7 +333,7 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   /// Parses a WKT POLYGON string into a `GeographicBoundingBox`.
   /// Uses POSIX locale to parse double values accurately regardless of user device language.
   /// Preserves native anti-meridian crossing direction from rectangular BBOX coordinate order (SW, SE, NE, NW, SW).
-  public static func fromWKT(_ wkt: String) -> GeographicBoundingBox? {
+  public nonisolated static func fromWKT(_ wkt: String) -> GeographicBoundingBox? {
     let trimmed = wkt.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed.uppercased().hasPrefix("POLYGON") else { return nil }
 
@@ -373,12 +373,12 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   // MARK: - Private Math
   
   /// Calculates the shortest angular distance between two longitudes, accounting for the 360-degree wrap at the anti-meridian.
-  private func shortestLongitudeDelta(from lon1: CLLocationDegrees, to lon2: CLLocationDegrees) -> CLLocationDegrees {
+  private nonisolated func shortestLongitudeDelta(from lon1: CLLocationDegrees, to lon2: CLLocationDegrees) -> CLLocationDegrees {
     let delta = abs(lon1 - lon2).truncatingRemainder(dividingBy: 360.0)
     return delta > 180.0 ? 360.0 - delta : delta
   }
   
-  private func degreesDistance(from start: CLLocationDegrees, to end: CLLocationDegrees) -> CLLocationDegrees {
+  private nonisolated func degreesDistance(from start: CLLocationDegrees, to end: CLLocationDegrees) -> CLLocationDegrees {
     var diff = end - start
     
     while diff < 0.0 {

@@ -32,4 +32,6 @@ enum MapFeatureType: String {
   case vectorTick = "vectorTick"
   case vessel = "vessel"
   case waypoint = "waypoint"
+  case offlineMask = "offlineMask"
+  case offlineRegionsBorder = "offlineRegionsBorder"
 }

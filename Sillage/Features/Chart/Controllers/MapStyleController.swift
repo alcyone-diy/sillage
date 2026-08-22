@@ -17,6 +17,8 @@ import UIKit
 enum MapLayerIdentifier: String, CaseIterable, Comparable {
   case baseRaster = "base-raster-layer"
   case seamarkOverlay = "seamark-overlay-layer"
+  case offlineMask = "offline-mask-layer"
+  case offlineRegionsBorder = "offline-regions-border-layer"
   case gpsAccuracyFill = "gps-accuracy-layer"
   case gpsAccuracyStroke = "gps-accuracy-stroke-layer"
   case savedTrack = "saved-track-layer"
@@ -47,6 +49,8 @@ enum MapLayerIdentifier: String, CaseIterable, Comparable {
 enum MapSourceIdentifier: String, CaseIterable {
   case baseRaster = "base-raster-source"
   case seamarkOverlay = "openseamap_source"
+  case offlineMask = "offline-mask-source"
+  case offlineRegionsBorder = "offline-regions-border-source"
   case gpsAccuracy = "gps-accuracy-source"
   case savedTrack = "saved-track-source"
   case activeTrack = "active-track-source"
@@ -156,6 +160,46 @@ struct MapStyleController {
         style.removeSource(source)
         Logger.mapStyle.debug("Removed seamark overlay source: \(sourceID, privacy: .public)")
       }
+    }
+  }
+
+  // MARK: - Offline Mask (Unsaved Map Dimming)
+
+  /// Ensures offline mask fill and border sources/layers exist in the MapLibre style.
+  static func ensureOfflineMaskLayersExist(in style: MLNStyle, theme: MarineTheme) {
+    if style.source(withIdentifier: MapSourceIdentifier.offlineMask.rawValue) == nil {
+      // 1. Offline Mask Fill (Global Dimming with Holes for Offline Regions)
+      let maskSource = MLNShapeSource(identifier: MapSourceIdentifier.offlineMask.rawValue, shape: nil, options: nil)
+      style.addSource(maskSource)
+
+      let maskFillLayer = MLNFillStyleLayer(identifier: MapLayerIdentifier.offlineMask.rawValue, source: maskSource)
+      maskFillLayer.fillColor = NSExpression(forConstantValue: UIColor(theme.colors.overlay))
+      maskFillLayer.fillOpacity = NSExpression(forConstantValue: MarineTheme.ChartMetrics.offlineMaskFillOpacity)
+      insertLayer(maskFillLayer, identifier: .offlineMask, into: style)
+
+      // 2. Offline Regions Border (Dashed boundary around saved offline packages)
+      let borderSource = MLNShapeSource(identifier: MapSourceIdentifier.offlineRegionsBorder.rawValue, shape: nil, options: nil)
+      style.addSource(borderSource)
+
+      let borderLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.offlineRegionsBorder.rawValue, source: borderSource)
+      borderLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.accent))
+      borderLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.ChartMetrics.offlineRegionsBorderLineWidth)
+      borderLayer.lineOpacity = NSExpression(forConstantValue: MarineTheme.ChartMetrics.offlineRegionsBorderOpacity)
+      borderLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 3.0])
+      insertLayer(borderLayer, identifier: .offlineRegionsBorder, into: style)
+    }
+  }
+
+  /// Updates the offline mask and region borders on the MapLibre style.
+  static func updateOfflineMask(state: OfflineMaskVisualState?, in style: MLNStyle, theme: MarineTheme) {
+    ensureOfflineMaskLayersExist(in: style, theme: theme)
+
+    if let maskSource = style.source(withIdentifier: MapSourceIdentifier.offlineMask.rawValue) as? MLNShapeSource {
+      maskSource.shape = MapLibreFeatureFactory.createOfflineMaskFeature(from: state)
+    }
+
+    if let borderSource = style.source(withIdentifier: MapSourceIdentifier.offlineRegionsBorder.rawValue) as? MLNShapeSource {
+      borderSource.shape = MapLibreFeatureFactory.createOfflineRegionsBorderFeature(from: state)
     }
   }
 
