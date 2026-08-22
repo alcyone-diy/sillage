@@ -227,7 +227,7 @@ struct OfflineChartDetailView: View {
             }
             .font(.headline)
             .fontWeight(.semibold)
-            .foregroundColor(marineTheme.colors.onPrimary)
+            .foregroundColor(isEnabled ? marineTheme.colors.onPrimary : marineTheme.colors.inactive)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
             .background(isEnabled ? marineTheme.colors.primary : marineTheme.colors.disabledBackground)
             .cornerRadius(MarineTheme.Metrics.cornerRadius)
