@@ -65,9 +65,7 @@ final class OfflineSelectionViewModel {
       }
     }
   }
-  var zoomMin: Int = 0
   var zoomMax: Int = 14
-  var customName: String = ""
 
   @ObservationIgnored
   private var calculationTask: Task<Void, Never>?
@@ -399,15 +397,6 @@ enum OfflineChartItem: Identifiable, Equatable, Sendable {
       return download.layerName
     case .inProgress(let pending, _):
       return pending.layerName
-    }
-  }
-
-  var zoomMax: Int {
-    switch self {
-    case .downloaded(let download):
-      return download.zoomMax
-    case .inProgress(let pending, _):
-      return pending.zoomMax
     }
   }
 

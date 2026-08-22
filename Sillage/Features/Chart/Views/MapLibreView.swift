@@ -109,7 +109,7 @@ struct MapLibreView: UIViewRepresentable {
     let headingVectorData = viewModel.headingVectorData
     let gpsAccuracyVisualState = viewModel.gpsAccuracyVisualState
     let activeTrackPoints = trackRecordingService.trackPoints
-    let savedTrackVisualS tate = viewModel.savedTrackVisualState
+    let savedTrackVisualState = viewModel.savedTrackVisualState
     let visibleWaypointVisualStates = viewModel.visibleWaypointVisualStates
     let goToWaypointVisualState = viewModel.goToWaypointVisualState
     let bearingLineVisualState = viewModel.bearingLineVisualState
