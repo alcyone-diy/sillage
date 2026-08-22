@@ -924,9 +924,24 @@ final class ChartViewModel {
     }
   }
 
-
-
-  
+  /// Smoothly centers and fits the map camera to the specified geographic bounding box.
+  /// Sets `trackingMode` to `.free` to allow arbitrary map framing.
+  func fitBounds(
+    _ bounds: GeographicBoundingBox,
+    padding: UIEdgeInsets? = nil
+  ) {
+    let resolvedPadding = padding ?? UIEdgeInsets(
+      top: MarineTheme.Spacing.extraLarge,
+      left: MarineTheme.Spacing.extraLarge,
+      bottom: MarineTheme.Spacing.extraLarge,
+      right: MarineTheme.Spacing.extraLarge
+    )
+    self.trackingMode = .free
+    let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: resolvedPadding)
+    for continuation in cameraMoveContinuations.values {
+      continuation.yield(event)
+    }
+  }
 
   // MARK: - Saved Tracks
   

@@ -23,7 +23,7 @@ final class OfflineSelectionViewModel {
   // MARK: - Injected Dependencies
 
   let downloadService: GeoGarageDownloadServiceProtocol
-  private let downloadRepository: GeoGarageDownloadRepositoryProtocol
+  let downloadRepository: GeoGarageDownloadRepositoryProtocol
   private let preferencesService: PreferencesServiceProtocol
   let chartViewModel: ChartViewModel
   let offlineMapManager: OfflineMapManagerProtocol?
@@ -94,7 +94,7 @@ final class OfflineSelectionViewModel {
 
   /// Total size in bytes of all locally downloaded offline packages.
   var totalDownloadedSize: Int64 {
-    downloadedCharts.reduce(0) { $0 + $1.fileSizeBytes }
+    downloadedCharts.reduce(0) { $0 + ($1.fileSizeBytes ?? 0) }
   }
 
   var isDownloading: Bool {
