@@ -23,8 +23,18 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   }
 
   private var continuations: [UUID: AsyncStream<GeoGarageDownloadPhaseState>.Continuation] = [:]
+  private var progressContinuations: [UUID: AsyncStream<Double?>.Continuation] = [:]
 
-  var activeDownloads: [ActiveCAASDownload] = []
+  var customGlobalDownloadProgress: Double? = nil
+
+  var activeDownloads: [ActiveCAASDownload] = [] {
+    didSet {
+      let progress = globalDownloadProgress
+      for cont in progressContinuations.values {
+        cont.yield(progress)
+      }
+    }
+  }
 
   var isDownloading: Bool {
     switch downloadPhase {
@@ -35,6 +45,15 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     }
   }
 
+  var globalDownloadProgress: Double? {
+    if let custom = customGlobalDownloadProgress {
+      return custom
+    }
+    guard isDownloading, !activeDownloads.isEmpty else { return nil }
+    let total = activeDownloads.reduce(0.0) { $0 + $1.progress }
+    return total / Double(activeDownloads.count)
+  }
+
   func downloadStateStream() -> AsyncStream<GeoGarageDownloadPhaseState> {
     let id = UUID()
     return AsyncStream { continuation in
@@ -43,6 +62,19 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
       continuation.onTermination = { [weak self] _ in
         Task { @MainActor [weak self] in
           self?.continuations.removeValue(forKey: id)
+        }
+      }
+    }
+  }
+
+  func downloadProgressStream() -> AsyncStream<Double?> {
+    let id = UUID()
+    return AsyncStream { continuation in
+      continuation.yield(self.globalDownloadProgress)
+      self.progressContinuations[id] = continuation
+      continuation.onTermination = { [weak self] _ in
+        Task { @MainActor [weak self] in
+          self?.progressContinuations.removeValue(forKey: id)
         }
       }
     }

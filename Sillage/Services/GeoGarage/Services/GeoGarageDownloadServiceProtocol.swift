@@ -24,8 +24,14 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
   /// Indicates whether any download is actively requesting, generating, downloading, or waiting for network.
   var isDownloading: Bool { get }
 
+  /// Overall normalized progress across all active, generating, downloading, and queued charts in the current session (0.0 to 1.0), or nil when idle.
+  var globalDownloadProgress: Double? { get }
+
   /// An asynchronous stream emitting download phase state transitions for reactive, decoupled observers.
   func downloadStateStream() -> AsyncStream<GeoGarageDownloadPhaseState>
+
+  /// An asynchronous stream emitting overall download progress updates for reactive, decoupled observers.
+  func downloadProgressStream() -> AsyncStream<Double?>
 
   /// Initiates an offline chart package generation and download pipeline.
   /// Synchronously persists the pending request before any network attempt.

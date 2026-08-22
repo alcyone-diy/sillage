@@ -236,6 +236,34 @@ nonisolated enum GeoGarageDownloadPhaseState: Equatable, Sendable {
   case completed(OfflineChartDownload)
   case failed(errorMessage: String)
   case cancelled
+
+  /// Normalized progress of this specific phase from 0.0 to 1.0.
+  ///
+  /// ### Technical Design:
+  /// - Server generation accounts for the first half (0.0 to 0.5) if and only if valid progress is provided by the server.
+  /// - If server progress is unavailable (`nil`), progress stays strictly 0.0 to avoid dummy values.
+  /// - Client archive download accounts for the second half (0.5 to 1.0) based on received bytes.
+  var normalizedProgress: Double {
+    switch self {
+    case .idle, .queued, .waitingForNetwork, .requesting, .failed, .cancelled:
+      return 0.0
+    case .generating(let progress, _):
+      if let progress {
+        return min(max(progress, 0.0), 1.0) * 0.5
+      } else {
+        return 0.0
+      }
+    case .downloading(let receivedBytes, let totalBytes):
+      if totalBytes > 0 {
+        let downloadRatio = min(max(Double(receivedBytes) / Double(totalBytes), 0.0), 1.0)
+        return 0.5 + (downloadRatio * 0.5)
+      } else {
+        return 0.5
+      }
+    case .completed:
+      return 1.0
+    }
+  }
 }
 
 /// Represents an active or queued CAAS download with its observed lifecycle state.
@@ -245,6 +273,10 @@ nonisolated struct ActiveCAASDownload: Identifiable, Equatable, Sendable {
 
   var id: UUID {
     item.id
+  }
+
+  var progress: Double {
+    phase.normalizedProgress
   }
 }
 

@@ -202,31 +202,27 @@ struct CommandPanelView: View {
   private var navigationSection: some View {
     Section(header: Text("Navigation")) {
       NavigationLink(value: PanelManagerViewModel.CommandDestination.offlineCharts) {
-        HStack {
-          Label {
-            VStack(alignment: .leading, spacing: 4) {
-              Text("Offline Charts").foregroundStyle(.primary)
-              if appEnvironment.isDownloadingOfflineCharts {
-                if let progress = appEnvironment.offlineChartsDownloadProgress {
-                  ProgressView(value: progress)
-                    .progressViewStyle(.linear)
-                    .tint(marineTheme.colors.accent)
-                } else {
-                  ProgressView()
-                    .progressViewStyle(.linear)
-                    .tint(marineTheme.colors.accent)
-                }
-              }
+        HStack(spacing: MarineTheme.Spacing.medium) {
+          Image(systemName: "square.and.arrow.down.on.square")
+            .foregroundStyle(marineTheme.colors.accent)
+            .marineFont(.body)
+
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Offline Charts")
+              .foregroundStyle(.primary)
+              .marineFont(.body)
+
+            if let progress = appEnvironment.offlineChartsDownloadProgress {
+              ProgressView(value: progress)
+                .progressViewStyle(.linear)
+                .tint(marineTheme.colors.accent)
             }
-          } icon: {
-            Image(systemName: "square.and.arrow.down.on.square")
-              .foregroundStyle(marineTheme.colors.accent)
           }
-          .marineFont(.body)
+
           Spacer()
         }
       }
-      .animation(.default, value: appEnvironment.isDownloadingOfflineCharts)
+      .animation(.default, value: appEnvironment.offlineChartsDownloadProgress != nil)
       .marineListCell()
 
       NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
