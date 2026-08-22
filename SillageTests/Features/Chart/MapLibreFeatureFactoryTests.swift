@@ -118,7 +118,7 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     XCTAssertEqual(polygon?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineMask.rawValue)
   }
 
-  func testCreateOfflineMaskFeature_whenMultiplePolygons_returnsMultiPolygonFeature() {
+  func testCreateOfflineMaskFeature_whenMultiplePolygons_returnsShapeCollectionFeature() {
     let ring1 = [
       CLLocationCoordinate2D(latitude: 46.0, longitude: -1.5),
       CLLocationCoordinate2D(latitude: 46.0, longitude: -1.0),
@@ -134,10 +134,13 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     let state = OfflineMaskVisualState(isActive: true, maskHoles: [], savedOfflinePolygons: [ring1, ring2])
     let shape = MapLibreFeatureFactory.createOfflineMaskFeature(from: state)
 
-    XCTAssertTrue(shape is MLNMultiPolygonFeature)
-    let multiPolygon = shape as? MLNMultiPolygonFeature
-    XCTAssertEqual(multiPolygon?.polygons.count, 2)
-    XCTAssertEqual(multiPolygon?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineMask.rawValue)
+    XCTAssertTrue(shape is MLNShapeCollectionFeature)
+    let collection = shape as? MLNShapeCollectionFeature
+    XCTAssertEqual(collection?.shapes.count, 2)
+    let poly1 = collection?.shapes[0] as? MLNPolygonFeature
+    let poly2 = collection?.shapes[1] as? MLNPolygonFeature
+    XCTAssertEqual(poly1?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineMask.rawValue)
+    XCTAssertEqual(poly2?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineMask.rawValue)
   }
 
   func testCreateOfflineRegionsBorderFeature_whenSinglePolygon_returnsPolylineFeature() {

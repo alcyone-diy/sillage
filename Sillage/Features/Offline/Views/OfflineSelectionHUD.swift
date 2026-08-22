@@ -65,7 +65,19 @@ struct OfflineSelectionHUD: View {
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
             }
-            
+
+          // Saved Offline Region Labels (Centered inside each offline package area)
+          if let chartVM = chartViewModel, !chartVM.offlineRegionScreenLabels.isEmpty {
+            ForEach(chartVM.offlineRegionScreenLabels) { label in
+              if label.isVisible {
+                OfflineRegionBadgeView(name: label.name)
+                  .position(x: label.screenPoint.x, y: label.screenPoint.y)
+                  .transition(.opacity)
+              }
+            }
+            .allowsHitTesting(false)
+          }
+
           Rectangle()
             .strokeBorder(marineTheme.colors.accent, lineWidth: MarineTheme.Metrics.borderWidth * 3.0)
             .frame(width: rect.width, height: rect.height)
@@ -362,6 +374,36 @@ struct OfflineSelectionHUD: View {
         chartViewModel?.isActionConfirmationCardActive = false
       }
     }
+  }
+}
+
+private struct OfflineRegionBadgeView: View {
+  @Environment(\.marineTheme) private var marineTheme
+  let name: String
+
+  var body: some View {
+    HStack(spacing: MarineTheme.Spacing.tiny + 2) {
+      Image(marineIcon: .offlineChart)
+        .marineFont(.caption)
+        .foregroundColor(marineTheme.colors.accent)
+
+      Text(name)
+        .marineFont(.subheadline)
+        .bold()
+        .foregroundColor(marineTheme.colors.textPrimary)
+        .lineLimit(1)
+    }
+    .padding(.horizontal, MarineTheme.Spacing.small + 4)
+    .padding(.vertical, MarineTheme.Spacing.tiny + 2)
+    .background(
+      .regularMaterial,
+      in: Capsule()
+    )
+    .overlay(
+      Capsule()
+        .strokeBorder(marineTheme.colors.accent.opacity(0.8), lineWidth: MarineTheme.Metrics.borderWidth * 1.5)
+    )
+    .shadow(color: Color.black.opacity(0.25), radius: MarineTheme.Metrics.shadowRadius, x: 0, y: MarineTheme.Metrics.shadowOffset)
   }
 }
 

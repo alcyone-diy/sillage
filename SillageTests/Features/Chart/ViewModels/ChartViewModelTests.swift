@@ -774,6 +774,116 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.offlineMaskVisualState?.savedOfflinePolygons.count, 1, "SHOM brand name selection must include SHOM saved offline polygons")
   }
 
+  func testUpdateOfflineMaskState_GeneratesValidatedRegionLabels() async throws {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    let downloadWithCustom = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/shom1.mbtiles",
+      md5: "hash_1",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-5.0 48.0, -4.0 48.0, -4.0 49.0, -5.0 49.0, -5.0 48.0))",
+      customName: "Bretagne Sud"
+    )
+
+    let downloadWithFallback = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM Atlantique",
+      downloadDate: Date(),
+      relativePath: "Charts/shom2.mbtiles",
+      md5: "hash_2",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-3.0 47.0, -2.0 47.0, -2.0 48.0, -3.0 48.0, -3.0 47.0))",
+      customName: nil
+    )
+
+    let downloadWithEmptyName = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "   ",
+      downloadDate: Date(),
+      relativePath: "Charts/shom3.mbtiles",
+      md5: "hash_3",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-1.0 46.0, 0.0 46.0, 0.0 47.0, -1.0 47.0, -1.0 46.0))",
+      customName: "  "
+    )
+
+    viewModel.updateOfflineMaskState(
+      isSelectionActive: true,
+      activeLayerID: "shom",
+      selectedBounds: nil,
+      downloads: [downloadWithCustom, downloadWithFallback, downloadWithEmptyName]
+    )
+
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.offlineMaskVisualState?.regionLabels.count == 2
+    }
+
+    let labels = viewModel.offlineMaskVisualState?.regionLabels ?? []
+    XCTAssertEqual(labels.count, 2, "Must generate exactly 2 labels, discarding the download with empty/whitespace name")
+
+    guard let customLabel = labels.first(where: { $0.id == downloadWithCustom.id.uuidString }) else {
+      XCTFail("Missing custom label")
+      return
+    }
+    XCTAssertEqual(customLabel.name, "Bretagne Sud")
+    XCTAssertEqual(customLabel.coordinate.latitude, 48.5, accuracy: 0.001)
+    XCTAssertEqual(customLabel.coordinate.longitude, -4.5, accuracy: 0.001)
+
+    guard let fallbackLabel = labels.first(where: { $0.id == downloadWithFallback.id.uuidString }) else {
+      XCTFail("Missing fallback label")
+      return
+    }
+    XCTAssertEqual(fallbackLabel.name, "SHOM Atlantique")
+    XCTAssertEqual(fallbackLabel.coordinate.latitude, 47.5, accuracy: 0.001)
+    XCTAssertEqual(fallbackLabel.coordinate.longitude, -2.5, accuracy: 0.001)
+
+    // Test screen positions projection
+    let screenBounds = CGRect(x: 0, y: 0, width: 400, height: 800)
+    viewModel.updateOfflineRegionScreenPositions(
+      projection: { coord in
+        // Simple linear mock projection for testing
+        CGPoint(x: (coord.longitude + 10.0) * 20.0, y: (50.0 - coord.latitude) * 40.0)
+      },
+      bounds: screenBounds
+    )
+
+    XCTAssertEqual(viewModel.offlineRegionScreenLabels.count, 2)
+    let screenLabel1 = viewModel.offlineRegionScreenLabels.first { $0.id == downloadWithCustom.id.uuidString }
+    XCTAssertNotNil(screenLabel1)
+    XCTAssertEqual(screenLabel1?.name, "Bretagne Sud")
+    XCTAssertTrue(screenLabel1?.isVisible ?? false)
+
+    // When selection mode is deactivated, labels are cleared
+    viewModel.updateOfflineMaskState(
+      isSelectionActive: false,
+      activeLayerID: nil,
+      selectedBounds: nil,
+      downloads: []
+    )
+    XCTAssertTrue(viewModel.offlineRegionScreenLabels.isEmpty)
+  }
+
   func testIsGeoGarageLayerActive() {
     let mockAuthService = MockGeoGarageAuthService()
     let preferencesService = PreferencesService()

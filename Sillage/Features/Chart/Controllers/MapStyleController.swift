@@ -202,8 +202,34 @@ struct MapStyleController {
     }
   }
 
+  /// Completely removes all offline mask and border layers and sources from the style stack.
+  /// Guarantees no ghost layers or unused shape sources remain when selection mode is deactivated.
+  static func removeOfflineMaskLayers(from style: MLNStyle) {
+    let layerIDs: [MapLayerIdentifier] = [.offlineRegionsBorder, .offlineMask]
+    for layerID in layerIDs {
+      if let layer = style.layer(withIdentifier: layerID.rawValue) {
+        style.removeLayer(layer)
+        Logger.mapStyle.debug("Removed offline mask layer: \(layerID.rawValue, privacy: .public)")
+      }
+    }
+
+    let sourceIDs: [MapSourceIdentifier] = [.offlineRegionsBorder, .offlineMask]
+    for sourceID in sourceIDs {
+      if let source = style.source(withIdentifier: sourceID.rawValue) {
+        style.removeSource(source)
+        Logger.mapStyle.debug("Removed offline mask source: \(sourceID.rawValue, privacy: .public)")
+      }
+    }
+  }
+
   /// Updates the offline mask and region borders on the MapLibre style.
+  /// If state is nil or inactive, completely cleans up and removes all offline mask layers and sources.
   static func updateOfflineMask(state: OfflineMaskVisualState?, in style: MLNStyle, theme: MarineTheme) {
+    guard let state, state.isActive else {
+      removeOfflineMaskLayers(from: style)
+      return
+    }
+
     ensureOfflineMaskLayersExist(in: style, theme: theme)
 
     if let maskSource = style.source(withIdentifier: MapSourceIdentifier.offlineMask.rawValue) as? MLNShapeSource {
