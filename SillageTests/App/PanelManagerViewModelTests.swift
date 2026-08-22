@@ -69,6 +69,17 @@ final class PanelManagerViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.commandPath, [.anchorAlarm])
   }
 
+  func testOpenOfflineChartsPanelAppendsDestination() {
+    viewModel.openOfflineChartsPanel()
+
+    XCTAssertEqual(viewModel.activePanel, .command)
+    XCTAssertEqual(viewModel.commandPath, [.offlineCharts])
+
+    // Re-calling should not duplicate the destination
+    viewModel.openOfflineChartsPanel()
+    XCTAssertEqual(viewModel.commandPath, [.offlineCharts])
+  }
+
   // MARK: - Intent Routing
 
   func testHandleIntentOpenSettingsGeoGarage() {

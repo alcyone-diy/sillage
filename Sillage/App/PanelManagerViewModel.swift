@@ -69,6 +69,14 @@ public final class PanelManagerViewModel {
     openPanel(.command)
   }
 
+  /// Opens the command panel specifically routed to the Offline Charts sub-view.
+  public func openOfflineChartsPanel() {
+    if commandPath.last != .offlineCharts {
+      commandPath.append(.offlineCharts)
+    }
+    openPanel(.command)
+  }
+
   /// Closes any active panel and resets the UI path state.
   public func closePanel() {
     resetCommandPath()
