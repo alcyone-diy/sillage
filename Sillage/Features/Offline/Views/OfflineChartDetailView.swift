@@ -20,7 +20,6 @@ struct OfflineChartDetailView: View {
   @Environment(\.dismiss) private var dismiss
 
   @State private var showDeleteConfirmation = false
-  @FocusState private var isNameFieldFocused: Bool
 
   var body: some View {
     VStack(spacing: 0) {
@@ -59,7 +58,6 @@ struct OfflineChartDetailView: View {
               HStack(spacing: 8) {
                 TextField("Chart Name", text: $viewModel.editableName)
                   .marineFont(.body)
-                  .focused($isNameFieldFocused)
                   .submitLabel(.done)
                   .onSubmit {
                     performSave()
@@ -286,11 +284,6 @@ struct OfflineChartDetailView: View {
             viewModel.startEditing()
           }
         }
-      }
-    }
-    .onChange(of: viewModel.isEditing) { _, isEditing in
-      if isEditing {
-        isNameFieldFocused = true
       }
     }
     .alert("Error", isPresented: Binding(
