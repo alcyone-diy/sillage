@@ -222,7 +222,7 @@ enum MapLibreFeatureFactory {
     }
   }
 
-  /// Creates polygon features representing the filled white areas of all saved offline regions.
+  /// Creates polygon features representing the filled areas of all saved offline regions.
   static func createOfflineMaskFeature(from state: OfflineMaskVisualState?) -> MLNShape? {
     guard let state, state.isActive, !state.savedOfflinePolygons.isEmpty else { return nil }
 
@@ -233,15 +233,15 @@ enum MapLibreFeatureFactory {
       feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineMask.rawValue]
       return feature
     } else {
-      let polygons = state.savedOfflinePolygons.compactMap { ring -> MLNPolygon? in
+      let polygonFeatures = state.savedOfflinePolygons.compactMap { ring -> MLNPolygonFeature? in
         guard ring.count >= 3 else { return nil }
         var mutableRing = ring
-        return MLNPolygon(coordinates: &mutableRing, count: UInt(mutableRing.count))
+        let feature = MLNPolygonFeature(coordinates: &mutableRing, count: UInt(mutableRing.count))
+        feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineMask.rawValue]
+        return feature
       }
-      guard !polygons.isEmpty else { return nil }
-      let feature = MLNMultiPolygonFeature(polygons: polygons)
-      feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineMask.rawValue]
-      return feature
+      guard !polygonFeatures.isEmpty else { return nil }
+      return MLNShapeCollectionFeature(shapes: polygonFeatures)
     }
   }
 

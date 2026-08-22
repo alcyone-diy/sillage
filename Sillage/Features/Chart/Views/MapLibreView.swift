@@ -188,6 +188,10 @@ struct MapLibreView: UIViewRepresentable {
       if offlineMaskVisualState != context.coordinator.lastOfflineMaskVisualState {
         MapStyleController.updateOfflineMask(state: offlineMaskVisualState, in: style, theme: marineTheme)
         context.coordinator.lastOfflineMaskVisualState = offlineMaskVisualState
+        viewModel.updateOfflineRegionScreenPositions(
+          projection: { uiView.convert($0, toPointTo: uiView) },
+          bounds: uiView.bounds
+        )
       }
 
       // Data Stale state update (Opacity)
@@ -389,6 +393,10 @@ struct MapLibreView: UIViewRepresentable {
       self.parent.viewModel.throttledUpdateMapScaleAndZoom(metersPerPoint: mpp, zoomLevel: mapView.zoomLevel)
       self.parent.viewModel.calloutViewModel.throttledUpdateScreenPosition(from: mapView)
       self.parent.viewModel.throttledUpdateCenterCoordinate(mapView.centerCoordinate)
+      self.parent.viewModel.updateOfflineRegionScreenPositions(
+        projection: { mapView.convert($0, toPointTo: mapView) },
+        bounds: mapView.bounds
+      )
     }
     
     func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
@@ -396,6 +404,10 @@ struct MapLibreView: UIViewRepresentable {
       self.parent.viewModel.updateMapScaleAndZoomImmediately(metersPerPoint: mpp, zoomLevel: mapView.zoomLevel)
       self.parent.viewModel.calloutViewModel.updateScreenPositionImmediately(from: mapView)
       self.parent.viewModel.updateCenterCoordinateImmediately(mapView.centerCoordinate)
+      self.parent.viewModel.updateOfflineRegionScreenPositions(
+        projection: { mapView.convert($0, toPointTo: mapView) },
+        bounds: mapView.bounds
+      )
     }
     
     // Called when the map has finished loading its style
@@ -462,7 +474,6 @@ struct MapLibreView: UIViewRepresentable {
       lastAnchorVisualState = anchorVisualState
 
       // Offline Mask layer initialization
-      MapStyleController.ensureOfflineMaskLayersExist(in: style, theme: parent.marineTheme)
       let maskState = parent.viewModel.offlineMaskVisualState
       MapStyleController.updateOfflineMask(state: maskState, in: style, theme: parent.marineTheme)
       lastOfflineMaskVisualState = maskState
@@ -591,6 +602,10 @@ struct MapLibreView: UIViewRepresentable {
         
         // Compute geographic bounding box for offline selection locally and pass it down
         self.updateOfflineSelectionBounds(mapView: mapView)
+        self.parent.viewModel.updateOfflineRegionScreenPositions(
+          projection: { mapView.convert($0, toPointTo: mapView) },
+          bounds: mapView.bounds
+        )
         
         // If it was a manual interaction, break tracking
         if self.shouldBreakTracking(for: reason) {

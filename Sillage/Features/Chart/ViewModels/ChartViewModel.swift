@@ -146,6 +146,7 @@ final class ChartViewModel {
   var goToWaypointID: String?
   var anchorVisualState: AnchorVisualState?
   var offlineMaskVisualState: OfflineMaskVisualState?
+  var offlineRegionScreenLabels: [OfflineRegionScreenLabel] = []
   var displayedTrackSessionID: String? {
     didSet {
       preferencesService.displayedTrackSessionID = displayedTrackSessionID
@@ -811,6 +812,7 @@ final class ChartViewModel {
 
     guard isSelectionActive else {
       self.offlineMaskVisualState = nil
+      self.offlineRegionScreenLabels = []
       return
     }
 
@@ -863,8 +865,38 @@ final class ChartViewModel {
 
       if Task.isCancelled { return }
 
-      let savedBoxes = matchingDownloads.compactMap { GeographicBoundingBox(wkt: $0.boundsWKT) }
-      let savedPolygons = GeographicBoundingBox.mergeIntoNonIntersectingPolygons(savedBoxes)
+      var regionLabels: [OfflineRegionLabelInfo] = []
+      var savedBoxes: [GeographicBoundingBox] = []
+      savedBoxes.reserveCapacity(matchingDownloads.count)
+      regionLabels.reserveCapacity(matchingDownloads.count)
+
+      for download in matchingDownloads {
+        guard let box = GeographicBoundingBox(wkt: download.boundsWKT) else {
+          continue
+        }
+        savedBoxes.append(box)
+
+        // Strict validation: Reject empty or whitespace-only names to prevent dummy values/empty labels
+        let effectiveName: String?
+        if let custom = download.customName?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
+          effectiveName = custom
+        } else {
+          let layerNameTrimmed = download.layerName.trimmingCharacters(in: .whitespacesAndNewlines)
+          effectiveName = layerNameTrimmed.isEmpty ? nil : layerNameTrimmed
+        }
+
+        if let validName = effectiveName {
+          regionLabels.append(
+            OfflineRegionLabelInfo(
+              id: download.id.uuidString,
+              name: validName,
+              coordinate: box.center
+            )
+          )
+        }
+      }
+
+      let savedPolygons = savedBoxes.map { $0.polygonCoordinates }
 
       var allBoxes = savedBoxes
       if let selectedBounds {
@@ -877,7 +909,8 @@ final class ChartViewModel {
       let visualState = OfflineMaskVisualState(
         isActive: true,
         maskHoles: maskHoles,
-        savedOfflinePolygons: savedPolygons
+        savedOfflinePolygons: savedPolygons,
+        regionLabels: regionLabels
       )
 
       await MainActor.run { [weak self] in
@@ -886,6 +919,31 @@ final class ChartViewModel {
       }
     }
     self.maskCalculationTask = TaskCancellable(task)
+  }
+
+  /// Synchronously updates the projected screen coordinates of offline region labels from the MapLibre viewport.
+  /// Runs on the `@MainActor` during the camera render loop (`mapViewRegionIsChanging`) for zero-drift tracking.
+  func updateOfflineRegionScreenPositions(projection: (CLLocationCoordinate2D) -> CGPoint, bounds: CGRect) {
+    guard let state = offlineMaskVisualState, state.isActive, !state.regionLabels.isEmpty else {
+      if !offlineRegionScreenLabels.isEmpty {
+        offlineRegionScreenLabels = []
+      }
+      return
+    }
+
+    // Add margin so labels don't abruptly pop in/out at screen edges
+    let extendedBounds = bounds.insetBy(dx: -50, dy: -50)
+
+    self.offlineRegionScreenLabels = state.regionLabels.map { label in
+      let point = projection(label.coordinate)
+      let isVisible = extendedBounds.contains(point)
+      return OfflineRegionScreenLabel(
+        id: label.id,
+        name: label.name,
+        screenPoint: point,
+        isVisible: isVisible
+      )
+    }
   }
   
   // MARK: - User Interactions
