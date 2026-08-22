@@ -197,6 +197,9 @@
     "App Information" : {
 
     },
+    "Are you sure you want to cancel and delete this in-progress chart download?" : {
+
+    },
     "Are you sure you want to delete this downloaded chart package?" : {
 
     },
@@ -386,10 +389,10 @@
     "Download interrupted." : {
 
     },
-    "Downloaded Charts" : {
+    "Downloading" : {
 
     },
-    "Downloading chart…" : {
+    "Downloading…" : {
 
     },
     "Drag map to adjust anchor position" : {
@@ -426,6 +429,9 @@
 
     },
     "Export GPX" : {
+
+    },
+    "Failed" : {
 
     },
     "Failed to access the file securely." : {
@@ -478,6 +484,9 @@
       "comment" : "Weather alarm"
     },
     "General" : {
+
+    },
+    "Generating" : {
 
     },
     "GeoGarage Account" : {
@@ -560,6 +569,9 @@
 
     },
     "Import succeeded, but failed to clean up the original file: %@" : {
+
+    },
+    "In progress" : {
 
     },
     "Initialization Failed" : {
@@ -689,9 +701,6 @@
     "No active recording to stop." : {
 
     },
-    "No offline charts" : {
-
-    },
     "No Offline Charts" : {
 
     },
@@ -788,7 +797,10 @@
     "Recording Status" : {
 
     },
-    "Requesting chart package…" : {
+    "Requesting" : {
+
+    },
+    "Requesting package…" : {
 
     },
     "Retry" : {
@@ -991,6 +1003,9 @@
     "W" : {
       "comment" : "West cardinal point"
     },
+    "Waiting for connection" : {
+
+    },
     "Waiting for GPS..." : {
 
     },
@@ -1022,9 +1037,6 @@
 
     },
     "Website" : {
-
-    },
-    "Will resume automatically when online" : {
 
     },
     "WIND" : {

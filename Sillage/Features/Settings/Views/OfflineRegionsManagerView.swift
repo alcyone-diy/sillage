@@ -10,7 +10,6 @@
 
 import SwiftUI
 import OSLog
-
 @MainActor
 struct OfflineRegionsManagerView: View {
   @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
@@ -18,16 +17,16 @@ struct OfflineRegionsManagerView: View {
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
   @Environment(\.marineTheme) private var marineTheme
 
-  @State private var downloadToDelete: OfflineChartDownload?
+  @State private var itemToDelete: OfflineChartItem?
   @State private var errorMessage: String?
 
-  private var downloadedCharts: [OfflineChartDownload] {
-    offlineSelectionViewModel.downloadedCharts
+  private var allChartItems: [OfflineChartItem] {
+    offlineSelectionViewModel.allChartItems
   }
 
-  /// Downloaded charts grouped by GeoGarage layer type and sorted alphabetically by section title.
-  private var groupedDownloadedCharts: [OfflineChartTypeGroup] {
-    offlineSelectionViewModel.groupedDownloadedCharts
+  /// Offline charts (downloaded and in-progress) grouped by GeoGarage layer type and sorted alphabetically by section title.
+  private var groupedCharts: [OfflineChartTypeGroup] {
+    offlineSelectionViewModel.groupedCharts
   }
 
   private var isOfflineAreaDisabled: Bool {
@@ -36,7 +35,7 @@ struct OfflineRegionsManagerView: View {
 
   var body: some View {
     Group {
-      if downloadedCharts.isEmpty && !offlineSelectionViewModel.isDownloading {
+      if allChartItems.isEmpty {
         ContentUnavailableView {
           Label("No Offline Charts", systemImage: "map.slash")
         } description: {
@@ -78,37 +77,28 @@ struct OfflineRegionsManagerView: View {
             }
           }
 
-          // Summary and download progress in its own dedicated section
+          // Summary section
           Section {
             OfflineRegionsHeaderView()
           }
 
-          // Downloaded charts sections grouped by GeoGarage chart type
-          if downloadedCharts.isEmpty {
-            Section(header: Text("Downloaded Charts")) {
-              Text("No offline charts")
-                .marineFont(.body)
-                .foregroundStyle(.secondary)
-                .marineListCell()
-            }
-          } else {
-            ForEach(groupedDownloadedCharts) { group in
-              Section(header: Text(group.title)) {
-                ForEach(group.downloads, id: \.id) { download in
-                  OfflineDownloadRowView(download: download)
-                    .swipeActions(edge: .trailing) {
-                      Button(role: .destructive) {
-                        downloadToDelete = download
-                      } label: {
-                        Label("Delete", systemImage: "trash")
-                      }
+          // Charts sections grouped by GeoGarage chart type
+          ForEach(groupedCharts) { group in
+            Section(header: Text(group.title)) {
+              ForEach(group.items) { item in
+                OfflineChartItemRowView(item: item)
+                  .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                      itemToDelete = item
+                    } label: {
+                      Label("Delete", systemImage: "trash")
                     }
-                }
+                  }
               }
             }
           }
         }
-        .animation(.default, value: downloadedCharts)
+        .animation(.default, value: allChartItems)
         .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
         .marineListBackground()
       }
@@ -129,20 +119,25 @@ struct OfflineRegionsManagerView: View {
     .confirmationDialog(
       "Delete Offline Chart",
       isPresented: Binding(
-        get: { downloadToDelete != nil },
-        set: { if !$0 { downloadToDelete = nil } }
+        get: { itemToDelete != nil },
+        set: { if !$0 { itemToDelete = nil } }
       ),
       titleVisibility: .visible,
-      presenting: downloadToDelete
-    ) { download in
-      Button("Delete \"\(download.layerName)\"", role: .destructive) {
-        Task {
-          await deleteDownload(download)
+      presenting: itemToDelete
+    ) { item in
+      Button("Delete \"\(item.layerName)\"", role: .destructive) {
+        Task { @MainActor in
+          await deleteItem(item)
         }
       }
       Button("Cancel", role: .cancel) {}
-    } message: { _ in
-      Text("Are you sure you want to delete this downloaded chart package?")
+    } message: { item in
+      switch item {
+      case .downloaded:
+        Text("Are you sure you want to delete this downloaded chart package?")
+      case .inProgress:
+        Text("Are you sure you want to cancel and delete this in-progress chart download?")
+      }
     }
     .alert("Error", isPresented: Binding(
       get: { errorMessage != nil },
@@ -160,11 +155,11 @@ struct OfflineRegionsManagerView: View {
 
   // MARK: - Actions
 
-  private func deleteDownload(_ download: OfflineChartDownload) async {
+  private func deleteItem(_ item: OfflineChartItem) async {
     do {
-      try await offlineSelectionViewModel.deleteDownload(download)
+      try await offlineSelectionViewModel.deleteItem(item)
     } catch {
-      Logger.offline.error("Failed to delete offline chart \(download.layerName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+      Logger.offline.error("Failed to delete offline chart \(item.layerName, privacy: .public): \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
     }
   }
@@ -177,73 +172,30 @@ private struct OfflineRegionsHeaderView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      if offlineSelectionViewModel.isDownloading {
-        switch offlineSelectionViewModel.downloadPhase {
-        case .waitingForNetwork(let message):
-          Text(message)
-            .marineFont(.headline)
-          HStack(spacing: 8) {
-            ProgressView()
-              .controlSize(.small)
-            Text("Will resume automatically when online")
-              .marineFont(.subheadline)
-              .foregroundStyle(.secondary)
-          }
+      let downloadsCount = offlineSelectionViewModel.downloadedCharts.count
+      let totalSize = offlineSelectionViewModel.totalDownloadedSize
 
-        case .requesting:
-          Text("Requesting chart package…")
-            .marineFont(.headline)
-          ProgressView()
-            .controlSize(.small)
+      Text("\(downloadsCount) offline charts")
+        .marineFont(.headline)
 
-        case .generating(let progress, let message):
-          Text(message)
-            .marineFont(.headline)
-          if let progress {
-            ProgressView(value: progress)
-              .progressViewStyle(.linear)
-              .tint(.accentColor)
-          } else {
-            ProgressView()
-              .controlSize(.small)
-          }
-
-        case .downloading(let received, let total):
-          HStack {
-            Text("Downloading chart…")
-              .marineFont(.headline)
-            Spacer()
-            if total > 0 {
-              Text("\(Int64(received).formatted(.byteCount(style: .file))) / \(Int64(total).formatted(.byteCount(style: .file)))")
-                .marineFont(.subheadline)
-                .foregroundStyle(.secondary)
-            }
-          }
-          if total > 0 {
-            ProgressView(value: Double(received), total: Double(total))
-              .progressViewStyle(.linear)
-              .tint(.accentColor)
-          } else {
-            ProgressView()
-              .controlSize(.small)
-          }
-
-        default:
-          EmptyView()
-        }
-      } else {
-        let downloadsCount = offlineSelectionViewModel.downloadedCharts.count
-        let totalSize = offlineSelectionViewModel.totalDownloadedSize
-
-        Text("\(downloadsCount) offline charts")
-          .marineFont(.headline)
-
-        Text("Total size: \(totalSize.formatted(.byteCount(style: .file)))")
-          .marineFont(.subheadline)
-          .foregroundStyle(.secondary)
-      }
+      Text("Total size: \(totalSize.formatted(.byteCount(style: .file)))")
+        .marineFont(.subheadline)
+        .foregroundStyle(.secondary)
     }
     .marineListCell()
+  }
+}
+
+private struct OfflineChartItemRowView: View {
+  let item: OfflineChartItem
+
+  var body: some View {
+    switch item {
+    case .downloaded(let download):
+      OfflineDownloadRowView(download: download)
+    case .inProgress(let pending, let phase):
+      OfflineInProgressRowView(pending: pending, phase: phase)
+    }
   }
 }
 
@@ -274,3 +226,120 @@ private struct OfflineDownloadRowView: View {
     .marineListCell()
   }
 }
+
+private struct OfflineInProgressRowView: View {
+  let pending: PendingCAASDownload
+  let phase: GeoGarageDownloadPhaseState
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        Text(pending.createdAt.formatted(date: .abbreviated, time: .shortened))
+          .marineFont(.body)
+          .foregroundColor(.primary)
+
+        Spacer()
+
+        statusBadge
+      }
+
+      progressBar
+
+      HStack(spacing: 8) {
+        statusDetailText
+          .marineFont(.caption)
+          .foregroundColor(.secondary)
+        Text("•")
+          .marineFont(.caption)
+          .foregroundColor(.secondary)
+        Text("Max Zoom \(pending.zoomMax)")
+          .marineFont(.caption)
+          .foregroundColor(.secondary)
+      }
+    }
+    .marineListCell()
+  }
+
+  @ViewBuilder
+  private var statusBadge: some View {
+    switch phase {
+    case .waitingForNetwork:
+      Label("Waiting for connection", systemImage: "wifi.slash")
+        .marineFont(.caption)
+        .foregroundColor(.orange)
+    case .requesting:
+      HStack(spacing: 4) {
+        ProgressView()
+          .controlSize(.mini)
+        Text("Requesting")
+          .marineFont(.caption)
+          .foregroundColor(.secondary)
+      }
+    case .generating:
+      HStack(spacing: 4) {
+        ProgressView()
+          .controlSize(.mini)
+        Text("Generating")
+          .marineFont(.caption)
+          .foregroundColor(.accentColor)
+      }
+    case .downloading:
+      HStack(spacing: 4) {
+        ProgressView()
+          .controlSize(.mini)
+        Text("Downloading")
+          .marineFont(.caption)
+          .foregroundColor(.accentColor)
+      }
+    case .failed:
+      Label("Failed", systemImage: "exclamationmark.triangle")
+        .marineFont(.caption)
+        .foregroundColor(.red)
+    case .idle, .completed, .cancelled:
+      EmptyView()
+    }
+  }
+
+  @ViewBuilder
+  private var progressBar: some View {
+    switch phase {
+    case .generating(let progress, _):
+      if let progress {
+        ProgressView(value: progress)
+          .progressViewStyle(.linear)
+          .tint(.accentColor)
+      }
+    case .downloading(let received, let total):
+      if total > 0 {
+        ProgressView(value: Double(received), total: Double(total))
+          .progressViewStyle(.linear)
+          .tint(.accentColor)
+      }
+    default:
+      EmptyView()
+    }
+  }
+
+  @ViewBuilder
+  private var statusDetailText: some View {
+    switch phase {
+    case .waitingForNetwork(let message):
+      Text(message)
+    case .requesting:
+      Text("Requesting package…")
+    case .generating(_, let message):
+      Text(message)
+    case .downloading(let received, let total):
+      if total > 0 {
+        Text("\(Int64(received).formatted(.byteCount(style: .file))) / \(Int64(total).formatted(.byteCount(style: .file)))")
+      } else {
+        Text("Downloading…")
+      }
+    case .failed(let errorMessage):
+      Text(errorMessage)
+    case .idle, .completed, .cancelled:
+      Text("In progress")
+    }
+  }
+}
+

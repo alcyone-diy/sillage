@@ -14,7 +14,17 @@ import Foundation
 /// A test mock conforming to `GeoGarageDownloadServiceProtocol` for isolated unit tests.
 @MainActor
 final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
-  var downloadPhase: GeoGarageDownloadPhaseState = .idle
+  var downloadPhase: GeoGarageDownloadPhaseState = .idle {
+    didSet {
+      for cont in continuations.values {
+        cont.yield(downloadPhase)
+      }
+    }
+  }
+
+  private var continuations: [UUID: AsyncStream<GeoGarageDownloadPhaseState>.Continuation] = [:]
+
+  var pendingDownload: PendingCAASDownload?
 
   var isDownloading: Bool {
     switch downloadPhase {
@@ -36,6 +46,19 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
       return min(max(ratio, 0.0), 1.0)
     case .idle, .waitingForNetwork, .requesting, .completed, .failed, .cancelled:
       return nil
+    }
+  }
+
+  func downloadStateStream() -> AsyncStream<GeoGarageDownloadPhaseState> {
+    let id = UUID()
+    return AsyncStream { continuation in
+      continuation.yield(self.downloadPhase)
+      self.continuations[id] = continuation
+      continuation.onTermination = { [weak self] _ in
+        Task { @MainActor [weak self] in
+          self?.continuations.removeValue(forKey: id)
+        }
+      }
     }
   }
 

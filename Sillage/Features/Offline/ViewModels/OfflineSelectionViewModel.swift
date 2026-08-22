@@ -62,16 +62,38 @@ final class OfflineSelectionViewModel {
   @ObservationIgnored
   private var calculationTask: Task<Void, Never>?
 
+  @ObservationIgnored
+  private var downloadMonitoringTask: Task<Void, Never>?
+
   private let maxArea = AppConstants.Cartography.Offline.maxDownloadArea
+
+  // MARK: - Reactive Download State
+
+  /// The live download phase observed reactively from `downloadService.downloadStateStream()`.
+  /// Marked as tracked within `@Observable` so any change automatically triggers SwiftUI updates.
+  private(set) var currentDownloadPhase: GeoGarageDownloadPhaseState = .idle
 
   // MARK: - Computed Properties Forwarded from Service / Repositories
 
   var downloadPhase: GeoGarageDownloadPhaseState {
-    downloadService.downloadPhase
+    currentDownloadPhase
+  }
+
+  var pendingDownload: PendingCAASDownload? {
+    downloadService.pendingDownload
   }
 
   var downloadedCharts: [OfflineChartDownload] {
     downloadRepository.downloads
+  }
+
+  /// All chart items to be displayed in the UI, combining completed downloads and active/pending downloads.
+  var allChartItems: [OfflineChartItem] {
+    var items = downloadedCharts.map { OfflineChartItem.downloaded($0) }
+    if let pending = pendingDownload, isDownloading {
+      items.append(.inProgress(pending, phase: currentDownloadPhase))
+    }
+    return items
   }
 
   /// Total size in bytes of all locally downloaded offline packages.
@@ -80,12 +102,27 @@ final class OfflineSelectionViewModel {
   }
 
   var isDownloading: Bool {
-    downloadService.isDownloading
+    switch currentDownloadPhase {
+    case .waitingForNetwork, .requesting, .generating, .downloading:
+      return true
+    case .idle, .completed, .failed, .cancelled:
+      return false
+    }
   }
 
   /// Normalized progress value between 0.0 and 1.0 if known during generation or downloading, or nil if indeterminate.
   var downloadProgress: Double? {
-    downloadService.downloadProgress
+    switch currentDownloadPhase {
+    case .generating(let progress, _):
+      guard let progress else { return nil }
+      return min(max(progress, 0.0), 1.0)
+    case .downloading(let receivedBytes, let totalBytes):
+      guard totalBytes > 0 else { return nil }
+      let ratio = Double(receivedBytes) / Double(totalBytes)
+      return min(max(ratio, 0.0), 1.0)
+    case .idle, .waitingForNetwork, .requesting, .completed, .failed, .cancelled:
+      return nil
+    }
   }
 
   var currentViewportBounds: GeographicBoundingBox? {
@@ -96,9 +133,14 @@ final class OfflineSelectionViewModel {
     chartViewModel.availableGeoGarageLayers
   }
 
-  /// Downloaded offline charts grouped by GeoGarage chart type, sorted in alphabetical order.
+  /// All offline charts (downloaded and in-progress) grouped by GeoGarage chart type, sorted in alphabetical order.
+  var groupedCharts: [OfflineChartTypeGroup] {
+    OfflineChartTypeGroup.group(items: allChartItems, availableLayers: availableLayers)
+  }
+
+  /// Downloaded offline charts grouped by GeoGarage chart type, sorted in alphabetical order (backwards compatibility).
   var groupedDownloadedCharts: [OfflineChartTypeGroup] {
-    OfflineChartTypeGroup.group(downloadedCharts, availableLayers: availableLayers)
+    groupedCharts
   }
 
   // MARK: - Initializers
@@ -117,10 +159,26 @@ final class OfflineSelectionViewModel {
     self.chartViewModel = chartViewModel
     self.offlineMapManager = offlineMapManager
     self.downloader = downloader
+    self.currentDownloadPhase = downloadService.downloadPhase
 
     if let firstLayer = chartViewModel.availableGeoGarageLayers.first {
       self.selectedLayerID = firstLayer.layer
     }
+
+    // Technical Design: Listen to downloadStateStream() on @MainActor with [weak self]
+    // so any phase / progress transition automatically invalidates SwiftUI views via @Observable.
+    self.downloadMonitoringTask = Task { @MainActor [weak self] in
+      guard let self else { return }
+      for await phase in self.downloadService.downloadStateStream() {
+        guard !Task.isCancelled else { break }
+        self.currentDownloadPhase = phase
+      }
+    }
+  }
+
+  deinit {
+    downloadMonitoringTask?.cancel()
+    calculationTask?.cancel()
   }
 
   /// Convenience initializer constructing a `GeoGarageDownloadService` when individual components are passed.
@@ -204,12 +262,14 @@ final class OfflineSelectionViewModel {
     guard let bounds = selectedBounds ?? chartViewModel.currentVisibleBounds else {
       Logger.offline.warning("OfflineSelectionViewModel: startDownload called but no valid bounds found.")
       downloadService.failDownload(with: String(localized: "No visible map viewport found. Pan or zoom the chart first."))
+      self.currentDownloadPhase = downloadService.downloadPhase
       return
     }
 
     guard let customerID = preferencesService.geoGarageCustomerID, !customerID.isEmpty else {
       Logger.offline.warning("OfflineSelectionViewModel: startDownload called without authenticated customer ID.")
       downloadService.failDownload(with: String(localized: "User is not authenticated with GeoGarage. Please login first."))
+      self.currentDownloadPhase = downloadService.downloadPhase
       return
     }
 
@@ -248,6 +308,7 @@ final class OfflineSelectionViewModel {
         apiKey: apiKey,
         customerID: customerID
       )
+      self.currentDownloadPhase = self.downloadService.downloadPhase
     }
   }
 
@@ -261,6 +322,7 @@ final class OfflineSelectionViewModel {
     guard let bounds = selectedBounds ?? chartViewModel.currentVisibleBounds else {
       Logger.offline.warning("OfflineSelectionViewModel: startDownload called but no valid bounds found.")
       downloadService.failDownload(with: String(localized: "No visible map viewport found. Pan or zoom the chart first."))
+      self.currentDownloadPhase = downloadService.downloadPhase
       return
     }
 
@@ -283,17 +345,20 @@ final class OfflineSelectionViewModel {
       apiKey: apiKey,
       customerID: customerID
     )
+    self.currentDownloadPhase = downloadService.downloadPhase
   }
 
   /// Resumes an in-flight CAAS download if state was preserved across app termination/crash or network restoration.
   func resumePendingDownloadIfNeeded() async {
     await downloadService.resumePendingDownloadIfNeeded()
+    self.currentDownloadPhase = downloadService.downloadPhase
   }
 
   /// Cancels any in-flight download task and resets state.
   func cancelDownload() {
     Logger.offline.info("OfflineSelectionViewModel: cancelDownload called by user")
     downloadService.cancelDownload()
+    self.currentDownloadPhase = downloadService.downloadPhase
     offlineMapManager?.cancelDownload()
   }
 
@@ -307,37 +372,132 @@ final class OfflineSelectionViewModel {
       try await downloadService.deleteDownload(download)
     }
   }
+
+  /// Deletes a chart item (cancels if in progress or deletes package from disk if already downloaded).
+  /// - Parameter item: Item to delete or cancel.
+  func deleteItem(_ item: OfflineChartItem) async throws {
+    switch item {
+    case .downloaded(let download):
+      try await deleteDownload(download)
+    case .inProgress:
+      Logger.offline.info("Cancelling in-progress download for layer '\(item.layerName, privacy: .public)' via user swipe-to-delete.")
+      cancelDownload()
+    }
+  }
 }
 
-/// Represents a grouped collection of downloaded offline charts for a specific GeoGarage chart type (layer).
+/// Represents an item displayed in the Offline Charts list, which can either be a fully downloaded package
+/// or an in-progress / pending download package.
+enum OfflineChartItem: Identifiable, Equatable, Sendable {
+  case downloaded(OfflineChartDownload)
+  case inProgress(PendingCAASDownload, phase: GeoGarageDownloadPhaseState)
+
+  var id: String {
+    switch self {
+    case .downloaded(let download):
+      return download.id.uuidString
+    case .inProgress(let pending, _):
+      return pending.id.uuidString
+    }
+  }
+
+  var layerID: String {
+    switch self {
+    case .downloaded(let download):
+      return download.layerID
+    case .inProgress(let pending, _):
+      return pending.layerID
+    }
+  }
+
+  var layerName: String {
+    switch self {
+    case .downloaded(let download):
+      return download.layerName
+    case .inProgress(let pending, _):
+      return pending.layerName
+    }
+  }
+
+  var zoomMax: Int {
+    switch self {
+    case .downloaded(let download):
+      return download.zoomMax
+    case .inProgress(let pending, _):
+      return pending.zoomMax
+    }
+  }
+
+  var date: Date {
+    switch self {
+    case .downloaded(let download):
+      return download.downloadDate
+    case .inProgress(let pending, _):
+      return pending.createdAt
+    }
+  }
+}
+
+/// Represents a grouped collection of offline charts (downloaded or in progress) for a specific GeoGarage chart type (layer).
 struct OfflineChartTypeGroup: Identifiable, Equatable, Sendable {
   var id: String { layerID }
   let layerID: String
   let title: String
-  let downloads: [OfflineChartDownload]
+  let items: [OfflineChartItem]
 
-  /// Groups offline downloads by their GeoGarage layer ID and sorts sections in strictly alphabetical order by title.
-  /// Inside each group, downloads are sorted in descending chronological order (most recent first).
+  /// Backwards compatibility accessor returning only downloaded chart packages.
+  var downloads: [OfflineChartDownload] {
+    items.compactMap { item in
+      if case .downloaded(let download) = item {
+        return download
+      }
+      return nil
+    }
+  }
+
+  init(layerID: String, title: String, items: [OfflineChartItem]) {
+    self.layerID = layerID
+    self.title = title
+    self.items = items
+  }
+
+  init(layerID: String, title: String, downloads: [OfflineChartDownload]) {
+    self.layerID = layerID
+    self.title = title
+    self.items = downloads.map { OfflineChartItem.downloaded($0) }
+  }
+
+  /// Groups offline chart items by their GeoGarage layer ID and sorts sections in strictly alphabetical order by title.
+  /// Inside each group, items are sorted in descending chronological order (most recent first).
   static func group(
-    _ downloads: [OfflineChartDownload],
+    items: [OfflineChartItem],
     availableLayers: [GeoGarageLayer] = []
   ) -> [OfflineChartTypeGroup] {
-    let grouped = Dictionary(grouping: downloads) { $0.layerID.lowercased() }
+    let grouped = Dictionary(grouping: items) { $0.layerID.lowercased() }
 
-    return grouped.map { layerID, groupDownloads in
+    return grouped.map { layerID, groupItems in
       let title: String = {
         if let matchingLayer = availableLayers.first(where: { $0.layer.lowercased() == layerID }) {
           return matchingLayer.brandName
         }
-        if let firstLayerName = groupDownloads.first?.layerName, !firstLayerName.isEmpty {
+        if let firstLayerName = groupItems.first?.layerName, !firstLayerName.isEmpty {
           return firstLayerName
         }
         return layerID.uppercased()
       }()
-      let sortedDownloads = groupDownloads.sorted { $0.downloadDate > $1.downloadDate }
-      return OfflineChartTypeGroup(layerID: layerID, title: title, downloads: sortedDownloads)
+      let sortedItems = groupItems.sorted { $0.date > $1.date }
+      return OfflineChartTypeGroup(layerID: layerID, title: title, items: sortedItems)
     }
     .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+  }
+
+  /// Convenience overload grouping completed downloads.
+  static func group(
+    _ downloads: [OfflineChartDownload],
+    availableLayers: [GeoGarageLayer] = []
+  ) -> [OfflineChartTypeGroup] {
+    let items = downloads.map { OfflineChartItem.downloaded($0) }
+    return group(items: items, availableLayers: availableLayers)
   }
 }
 

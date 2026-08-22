@@ -35,13 +35,47 @@ enum GPSAccuracyMode: String, CaseIterable, Sendable {
 // MARK: - Pending CAAS Download State Preservation
 
 /// Persistent record of an in-flight CAAS download to survive iOS app termination or crashes.
-nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable {
+nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiable {
+  let id: UUID
   let packageID: UUID?
   let layerID: String
   let layerName: String
   let boundsWKT: String
   let zoomMax: Int
   let createdAt: Date
+
+  init(
+    id: UUID? = nil,
+    packageID: UUID? = nil,
+    layerID: String,
+    layerName: String,
+    boundsWKT: String,
+    zoomMax: Int,
+    createdAt: Date = Date()
+  ) {
+    self.id = id ?? packageID ?? UUID()
+    self.packageID = packageID
+    self.layerID = layerID
+    self.layerName = layerName
+    self.boundsWKT = boundsWKT
+    self.zoomMax = zoomMax
+    self.createdAt = createdAt
+  }
+
+  enum CodingKeys: String, CodingKey {
+    case id, packageID, layerID, layerName, boundsWKT, zoomMax, createdAt
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? container.decodeIfPresent(UUID.self, forKey: .packageID) ?? UUID()
+    self.packageID = try container.decodeIfPresent(UUID.self, forKey: .packageID)
+    self.layerID = try container.decode(String.self, forKey: .layerID)
+    self.layerName = try container.decode(String.self, forKey: .layerName)
+    self.boundsWKT = try container.decode(String.self, forKey: .boundsWKT)
+    self.zoomMax = try container.decode(Int.self, forKey: .zoomMax)
+    self.createdAt = try container.decode(Date.self, forKey: .createdAt)
+  }
 }
 
 @MainActor
