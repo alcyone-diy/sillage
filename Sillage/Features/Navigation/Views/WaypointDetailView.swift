@@ -19,6 +19,8 @@ struct WaypointDetailView: View {
   var onGoToRequested: ((String) -> Void)?
   var onCancelNavigationRequested: (() -> Void)?
   
+  @State private var showDeleteConfirmation = false
+  
   var body: some View {
     VStack(spacing: 0) {
       Form {
@@ -90,18 +92,11 @@ struct WaypointDetailView: View {
           .marineListCell()
         }
         .disabled(!viewModel.isEditable)
-      }
-      .marineListBackground()
-      
-      if let waypointID = viewModel.editingWaypointID {
-        VStack(spacing: MarineTheme.Spacing.small) {
-          if viewModel.isEditable {
-            Button(action: {
-              Task {
-                if await viewModel.delete() {
-                  dismiss()
-                }
-              }
+        
+        if let _ = viewModel.editingWaypointID, viewModel.isEditable {
+          Section {
+            Button(role: .destructive, action: {
+              showDeleteConfirmation = true
             }) {
               HStack {
                 Image(marineIcon: .delete)
@@ -115,45 +110,68 @@ struct WaypointDetailView: View {
               .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
             .buttonStyle(MarineButtonStyle())
-          } else {
-            if viewModel.isGoTo {
-              Button(action: {
-                onCancelNavigationRequested?()
-              }) {
-                HStack {
-                  Image(marineIcon: .cancelAction)
-                  Text("Cancel Navigation")
-                }
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(marineTheme.colors.onPrimary)
-                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-                .background(marineTheme.colors.cancelAction)
-                .cornerRadius(MarineTheme.Metrics.cornerRadius)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+          }
+        }
+      }
+      .marineListBackground()
+      
+      if let waypointID = viewModel.editingWaypointID, !viewModel.isEditable {
+        VStack(spacing: MarineTheme.Spacing.small) {
+          if viewModel.isGoTo {
+            Button(action: {
+              onCancelNavigationRequested?()
+            }) {
+              HStack {
+                Image(marineIcon: .cancelAction)
+                Text("Cancel Navigation")
               }
-              .buttonStyle(MarineButtonStyle())
-            } else {
-              Button(action: {
-                onGoToRequested?(waypointID)
-              }) {
-                HStack {
-                  Image(marineIcon: .waypoint)
-                  Text("Go To")
-                }
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(marineTheme.colors.onPrimary)
-                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-                .background(marineTheme.colors.primary)
-                .cornerRadius(MarineTheme.Metrics.cornerRadius)
-              }
-              .buttonStyle(MarineButtonStyle())
+              .font(.headline)
+              .fontWeight(.semibold)
+              .foregroundColor(marineTheme.colors.onPrimary)
+              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+              .background(marineTheme.colors.cancelAction)
+              .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
+            .buttonStyle(MarineButtonStyle())
+          } else {
+            Button(action: {
+              onGoToRequested?(waypointID)
+            }) {
+              HStack {
+                Image(marineIcon: .waypoint)
+                Text("Go To")
+              }
+              .font(.headline)
+              .fontWeight(.semibold)
+              .foregroundColor(marineTheme.colors.onPrimary)
+              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+              .background(marineTheme.colors.primary)
+              .cornerRadius(MarineTheme.Metrics.cornerRadius)
+            }
+            .buttonStyle(MarineButtonStyle())
           }
         }
         .padding(MarineTheme.Spacing.medium)
         .background(marineTheme.colors.surfaceBackground)
       }
+    }
+    .confirmationDialog(
+      "Delete Waypoint?",
+      isPresented: $showDeleteConfirmation,
+      titleVisibility: .visible
+    ) {
+      Button("Delete", systemImage: "trash", role: .destructive) {
+        Task {
+          if await viewModel.delete() {
+            dismiss()
+          }
+        }
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("This action cannot be undone.")
     }
     .navigationTitle(viewModel.editingWaypointID == nil ? "New Waypoint" : (viewModel.isEditable ? "Edit Waypoint" : viewModel.name))
     .navigationBarTitleDisplayMode(.inline)

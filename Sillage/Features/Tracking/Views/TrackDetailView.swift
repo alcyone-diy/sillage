@@ -124,42 +124,25 @@ struct TrackDetailView: View {
         }
         
         if viewModel.isEditing {
-          Button(role: .destructive, action: {
-            showDeleteConfirmation = true
-          }) {
-            HStack {
-              Image(marineIcon: .delete)
-              Text("Delete")
-            }
-            .font(.headline)
-            .fontWeight(.semibold)
-            .foregroundColor(viewModel.canDelete ? .red : .gray)
-            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(viewModel.canDelete ? marineTheme.colors.destructiveBackground : marineTheme.colors.disabledBackground)
-            .cornerRadius(MarineTheme.Metrics.cornerRadius)
-          }
-          .buttonStyle(MarineButtonStyle())
-          .disabled(!viewModel.canDelete)
-          .listRowBackground(Color.clear)
-          .listRowInsets(EdgeInsets())
-          .confirmationDialog(
-            "Delete Track?",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-          ) {
-            Button("Delete", systemImage: "trash", role: .destructive) {
-              Task {
-                do {
-                  try await viewModel.deleteSession()
-                  dismiss()
-                } catch {
-                  errorMessage = String(localized: "Failed to delete track. Please try again.")
-                }
+          Section {
+            Button(role: .destructive, action: {
+              showDeleteConfirmation = true
+            }) {
+              HStack {
+                Image(marineIcon: .delete)
+                Text("Delete")
               }
+              .font(.headline)
+              .fontWeight(.semibold)
+              .foregroundColor(viewModel.canDelete ? marineTheme.colors.onPrimary : marineTheme.colors.inactive)
+              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+              .background(viewModel.canDelete ? marineTheme.colors.destructive : marineTheme.colors.disabledBackground)
+              .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
-            Button("Cancel", role: .cancel) {}
-          } message: {
-            Text("This action cannot be undone.")
+            .buttonStyle(MarineButtonStyle())
+            .disabled(!viewModel.canDelete)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
           }
         }
       }
@@ -213,6 +196,25 @@ struct TrackDetailView: View {
         .padding(MarineTheme.Spacing.medium)
         .background(marineTheme.colors.surfaceBackground)
       }
+    }
+    .confirmationDialog(
+      "Delete Track?",
+      isPresented: $showDeleteConfirmation,
+      titleVisibility: .visible
+    ) {
+      Button("Delete", systemImage: "trash", role: .destructive) {
+        Task {
+          do {
+            try await viewModel.deleteSession()
+            dismiss()
+          } catch {
+            errorMessage = String(localized: "Failed to delete track. Please try again.")
+          }
+        }
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("This action cannot be undone.")
     }
     .navigationTitle("Track Detail")
     .navigationBarTitleDisplayMode(.inline)
