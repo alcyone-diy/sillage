@@ -91,57 +91,14 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
 
   // MARK: - Offline Mask Tests
 
-  func testCreateOfflineMaskFeature_whenNilOrInactive_returnsNil() {
+  func testCreateOfflineMaskFeature_returnsNilBecauseDimmingIsManagedBySwiftUIHUD() {
     XCTAssertNil(MapLibreFeatureFactory.createOfflineMaskFeature(from: nil))
 
-    let inactiveState = OfflineMaskVisualState(isActive: false, offlinePolygons: [])
+    let inactiveState = OfflineMaskVisualState(isActive: false, maskHoles: [], savedOfflinePolygons: [])
     XCTAssertNil(MapLibreFeatureFactory.createOfflineMaskFeature(from: inactiveState))
-  }
 
-  func testCreateOfflineMaskFeature_whenActiveWithNoPolygons_returnsWorldPolygonWithoutHoles() {
-    let state = OfflineMaskVisualState(isActive: true, offlinePolygons: [])
-    let feature = MapLibreFeatureFactory.createOfflineMaskFeature(from: state)
-
-    XCTAssertNotNil(feature)
-    XCTAssertEqual(feature?.pointCount, 5)
-    XCTAssertEqual(feature?.interiorPolygons?.count ?? 0, 0)
-    XCTAssertEqual(feature?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineMask.rawValue)
-
-    // Verify RFC 7946 Counter-Clockwise (CCW) winding: SW -> SE -> NE -> NW -> SW
-    var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: 5)
-    feature?.getCoordinates(&coords, range: NSRange(location: 0, length: 5))
-
-    // SW
-    XCTAssertEqual(coords[0].latitude, -85.051128, accuracy: 1e-6)
-    XCTAssertEqual(coords[0].longitude, -180.0, accuracy: 1e-6)
-    // SE
-    XCTAssertEqual(coords[1].latitude, -85.051128, accuracy: 1e-6)
-    XCTAssertEqual(coords[1].longitude, 180.0, accuracy: 1e-6)
-    // NE
-    XCTAssertEqual(coords[2].latitude, 85.051128, accuracy: 1e-6)
-    XCTAssertEqual(coords[2].longitude, 180.0, accuracy: 1e-6)
-    // NW
-    XCTAssertEqual(coords[3].latitude, 85.051128, accuracy: 1e-6)
-    XCTAssertEqual(coords[3].longitude, -180.0, accuracy: 1e-6)
-    // SW (closed)
-    XCTAssertEqual(coords[4].latitude, -85.051128, accuracy: 1e-6)
-    XCTAssertEqual(coords[4].longitude, -180.0, accuracy: 1e-6)
-  }
-
-  func testCreateOfflineMaskFeature_whenActiveWithPolygons_returnsWorldPolygonWithInteriorHoles() {
-    let hole1 = [
-      CLLocationCoordinate2D(latitude: 46.0, longitude: -1.5),
-      CLLocationCoordinate2D(latitude: 46.0, longitude: -1.0),
-      CLLocationCoordinate2D(latitude: 47.0, longitude: -1.0),
-      CLLocationCoordinate2D(latitude: 47.0, longitude: -1.5),
-      CLLocationCoordinate2D(latitude: 46.0, longitude: -1.5)
-    ]
-    let state = OfflineMaskVisualState(isActive: true, offlinePolygons: [hole1])
-    let feature = MapLibreFeatureFactory.createOfflineMaskFeature(from: state)
-
-    XCTAssertNotNil(feature)
-    XCTAssertEqual(feature?.interiorPolygons?.count, 1)
-    XCTAssertEqual(feature?.interiorPolygons?.first?.pointCount, 5)
+    let activeState = OfflineMaskVisualState(isActive: true, maskHoles: [], savedOfflinePolygons: [])
+    XCTAssertNil(MapLibreFeatureFactory.createOfflineMaskFeature(from: activeState))
   }
 
   func testCreateOfflineRegionsBorderFeature_whenSinglePolygon_returnsPolylineFeature() {
@@ -152,7 +109,7 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
       CLLocationCoordinate2D(latitude: 47.0, longitude: -1.5),
       CLLocationCoordinate2D(latitude: 46.0, longitude: -1.5)
     ]
-    let state = OfflineMaskVisualState(isActive: true, offlinePolygons: [ring])
+    let state = OfflineMaskVisualState(isActive: true, maskHoles: [], savedOfflinePolygons: [ring])
     let shape = MapLibreFeatureFactory.createOfflineRegionsBorderFeature(from: state)
 
     XCTAssertTrue(shape is MLNPolylineFeature)
@@ -170,7 +127,7 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
       CLLocationCoordinate2D(latitude: 48.0, longitude: -2.5),
       CLLocationCoordinate2D(latitude: 49.0, longitude: -2.5)
     ]
-    let state = OfflineMaskVisualState(isActive: true, offlinePolygons: [ring1, ring2])
+    let state = OfflineMaskVisualState(isActive: true, maskHoles: [], savedOfflinePolygons: [ring1, ring2])
     let shape = MapLibreFeatureFactory.createOfflineRegionsBorderFeature(from: state)
 
     XCTAssertTrue(shape is MLNMultiPolylineFeature)

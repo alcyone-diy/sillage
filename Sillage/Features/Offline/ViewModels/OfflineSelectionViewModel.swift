@@ -183,6 +183,7 @@ final class OfflineSelectionViewModel {
   func updateBoundingBox(_ bounds: GeographicBoundingBox) {
     guard isSelectionModeActive else { return }
     self.selectedBounds = bounds
+    refreshOfflineMask()
 
     calculationTask?.cancel()
     calculationTask = Task { @MainActor [weak self] in
@@ -219,6 +220,7 @@ final class OfflineSelectionViewModel {
     chartViewModel.updateOfflineMaskState(
       isSelectionActive: false,
       activeLayerID: nil,
+      selectedBounds: nil,
       downloads: []
     )
   }
@@ -237,6 +239,7 @@ final class OfflineSelectionViewModel {
     chartViewModel.updateOfflineMaskState(
       isSelectionActive: isSelectionModeActive,
       activeLayerID: layerToFilter,
+      selectedBounds: isSelectionModeActive ? selectedBounds : nil,
       downloads: downloadedCharts
     )
   }
