@@ -24,28 +24,14 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
 
   private var continuations: [UUID: AsyncStream<GeoGarageDownloadPhaseState>.Continuation] = [:]
 
-  var pendingDownload: PendingCAASDownload?
+  var activeDownloads: [ActiveCAASDownload] = []
 
   var isDownloading: Bool {
     switch downloadPhase {
-    case .waitingForNetwork, .requesting, .generating, .downloading:
+    case .queued, .waitingForNetwork, .requesting, .generating, .downloading:
       return true
     case .idle, .completed, .failed, .cancelled:
       return false
-    }
-  }
-
-  var downloadProgress: Double? {
-    switch downloadPhase {
-    case .generating(let progress, _):
-      guard let progress else { return nil }
-      return min(max(progress, 0.0), 1.0)
-    case .downloading(let receivedBytes, let totalBytes):
-      guard totalBytes > 0 else { return nil }
-      let ratio = Double(receivedBytes) / Double(totalBytes)
-      return min(max(ratio, 0.0), 1.0)
-    case .idle, .waitingForNetwork, .requesting, .completed, .failed, .cancelled:
-      return nil
     }
   }
 
@@ -65,6 +51,7 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   var startDownloadCalled = false
   var resumePendingDownloadCalled = false
   var cancelDownloadCalled = false
+  var cancelledDownloadIDs: [UUID] = []
   var failDownloadCalled = false
   var deletedDownloads: [OfflineChartDownload] = []
 
@@ -83,8 +70,15 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     resumePendingDownloadCalled = true
   }
 
+  func cancelDownload(id: UUID) {
+    cancelledDownloadIDs.append(id)
+    cancelDownloadCalled = true
+    activeDownloads.removeAll { $0.id == id }
+  }
+
   func cancelDownload() {
     cancelDownloadCalled = true
+    activeDownloads.removeAll()
     downloadPhase = .cancelled
   }
 

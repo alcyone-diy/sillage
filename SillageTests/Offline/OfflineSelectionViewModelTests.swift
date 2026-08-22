@@ -15,6 +15,22 @@ import CoreLocation
 @MainActor
 final class OfflineSelectionViewModelTests: XCTestCase {
 
+  override func setUp() async throws {
+    try await super.setUp()
+    let prefs = PreferencesService()
+    prefs.pendingCAASDownloads = []
+    prefs.geoGarageCustomerID = nil
+    await KeychainManager.shared.save(token: "token123", for: "geogarage_access_token")
+  }
+
+  override func tearDown() async throws {
+    let prefs = PreferencesService()
+    prefs.pendingCAASDownloads = []
+    prefs.geoGarageCustomerID = nil
+    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+    try await super.tearDown()
+  }
+
   // MARK: - Mocks
 
   private final class MockChartDownloader: GeoGarageChartDownloaderProtocol, @unchecked Sendable {
@@ -31,7 +47,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       boundsWKT: String,
       zoomMax: Int,
       apiKey: String,
-      localID: UUID? = nil
+      localID: UUID? = nil,
+      progressHandler: (@Sendable (Int64, Int64) -> Void)? = nil
     ) async throws(CaasError) -> OfflineChartDownload {
       if let error = shouldThrowError {
         if let caas = error as? CaasError {
@@ -226,6 +243,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let downloadRepository = downloadRepository ?? MockDownloadRepository()
     let networkMonitor = networkMonitor ?? MockNetworkMonitorService()
     let preferences = PreferencesService()
+    preferences.pendingCAASDownloads = []
     if authenticated {
       preferences.geoGarageCustomerID = "cust123"
     } else {
@@ -353,8 +371,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       XCTFail("Expected .waitingForNetwork state, got \(sut.downloadPhase)")
     }
 
-    XCTAssertNotNil(prefs.pendingCAASDownload, "Pending download must be persisted synchronously before network check")
-    XCTAssertNil(prefs.pendingCAASDownload?.packageID, "PackageID must be nil when queued offline")
+    XCTAssertFalse(prefs.pendingCAASDownloads.isEmpty, "Pending download must be persisted synchronously before network check")
+    XCTAssertNil(prefs.pendingCAASDownloads.first?.packageID, "PackageID must be nil when queued offline")
   }
 
   func testStartDownload_offline_autoResumesWhenNetworkReconnects() async throws {
@@ -392,7 +410,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     }
 
     XCTAssertEqual(sut.downloadPhase, .waitingForNetwork(message: String(localized: "Waiting for network connection…")))
-    XCTAssertNotNil(prefs.pendingCAASDownload)
+    XCTAssertFalse(prefs.pendingCAASDownloads.isEmpty)
 
     // Reconnect network
     networkMonitor.setConnected(true)
@@ -404,7 +422,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     }
 
     XCTAssertEqual(sut.downloadPhase, .completed(mockRecord))
-    XCTAssertNil(prefs.pendingCAASDownload, "Pending download must be cleared after completion")
+    XCTAssertTrue(prefs.pendingCAASDownloads.isEmpty, "Pending download must be cleared after completion")
   }
 
   func testStartDownload_transitionsThroughPhasesToCompleted_andPersistsPendingState() async throws {
@@ -437,7 +455,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     XCTAssertEqual(sut.downloadPhase, .completed(mockRecord))
     XCTAssertFalse(sut.isDownloading)
-    XCTAssertNil(prefs.pendingCAASDownload, "Pending download must be cleared after completion")
+    XCTAssertTrue(prefs.pendingCAASDownloads.isEmpty, "Pending download must be cleared after completion")
   }
 
   func testStartDownload_whenFatalErrorOccurs_setsFailedState_andClearsPendingState() async throws {
@@ -458,7 +476,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     } else {
       XCTFail("Expected .failed state, got \(sut.downloadPhase)")
     }
-    XCTAssertNil(prefs.pendingCAASDownload, "Pending download must be cleared on fatal server error")
+    XCTAssertTrue(prefs.pendingCAASDownloads.isEmpty, "Pending download must be cleared on fatal server error")
   }
 
   func testStartDownload_whenConnectivityErrorOccurs_entersWaitingState_andRetainsPendingState() async throws {
@@ -479,7 +497,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     } else {
       XCTFail("Expected .waitingForNetwork state, got \(sut.downloadPhase)")
     }
-    XCTAssertNotNil(prefs.pendingCAASDownload, "Pending download must be retained on connectivity error")
+    XCTAssertFalse(prefs.pendingCAASDownloads.isEmpty, "Pending download must be retained on connectivity error")
   }
 
   func testCancelDownload_cancelsTask_setsCancelledState_andClearsPendingState() {
@@ -492,7 +510,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     XCTAssertEqual(sut.downloadPhase, .cancelled)
     XCTAssertFalse(sut.isDownloading)
-    XCTAssertNil(prefs.pendingCAASDownload, "Pending download must be cleared on cancel")
+    XCTAssertTrue(prefs.pendingCAASDownloads.isEmpty, "Pending download must be cleared on cancel")
   }
 
   func testResumePendingDownloadIfNeeded_resumesUnfinishedDownloadWithPackageID() async throws {
@@ -504,6 +522,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let (sut, _, _, _, _, _, _, prefs) = makeSUT(downloader: downloader, packageService: packageService)
 
     let pending = PendingCAASDownload(
+      id: downloadID,
       packageID: downloadID,
       layerID: "shom",
       layerName: "SHOM France",
@@ -511,7 +530,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       zoomMax: 14,
       createdAt: Date()
     )
-    prefs.pendingCAASDownload = pending
+    prefs.pendingCAASDownloads = [pending]
 
     await sut.resumePendingDownloadIfNeeded()
 
@@ -526,7 +545,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     } else {
       XCTFail("Expected completed state, got \(sut.downloadPhase)")
     }
-    XCTAssertNil(prefs.pendingCAASDownload)
+    XCTAssertTrue(prefs.pendingCAASDownloads.isEmpty)
   }
 
   func testResumePendingDownloadIfNeeded_resumesUnfinishedDownloadWithoutPackageID() async throws {
@@ -546,7 +565,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       zoomMax: 14,
       createdAt: Date()
     )
-    prefs.pendingCAASDownload = pending
+    prefs.pendingCAASDownloads = [pending]
 
     await sut.resumePendingDownloadIfNeeded()
 
@@ -561,7 +580,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     } else {
       XCTFail("Expected completed state, got \(sut.downloadPhase)")
     }
-    XCTAssertNil(prefs.pendingCAASDownload)
+    XCTAssertTrue(prefs.pendingCAASDownloads.isEmpty)
   }
 
   func testResumePendingDownloadIfNeeded_skipsIfAlreadyCompletedInRepository() async throws {
@@ -582,6 +601,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let (sut, _, _, _, _, _, _, prefs) = makeSUT(downloadRepository: downloadRepo)
 
     let pending = PendingCAASDownload(
+      id: downloadID,
       packageID: downloadID,
       layerID: "shom",
       layerName: "SHOM France",
@@ -589,12 +609,12 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       zoomMax: 14,
       createdAt: Date()
     )
-    prefs.pendingCAASDownload = pending
+    prefs.pendingCAASDownloads = [pending]
 
     await sut.resumePendingDownloadIfNeeded()
 
     // Should immediately clear pending without downloading again
-    XCTAssertNil(prefs.pendingCAASDownload)
+    XCTAssertTrue(prefs.pendingCAASDownloads.isEmpty)
     XCTAssertEqual(sut.downloadPhase, .idle)
   }
 
@@ -797,59 +817,43 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
   // MARK: - Download Progress Tests
 
-  func testDownloadProgress_acrossVariousPhases() async throws {
+  func testDownloadState_acrossVariousPhases() async throws {
     let mockDownloadService = MockGeoGarageDownloadService()
     let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
 
     func waitForPhase(_ target: GeoGarageDownloadPhaseState) async throws {
       mockDownloadService.downloadPhase = target
       for _ in 0..<50 {
-        if sut.currentDownloadPhase == target { return }
+        if sut.downloadPhase == target { return }
         try await Task.sleep(nanoseconds: 5_000_000)
       }
     }
 
     // 1. Idle
     try await waitForPhase(.idle)
-    XCTAssertNil(sut.downloadProgress)
     XCTAssertFalse(sut.isDownloading)
 
     // 2. Requesting
     try await waitForPhase(.requesting)
-    XCTAssertNil(sut.downloadProgress)
     XCTAssertTrue(sut.isDownloading)
 
     // 3. Waiting for network
     try await waitForPhase(.waitingForNetwork(message: "Offline"))
-    XCTAssertNil(sut.downloadProgress)
     XCTAssertTrue(sut.isDownloading)
 
     // 4. Generating (determinate)
     try await waitForPhase(.generating(progress: 0.65, message: "Progress: 65%"))
-    XCTAssertEqual(sut.downloadProgress, 0.65)
     XCTAssertTrue(sut.isDownloading)
 
     // 5. Generating (indeterminate)
     try await waitForPhase(.generating(progress: nil, message: "Generating..."))
-    XCTAssertNil(sut.downloadProgress)
     XCTAssertTrue(sut.isDownloading)
 
     // 6. Downloading (determinate)
     try await waitForPhase(.downloading(receivedBytes: 250, totalBytes: 1000))
-    XCTAssertEqual(sut.downloadProgress, 0.25)
     XCTAssertTrue(sut.isDownloading)
 
-    // 7. Downloading (clamping verification)
-    try await waitForPhase(.downloading(receivedBytes: 1500, totalBytes: 1000))
-    XCTAssertEqual(sut.downloadProgress, 1.0)
-    XCTAssertTrue(sut.isDownloading)
-
-    // 8. Downloading (indeterminate / zero total bytes)
-    try await waitForPhase(.downloading(receivedBytes: 0, totalBytes: 0))
-    XCTAssertNil(sut.downloadProgress)
-    XCTAssertTrue(sut.isDownloading)
-
-    // 9. Completed
+    // 7. Completed
     let dummyRecord = OfflineChartDownload(
       id: UUID(),
       layerID: "shom",
@@ -861,17 +865,14 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       boundsWKT: "POLYGON(...)"
     )
     try await waitForPhase(.completed(dummyRecord))
-    XCTAssertNil(sut.downloadProgress)
     XCTAssertFalse(sut.isDownloading)
 
-    // 10. Cancelled
+    // 8. Cancelled
     try await waitForPhase(.cancelled)
-    XCTAssertNil(sut.downloadProgress)
     XCTAssertFalse(sut.isDownloading)
 
-    // 11. Failed
+    // 9. Failed
     try await waitForPhase(.failed(errorMessage: "Failed"))
-    XCTAssertNil(sut.downloadProgress)
     XCTAssertFalse(sut.isDownloading)
   }
 
@@ -913,7 +914,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       zoomMax: 12,
       createdAt: Date()
     )
-    mockDownloadService.pendingDownload = pending
+    let active = ActiveCAASDownload(item: pending, phase: .generating(progress: 0.5, message: "50/100"))
+    mockDownloadService.activeDownloads = [active]
     mockDownloadService.downloadPhase = .generating(progress: 0.5, message: "50/100")
 
     let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
@@ -954,7 +956,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       zoomMax: 14,
       createdAt: Date()
     )
-    mockDownloadService.pendingDownload = pending
+    let active = ActiveCAASDownload(item: pending, phase: .waitingForNetwork(message: "Waiting for network connection…"))
+    mockDownloadService.activeDownloads = [active]
     mockDownloadService.downloadPhase = .waitingForNetwork(message: "Waiting for network connection…")
 
     let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
@@ -1005,7 +1008,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       zoomMax: 14,
       createdAt: Date()
     )
-    mockDownloadService.pendingDownload = pending
+    let active = ActiveCAASDownload(item: pending, phase: .generating(progress: 0.2, message: "20/100"))
+    mockDownloadService.activeDownloads = [active]
     mockDownloadService.downloadPhase = .generating(progress: 0.2, message: "20/100")
 
     let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
@@ -1014,6 +1018,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     try await sut.deleteItem(item)
 
     XCTAssertTrue(mockDownloadService.cancelDownloadCalled)
+    XCTAssertEqual(mockDownloadService.cancelledDownloadIDs, [downloadID])
   }
 
   func testGroupedCharts_groupsBothDownloadedAndInProgressByLayer_sortedChronologically() {
@@ -1042,7 +1047,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       zoomMax: 14,
       createdAt: now
     )
-    mockDownloadService.pendingDownload = inProgressSHOM
+    let active = ActiveCAASDownload(item: inProgressSHOM, phase: .downloading(receivedBytes: 100, totalBytes: 500))
+    mockDownloadService.activeDownloads = [active]
     mockDownloadService.downloadPhase = .downloading(receivedBytes: 100, totalBytes: 500)
 
     let (sut, _, _, _, _, _, _, _) = makeSUT(
@@ -1060,27 +1066,134 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(groups.first?.items[1].id, oldDownloadedSHOM.id.uuidString)
   }
 
-  func testViewModel_reactivelyObservesDownloadStateStream() async throws {
+  // MARK: - Queueing & Concurrency Limit Tests
+
+  func testQueueLimit_maxTwoConcurrentActiveDownloads_thirdQueued() async throws {
+    let downloader = MockChartDownloader()
+    let packageService = MockPackageService()
+    packageService.statusSequence = [
+      PackageStatusResponse(
+        uuid: UUID(),
+        state: .progress,
+        tileNumbers: 100,
+        tilesPerSec: 10,
+        monitor: "10/100",
+        eta: nil,
+        url: nil,
+        md5: nil,
+        size: nil,
+        error: nil
+      )
+    ]
+
+    let (sut, downloadService, _, _, _, _, _, prefs) = makeSUT(
+      downloader: downloader,
+      packageService: packageService
+    )
+
+    // Start 3 downloads in rapid succession
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+
+    XCTAssertEqual(prefs.pendingCAASDownloads.count, 3)
+    XCTAssertEqual(downloadService.activeDownloads.count, 3)
+
+    // Check that at most 2 are actively executing and the 3rd is queued
+    let queuedCount = downloadService.activeDownloads.filter { if case .queued = $0.phase { return true }; return false }.count
+    let activeCount = downloadService.activeDownloads.filter {
+      switch $0.phase {
+      case .requesting, .generating, .downloading, .waitingForNetwork:
+        return true
+      default:
+        return false
+      }
+    }.count
+
+    XCTAssertEqual(activeCount, 2, "Exactly 2 downloads must be actively running")
+    XCTAssertEqual(queuedCount, 1, "The 3rd download must be queued")
+  }
+
+  func testQueuePromotion_whenActiveDownloadCompletes_queuedItemStarts() async throws {
+    let downloader = MockChartDownloader()
+    let packageService = MockPackageService()
+
+    let (sut, downloadService, _, _, _, _, _, prefs) = makeSUT(
+      downloader: downloader,
+      packageService: packageService
+    )
+
+    // Start 3 downloads
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+
+    // Wait until all downloads complete through the queue
+    for _ in 0..<200 {
+      if downloadService.activeDownloads.isEmpty { break }
+      try await Task.sleep(nanoseconds: 15_000_000)
+    }
+
+    XCTAssertTrue(downloadService.activeDownloads.isEmpty, "All downloads including queued items must eventually complete")
+    XCTAssertTrue(prefs.pendingCAASDownloads.isEmpty, "Pending list must be empty when all complete")
+  }
+
+  func testCancelSpecificDownload_doesNotAffectOtherDownloads() async throws {
+    let downloader = MockChartDownloader()
+    let packageService = MockPackageService()
+    packageService.statusSequence = [
+      PackageStatusResponse(
+        uuid: UUID(),
+        state: .progress,
+        tileNumbers: 100,
+        tilesPerSec: 10,
+        monitor: "10/100",
+        eta: nil,
+        url: nil,
+        md5: nil,
+        size: nil,
+        error: nil
+      )
+    ]
+
+    let (sut, downloadService, _, _, _, _, _, prefs) = makeSUT(
+      downloader: downloader,
+      packageService: packageService
+    )
+
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(apiKey: "token123", customerID: "cust123")
+
+    guard downloadService.activeDownloads.count == 3 else {
+      XCTFail("Expected 3 downloads")
+      return
+    }
+
+    let firstID = downloadService.activeDownloads[0].id
+    let secondID = downloadService.activeDownloads[1].id
+
+    // Cancel first download only
+    sut.cancelDownload(id: firstID)
+
+    XCTAssertFalse(downloadService.activeDownloads.contains(where: { $0.id == firstID }))
+    XCTAssertTrue(downloadService.activeDownloads.contains(where: { $0.id == secondID }))
+    XCTAssertFalse(prefs.pendingCAASDownloads.contains(where: { $0.id == firstID }))
+  }
+
+  func testViewModel_reactivelyObservesDownloadState() async throws {
     let mockDownloadService = MockGeoGarageDownloadService()
     mockDownloadService.downloadPhase = .idle
 
     let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
 
-    XCTAssertEqual(sut.currentDownloadPhase, .idle)
-    XCTAssertNil(sut.downloadProgress)
+    XCTAssertEqual(sut.downloadPhase, .idle)
     XCTAssertFalse(sut.isDownloading)
 
-    // Simulate service emitting new phase via stream
+    // Simulate service emitting new phase
     mockDownloadService.downloadPhase = .generating(progress: 0.42, message: "42/100")
 
-    // Give MainActor task a tick to receive the stream event
-    for _ in 0..<50 {
-      if sut.currentDownloadPhase == .generating(progress: 0.42, message: "42/100") { break }
-      try await Task.sleep(nanoseconds: 10_000_000)
-    }
-
-    XCTAssertEqual(sut.currentDownloadPhase, .generating(progress: 0.42, message: "42/100"))
-    XCTAssertEqual(sut.downloadProgress, 0.42)
+    XCTAssertEqual(sut.downloadPhase, .generating(progress: 0.42, message: "42/100"))
     XCTAssertTrue(sut.isDownloading)
 
     // Simulate phase completing
@@ -1096,13 +1209,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     )
     mockDownloadService.downloadPhase = .completed(record)
 
-    for _ in 0..<50 {
-      if sut.currentDownloadPhase == .completed(record) { break }
-      try await Task.sleep(nanoseconds: 10_000_000)
-    }
-
-    XCTAssertEqual(sut.currentDownloadPhase, .completed(record))
-    XCTAssertNil(sut.downloadProgress)
+    XCTAssertEqual(sut.downloadPhase, .completed(record))
     XCTAssertFalse(sut.isDownloading)
   }
 }

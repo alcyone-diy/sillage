@@ -228,6 +228,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
 /// Represents the high-level observable state of a GeoGarage CAAS offline download workflow.
 nonisolated enum GeoGarageDownloadPhaseState: Equatable, Sendable {
   case idle
+  case queued
   case waitingForNetwork(message: String)
   case requesting
   case generating(progress: Double?, message: String)
@@ -235,6 +236,16 @@ nonisolated enum GeoGarageDownloadPhaseState: Equatable, Sendable {
   case completed(OfflineChartDownload)
   case failed(errorMessage: String)
   case cancelled
+}
+
+/// Represents an active or queued CAAS download with its observed lifecycle state.
+nonisolated struct ActiveCAASDownload: Identifiable, Equatable, Sendable {
+  let item: PendingCAASDownload
+  let phase: GeoGarageDownloadPhaseState
+
+  var id: UUID {
+    item.id
+  }
 }
 
 // MARK: - Errors

@@ -20,13 +20,13 @@ final class AppEnvironmentTests: XCTestCase {
     super.setUp()
     environment = AppEnvironment()
     let prefs = PreferencesService()
-    prefs.pendingCAASDownload = nil
+    prefs.pendingCAASDownloads = []
     prefs.geoGarageCustomerID = nil
   }
 
   override func tearDown() {
     let prefs = PreferencesService()
-    prefs.pendingCAASDownload = nil
+    prefs.pendingCAASDownloads = []
     prefs.geoGarageCustomerID = nil
     environment = nil
     super.tearDown()
@@ -70,14 +70,14 @@ final class AppEnvironmentTests: XCTestCase {
       zoomMax: 14,
       createdAt: Date()
     )
-    directPrefs.pendingCAASDownload = pending
+    directPrefs.pendingCAASDownloads = [pending]
 
     await KeychainManager.shared.save(token: "test_access_token", for: "geogarage_access_token")
 
     addTeardownBlock {
       await MainActor.run {
         let cleanupPrefs = PreferencesService()
-        cleanupPrefs.pendingCAASDownload = nil
+        cleanupPrefs.pendingCAASDownloads = []
         cleanupPrefs.geoGarageCustomerID = nil
       }
       await KeychainManager.shared.deleteToken(for: "geogarage_access_token")

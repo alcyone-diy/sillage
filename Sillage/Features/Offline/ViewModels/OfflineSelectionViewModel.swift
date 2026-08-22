@@ -62,36 +62,24 @@ final class OfflineSelectionViewModel {
   @ObservationIgnored
   private var calculationTask: Task<Void, Never>?
 
-  @ObservationIgnored
-  private var downloadMonitoringTask: Task<Void, Never>?
-
   private let maxArea = AppConstants.Cartography.Offline.maxDownloadArea
-
-  // MARK: - Reactive Download State
-
-  /// The live download phase observed reactively from `downloadService.downloadStateStream()`.
-  /// Marked as tracked within `@Observable` so any change automatically triggers SwiftUI updates.
-  private(set) var currentDownloadPhase: GeoGarageDownloadPhaseState = .idle
 
   // MARK: - Computed Properties Forwarded from Service / Repositories
 
+  /// Current download phase derived directly from the download service.
   var downloadPhase: GeoGarageDownloadPhaseState {
-    currentDownloadPhase
-  }
-
-  var pendingDownload: PendingCAASDownload? {
-    downloadService.pendingDownload
+    downloadService.downloadPhase
   }
 
   var downloadedCharts: [OfflineChartDownload] {
     downloadRepository.downloads
   }
 
-  /// All chart items to be displayed in the UI, combining completed downloads and active/pending downloads.
+  /// All chart items to be displayed in the UI, combining completed downloads and active/queued downloads.
   var allChartItems: [OfflineChartItem] {
     var items = downloadedCharts.map { OfflineChartItem.downloaded($0) }
-    if let pending = pendingDownload, isDownloading {
-      items.append(.inProgress(pending, phase: currentDownloadPhase))
+    for active in downloadService.activeDownloads {
+      items.append(.inProgress(active.item, phase: active.phase))
     }
     return items
   }
@@ -102,27 +90,7 @@ final class OfflineSelectionViewModel {
   }
 
   var isDownloading: Bool {
-    switch currentDownloadPhase {
-    case .waitingForNetwork, .requesting, .generating, .downloading:
-      return true
-    case .idle, .completed, .failed, .cancelled:
-      return false
-    }
-  }
-
-  /// Normalized progress value between 0.0 and 1.0 if known during generation or downloading, or nil if indeterminate.
-  var downloadProgress: Double? {
-    switch currentDownloadPhase {
-    case .generating(let progress, _):
-      guard let progress else { return nil }
-      return min(max(progress, 0.0), 1.0)
-    case .downloading(let receivedBytes, let totalBytes):
-      guard totalBytes > 0 else { return nil }
-      let ratio = Double(receivedBytes) / Double(totalBytes)
-      return min(max(ratio, 0.0), 1.0)
-    case .idle, .waitingForNetwork, .requesting, .completed, .failed, .cancelled:
-      return nil
-    }
+    downloadService.isDownloading
   }
 
   var currentViewportBounds: GeographicBoundingBox? {
@@ -159,25 +127,13 @@ final class OfflineSelectionViewModel {
     self.chartViewModel = chartViewModel
     self.offlineMapManager = offlineMapManager
     self.downloader = downloader
-    self.currentDownloadPhase = downloadService.downloadPhase
 
     if let firstLayer = chartViewModel.availableGeoGarageLayers.first {
       self.selectedLayerID = firstLayer.layer
     }
-
-    // Technical Design: Listen to downloadStateStream() on @MainActor with [weak self]
-    // so any phase / progress transition automatically invalidates SwiftUI views via @Observable.
-    self.downloadMonitoringTask = Task { @MainActor [weak self] in
-      guard let self else { return }
-      for await phase in self.downloadService.downloadStateStream() {
-        guard !Task.isCancelled else { break }
-        self.currentDownloadPhase = phase
-      }
-    }
   }
 
   deinit {
-    downloadMonitoringTask?.cancel()
     calculationTask?.cancel()
   }
 
@@ -257,19 +213,15 @@ final class OfflineSelectionViewModel {
   /// Initiates an offline map download using the current selection or displayed chart source.
   /// - Parameter chartSource: The active chart source to derive layer information.
   func startDownload(chartSource: ChartSource?) {
-    guard !isDownloading else { return }
-
     guard let bounds = selectedBounds ?? chartViewModel.currentVisibleBounds else {
       Logger.offline.warning("OfflineSelectionViewModel: startDownload called but no valid bounds found.")
       downloadService.failDownload(with: String(localized: "No visible map viewport found. Pan or zoom the chart first."))
-      self.currentDownloadPhase = downloadService.downloadPhase
       return
     }
 
     guard let customerID = preferencesService.geoGarageCustomerID, !customerID.isEmpty else {
       Logger.offline.warning("OfflineSelectionViewModel: startDownload called without authenticated customer ID.")
       downloadService.failDownload(with: String(localized: "User is not authenticated with GeoGarage. Please login first."))
-      self.currentDownloadPhase = downloadService.downloadPhase
       return
     }
 
@@ -308,7 +260,6 @@ final class OfflineSelectionViewModel {
         apiKey: apiKey,
         customerID: customerID
       )
-      self.currentDownloadPhase = self.downloadService.downloadPhase
     }
   }
 
@@ -317,12 +268,9 @@ final class OfflineSelectionViewModel {
   ///   - apiKey: Dedicated CAAS API key (or OAuth token).
   ///   - customerID: User's GeoGarage customer identifier.
   func startDownload(apiKey: String, customerID: String) {
-    guard !isDownloading else { return }
-
     guard let bounds = selectedBounds ?? chartViewModel.currentVisibleBounds else {
       Logger.offline.warning("OfflineSelectionViewModel: startDownload called but no valid bounds found.")
       downloadService.failDownload(with: String(localized: "No visible map viewport found. Pan or zoom the chart first."))
-      self.currentDownloadPhase = downloadService.downloadPhase
       return
     }
 
@@ -345,20 +293,23 @@ final class OfflineSelectionViewModel {
       apiKey: apiKey,
       customerID: customerID
     )
-    self.currentDownloadPhase = downloadService.downloadPhase
   }
 
   /// Resumes an in-flight CAAS download if state was preserved across app termination/crash or network restoration.
   func resumePendingDownloadIfNeeded() async {
     await downloadService.resumePendingDownloadIfNeeded()
-    self.currentDownloadPhase = downloadService.downloadPhase
   }
 
-  /// Cancels any in-flight download task and resets state.
+  /// Cancels a specific in-flight or queued download by its unique ID.
+  func cancelDownload(id: UUID) {
+    Logger.offline.info("OfflineSelectionViewModel: cancelDownload called for \(id.uuidString, privacy: .public)")
+    downloadService.cancelDownload(id: id)
+  }
+
+  /// Cancels all in-flight or queued download tasks and resets state.
   func cancelDownload() {
-    Logger.offline.info("OfflineSelectionViewModel: cancelDownload called by user")
+    Logger.offline.info("OfflineSelectionViewModel: cancelDownload called by user for all active downloads")
     downloadService.cancelDownload()
-    self.currentDownloadPhase = downloadService.downloadPhase
     offlineMapManager?.cancelDownload()
   }
 
@@ -379,9 +330,9 @@ final class OfflineSelectionViewModel {
     switch item {
     case .downloaded(let download):
       try await deleteDownload(download)
-    case .inProgress:
-      Logger.offline.info("Cancelling in-progress download for layer '\(item.layerName, privacy: .public)' via user swipe-to-delete.")
-      cancelDownload()
+    case .inProgress(let pending, _):
+      Logger.offline.info("Cancelling in-progress download for layer '\(item.layerName, privacy: .public)' (id: \(pending.id.uuidString, privacy: .public)) via user swipe-to-delete.")
+      cancelDownload(id: pending.id)
     }
   }
 }

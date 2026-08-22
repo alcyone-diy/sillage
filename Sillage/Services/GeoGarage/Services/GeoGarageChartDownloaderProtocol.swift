@@ -12,8 +12,8 @@ import Foundation
 
 /// Protocol defining the chart download, streaming MD5 validation, and local storage lifecycle.
 protocol GeoGarageChartDownloaderProtocol: Sendable {
-  /// Downloads a generated package archive, validates its MD5 checksum in streaming mode (1 MB chunks),
-  /// moves it into `Documents/Charts/`, deletes the server package, and records the download in the repository.
+  /// Downloads a generated package archive using background URLSession, validates its MD5 checksum in streaming mode,
+  /// moves it into `Documents/GeoGarage/`, deletes the server package, and records the download in the repository.
   func download(
     packageID: UUID,
     downloadURL: URL,
@@ -23,7 +23,8 @@ protocol GeoGarageChartDownloaderProtocol: Sendable {
     boundsWKT: String,
     zoomMax: Int,
     apiKey: String,
-    localID: UUID?
+    localID: UUID?,
+    progressHandler: (@Sendable (Int64, Int64) -> Void)?
   ) async throws(CaasError) -> OfflineChartDownload
 
   /// Deletes the local MBTiles file from disk and removes the record from the download repository.
@@ -39,7 +40,8 @@ extension GeoGarageChartDownloaderProtocol {
     layerName: String,
     boundsWKT: String,
     zoomMax: Int,
-    apiKey: String
+    apiKey: String,
+    localID: UUID? = nil
   ) async throws(CaasError) -> OfflineChartDownload {
     try await download(
       packageID: packageID,
@@ -50,7 +52,8 @@ extension GeoGarageChartDownloaderProtocol {
       boundsWKT: boundsWKT,
       zoomMax: zoomMax,
       apiKey: apiKey,
-      localID: nil
+      localID: localID,
+      progressHandler: nil
     )
   }
 }

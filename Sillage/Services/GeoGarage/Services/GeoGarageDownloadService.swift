@@ -46,6 +46,10 @@ import OSLog
 @MainActor
 final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @unchecked Sendable {
 
+  // MARK: - Concurrency Limits
+
+  private let maxConcurrentDownloads = 2
+
   // MARK: - Injected Dependencies
 
   private let packageService: GeoGaragePackageServiceProtocol
@@ -56,51 +60,57 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
   // MARK: - State Properties
 
-  private(set) var downloadPhase: GeoGarageDownloadPhaseState = .idle {
+  /// Observable collection of all active and queued CAAS downloads.
+  private(set) var activeDownloads: [ActiveCAASDownload] = [] {
     didSet {
+      let currentPhase = downloadPhase
       let continuations = stateContinuationsLock.withLock { Array($0.values) }
       for cont in continuations {
-        cont.yield(downloadPhase)
+        cont.yield(currentPhase)
       }
     }
+  }
+
+  private var lastTerminalPhase: GeoGarageDownloadPhaseState? {
+    didSet {
+      let currentPhase = downloadPhase
+      let continuations = stateContinuationsLock.withLock { Array($0.values) }
+      for cont in continuations {
+        cont.yield(currentPhase)
+      }
+    }
+  }
+
+  /// High-level download phase representing the primary active download, or last terminal state, or idle.
+  var downloadPhase: GeoGarageDownloadPhaseState {
+    activeDownloads.first?.phase ?? lastTerminalPhase ?? .idle
   }
 
   @ObservationIgnored
   private let stateContinuationsLock = OSAllocatedUnfairLock<[UUID: AsyncStream<GeoGarageDownloadPhaseState>.Continuation]>(initialState: [:])
 
   @ObservationIgnored
-  private var currentDownloadTask: Task<Void, Never>?
+  private var downloadTasks: [UUID: Task<Void, Never>] = [:]
 
   @ObservationIgnored
   private var networkObservationTask: Task<Void, Never>?
 
+  @ObservationIgnored
+  private var cachedApiKey: String?
+
+  @ObservationIgnored
+  private var cachedCustomerID: String?
+
   // MARK: - Computed Properties
 
-  var pendingDownload: PendingCAASDownload? {
-    preferencesService.pendingCAASDownload
-  }
-
   var isDownloading: Bool {
-    switch downloadPhase {
-    case .waitingForNetwork, .requesting, .generating, .downloading:
-      return true
-    case .idle, .completed, .failed, .cancelled:
-      return false
-    }
-  }
-
-  /// Normalized progress value strictly between 0.0 and 1.0 when available, or nil for indeterminate state.
-  var downloadProgress: Double? {
-    switch downloadPhase {
-    case .generating(let progress, _):
-      guard let progress else { return nil }
-      return min(max(progress, 0.0), 1.0)
-    case .downloading(let receivedBytes, let totalBytes):
-      guard totalBytes > 0 else { return nil }
-      let ratio = Double(receivedBytes) / Double(totalBytes)
-      return min(max(ratio, 0.0), 1.0)
-    case .idle, .waitingForNetwork, .requesting, .completed, .failed, .cancelled:
-      return nil
+    activeDownloads.contains {
+      switch $0.phase {
+      case .queued, .waitingForNetwork, .requesting, .generating, .downloading:
+        return true
+      case .idle, .completed, .failed, .cancelled:
+        return false
+      }
     }
   }
 
@@ -135,13 +145,23 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     self.preferencesService = preferencesService
     self.networkMonitor = networkMonitor
 
+    // Restore any existing persisted pending downloads into queued state
+    self.activeDownloads = preferencesService.pendingCAASDownloads.map {
+      ActiveCAASDownload(item: $0, phase: .queued)
+    }
+
     // Technical Design: Listen to modern AsyncStream from NetworkMonitorService to auto-resume queued requests
     self.networkObservationTask = Task { @MainActor [weak self] in
       guard let self = self else { return }
       for await isConnected in self.networkMonitor.connectionStream() {
         guard !Task.isCancelled else { break }
         if isConnected {
-          await self.resumePendingDownloadIfNeeded()
+          for i in 0..<self.activeDownloads.count {
+            if case .waitingForNetwork = self.activeDownloads[i].phase {
+              self.activeDownloads[i] = ActiveCAASDownload(item: self.activeDownloads[i].item, phase: .queued)
+            }
+          }
+          self.processQueue()
         }
       }
     }
@@ -149,7 +169,9 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
   deinit {
     networkObservationTask?.cancel()
-    currentDownloadTask?.cancel()
+    for task in downloadTasks.values {
+      task.cancel()
+    }
   }
 
   // MARK: - Public API
@@ -162,7 +184,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     apiKey: String,
     customerID: String
   ) {
-    guard !isDownloading else { return }
+    lastTerminalPhase = nil
 
     // Technical Design: Generate stable local UUID before network execution starts
     let localID = UUID()
@@ -175,100 +197,191 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       zoomMax: zoomMax,
       createdAt: Date()
     )
-    preferencesService.pendingCAASDownload = pending
-    downloadPhase = .requesting
 
-    currentDownloadTask?.cancel()
-    currentDownloadTask = Task { [weak self] in
-      guard let self = self else { return }
-      await self.executeDownloadPipeline(
-        apiKey: apiKey,
-        customerID: customerID,
-        layerID: layerID,
-        layerName: layerName,
-        zoneWKT: zoneWKT,
-        zoomMax: zoomMax,
-        existingPackageID: nil,
-        localID: localID
-      )
-    }
+    preferencesService.pendingCAASDownloads.append(pending)
+    activeDownloads.append(ActiveCAASDownload(item: pending, phase: .queued))
+    Logger.offline.info("Enqueued offline chart download for '\(layerID, privacy: .public)' (id: \(localID.uuidString, privacy: .public)). Total items in queue: \(self.activeDownloads.count, privacy: .public)")
+
+    processQueue(apiKey: apiKey, customerID: customerID)
   }
 
   func resumePendingDownloadIfNeeded() async {
-    guard let pending = preferencesService.pendingCAASDownload else { return }
+    lastTerminalPhase = nil
 
-    // If package was already completely downloaded and registered, purge pending state
-    if let pkgID = pending.packageID, downloadRepository.downloads.contains(where: { $0.id == pkgID || $0.id == pending.id }) {
-      Logger.offline.info("Pending download \(pending.id.uuidString, privacy: .public) already completed in repository. Clearing pending state.")
-      preferencesService.pendingCAASDownload = nil
-      downloadPhase = .idle
-      return
-    }
-
-    guard let customerID = preferencesService.geoGarageCustomerID, !customerID.isEmpty else {
-      Logger.offline.warning("Cannot resume pending download: missing customer ID.")
-      preferencesService.pendingCAASDownload = nil
-      downloadPhase = .failed(errorMessage: String(localized: "User is not authenticated with GeoGarage. Please login first."))
-      return
-    }
-
-    let caasKey = AppConfiguration.shared.geoGarageCaasApiKey
-    let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token") ?? ""
-    let apiKey = (!caasKey.isEmpty && caasKey != "test_caas_api_key") ? caasKey : token
-
-    guard !apiKey.isEmpty else {
-      Logger.offline.warning("Cannot resume pending download: missing API key.")
-      preferencesService.pendingCAASDownload = nil
-      downloadPhase = .failed(errorMessage: CaasError.authenticationRequired.localizedDescription)
-      return
-    }
-
-    if isDownloading {
-      if case .waitingForNetwork = downloadPhase {
-        // Proceed to resume from offline waiting state
+    // Purge any pending downloads already completed in repository
+    var remaining: [PendingCAASDownload] = []
+    for pending in preferencesService.pendingCAASDownloads {
+      if let pkgID = pending.packageID, downloadRepository.downloads.contains(where: { $0.id == pkgID || $0.id == pending.id }) {
+        Logger.offline.info("Pending download \(pending.id.uuidString, privacy: .public) already completed in repository. Clearing pending state.")
       } else {
-        return
+        remaining.append(pending)
+      }
+    }
+    preferencesService.pendingCAASDownloads = remaining
+
+    guard !remaining.isEmpty else {
+      activeDownloads.removeAll()
+      return
+    }
+
+    for pending in remaining {
+      if !activeDownloads.contains(where: { $0.id == pending.id }) {
+        activeDownloads.append(ActiveCAASDownload(item: pending, phase: .queued))
       }
     }
 
-    let localID = pending.id
-    Logger.offline.info("Resuming pending CAAS download for layer '\(pending.layerID, privacy: .public)' (localID: \(localID.uuidString, privacy: .public), packageID: \(pending.packageID?.uuidString ?? "nil", privacy: .public))")
-    downloadPhase = .requesting
+    processQueue()
+  }
 
-    currentDownloadTask?.cancel()
-    currentDownloadTask = Task { [weak self] in
-      guard let self = self else { return }
-      await self.executeDownloadPipeline(
-        apiKey: apiKey,
-        customerID: customerID,
-        layerID: pending.layerID,
-        layerName: pending.layerName,
-        zoneWKT: pending.boundsWKT,
-        zoomMax: pending.zoomMax,
-        existingPackageID: pending.packageID,
-        localID: localID
-      )
+  func cancelDownload(id: UUID) {
+    Logger.offline.info("GeoGarageDownloadService: cancelDownload called for \(id.uuidString, privacy: .public)")
+    if let task = downloadTasks[id] {
+      task.cancel()
+      downloadTasks.removeValue(forKey: id)
     }
+    removeDownload(id: id)
+    if activeDownloads.isEmpty {
+      lastTerminalPhase = .cancelled
+    }
+    processQueue()
   }
 
   func cancelDownload() {
-    Logger.offline.info("GeoGarageDownloadService: cancelDownload called by user")
-    currentDownloadTask?.cancel()
-    currentDownloadTask = nil
-    downloadPhase = .cancelled
-    preferencesService.pendingCAASDownload = nil
+    Logger.offline.info("GeoGarageDownloadService: cancelDownload called for all active/queued downloads")
+    for task in downloadTasks.values {
+      task.cancel()
+    }
+    downloadTasks.removeAll()
+    preferencesService.pendingCAASDownloads.removeAll()
+    activeDownloads.removeAll()
+    lastTerminalPhase = .cancelled
   }
 
   func failDownload(with errorMessage: String) {
-    Logger.offline.error("GeoGarageDownloadService: download failed explicitly: \(errorMessage, privacy: .public)")
-    currentDownloadTask?.cancel()
-    currentDownloadTask = nil
-    downloadPhase = .failed(errorMessage: errorMessage)
-    preferencesService.pendingCAASDownload = nil
+    Logger.offline.error("GeoGarageDownloadService: failing all active downloads explicitly: \(errorMessage, privacy: .public)")
+    for task in downloadTasks.values {
+      task.cancel()
+    }
+    downloadTasks.removeAll()
+    preferencesService.pendingCAASDownloads.removeAll()
+    activeDownloads.removeAll()
+    lastTerminalPhase = .failed(errorMessage: errorMessage)
+  }
+
+  func failDownload(id: UUID, errorMessage: String) {
+    Logger.offline.error("GeoGarageDownloadService: download \(id.uuidString, privacy: .public) failed explicitly: \(errorMessage, privacy: .public)")
+    downloadTasks[id]?.cancel()
+    downloadTasks.removeValue(forKey: id)
+    updateDownloadPhase(id: id, to: .failed(errorMessage: errorMessage))
+    removeDownload(id: id)
+    if activeDownloads.isEmpty {
+      lastTerminalPhase = .failed(errorMessage: errorMessage)
+    }
+    processQueue()
   }
 
   func deleteDownload(_ download: OfflineChartDownload) async throws(CaasError) {
     try await downloader.deleteLocalChart(id: download.id)
+  }
+
+  // MARK: - Queue Processing & State Updates
+
+  private func processQueue(apiKey: String? = nil, customerID: String? = nil) {
+    if let apiKey { self.cachedApiKey = apiKey }
+    if let customerID { self.cachedCustomerID = customerID }
+
+    guard !activeDownloads.isEmpty else { return }
+
+    let activeRunningCount = activeDownloads.filter {
+      switch $0.phase {
+      case .requesting, .generating, .downloading, .waitingForNetwork:
+        return true
+      case .queued, .idle, .completed, .failed, .cancelled:
+        return false
+      }
+    }.count
+
+    var availableSlots = max(0, maxConcurrentDownloads - activeRunningCount)
+    guard availableSlots > 0 else {
+      Logger.offline.debug("Download queue: \(activeRunningCount, privacy: .public)/\(self.maxConcurrentDownloads, privacy: .public) active slots occupied.")
+      return
+    }
+
+    for i in 0..<activeDownloads.count {
+      guard availableSlots > 0 else { break }
+      if case .queued = activeDownloads[i].phase {
+        let pending = activeDownloads[i].item
+        let targetID = pending.id
+
+        availableSlots -= 1
+        updateDownloadPhase(id: targetID, to: .requesting)
+
+        downloadTasks[targetID]?.cancel()
+        downloadTasks[targetID] = Task { @MainActor [weak self] in
+          guard let self = self else { return }
+
+          let resolvedCustomer = self.cachedCustomerID ?? self.preferencesService.geoGarageCustomerID ?? ""
+          let caasKey = AppConfiguration.shared.geoGarageCaasApiKey
+          let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token") ?? ""
+          let resolvedApiKey = self.cachedApiKey ?? ((!caasKey.isEmpty && caasKey != "test_caas_api_key") ? caasKey : token)
+
+          guard !resolvedCustomer.isEmpty && !resolvedApiKey.isEmpty else {
+            Logger.offline.warning("Cannot start queued download \(targetID.uuidString, privacy: .public): missing credentials.")
+            self.failDownload(id: targetID, errorMessage: String(localized: "User is not authenticated with GeoGarage. Please login first."))
+            return
+          }
+
+          guard self.networkMonitor.isConnected else {
+            Logger.offline.info("Device is offline. Queuing pending download for '\(pending.layerID, privacy: .public)' in waiting state.")
+            self.updateDownloadPhase(id: targetID, to: .waitingForNetwork(message: String(localized: "Waiting for network connection…")))
+            return
+          }
+
+          await self.executeDownloadPipeline(
+            apiKey: resolvedApiKey,
+            customerID: resolvedCustomer,
+            layerID: pending.layerID,
+            layerName: pending.layerName,
+            zoneWKT: pending.boundsWKT,
+            zoomMax: pending.zoomMax,
+            existingPackageID: pending.packageID,
+            localID: targetID
+          )
+        }
+      }
+    }
+  }
+
+  private func updateDownloadPhase(id: UUID, to newPhase: GeoGarageDownloadPhaseState) {
+    if let index = activeDownloads.firstIndex(where: { $0.id == id }) {
+      activeDownloads[index] = ActiveCAASDownload(item: activeDownloads[index].item, phase: newPhase)
+    }
+  }
+
+  private func updatePendingPackageID(id: UUID, packageID: UUID) {
+    if let index = activeDownloads.firstIndex(where: { $0.id == id }) {
+      let old = activeDownloads[index].item
+      let updated = PendingCAASDownload(
+        id: old.id,
+        packageID: packageID,
+        layerID: old.layerID,
+        layerName: old.layerName,
+        boundsWKT: old.boundsWKT,
+        zoomMax: old.zoomMax,
+        createdAt: old.createdAt
+      )
+      activeDownloads[index] = ActiveCAASDownload(item: updated, phase: activeDownloads[index].phase)
+      if let prefIndex = preferencesService.pendingCAASDownloads.firstIndex(where: { $0.id == id }) {
+        preferencesService.pendingCAASDownloads[prefIndex] = updated
+      }
+    }
+  }
+
+  private func removeDownload(id: UUID) {
+    downloadTasks[id]?.cancel()
+    downloadTasks.removeValue(forKey: id)
+    preferencesService.pendingCAASDownloads.removeAll { $0.id == id }
+    activeDownloads.removeAll { $0.id == id }
   }
 
   // MARK: - Pipeline Execution
@@ -284,21 +397,21 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     localID: UUID
   ) async {
     guard !Task.isCancelled else {
-      downloadPhase = .cancelled
-      preferencesService.pendingCAASDownload = nil
+      removeDownload(id: localID)
+      processQueue()
       return
     }
 
     guard !apiKey.isEmpty else {
-      downloadPhase = .failed(errorMessage: CaasError.authenticationRequired.localizedDescription)
-      preferencesService.pendingCAASDownload = nil
+      updateDownloadPhase(id: localID, to: .failed(errorMessage: CaasError.authenticationRequired.localizedDescription))
+      removeDownload(id: localID)
+      processQueue()
       return
     }
 
-    // Check reachability before initiating network requests
     guard networkMonitor.isConnected else {
       Logger.offline.info("Device is offline. Queuing pending CAAS download for '\(layerID, privacy: .public)' until connection is restored.")
-      downloadPhase = .waitingForNetwork(message: String(localized: "Waiting for network connection…"))
+      updateDownloadPhase(id: localID, to: .waitingForNetwork(message: String(localized: "Waiting for network connection…")))
       return
     }
 
@@ -324,18 +437,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
         )
 
         try Task.checkCancellation()
-
-        // Persist the assigned packageID while preserving the initial stable localID
-        let updatedPending = PendingCAASDownload(
-          id: localID,
-          packageID: packageID,
-          layerID: layerID,
-          layerName: layerName,
-          boundsWKT: zoneWKT,
-          zoomMax: zoomMax,
-          createdAt: Date()
-        )
-        preferencesService.pendingCAASDownload = updatedPending
+        updatePendingPackageID(id: localID, packageID: packageID)
       }
 
       try Task.checkCancellation()
@@ -350,16 +452,23 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
         zoomMax: zoomMax
       )
     } catch is CancellationError {
-      downloadPhase = .cancelled
-      preferencesService.pendingCAASDownload = nil
+      removeDownload(id: localID)
+      if activeDownloads.isEmpty {
+        lastTerminalPhase = .cancelled
+      }
+      processQueue()
     } catch {
       if isConnectivityError(error) {
         Logger.offline.info("Network connectivity error during CAAS download: \(error.localizedDescription, privacy: .public). Queued in pending state.")
-        downloadPhase = .waitingForNetwork(message: String(localized: "Waiting for network connection…"))
+        updateDownloadPhase(id: localID, to: .waitingForNetwork(message: String(localized: "Waiting for network connection…")))
       } else {
         Logger.offline.error("Fatal error during CAAS download: \(error.localizedDescription, privacy: .public)")
-        downloadPhase = .failed(errorMessage: error.localizedDescription)
-        preferencesService.pendingCAASDownload = nil
+        updateDownloadPhase(id: localID, to: .failed(errorMessage: error.localizedDescription))
+        removeDownload(id: localID)
+        if activeDownloads.isEmpty {
+          lastTerminalPhase = .failed(errorMessage: error.localizedDescription)
+        }
+        processQueue()
       }
     }
   }
@@ -390,7 +499,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       } else {
         msg = status.state.rawValue
       }
-      downloadPhase = .generating(progress: progress, message: msg)
+      updateDownloadPhase(id: localID, to: .generating(progress: progress, message: msg))
 
       if status.state == .success {
         finalStatus = status
@@ -407,7 +516,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     }
 
     let totalBytes = completedStatus.size ?? 0
-    downloadPhase = .downloading(receivedBytes: 0, totalBytes: totalBytes)
+    updateDownloadPhase(id: localID, to: .downloading(receivedBytes: 0, totalBytes: totalBytes))
 
     let record = try await downloader.download(
       packageID: packageID,
@@ -418,17 +527,24 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       boundsWKT: boundsWKT,
       zoomMax: zoomMax,
       apiKey: apiKey,
-      localID: localID
+      localID: localID,
+      progressHandler: { [weak self] received, total in
+        Task { @MainActor [weak self] in
+          self?.updateDownloadPhase(id: localID, to: .downloading(receivedBytes: received, totalBytes: total))
+        }
+      }
     )
 
-    downloadPhase = .completed(record)
-    preferencesService.pendingCAASDownload = nil
+    updateDownloadPhase(id: localID, to: .completed(record))
+    removeDownload(id: localID)
+    if activeDownloads.isEmpty {
+      lastTerminalPhase = .completed(record)
+    }
+    processQueue()
   }
 
   // MARK: - Error Classification Helper
 
-  /// Determines whether an error corresponds to a local network disconnection
-  /// (which should put the download into a pending retry state) versus an irrecoverable server/business failure.
   private func isConnectivityError(_ error: Error) -> Bool {
     if let caasError = error as? CaasError {
       switch caasError {

@@ -33,6 +33,7 @@ struct SillageApp: App {
           MainAppView()
             .onAppear { 
               appDelegate.appViewModel = container.appViewModel
+              appDelegate.chartDownloader = container.geoGarageChartDownloader
               container.appViewModel.isReady = true
               container.appViewModel.processDeferredIntent()
             }

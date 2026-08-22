@@ -18,14 +18,11 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
   /// Current observable state of the CAAS download workflow.
   var downloadPhase: GeoGarageDownloadPhaseState { get }
 
-  /// Persistent in-flight or queued download metadata, if any.
-  var pendingDownload: PendingCAASDownload? { get }
+  /// Observable collection of all active and queued CAAS downloads.
+  var activeDownloads: [ActiveCAASDownload] { get }
 
-  /// Indicates whether a download is actively requesting, generating, downloading, or waiting for network.
+  /// Indicates whether any download is actively requesting, generating, downloading, or waiting for network.
   var isDownloading: Bool { get }
-
-  /// Normalized progress value between 0.0 and 1.0 when available during package generation or downloading, or nil if indeterminate.
-  var downloadProgress: Double? { get }
 
   /// An asynchronous stream emitting download phase state transitions for reactive, decoupled observers.
   func downloadStateStream() -> AsyncStream<GeoGarageDownloadPhaseState>
@@ -48,13 +45,17 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
     customerID: String
   )
 
-  /// Resumes an in-flight or queued CAAS download (e.g., on app launch or upon network reconnection).
+  /// Resumes in-flight or queued CAAS downloads (e.g., on app launch or upon network reconnection).
   func resumePendingDownloadIfNeeded() async
 
-  /// Cancels any active or queued download, cleans up pending state, and resets downloadPhase.
+  /// Cancels a specific in-flight or queued download by its unique ID and cleans up pending state.
+  /// - Parameter id: Local identifier of the download to cancel.
+  func cancelDownload(id: UUID)
+
+  /// Cancels all active and queued downloads, cleans up pending state, and resets downloadPhase.
   func cancelDownload()
 
-  /// Explicitly marks the download as failed with a localized error message and cleans up any pending task or state.
+  /// Explicitly marks all active downloads as failed with a localized error message and cleans up pending state.
   /// - Parameter errorMessage: Human-readable error description for UI display.
   func failDownload(with errorMessage: String)
 

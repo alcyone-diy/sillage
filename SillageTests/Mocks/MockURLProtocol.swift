@@ -37,10 +37,14 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
     errorHandlers.append(handler)
   }
 
-  static func makeMockSession() -> URLSession {
+  static func makeMockConfiguration() -> URLSessionConfiguration {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [MockURLProtocol.self]
-    return URLSession(configuration: config)
+    return config
+  }
+
+  static func makeMockSession() -> URLSession {
+    return URLSession(configuration: makeMockConfiguration())
   }
 
   override class func canInit(with request: URLRequest) -> Bool {
