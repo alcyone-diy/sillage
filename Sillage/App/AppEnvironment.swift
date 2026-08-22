@@ -55,6 +55,7 @@ final class AppEnvironment {
     self.bootDate = Date.now
     Self.setupMapLibreProtocol()
     self.offlineMapManager = OfflineMapManager()
+    setupMapLibreProgressObservation()
   }
   
   func bootstrap() async {
@@ -246,6 +247,8 @@ final class AppEnvironment {
         }
       }
       
+      setupGeoGarageProgressObservation(geoGarageDownloadService: geoGarageDownloadService)
+
       let container = AppContainer(
         messageService: messageService,
         preferencesService: preferencesService,
@@ -321,17 +324,65 @@ final class AppEnvironment {
 
   // MARK: - Global Offline Charts Download Status
 
+  @ObservationIgnored
+  private var geoGarageObservationTask: Task<Void, Never>?
+
+  @ObservationIgnored
+  private var mapLibreObservationTask: Task<Void, Never>?
+
+  @ObservationIgnored
+  private var lastGeoGarageProgress: Double?
+
+  @ObservationIgnored
+  private var lastMapLibreProgress: Double?
+
   /// Indicates whether an offline chart download is currently in progress across GeoGarage or MapLibre engines.
   var isDownloadingOfflineCharts: Bool {
-    (geoGarageDownloadService?.isDownloading == true) || (offlineMapManager.totalPendingDownloads > 0)
+    offlineChartsDownloadProgress != nil
   }
 
   /// Normalized download progress value (0.0 to 1.0) when available, or nil for indeterminate state.
-  var offlineChartsDownloadProgress: Double? {
-    if offlineMapManager.totalPendingDownloads > 0 {
-      return offlineMapManager.globalDownloadProgress
+  /// Stored property driven reactively via Swift 6 AsyncStream observation to guarantee SwiftUI updates across protocol boundaries.
+  var offlineChartsDownloadProgress: Double? = nil
+
+  @MainActor
+  private func setupMapLibreProgressObservation() {
+    mapLibreObservationTask?.cancel()
+    mapLibreObservationTask = Task { @MainActor [weak self] in
+      guard let self = self else { return }
+      for await progress in self.offlineMapManager.downloadProgressStream() {
+        guard !Task.isCancelled else { break }
+        self.lastMapLibreProgress = progress
+        self.updateCompositeOfflineChartsProgress()
+      }
     }
-    return nil
+  }
+
+  @MainActor
+  private func setupGeoGarageProgressObservation(geoGarageDownloadService: GeoGarageDownloadServiceProtocol) {
+    geoGarageObservationTask?.cancel()
+    geoGarageObservationTask = Task { @MainActor [weak self, weak geoGarageDownloadService] in
+      guard let service = geoGarageDownloadService else { return }
+      for await progress in service.downloadProgressStream() {
+        guard !Task.isCancelled else { break }
+        guard let self = self else { break }
+        self.lastGeoGarageProgress = progress
+        self.updateCompositeOfflineChartsProgress()
+      }
+    }
+  }
+
+  @MainActor
+  private func updateCompositeOfflineChartsProgress() {
+    if let gg = lastGeoGarageProgress, let ml = lastMapLibreProgress {
+      self.offlineChartsDownloadProgress = (gg + ml) / 2.0
+    } else if let gg = lastGeoGarageProgress {
+      self.offlineChartsDownloadProgress = gg
+    } else if let ml = lastMapLibreProgress {
+      self.offlineChartsDownloadProgress = ml
+    } else {
+      self.offlineChartsDownloadProgress = nil
+    }
   }
 
   // MARK: - GPS Accuracy
@@ -402,6 +453,11 @@ final class AppEnvironment {
       config.protocolClasses = [TileProxyProtocol.self]
     }
     MLNNetworkConfiguration.sharedManager.sessionConfiguration = config
+  }
+
+  deinit {
+    geoGarageObservationTask?.cancel()
+    mapLibreObservationTask?.cancel()
   }
 
 }

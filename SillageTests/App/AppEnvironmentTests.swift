@@ -116,6 +116,7 @@ final class AppEnvironmentTests: XCTestCase {
       estimatedTimeRemaining: nil
     )
     environment.offlineMapManager.downloadedRegions = [pendingRegion]
+    try? await Task.sleep(for: .milliseconds(50))
 
     // 1. Before bootstrap (geoGarageDownloadService is nil, offlineMapManager > 0)
     XCTAssertTrue(environment.isDownloadingOfflineCharts)
@@ -123,6 +124,7 @@ final class AppEnvironmentTests: XCTestCase {
 
     // 2. After bootstrap (geoGarageDownloadService is present but isDownloading == false)
     await environment.bootstrap()
+    try? await Task.sleep(for: .milliseconds(50))
     XCTAssertEqual(environment.geoGarageDownloadService?.isDownloading, false)
     XCTAssertTrue(environment.isDownloadingOfflineCharts, "isDownloadingOfflineCharts must return true when GeoGarage is inactive but offlineMapManager has pending downloads")
     XCTAssertEqual(environment.offlineChartsDownloadProgress, 0.4)

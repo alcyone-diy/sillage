@@ -56,6 +56,13 @@ final class MockOfflineMapManager: OfflineMapManagerProtocol {
     downloadProgress = nil
   }
   
+  func downloadProgressStream() -> AsyncStream<Double?> {
+    AsyncStream { continuation in
+      continuation.yield(self.globalDownloadProgress)
+      continuation.finish()
+    }
+  }
+  
 
   
   var clearAmbientCacheCalled = false

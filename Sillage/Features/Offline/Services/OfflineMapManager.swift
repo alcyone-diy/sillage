@@ -71,7 +71,15 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   var isClearingCache: Bool = false
   var downloadProgress: Double? = nil
   var downloadError: Error? = nil
-  var downloadedRegions: [OfflineRegionInfo] = []
+
+  @ObservationIgnored
+  private let progressContinuationsLock = OSAllocatedUnfairLock<[UUID: AsyncStream<Double?>.Continuation]>(initialState: [:])
+
+  var downloadedRegions: [OfflineRegionInfo] = [] {
+    didSet {
+      notifyProgressObservers()
+    }
+  }
   var downloadResourcesPerSecond: Double = 0.0
   
   var totalDownloadedSize: Int64 {
@@ -92,6 +100,30 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     let completed = incomplete.reduce(0) { $0 + $1.completedResources }
     guard expected > 0 else { return nil }
     return Double(completed) / Double(expected)
+  }
+
+  func downloadProgressStream() -> AsyncStream<Double?> {
+    let id = UUID()
+    let initialProgress = self.globalDownloadProgress
+    return AsyncStream { [progressContinuationsLock] continuation in
+      continuation.yield(initialProgress)
+      progressContinuationsLock.withLock {
+        $0[id] = continuation
+      }
+      continuation.onTermination = { [progressContinuationsLock] _ in
+        progressContinuationsLock.withLock {
+          _ = $0.removeValue(forKey: id)
+        }
+      }
+    }
+  }
+
+  private func notifyProgressObservers() {
+    let currentProgress = globalDownloadProgress
+    let continuations = progressContinuationsLock.withLock { Array($0.values) }
+    for cont in continuations {
+      cont.yield(currentProgress)
+    }
   }
   
   var totalEstimatedTimeRemaining: TimeInterval? {

@@ -60,6 +60,12 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
   // MARK: - State Properties
 
+  /// Number of completed downloads in the current active download session.
+  private(set) var sessionCompletedDownloadsCount: Int = 0
+
+  /// Total number of downloads accounted for in the current active download session.
+  private(set) var sessionTotalDownloadsCount: Int = 0
+
   /// Observable collection of all active and queued CAAS downloads.
   private(set) var activeDownloads: [ActiveCAASDownload] = [] {
     didSet {
@@ -68,6 +74,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       for cont in continuations {
         cont.yield(currentPhase)
       }
+      notifyProgressObservers()
     }
   }
 
@@ -78,6 +85,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       for cont in continuations {
         cont.yield(currentPhase)
       }
+      notifyProgressObservers()
     }
   }
 
@@ -88,6 +96,15 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
   @ObservationIgnored
   private let stateContinuationsLock = OSAllocatedUnfairLock<[UUID: AsyncStream<GeoGarageDownloadPhaseState>.Continuation]>(initialState: [:])
+
+  @ObservationIgnored
+  private let progressContinuationsLock = OSAllocatedUnfairLock<[UUID: AsyncStream<Double?>.Continuation]>(initialState: [:])
+
+  @ObservationIgnored
+  private var lastProgressUpdateDate: [UUID: Date] = [:]
+
+  @ObservationIgnored
+  private var lastReportedBytes: [UUID: Int64] = [:]
 
   @ObservationIgnored
   private var downloadTasks: [UUID: Task<Void, Never>] = [:]
@@ -114,6 +131,18 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     }
   }
 
+  /// Overall composite download progress across all active, generating, downloading, and queued charts in the current session (0.0 to 1.0).
+  var globalDownloadProgress: Double? {
+    guard isDownloading, !activeDownloads.isEmpty else { return nil }
+    let totalItems = max(activeDownloads.count + sessionCompletedDownloadsCount, sessionTotalDownloadsCount, 1)
+    let completedWeight = Double(sessionCompletedDownloadsCount) * 1.0
+    let activeWeight = activeDownloads.reduce(0.0) { sum, download in
+      sum + download.progress
+    }
+    let progress = (completedWeight + activeWeight) / Double(totalItems)
+    return min(max(progress, 0.0), 1.0)
+  }
+
   func downloadStateStream() -> AsyncStream<GeoGarageDownloadPhaseState> {
     let id = UUID()
     let initialPhase = self.downloadPhase
@@ -127,6 +156,30 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
           _ = $0.removeValue(forKey: id)
         }
       }
+    }
+  }
+
+  func downloadProgressStream() -> AsyncStream<Double?> {
+    let id = UUID()
+    let initialProgress = self.globalDownloadProgress
+    return AsyncStream { [progressContinuationsLock] continuation in
+      continuation.yield(initialProgress)
+      progressContinuationsLock.withLock {
+        $0[id] = continuation
+      }
+      continuation.onTermination = { [progressContinuationsLock] _ in
+        progressContinuationsLock.withLock {
+          _ = $0.removeValue(forKey: id)
+        }
+      }
+    }
+  }
+
+  private func notifyProgressObservers() {
+    let currentProgress = globalDownloadProgress
+    let continuations = progressContinuationsLock.withLock { Array($0.values) }
+    for cont in continuations {
+      cont.yield(currentProgress)
     }
   }
 
@@ -149,6 +202,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     self.activeDownloads = preferencesService.pendingCAASDownloads.map {
       ActiveCAASDownload(item: $0, phase: .queued)
     }
+    self.sessionTotalDownloadsCount = self.activeDownloads.count
+    self.sessionCompletedDownloadsCount = 0
 
     // Technical Design: Listen to modern AsyncStream from NetworkMonitorService to auto-resume queued requests
     self.networkObservationTask = Task { @MainActor [weak self] in
@@ -198,8 +253,18 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       createdAt: Date()
     )
 
+    // If starting a new session from 0 active downloads, reset completed count
+    if activeDownloads.isEmpty {
+      sessionCompletedDownloadsCount = 0
+      sessionTotalDownloadsCount = 1
+    } else {
+      sessionTotalDownloadsCount = max(sessionTotalDownloadsCount + 1, activeDownloads.count + 1 + sessionCompletedDownloadsCount)
+    }
+
     preferencesService.pendingCAASDownloads.append(pending)
     activeDownloads.append(ActiveCAASDownload(item: pending, phase: .queued))
+    notifyProgressObservers()
+
     Logger.offline.info("Enqueued offline chart download for '\(layerID, privacy: .public)' (id: \(localID.uuidString, privacy: .public)). Total items in queue: \(self.activeDownloads.count, privacy: .public)")
 
     processQueue(apiKey: apiKey, customerID: customerID)
@@ -221,6 +286,9 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
     guard !remaining.isEmpty else {
       activeDownloads.removeAll()
+      sessionCompletedDownloadsCount = 0
+      sessionTotalDownloadsCount = 0
+      notifyProgressObservers()
       return
     }
 
@@ -229,6 +297,9 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
         activeDownloads.append(ActiveCAASDownload(item: pending, phase: .queued))
       }
     }
+    sessionTotalDownloadsCount = activeDownloads.count
+    sessionCompletedDownloadsCount = 0
+    notifyProgressObservers()
 
     processQueue()
   }
@@ -240,9 +311,13 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       downloadTasks.removeValue(forKey: id)
     }
     removeDownload(id: id)
+    sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
     if activeDownloads.isEmpty {
+      sessionCompletedDownloadsCount = 0
+      sessionTotalDownloadsCount = 0
       lastTerminalPhase = .cancelled
     }
+    notifyProgressObservers()
     processQueue()
   }
 
@@ -254,7 +329,10 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     downloadTasks.removeAll()
     preferencesService.pendingCAASDownloads.removeAll()
     activeDownloads.removeAll()
+    sessionCompletedDownloadsCount = 0
+    sessionTotalDownloadsCount = 0
     lastTerminalPhase = .cancelled
+    notifyProgressObservers()
   }
 
   func failDownload(with errorMessage: String) {
@@ -265,7 +343,10 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     downloadTasks.removeAll()
     preferencesService.pendingCAASDownloads.removeAll()
     activeDownloads.removeAll()
+    sessionCompletedDownloadsCount = 0
+    sessionTotalDownloadsCount = 0
     lastTerminalPhase = .failed(errorMessage: errorMessage)
+    notifyProgressObservers()
   }
 
   func failDownload(id: UUID, errorMessage: String) {
@@ -274,9 +355,13 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     downloadTasks.removeValue(forKey: id)
     updateDownloadPhase(id: id, to: .failed(errorMessage: errorMessage))
     removeDownload(id: id)
+    sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
     if activeDownloads.isEmpty {
+      sessionCompletedDownloadsCount = 0
+      sessionTotalDownloadsCount = 0
       lastTerminalPhase = .failed(errorMessage: errorMessage)
     }
+    notifyProgressObservers()
     processQueue()
   }
 
@@ -355,6 +440,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
   private func updateDownloadPhase(id: UUID, to newPhase: GeoGarageDownloadPhaseState) {
     if let index = activeDownloads.firstIndex(where: { $0.id == id }) {
       activeDownloads[index] = ActiveCAASDownload(item: activeDownloads[index].item, phase: newPhase)
+      notifyProgressObservers()
     }
   }
 
@@ -398,6 +484,13 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
   ) async {
     guard !Task.isCancelled else {
       removeDownload(id: localID)
+      sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
+      if activeDownloads.isEmpty {
+        sessionCompletedDownloadsCount = 0
+        sessionTotalDownloadsCount = 0
+        lastTerminalPhase = .cancelled
+      }
+      notifyProgressObservers()
       processQueue()
       return
     }
@@ -405,6 +498,13 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     guard !apiKey.isEmpty else {
       updateDownloadPhase(id: localID, to: .failed(errorMessage: CaasError.authenticationRequired.localizedDescription))
       removeDownload(id: localID)
+      sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
+      if activeDownloads.isEmpty {
+        sessionCompletedDownloadsCount = 0
+        sessionTotalDownloadsCount = 0
+        lastTerminalPhase = .failed(errorMessage: CaasError.authenticationRequired.localizedDescription)
+      }
+      notifyProgressObservers()
       processQueue()
       return
     }
@@ -453,9 +553,13 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       )
     } catch is CancellationError {
       removeDownload(id: localID)
+      sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
       if activeDownloads.isEmpty {
+        sessionCompletedDownloadsCount = 0
+        sessionTotalDownloadsCount = 0
         lastTerminalPhase = .cancelled
       }
+      notifyProgressObservers()
       processQueue()
     } catch {
       if isConnectivityError(error) {
@@ -465,9 +569,13 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
         Logger.offline.error("Fatal error during CAAS download: \(error.localizedDescription, privacy: .public)")
         updateDownloadPhase(id: localID, to: .failed(errorMessage: error.localizedDescription))
         removeDownload(id: localID)
+        sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
         if activeDownloads.isEmpty {
+          sessionCompletedDownloadsCount = 0
+          sessionTotalDownloadsCount = 0
           lastTerminalPhase = .failed(errorMessage: error.localizedDescription)
         }
+        notifyProgressObservers()
         processQueue()
       }
     }
@@ -530,16 +638,36 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       localID: localID,
       progressHandler: { [weak self] received, total in
         Task { @MainActor [weak self] in
-          self?.updateDownloadPhase(id: localID, to: .downloading(receivedBytes: received, totalBytes: total))
+          guard let self = self else { return }
+          // Throttle progress events to ~4 Hz (250ms) or 1% delta to protect MainActor & battery
+          let now = Date()
+          let lastDate = self.lastProgressUpdateDate[localID] ?? .distantPast
+          let lastBytes = self.lastReportedBytes[localID] ?? 0
+          let isComplete = total > 0 && received >= total
+          let timeDelta = now.timeIntervalSince(lastDate)
+          let bytesDelta = total > 0 ? Double(received - lastBytes) / Double(total) : 0.0
+
+          if isComplete || timeDelta >= 0.25 || bytesDelta >= 0.01 {
+            self.lastProgressUpdateDate[localID] = now
+            self.lastReportedBytes[localID] = received
+            self.updateDownloadPhase(id: localID, to: .downloading(receivedBytes: received, totalBytes: total))
+          }
         }
       }
     )
 
+    lastProgressUpdateDate.removeValue(forKey: localID)
+    lastReportedBytes.removeValue(forKey: localID)
+
+    sessionCompletedDownloadsCount += 1
     updateDownloadPhase(id: localID, to: .completed(record))
     removeDownload(id: localID)
     if activeDownloads.isEmpty {
+      sessionCompletedDownloadsCount = 0
+      sessionTotalDownloadsCount = 0
       lastTerminalPhase = .completed(record)
     }
+    notifyProgressObservers()
     processQueue()
   }
 
