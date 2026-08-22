@@ -340,6 +340,7 @@ struct OfflineSelectionHUD: View {
         cancelIcon: "xmark",
         onCancel: {
           viewModel.resetSelection()
+          panelManagerViewModel?.openOfflineChartsPanel()
         },
         confirmTitle: "Download",
         confirmIcon: "arrow.down.circle",
