@@ -60,45 +60,105 @@ final class PreferencesServiceTests: XCTestCase {
     }
   }
 
-  func testPendingCAASDownload_persistenceRoundTrip() throws {
+  func testPendingCAASDownloads_persistenceRoundTrip() throws {
     let defaults = UserDefaults.standard
-    let key = "pendingCAASDownload"
+    let key = "pendingCAASDownloads"
     let backupValue = defaults.object(forKey: key)
 
     defaults.removeObject(forKey: key)
 
     let service = PreferencesService()
-    XCTAssertNil(service.pendingCAASDownload)
+    XCTAssertTrue(service.pendingCAASDownloads.isEmpty)
 
-    let packageID = UUID()
+    let packageID1 = UUID()
+    let packageID2 = UUID()
     let createdAt = Date(timeIntervalSince1970: 1_737_900_000)
-    let pending = PendingCAASDownload(
-      packageID: packageID,
+    let pending1 = PendingCAASDownload(
+      id: packageID1,
+      packageID: packageID1,
       layerID: "shom",
       layerName: "SHOM France",
       boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
       zoomMax: 14,
       createdAt: createdAt
     )
+    let pending2 = PendingCAASDownload(
+      id: packageID2,
+      packageID: packageID2,
+      layerID: "ukho",
+      layerName: "UKHO Solent",
+      boundsWKT: "POLYGON((-2 50, 0 50, 0 51, -2 51, -2 50))",
+      zoomMax: 12,
+      createdAt: createdAt
+    )
 
-    service.pendingCAASDownload = pending
-    XCTAssertEqual(service.pendingCAASDownload, pending)
+    service.pendingCAASDownloads = [pending1, pending2]
+    XCTAssertEqual(service.pendingCAASDownloads.count, 2)
+    XCTAssertEqual(service.pendingCAASDownloads[0], pending1)
+    XCTAssertEqual(service.pendingCAASDownloads[1], pending2)
 
     // Reload from new instance
     let reloadedService = PreferencesService()
-    XCTAssertEqual(reloadedService.pendingCAASDownload, pending)
+    XCTAssertEqual(reloadedService.pendingCAASDownloads.count, 2)
+    XCTAssertEqual(reloadedService.pendingCAASDownloads[0], pending1)
+    XCTAssertEqual(reloadedService.pendingCAASDownloads[1], pending2)
 
     // Clear value
-    service.pendingCAASDownload = nil
-    XCTAssertNil(service.pendingCAASDownload)
+    service.pendingCAASDownloads = []
+    XCTAssertTrue(service.pendingCAASDownloads.isEmpty)
 
     let clearedService = PreferencesService()
-    XCTAssertNil(clearedService.pendingCAASDownload)
+    XCTAssertTrue(clearedService.pendingCAASDownloads.isEmpty)
 
     if let backup = backupValue {
       defaults.set(backup, forKey: key)
     } else {
       defaults.removeObject(forKey: key)
     }
+  }
+
+  func testOneShotMigrationFromLegacyKey() throws {
+    let defaults = UserDefaults.standard
+    let legacyKey = "pendingCAASDownload"
+    let newKey = "pendingCAASDownloads"
+
+    let backupLegacy = defaults.object(forKey: legacyKey)
+    let backupNew = defaults.object(forKey: newKey)
+
+    defaults.removeObject(forKey: newKey)
+
+    // Write a legacy single object to UserDefaults
+    let legacyID = UUID()
+    let legacyPending = PendingCAASDownload(
+      id: legacyID,
+      packageID: legacyID,
+      layerID: "shom_legacy",
+      layerName: "SHOM Legacy",
+      boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
+      zoomMax: 14,
+      createdAt: Date(timeIntervalSince1970: 1_737_900_000)
+    )
+
+    let legacyData = try JSONEncoder().encode(legacyPending)
+    defaults.set(legacyData, forKey: legacyKey)
+
+    // Initializing PreferencesService should perform the one-shot migration
+    let service = PreferencesService()
+
+    XCTAssertEqual(service.pendingCAASDownloads.count, 1)
+    XCTAssertEqual(service.pendingCAASDownloads.first?.id, legacyID)
+    XCTAssertEqual(service.pendingCAASDownloads.first?.layerName, "SHOM Legacy")
+
+    // The legacy key must be removed immediately
+    XCTAssertNil(defaults.data(forKey: legacyKey), "Legacy pendingCAASDownload key must be deleted after one-shot migration")
+
+    // The new key must now contain the data
+    XCTAssertNotNil(defaults.data(forKey: newKey), "New pendingCAASDownloads key must be set after migration")
+
+    // Cleanup
+    defaults.removeObject(forKey: legacyKey)
+    defaults.removeObject(forKey: newKey)
+    if let backupLegacy { defaults.set(backupLegacy, forKey: legacyKey) }
+    if let backupNew { defaults.set(backupNew, forKey: newKey) }
   }
 }

@@ -263,6 +263,10 @@ private struct OfflineInProgressRowView: View {
   @ViewBuilder
   private var statusBadge: some View {
     switch phase {
+    case .queued:
+      Label("Queued", systemImage: "clock")
+        .marineFont(.caption)
+        .foregroundColor(.secondary)
     case .waitingForNetwork:
       Label("Waiting for connection", systemImage: "wifi.slash")
         .marineFont(.caption)
@@ -323,6 +327,8 @@ private struct OfflineInProgressRowView: View {
   @ViewBuilder
   private var statusDetailText: some View {
     switch phase {
+    case .queued:
+      Text("Waiting in download queue…")
     case .waitingForNetwork(let message):
       Text(message)
     case .requesting:

@@ -27,7 +27,18 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             }
         }
     }
-    
+
+    weak var chartDownloader: GeoGarageChartDownloader? {
+        didSet {
+            if let pending = pendingBackgroundCompletion {
+                chartDownloader?.setBackgroundCompletionHandler(pending)
+                pendingBackgroundCompletion = nil
+            }
+        }
+    }
+
+    private var pendingBackgroundCompletion: (() -> Void)?
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
@@ -43,6 +54,25 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // so that iOS knows how to route foreground notifications.
         UNUserNotificationCenter.current().delegate = self
         return true
+    }
+
+    // MARK: - Background URLSession Events
+
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        Logger.caas.info("AppDelegate: handleEventsForBackgroundURLSession for \(identifier, privacy: .public)")
+        if identifier == GeoGarageChartDownloader.backgroundSessionIdentifier {
+            if let chartDownloader {
+                chartDownloader.setBackgroundCompletionHandler(completionHandler)
+            } else {
+                pendingBackgroundCompletion = completionHandler
+            }
+        } else {
+            completionHandler()
+        }
     }
     
     // Ensures the notification banner and sound trigger even if the app is currently open and active on the screen.

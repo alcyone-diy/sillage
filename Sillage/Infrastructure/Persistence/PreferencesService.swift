@@ -94,7 +94,7 @@ protocol PreferencesServiceProtocol: AnyObject {
   /// Unique GeoGarage customer account identifier. Non-sensitive — used to reconstruct
   /// the SQLCipher decryption key dynamically at runtime (never stored alongside the shared secret).
   var geoGarageCustomerID: String? { get set }
-  var pendingCAASDownload: PendingCAASDownload? { get set }
+  var pendingCAASDownloads: [PendingCAASDownload] { get set }
 
   var isCOGVectorEnabled: Bool { get set }
   var cogVectorTimeHorizon: Measurement<UnitDuration> { get set }
@@ -141,6 +141,7 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let geoGarageUsernameKey = "geogarage_username"
   @ObservationIgnored private let geoGarageCustomerIDKey = "geogarage_customer_id"
   @ObservationIgnored private let pendingCAASDownloadKey = "pendingCAASDownload"
+  @ObservationIgnored private let pendingCAASDownloadsKey = "pendingCAASDownloads"
 
   @ObservationIgnored private let isCOGVectorEnabledKey = "isCOGVectorEnabled"
   @ObservationIgnored private let cogVectorTimeHorizonSecondsKey = "cogVectorTimeHorizonSeconds"
@@ -291,14 +292,12 @@ class PreferencesService: PreferencesServiceProtocol {
     didSet { defaults.set(rawGPSAccuracyMode, forKey: gpsAccuracyModeKey) }
   }
 
-  var pendingCAASDownload: PendingCAASDownload? {
+  var pendingCAASDownloads: [PendingCAASDownload] {
     didSet {
-      if let pendingCAASDownload {
-        if let data = try? JSONEncoder().encode(pendingCAASDownload) {
-          defaults.set(data, forKey: pendingCAASDownloadKey)
-        }
+      if let data = try? JSONEncoder().encode(pendingCAASDownloads) {
+        defaults.set(data, forKey: pendingCAASDownloadsKey)
       } else {
-        defaults.removeObject(forKey: pendingCAASDownloadKey)
+        defaults.removeObject(forKey: pendingCAASDownloadsKey)
       }
     }
   }
@@ -324,11 +323,19 @@ class PreferencesService: PreferencesServiceProtocol {
     self.geoGarageUsername = defaults.string(forKey: geoGarageUsernameKey)
     self.geoGarageCustomerID = defaults.string(forKey: geoGarageCustomerIDKey)
 
-    if let data = defaults.data(forKey: pendingCAASDownloadKey),
-       let pending = try? JSONDecoder().decode(PendingCAASDownload.self, from: data) {
-      self.pendingCAASDownload = pending
+    // One-shot migration: Migrate legacy single pendingCAASDownload to pendingCAASDownloads array and purge old key
+    if let oldData = defaults.data(forKey: pendingCAASDownloadKey),
+       let oldPending = try? JSONDecoder().decode(PendingCAASDownload.self, from: oldData) {
+      self.pendingCAASDownloads = [oldPending]
+      defaults.removeObject(forKey: pendingCAASDownloadKey)
+      if let data = try? JSONEncoder().encode([oldPending]) {
+        defaults.set(data, forKey: pendingCAASDownloadsKey)
+      }
+    } else if let data = defaults.data(forKey: pendingCAASDownloadsKey),
+              let list = try? JSONDecoder().decode([PendingCAASDownload].self, from: data) {
+      self.pendingCAASDownloads = list
     } else {
-      self.pendingCAASDownload = nil
+      self.pendingCAASDownloads = []
     }
 
     self.isCOGVectorEnabled = defaults.object(forKey: isCOGVectorEnabledKey) as? Bool ?? true

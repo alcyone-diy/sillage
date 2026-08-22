@@ -95,7 +95,7 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
     let downloader = GeoGarageChartDownloader(
       packageService: mockPackageService,
       downloadRepository: repository,
-      session: session,
+      sessionConfiguration: MockURLProtocol.makeMockConfiguration(),
       chartsDirectoryURL: tempDirURL
     )
 
@@ -148,7 +148,7 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
     let downloader = GeoGarageChartDownloader(
       packageService: mockPackageService,
       downloadRepository: repository,
-      session: session,
+      sessionConfiguration: MockURLProtocol.makeMockConfiguration(),
       chartsDirectoryURL: tempDirURL
     )
 
@@ -212,7 +212,7 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
     let downloader = GeoGarageChartDownloader(
       packageService: mockPackageService,
       downloadRepository: repository,
-      session: session,
+      sessionConfiguration: MockURLProtocol.makeMockConfiguration(),
       chartsDirectoryURL: tempDirURL
     )
 

@@ -328,9 +328,7 @@ final class AppEnvironment {
 
   /// Normalized download progress value (0.0 to 1.0) when available, or nil for indeterminate state.
   var offlineChartsDownloadProgress: Double? {
-    if geoGarageDownloadService?.isDownloading == true {
-      return geoGarageDownloadService?.downloadProgress
-    } else if offlineMapManager.totalPendingDownloads > 0 {
+    if offlineMapManager.totalPendingDownloads > 0 {
       return offlineMapManager.globalDownloadProgress
     }
     return nil
