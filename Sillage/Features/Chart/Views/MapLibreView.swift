@@ -183,7 +183,13 @@ struct MapLibreView: UIViewRepresentable {
         MapStyleController.updateAnchor(state: currentVisualState, in: style, theme: marineTheme)
       }
 
-      
+      // Offline mask update
+      let offlineMaskVisualState = viewModel.offlineMaskVisualState
+      if offlineMaskVisualState != context.coordinator.lastOfflineMaskVisualState {
+        MapStyleController.updateOfflineMask(state: offlineMaskVisualState, in: style, theme: marineTheme)
+        context.coordinator.lastOfflineMaskVisualState = offlineMaskVisualState
+      }
+
       // Data Stale state update (Opacity)
       if isDataStale != context.coordinator.lastDataStale {
         MapStyleController.updateDataStaleState(isStale: isDataStale, in: style)
@@ -291,6 +297,7 @@ struct MapLibreView: UIViewRepresentable {
     var lastGoToWaypointVisualState: WaypointVisualState?
     var lastBearingLineVisualState: BearingLineVisualState?
     var lastAnchorVisualState: AnchorVisualState?
+    var lastOfflineMaskVisualState: OfflineMaskVisualState?
     
     var lastActiveTrackCount: Int?
     var lastActiveTrackTimestamp: Date?
@@ -453,6 +460,12 @@ struct MapLibreView: UIViewRepresentable {
       let anchorVisualState = parent.viewModel.anchorVisualState
       MapStyleController.updateAnchor(state: anchorVisualState, in: style, theme: parent.marineTheme)
       lastAnchorVisualState = anchorVisualState
+
+      // Offline Mask layer initialization
+      MapStyleController.ensureOfflineMaskLayersExist(in: style, theme: parent.marineTheme)
+      let maskState = parent.viewModel.offlineMaskVisualState
+      MapStyleController.updateOfflineMask(state: maskState, in: style, theme: parent.marineTheme)
+      lastOfflineMaskVisualState = maskState
 
       let isStale = parent.viewModel.isDataStale
       MapStyleController.updateDataStaleState(isStale: isStale, in: style)

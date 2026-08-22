@@ -210,8 +210,6 @@ enum MapLibreFeatureFactory {
       segments.append(currentSegment)
     }
     
-    guard !segments.isEmpty else { return nil }
-    
     if segments.count == 1 {
       var coordinates = segments[0]
       return MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
@@ -221,6 +219,63 @@ enum MapLibreFeatureFactory {
         return MLNPolyline(coordinates: &mutableCoords, count: UInt(mutableCoords.count))
       }
       return MLNMultiPolylineFeature(polylines: polylines)
+    }
+  }
+
+  /// Creates a world-scale polygon feature with interior holes for all saved offline regions.
+  /// When rendered by MapLibre, everything outside the saved offline areas is covered by the fill layer.
+  static func createOfflineMaskFeature(from state: OfflineMaskVisualState?) -> MLNPolygonFeature? {
+    guard let state, state.isActive else { return nil }
+
+    // World-scale exterior ring bounding coordinates covering global Web Mercator extents (EPSG:3857).
+    // Conforms to RFC 7946 / MapLibre right-hand rule with strictly Counter-Clockwise (CCW) winding: SW -> SE -> NE -> NW -> SW.
+    // Latitude is strictly capped at 85.051128 to stay within Web Mercator mathematical bounds (< 85.0511287798).
+    let maxMercatorLat: CLLocationDegrees = 85.051128
+    var worldCoordinates: [CLLocationCoordinate2D] = [
+      CLLocationCoordinate2D(latitude: -maxMercatorLat, longitude: -180.0), // SW
+      CLLocationCoordinate2D(latitude: -maxMercatorLat, longitude: 180.0),  // SE
+      CLLocationCoordinate2D(latitude: maxMercatorLat, longitude: 180.0),   // NE
+      CLLocationCoordinate2D(latitude: maxMercatorLat, longitude: -180.0),  // NW
+      CLLocationCoordinate2D(latitude: -maxMercatorLat, longitude: -180.0)  // SW (closed)
+    ]
+
+    let interiorPolygons: [MLNPolygon] = state.offlinePolygons.compactMap { ring in
+      guard ring.count >= 4 else { return nil }
+      var mutableRing = ring
+      return MLNPolygon(coordinates: &mutableRing, count: UInt(mutableRing.count))
+    }
+
+    let maskFeature = MLNPolygonFeature(
+      coordinates: &worldCoordinates,
+      count: UInt(worldCoordinates.count),
+      interiorPolygons: interiorPolygons
+    )
+    maskFeature.attributes = [
+      MapFeatureKey.type.rawValue: MapFeatureType.offlineMask.rawValue
+    ]
+    return maskFeature
+  }
+
+  /// Creates polyline features delineating the boundaries of all saved offline regions.
+  static func createOfflineRegionsBorderFeature(from state: OfflineMaskVisualState?) -> MLNShape? {
+    guard let state, state.isActive, !state.offlinePolygons.isEmpty else { return nil }
+
+    if state.offlinePolygons.count == 1 {
+      var coords = state.offlinePolygons[0]
+      guard coords.count >= 2 else { return nil }
+      let feature = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
+      feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineRegionsBorder.rawValue]
+      return feature
+    } else {
+      let polylines = state.offlinePolygons.compactMap { ring -> MLNPolyline? in
+        guard ring.count >= 2 else { return nil }
+        var mutableRing = ring
+        return MLNPolyline(coordinates: &mutableRing, count: UInt(mutableRing.count))
+      }
+      guard !polylines.isEmpty else { return nil }
+      let feature = MLNMultiPolylineFeature(polylines: polylines)
+      feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineRegionsBorder.rawValue]
+      return feature
     }
   }
 }

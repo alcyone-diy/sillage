@@ -35,7 +35,11 @@ final class OfflineSelectionViewModel {
   @ObservationIgnored private(set) var selectedBounds: GeographicBoundingBox?
 
   /// Indicates whether the user is currently actively selecting an offline region.
-  var isSelectionModeActive: Bool = false
+  var isSelectionModeActive: Bool = false {
+    didSet {
+      refreshOfflineMask()
+    }
+  }
 
   /// The estimated surface area of the currently selected bounds, used to warn the user about download limits.
   var estimatedArea: Measurement<UnitArea>?
@@ -54,7 +58,13 @@ final class OfflineSelectionViewModel {
 
   // MARK: - Configuration Properties
 
-  var selectedLayerID: String = ""
+  var selectedLayerID: String = "" {
+    didSet {
+      if isSelectionModeActive {
+        refreshOfflineMask()
+      }
+    }
+  }
   var zoomMin: Int = 0
   var zoomMax: Int = 14
   var customName: String = ""
@@ -206,6 +216,29 @@ final class OfflineSelectionViewModel {
     isValidSize = false
     cropRect = nil
     calculationTask?.cancel()
+    chartViewModel.updateOfflineMaskState(
+      isSelectionActive: false,
+      activeLayerID: nil,
+      downloads: []
+    )
+  }
+
+  /// Triggers asynchronous calculation of the offline mask visual state on ChartViewModel.
+  func refreshOfflineMask() {
+    let layerToFilter: String
+    if !selectedLayerID.isEmpty {
+      layerToFilter = selectedLayerID
+    } else if let source = chartViewModel.currentChartSource, case .remoteGeoGarage(_, let layerID) = source {
+      layerToFilter = layerID
+    } else {
+      layerToFilter = availableLayers.first?.layer ?? ""
+    }
+
+    chartViewModel.updateOfflineMaskState(
+      isSelectionActive: isSelectionModeActive,
+      activeLayerID: layerToFilter,
+      downloads: downloadedCharts
+    )
   }
 
   // MARK: - CAAS Download Actions

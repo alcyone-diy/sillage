@@ -140,6 +140,9 @@ struct MarineTheme {
     static let gpsAccuracyFillOpacity: Double = 0.15
     static let gpsAccuracyStrokeOpacity: Double = 0.4
     static let gpsAccuracyLineWidth: Double = 1.0
+    static let offlineMaskFillOpacity: Double = 0.55
+    static let offlineRegionsBorderLineWidth: Double = 1.5
+    static let offlineRegionsBorderOpacity: Double = 0.85
   }
 
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false, colors: dayColors)

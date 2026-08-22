@@ -124,6 +124,7 @@ final class ChartViewModel {
   var bearingLineVisualState: BearingLineVisualState?
   var goToWaypointID: String?
   var anchorVisualState: AnchorVisualState?
+  var offlineMaskVisualState: OfflineMaskVisualState?
   var displayedTrackSessionID: String? {
     didSet {
       preferencesService.displayedTrackSessionID = displayedTrackSessionID
@@ -769,6 +770,40 @@ final class ChartViewModel {
       self.zoomLevel = defaultZoom
       if let center = defaultCenter {
         self.centerCoordinate = center
+      }
+    }
+  }
+
+  /// Asynchronously computes the offline mask visual state on a detached background task
+  /// by filtering downloaded packages for the active layer and performing topological union merging.
+  func updateOfflineMaskState(
+    isSelectionActive: Bool,
+    activeLayerID: String?,
+    downloads: [OfflineChartDownload]
+  ) {
+    guard isSelectionActive else {
+      self.offlineMaskVisualState = nil
+      return
+    }
+
+    let targetLayer = activeLayerID ?? {
+      if case .remoteGeoGarage(_, let layerID) = currentChartSource {
+        return layerID
+      }
+      return availableGeoGarageLayers.first?.layer ?? ""
+    }()
+
+    Task.detached(priority: .userInitiated) { [weak self] in
+      let matchingDownloads = downloads.filter {
+        $0.layerID.caseInsensitiveCompare(targetLayer) == .orderedSame
+      }
+
+      let boxes = matchingDownloads.compactMap { GeographicBoundingBox(wkt: $0.boundsWKT) }
+      let mergedPolygons = GeographicBoundingBox.mergeIntoNonIntersectingPolygons(boxes)
+      let visualState = OfflineMaskVisualState(isActive: true, offlinePolygons: mergedPolygons)
+
+      await MainActor.run { [weak self] in
+        self?.offlineMaskVisualState = visualState
       }
     }
   }
