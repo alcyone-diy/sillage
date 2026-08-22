@@ -424,6 +424,21 @@ enum OfflineChartItem: Identifiable, Equatable, Sendable {
       return pending.createdAt
     }
   }
+
+  /// Geographic boundary as a rectangular WKT POLYGON (BBOX).
+  var boundsWKT: String {
+    switch self {
+    case .downloaded(let download):
+      return download.boundsWKT
+    case .inProgress(let pending, _):
+      return pending.boundsWKT
+    }
+  }
+
+  /// Geographic bounding box parsed from WKT polygon for map camera framing.
+  var geographicBounds: GeographicBoundingBox? {
+    boundsWKT.isEmpty ? nil : GeographicBoundingBox(wkt: boundsWKT)
+  }
 }
 
 /// Represents a grouped collection of offline charts (downloaded or in progress) for a specific GeoGarage chart type (layer).

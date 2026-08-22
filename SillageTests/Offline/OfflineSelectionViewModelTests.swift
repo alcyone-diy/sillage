@@ -1323,6 +1323,52 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(firstCoord?.latitude ?? 0.0, 45.0, accuracy: 1e-4)
     XCTAssertEqual(firstCoord?.longitude ?? 0.0, -1.0, accuracy: 1e-4)
   }
+
+  func testOfflineChartItem_GeographicBounds() {
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/test.mbtiles",
+      md5: "md5",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-5.0 48.0, -4.0 48.0, -4.0 49.0, -5.0 49.0, -5.0 48.0))"
+    )
+    let downloadedItem = OfflineChartItem.downloaded(download)
+    XCTAssertEqual(downloadedItem.boundsWKT, download.boundsWKT)
+    XCTAssertNotNil(downloadedItem.geographicBounds)
+    XCTAssertEqual(downloadedItem.geographicBounds?.southWest.latitude ?? 0, 48.0, accuracy: 1e-4)
+    XCTAssertEqual(downloadedItem.geographicBounds?.northEast.latitude ?? 0, 49.0, accuracy: 1e-4)
+
+    let pending = PendingCAASDownload(
+      id: UUID(),
+      packageID: UUID(),
+      layerID: "ukho",
+      layerName: "UKHO Admiralty",
+      boundsWKT: "POLYGON((-6.0 50.0, -5.0 50.0, -5.0 51.0, -6.0 51.0, -6.0 50.0))",
+      zoomMax: 14,
+      createdAt: Date()
+    )
+    let inProgressItem = OfflineChartItem.inProgress(pending, phase: .downloading(receivedBytes: 50, totalBytes: 100))
+    XCTAssertEqual(inProgressItem.boundsWKT, pending.boundsWKT)
+    XCTAssertNotNil(inProgressItem.geographicBounds)
+    XCTAssertEqual(inProgressItem.geographicBounds?.southWest.latitude ?? 0, 50.0, accuracy: 1e-4)
+    XCTAssertEqual(inProgressItem.geographicBounds?.northEast.latitude ?? 0, 51.0, accuracy: 1e-4)
+
+    let invalidPending = PendingCAASDownload(
+      id: UUID(),
+      packageID: UUID(),
+      layerID: "noaa",
+      layerName: "NOAA",
+      boundsWKT: "",
+      zoomMax: 14,
+      createdAt: Date()
+    )
+    let invalidItem = OfflineChartItem.inProgress(invalidPending, phase: .queued)
+    XCTAssertTrue(invalidItem.boundsWKT.isEmpty)
+    XCTAssertNil(invalidItem.geographicBounds)
+  }
 }
 
 

@@ -773,6 +773,39 @@ final class ChartViewModelTests: XCTestCase {
 
     XCTAssertEqual(viewModel.offlineMaskVisualState?.savedOfflinePolygons.count, 1, "SHOM brand name selection must include SHOM saved offline polygons")
   }
+
+  func testIsGeoGarageLayerActive() {
+    let mockAuthService = MockGeoGarageAuthService()
+    let preferencesService = PreferencesService()
+    let positioningService = MockPositioningService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    // Initially or with OpenSeaMap
+    viewModel.switchChartSource(to: .openSeaMap)
+    XCTAssertFalse(viewModel.isGeoGarageLayerActive("shom"))
+    XCTAssertNil(viewModel.currentGeoGarageLayerID)
+
+    // Switch to GeoGarage SHOM
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+    XCTAssertEqual(viewModel.currentGeoGarageLayerID, "shom")
+    XCTAssertTrue(viewModel.isGeoGarageLayerActive("shom"))
+    XCTAssertTrue(viewModel.isGeoGarageLayerActive("SHOM"))
+    XCTAssertFalse(viewModel.isGeoGarageLayerActive("ukho"))
+    XCTAssertFalse(viewModel.isGeoGarageLayerActive(""))
+  }
 }
 
 

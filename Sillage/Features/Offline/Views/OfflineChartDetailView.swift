@@ -187,14 +187,17 @@ struct OfflineChartDetailView: View {
 
       // MARK: - Actions Section
       Section {
+        let isEnabled = viewModel.geographicBounds != nil && chartViewModel.isGeoGarageLayerActive(viewModel.layerID)
         Button {
-          viewModel.showOnChart(using: chartViewModel, panelManager: panelManagerViewModel)
+          if isEnabled {
+            viewModel.showOnChart(using: chartViewModel, panelManager: panelManagerViewModel)
+          }
         } label: {
-          Label("Show on Chart", systemImage: "map")
+          Label("Show on Chart", systemImage: MarineIcon.offlineChart.rawValue)
             .marineFont(.body)
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .disabled(viewModel.geographicBounds == nil)
+        .disabled(!isEnabled)
         .marineListCell()
 
         Button(role: .destructive) {
