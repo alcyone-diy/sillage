@@ -699,6 +699,80 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.mapScale?.converted(to: .meters).value, 35.0)
     XCTAssertEqual(viewModel.zoomLevel, 16.0)
   }
+
+  func testUpdateOfflineMaskState_FiltersDownloadsStrictlyBySelectedLayer() async throws {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    let shomDownload = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/shom.mbtiles",
+      md5: "hash_shom",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-5.0 48.0, -4.0 48.0, -4.0 49.0, -5.0 49.0, -5.0 48.0))"
+    )
+
+    let downloads = [shomDownload]
+
+    // 1. When UKHO is selected, SHOM downloads should NOT be shown in UKHO offline mask
+    viewModel.updateOfflineMaskState(
+      isSelectionActive: true,
+      activeLayerID: "ukho",
+      selectedBounds: nil,
+      downloads: downloads
+    )
+
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.offlineMaskVisualState != nil
+    }
+
+    XCTAssertEqual(viewModel.offlineMaskVisualState?.savedOfflinePolygons.count, 0, "UKHO selection must not include SHOM saved offline polygons")
+
+    // 2. When SHOM is selected by layer ID, SHOM downloads MUST be included in offline mask
+    viewModel.updateOfflineMaskState(
+      isSelectionActive: true,
+      activeLayerID: "shom",
+      selectedBounds: nil,
+      downloads: downloads
+    )
+
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.offlineMaskVisualState?.savedOfflinePolygons.count == 1
+    }
+
+    XCTAssertEqual(viewModel.offlineMaskVisualState?.savedOfflinePolygons.count, 1, "SHOM layer ID selection must include SHOM saved offline polygons")
+
+    // 3. When SHOM is selected by brand name ("SHOM France"), SHOM downloads MUST also be included
+    viewModel.updateOfflineMaskState(
+      isSelectionActive: true,
+      activeLayerID: "SHOM France",
+      selectedBounds: nil,
+      downloads: downloads
+    )
+
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.offlineMaskVisualState?.savedOfflinePolygons.count == 1
+    }
+
+    XCTAssertEqual(viewModel.offlineMaskVisualState?.savedOfflinePolygons.count, 1, "SHOM brand name selection must include SHOM saved offline polygons")
+  }
 }
 
 

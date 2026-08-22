@@ -1280,9 +1280,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     sut.selectedLayerID = "ukho"
 
     // Wait for detached Task on ChartViewModel to complete
-    for _ in 0..<100 {
-      if chartVM.offlineMaskVisualState != nil { break }
-      try await Task.sleep(nanoseconds: 10_000_000)
+    try await waitFor(timeout: .seconds(2)) {
+      chartVM.offlineMaskVisualState?.savedOfflinePolygons.count == 1
     }
 
     let maskState = chartVM.offlineMaskVisualState

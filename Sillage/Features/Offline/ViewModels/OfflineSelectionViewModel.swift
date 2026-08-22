@@ -137,10 +137,6 @@ final class OfflineSelectionViewModel {
     self.chartViewModel = chartViewModel
     self.offlineMapManager = offlineMapManager
     self.downloader = downloader
-
-    if let firstLayer = chartViewModel.availableGeoGarageLayers.first {
-      self.selectedLayerID = firstLayer.layer
-    }
   }
 
   deinit {
@@ -269,10 +265,10 @@ final class OfflineSelectionViewModel {
     calculationTask?.cancel()
 
     let layerToDownload: String
-    if let source = chartSource, case .remoteGeoGarage(_, let layerID) = source {
-      layerToDownload = layerID
-    } else if !selectedLayerID.isEmpty {
+    if !selectedLayerID.isEmpty {
       layerToDownload = selectedLayerID
+    } else if let source = chartSource, case .remoteGeoGarage(_, let layerID) = source {
+      layerToDownload = layerID
     } else {
       layerToDownload = availableLayers.first?.layer ?? "shom"
     }
