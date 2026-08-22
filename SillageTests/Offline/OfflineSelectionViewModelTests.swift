@@ -1212,6 +1212,115 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(sut.downloadPhase, .completed(record))
     XCTAssertFalse(sut.isDownloading)
   }
+
+  // MARK: - Offline Mask Integration Tests
+
+  func testOfflineMask_whenSelectionModeActive_triggersBackgroundComputationOnChartViewModel() async throws {
+    let downloadRepo = MockDownloadRepository()
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/shom.mbtiles",
+      md5: "md5",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-3.0 47.0, -2.0 47.0, -2.0 48.0, -3.0 48.0, -3.0 47.0))"
+    )
+    downloadRepo.downloads = [download]
+
+    let (sut, _, _, _, chartVM, _, _, _) = makeSUT(downloadRepository: downloadRepo)
+    sut.selectedLayerID = "shom"
+
+    // Activate selection mode
+    sut.isSelectionModeActive = true
+
+    // Wait for detached Task on ChartViewModel to complete
+    for _ in 0..<100 {
+      if chartVM.offlineMaskVisualState != nil { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    let maskState = chartVM.offlineMaskVisualState
+    XCTAssertNotNil(maskState)
+    XCTAssertTrue(maskState?.isActive == true)
+    XCTAssertEqual(maskState?.savedOfflinePolygons.count, 1)
+
+    // Deactivate selection mode
+    sut.isSelectionModeActive = false
+    XCTAssertNil(chartVM.offlineMaskVisualState)
+  }
+
+  func testOfflineMask_whenSelectedLayerChanges_refreshesMatchingDownloadsOnly() async throws {
+    let downloadRepo = MockDownloadRepository()
+    let shomDownload = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/shom.mbtiles",
+      md5: "md5_shom",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-3.0 47.0, -2.0 47.0, -2.0 48.0, -3.0 48.0, -3.0 47.0))"
+    )
+    let ukhoDownload = OfflineChartDownload(
+      id: UUID(),
+      layerID: "ukho",
+      layerName: "UKHO Admiralty",
+      downloadDate: Date(),
+      relativePath: "Charts/ukho.mbtiles",
+      md5: "md5_ukho",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-1.0 50.0, 0.0 50.0, 0.0 51.0, -1.0 51.0, -1.0 50.0))"
+    )
+    downloadRepo.downloads = [shomDownload, ukhoDownload]
+
+    let (sut, _, _, _, chartVM, _, _, _) = makeSUT(downloadRepository: downloadRepo)
+    sut.isSelectionModeActive = true
+    sut.selectedLayerID = "ukho"
+
+    // Wait for detached Task on ChartViewModel to complete
+    for _ in 0..<100 {
+      if chartVM.offlineMaskVisualState != nil { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    let maskState = chartVM.offlineMaskVisualState
+    XCTAssertNotNil(maskState)
+    XCTAssertTrue(maskState?.isActive == true)
+    // Only 1 polygon corresponding to UKHO saved packages, not SHOM
+    XCTAssertEqual(maskState?.savedOfflinePolygons.count, 1)
+    let firstCoord = maskState?.savedOfflinePolygons.first?.first
+    XCTAssertEqual(firstCoord?.latitude ?? 0.0, 50.0, accuracy: 1e-4)
+  }
+
+  func testOfflineMask_whenBoundingBoxUpdated_punchesUnDimmedHoleForSelectionArea() async throws {
+    let (sut, _, _, _, chartVM, _, _, _) = makeSUT()
+    sut.isSelectionModeActive = true
+    sut.selectedLayerID = "shom"
+
+    let selectionBounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),
+      northEast: CLLocationCoordinate2D(latitude: 46.0, longitude: 0.0)
+    )
+    sut.updateBoundingBox(selectionBounds)
+
+    // Wait for detached Task on ChartViewModel to complete
+    for _ in 0..<100 {
+      if chartVM.offlineMaskVisualState?.maskHoles.isEmpty == false { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    let maskState = chartVM.offlineMaskVisualState
+    XCTAssertNotNil(maskState)
+    XCTAssertTrue(maskState?.isActive == true)
+    // The selection area itself is punched as a hole in maskHoles (so it is NEVER dimmed)
+    XCTAssertEqual(maskState?.maskHoles.count, 1)
+    let firstCoord = maskState?.maskHoles.first?.first
+    XCTAssertEqual(firstCoord?.latitude ?? 0.0, 45.0, accuracy: 1e-4)
+    XCTAssertEqual(firstCoord?.longitude ?? 0.0, -1.0, accuracy: 1e-4)
+  }
 }
+
 
 

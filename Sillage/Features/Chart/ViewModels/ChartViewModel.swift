@@ -776,9 +776,12 @@ final class ChartViewModel {
 
   /// Asynchronously computes the offline mask visual state on a detached background task
   /// by filtering downloaded packages for the active layer and performing topological union merging.
+  /// Punches unmasked holes for both saved offline regions and the currently active selection area,
+  /// guaranteeing that the active selection area is never dimmed.
   func updateOfflineMaskState(
     isSelectionActive: Bool,
     activeLayerID: String?,
+    selectedBounds: GeographicBoundingBox?,
     downloads: [OfflineChartDownload]
   ) {
     guard isSelectionActive else {
@@ -798,9 +801,20 @@ final class ChartViewModel {
         $0.layerID.caseInsensitiveCompare(targetLayer) == .orderedSame
       }
 
-      let boxes = matchingDownloads.compactMap { GeographicBoundingBox(wkt: $0.boundsWKT) }
-      let mergedPolygons = GeographicBoundingBox.mergeIntoNonIntersectingPolygons(boxes)
-      let visualState = OfflineMaskVisualState(isActive: true, offlinePolygons: mergedPolygons)
+      let savedBoxes = matchingDownloads.compactMap { GeographicBoundingBox(wkt: $0.boundsWKT) }
+      let savedPolygons = GeographicBoundingBox.mergeIntoNonIntersectingPolygons(savedBoxes)
+
+      var allBoxes = savedBoxes
+      if let selectedBounds {
+        allBoxes.append(selectedBounds)
+      }
+      let maskHoles = GeographicBoundingBox.mergeIntoNonIntersectingPolygons(allBoxes)
+
+      let visualState = OfflineMaskVisualState(
+        isActive: true,
+        maskHoles: maskHoles,
+        savedOfflinePolygons: savedPolygons
+      )
 
       await MainActor.run { [weak self] in
         self?.offlineMaskVisualState = visualState

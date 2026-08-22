@@ -57,6 +57,15 @@ struct OfflineSelectionHUD: View {
         }()
         
         ZStack(alignment: .topLeading) {
+          marineTheme.colors.overlay
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            .reverseMask {
+              RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius)
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
+            }
+            
           Rectangle()
             .strokeBorder(marineTheme.colors.accent, lineWidth: MarineTheme.Metrics.borderWidth * 3.0)
             .frame(width: rect.width, height: rect.height)
@@ -353,6 +362,21 @@ struct OfflineSelectionHUD: View {
         chartViewModel?.isActionConfirmationCardActive = false
       }
     }
+  }
+}
+
+fileprivate extension View {
+  func reverseMask<Mask: View>(
+    alignment: Alignment = .center,
+    @ViewBuilder _ mask: () -> Mask
+  ) -> some View {
+    self.mask(
+      ZStack(alignment: alignment) {
+        Color.black
+        mask().blendMode(.destinationOut)
+      }
+      .compositingGroup()
+    )
   }
 }
 
