@@ -46,9 +46,30 @@ final class OfflineChartDetailViewModel {
   private(set) var chartDownload: OfflineChartDownload?
   private(set) var fileStatus: FileStatus = .checking
 
-  /// The human-readable name of the offline chart package.
+  /// Indicates whether the chart detail view is currently in edit mode (renaming).
+  var isEditing: Bool = false
+
+  /// The working name being edited by the user in edit mode.
+  var editableName: String = ""
+
+  /// Indicates whether saving is currently disabled (e.g. while performing an async save or when the input is empty).
+  var isSaveDisabled: Bool {
+    isSaving || editableName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  /// Indicates whether a save operation is actively running.
+  private(set) var isSaving: Bool = false
+
+  /// The human-readable presentation name of the offline chart package.
+  /// Pure presentation logic: falls back from user customName -> layerName -> localized "Unknown Chart".
   var chartName: String {
-    chartDownload?.layerName ?? String(localized: "Unknown Chart")
+    if let custom = chartDownload?.customName, !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return custom.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    if let layer = chartDownload?.layerName, !layer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return layer
+    }
+    return String(localized: "Unknown Chart")
   }
 
   /// The layer identifier (e.g. "shom", "ukho", "noaa").
@@ -166,6 +187,51 @@ final class OfflineChartDetailViewModel {
     }
   }
 
+  // MARK: - Edit Mode Lifecycle
+
+  /// Enters editing mode and pre-fills `editableName` with the current custom or default name.
+  func startEditing() {
+    isEditing = true
+    editableName = chartDownload?.customName ?? chartDownload?.layerName ?? ""
+  }
+
+  /// Cancels editing mode and discards uncommitted changes to `editableName`.
+  func cancelEditing() {
+    isEditing = false
+    editableName = ""
+  }
+
+  /// Commits the edited chart name to the repository and updates disk persistence atomically.
+  /// If the trimmed string is empty or matches the original layerName, `customName` is set to `nil`
+  /// to trigger the natural fallback.
+  func saveCustomName() async throws {
+    guard let currentDownload = chartDownload else { return }
+
+    let trimmed = editableName.trimmingCharacters(in: .whitespacesAndNewlines)
+    // If trimmed string is empty or equal to the default layerName, reset customName to nil
+    let newCustomName: String? = (trimmed.isEmpty || trimmed == currentDownload.layerName) ? nil : trimmed
+    let previousName = currentDownload.customName ?? currentDownload.layerName
+
+    isSaving = true
+    defer { isSaving = false }
+
+    let updatedDownload = currentDownload.updatingCustomName(newCustomName)
+
+    do {
+      try await downloadRepository.save(updatedDownload)
+      self.chartDownload = updatedDownload
+      self.isEditing = false
+      self.editableName = ""
+      self.errorMessage = nil
+
+      Logger.offline.info("Updated offline chart name for ID \(self.chartID.uuidString, privacy: .public): '\(previousName, privacy: .public)' -> '\(newCustomName ?? currentDownload.layerName, privacy: .public)'")
+    } catch {
+      Logger.offline.error("Failed to save custom chart name for ID \(self.chartID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+      self.errorMessage = error.localizedDescription
+      throw error
+    }
+  }
+
   // MARK: - User Actions
 
   /// Centers the navigation chart camera on the bounding box of this offline package and closes the command panel.
@@ -189,15 +255,15 @@ final class OfflineChartDetailViewModel {
 
   /// Deletes the offline chart record and its underlying physical `.mbtiles` file.
   func deleteChart() async throws {
-    guard let download = chartDownload else {
-      await downloadRepository.delete(id: chartID)
-      return
-    }
-
     isDeleting = true
     defer { isDeleting = false }
 
     do {
+      guard let download = chartDownload else {
+        try await downloadRepository.delete(id: chartID)
+        return
+      }
+
       if let downloadService {
         try await downloadService.deleteDownload(download)
       } else {
@@ -205,9 +271,10 @@ final class OfflineChartDetailViewModel {
         if let fileURL = download.resolvedFileURL(), FileManager.default.fileExists(atPath: fileURL.path) {
           try? FileManager.default.removeItem(at: fileURL)
         }
-        await downloadRepository.delete(id: download.id)
+        try await downloadRepository.delete(id: download.id)
       }
       Logger.offline.info("Successfully deleted offline chart \(download.layerName, privacy: .public)")
+      self.errorMessage = nil
     } catch {
       Logger.offline.error("Failed to delete offline chart: \(error.localizedDescription, privacy: .public)")
       self.errorMessage = error.localizedDescription

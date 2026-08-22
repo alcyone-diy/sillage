@@ -278,6 +278,9 @@
     "Chart Details" : {
 
     },
+    "Chart Name" : {
+
+    },
     "Chart Preferences" : {
 
     },
@@ -288,6 +291,9 @@
 
     },
     "Clear Map Cache" : {
+
+    },
+    "Clear text" : {
 
     },
     "COG" : {
@@ -869,6 +875,9 @@
           }
         }
       }
+    },
+    "Save" : {
+
     },
     "Saved Tracks" : {
 

@@ -117,6 +117,10 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
   /// TODO: Replace with a `BoundingBox` model based on `CLLocationCoordinate2D`.
   let boundsWKT: String
 
+  /// Optional user-assigned custom name for this offline chart region (e.g. "Bretagne Sud").
+  /// If nil, presentation layers fall back to layerName or download date.
+  let customName: String?
+
   /// Optional size override (useful for testing or when metadata is pre-cached without querying the filesystem).
   private let customFileSizeBytes: Int64?
 
@@ -129,6 +133,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     case md5
     case zoomMax
     case boundsWKT
+    case customName
   }
 
   init(
@@ -140,7 +145,8 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     md5: String,
     zoomMax: Int,
     boundsWKT: String,
-    customFileSizeBytes: Int64? = nil
+    customFileSizeBytes: Int64? = nil,
+    customName: String? = nil
   ) {
     self.id = id
     self.layerID = layerID
@@ -151,6 +157,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     self.zoomMax = zoomMax
     self.boundsWKT = boundsWKT
     self.customFileSizeBytes = customFileSizeBytes
+    self.customName = customName
   }
 
   init(from decoder: Decoder) throws {
@@ -163,6 +170,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     self.md5 = try container.decode(String.self, forKey: .md5)
     self.zoomMax = try container.decode(Int.self, forKey: .zoomMax)
     self.boundsWKT = try container.decode(String.self, forKey: .boundsWKT)
+    self.customName = try container.decodeIfPresent(String.self, forKey: .customName)
     self.customFileSizeBytes = nil
   }
 
@@ -176,6 +184,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     try container.encode(md5, forKey: .md5)
     try container.encode(zoomMax, forKey: .zoomMax)
     try container.encode(boundsWKT, forKey: .boundsWKT)
+    try container.encodeIfPresent(customName, forKey: .customName)
   }
 
   static func == (lhs: OfflineChartDownload, rhs: OfflineChartDownload) -> Bool {
@@ -186,7 +195,24 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     lhs.relativePath == rhs.relativePath &&
     lhs.md5 == rhs.md5 &&
     lhs.zoomMax == rhs.zoomMax &&
-    lhs.boundsWKT == rhs.boundsWKT
+    lhs.boundsWKT == rhs.boundsWKT &&
+    lhs.customName == rhs.customName
+  }
+
+  /// Creates a copy of this download record with an updated custom name.
+  func updatingCustomName(_ newCustomName: String?) -> OfflineChartDownload {
+    OfflineChartDownload(
+      id: id,
+      layerID: layerID,
+      layerName: layerName,
+      downloadDate: downloadDate,
+      relativePath: relativePath,
+      md5: md5,
+      zoomMax: zoomMax,
+      boundsWKT: boundsWKT,
+      customFileSizeBytes: customFileSizeBytes,
+      customName: newCustomName
+    )
   }
 
   // MARK: Helpers

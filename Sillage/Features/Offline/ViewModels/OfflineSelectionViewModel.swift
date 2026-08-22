@@ -400,6 +400,22 @@ enum OfflineChartItem: Identifiable, Equatable, Sendable {
     }
   }
 
+  /// Presentation title for the offline chart item, respecting custom name override if defined.
+  var displayName: String {
+    switch self {
+    case .downloaded(let download):
+      if let custom = download.customName, !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        return custom.trimmingCharacters(in: .whitespacesAndNewlines)
+      }
+      if !download.layerName.isEmpty {
+        return download.layerName
+      }
+      return download.downloadDate.formatted(date: .abbreviated, time: .shortened)
+    case .inProgress(let pending, _):
+      return pending.layerName.isEmpty ? pending.createdAt.formatted(date: .abbreviated, time: .shortened) : pending.layerName
+    }
+  }
+
   var date: Date {
     switch self {
     case .downloaded(let download):

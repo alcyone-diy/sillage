@@ -17,8 +17,8 @@ import OSLog
 protocol GeoGarageDownloadRepositoryProtocol: AnyObject, Sendable {
   @MainActor var downloads: [OfflineChartDownload] { get }
   @MainActor func load() async
-  @MainActor func save(_ download: OfflineChartDownload) async
-  @MainActor func delete(id: UUID) async
+  @MainActor func save(_ download: OfflineChartDownload) async throws
+  @MainActor func delete(id: UUID) async throws
   @MainActor func lastDownloadDate(for layerID: String) -> Date?
 }
 
@@ -29,7 +29,7 @@ protocol GeoGarageDownloadRepositoryProtocol: AnyObject, Sendable {
 /// **Concurrency Architecture**:
 /// - The observable state (`downloads`) is isolated on `@MainActor` for reactive UI bindings.
 /// - All disk read/write operations are delegated to `LocalFilePersistenceActor`,
-///   a dedicated Swift 6 actor that serializes JSON file access to prevent race conditions.
+///   a dedicated Swift 6 actor that serializes JSON file access and guarantees atomic writing (`.atomic`).
 @Observable
 @MainActor
 final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
@@ -74,13 +74,14 @@ final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
 
   // MARK: - Save
 
-  /// Persists a download entry. If an entry with the same `id` already exists,
+  /// Persists a download entry atomically to disk. If an entry with the same `id` already exists,
   /// it is updated in-place (idempotent for retry safety).
   ///
   /// **State Consistency Architecture**:
   /// Disk persistence is the single source of truth. Mutations are performed on a local snapshot
-  /// and `self.downloads` is updated **only** after `persistence.save(snapshot)` succeeds without throwing.
-  func save(_ download: OfflineChartDownload) async {
+  /// and `self.downloads` is updated **only** after `persistence.save(snapshot)` succeeds atomically.
+  /// Any disk failure is logged and rethrown to prevent silent failures.
+  func save(_ download: OfflineChartDownload) async throws {
     var snapshot = downloads
     if let existingIndex = snapshot.firstIndex(where: { $0.id == download.id }) {
       snapshot[existingIndex] = download
@@ -91,29 +92,31 @@ final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
     do {
       try await persistence.save(snapshot, to: fileURL)
       self.downloads = snapshot
-      Logger.caas.debug("Saved \(snapshot.count, privacy: .public) download(s) to repository.")
+      Logger.caas.debug("Saved \(snapshot.count, privacy: .public) download(s) to repository atomically.")
     } catch {
-      Logger.caas.error("Failed to persist download repository to disk: \(error, privacy: .public)")
+      Logger.caas.error("Failed to persist download repository atomically to disk: \(error, privacy: .public)")
+      throw error
     }
   }
 
   // MARK: - Delete
 
-  /// Deletes a download record matching `id`.
+  /// Deletes a download record matching `id` and persists the updated catalog atomically.
   ///
   /// **State Consistency Architecture**:
-  /// `self.downloads` is updated only after the modified snapshot is successfully persisted to disk.
+  /// `self.downloads` is updated only after the modified snapshot is successfully persisted atomically to disk.
   /// Note: Does not delete the actual `.mbtiles` file on disk.
-  func delete(id: UUID) async {
+  func delete(id: UUID) async throws {
     var snapshot = downloads
     snapshot.removeAll { $0.id == id }
 
     do {
       try await persistence.save(snapshot, to: fileURL)
       self.downloads = snapshot
-      Logger.caas.debug("Deleted download \(id.uuidString, privacy: .public) from repository.")
+      Logger.caas.debug("Deleted download \(id.uuidString, privacy: .public) from repository atomically.")
     } catch {
       Logger.caas.error("Failed to persist repository after deletion: \(error, privacy: .public)")
+      throw error
     }
   }
 
