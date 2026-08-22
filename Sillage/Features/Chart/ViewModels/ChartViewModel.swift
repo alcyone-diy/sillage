@@ -163,6 +163,7 @@ final class ChartViewModel {
   private var pendingCenterCoordinate: CLLocationCoordinate2D?
   private var pendingScaleAndZoom: (metersPerPoint: Double, zoomLevel: Double)?
   
+  private var maskCalculationTask: TaskCancellable?
   var silentFetchTask: TaskCancellable?
   
   // MARK: - Throttled Camera Updates
@@ -784,22 +785,62 @@ final class ChartViewModel {
     selectedBounds: GeographicBoundingBox?,
     downloads: [OfflineChartDownload]
   ) {
+    maskCalculationTask?.cancel()
+    maskCalculationTask = nil
+
     guard isSelectionActive else {
       self.offlineMaskVisualState = nil
       return
     }
 
-    let targetLayer = activeLayerID ?? {
-      if case .remoteGeoGarage(_, let layerID) = currentChartSource {
-        return layerID
-      }
-      return availableGeoGarageLayers.first?.layer ?? ""
-    }()
+    let targetLayer: String
+    if let id = activeLayerID, !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      targetLayer = id
+    } else if case .remoteGeoGarage(_, let layerID) = currentChartSource {
+      targetLayer = layerID
+    } else {
+      targetLayer = availableGeoGarageLayers.first?.layer ?? ""
+    }
 
-    Task.detached(priority: .userInitiated) { [weak self] in
-      let matchingDownloads = downloads.filter {
-        $0.layerID.caseInsensitiveCompare(targetLayer) == .orderedSame
+    let availableLayers = self.availableGeoGarageLayers
+
+    let task = Task.detached(priority: .userInitiated) { [weak self] in
+      if Task.isCancelled { return }
+
+      let targetLower = targetLayer.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+      let matchingDownloads: [OfflineChartDownload]
+      if targetLower.isEmpty {
+        matchingDownloads = []
+      } else {
+        var validTargetIdentifiers: Set<String> = [targetLower]
+        if let matchingLayer = availableLayers.first(where: {
+          $0.layer.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == targetLower ||
+          $0.brandName.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == targetLower
+        }) {
+          validTargetIdentifiers.insert(matchingLayer.layer.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))
+          validTargetIdentifiers.insert(matchingLayer.brandName.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        matchingDownloads = downloads.filter { download in
+          let downloadLayerID = download.layerID.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+          let downloadLayerName = download.layerName.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+          if validTargetIdentifiers.contains(downloadLayerID) || validTargetIdentifiers.contains(downloadLayerName) {
+            return true
+          }
+
+          if !downloadLayerID.isEmpty && (downloadLayerID.contains(targetLower) || targetLower.contains(downloadLayerID)) {
+            return true
+          }
+          if !downloadLayerName.isEmpty && (downloadLayerName.contains(targetLower) || targetLower.contains(downloadLayerName)) {
+            return true
+          }
+
+          return false
+        }
       }
+
+      if Task.isCancelled { return }
 
       let savedBoxes = matchingDownloads.compactMap { GeographicBoundingBox(wkt: $0.boundsWKT) }
       let savedPolygons = GeographicBoundingBox.mergeIntoNonIntersectingPolygons(savedBoxes)
@@ -810,6 +851,8 @@ final class ChartViewModel {
       }
       let maskHoles = GeographicBoundingBox.mergeIntoNonIntersectingPolygons(allBoxes)
 
+      if Task.isCancelled { return }
+
       let visualState = OfflineMaskVisualState(
         isActive: true,
         maskHoles: maskHoles,
@@ -817,9 +860,11 @@ final class ChartViewModel {
       )
 
       await MainActor.run { [weak self] in
-        self?.offlineMaskVisualState = visualState
+        guard let self, !Task.isCancelled else { return }
+        self.offlineMaskVisualState = visualState
       }
     }
+    self.maskCalculationTask = TaskCancellable(task)
   }
   
   // MARK: - User Interactions

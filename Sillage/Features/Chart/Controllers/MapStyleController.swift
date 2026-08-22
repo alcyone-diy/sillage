@@ -167,20 +167,32 @@ struct MapStyleController {
 
   /// Ensures offline mask fill and border sources/layers exist in the MapLibre style.
   static func ensureOfflineMaskLayersExist(in style: MLNStyle, theme: MarineTheme) {
-    if style.source(withIdentifier: MapSourceIdentifier.offlineMask.rawValue) == nil {
-      // 1. Offline Mask Fill (Global Dimming with Holes for Offline Regions)
-      let maskSource = MLNShapeSource(identifier: MapSourceIdentifier.offlineMask.rawValue, shape: nil, options: nil)
-      style.addSource(maskSource)
+    let maskSource: MLNShapeSource
+    if let existing = style.source(withIdentifier: MapSourceIdentifier.offlineMask.rawValue) as? MLNShapeSource {
+      maskSource = existing
+    } else {
+      let newSource = MLNShapeSource(identifier: MapSourceIdentifier.offlineMask.rawValue, shape: nil, options: nil)
+      style.addSource(newSource)
+      maskSource = newSource
+    }
 
+    if style.layer(withIdentifier: MapLayerIdentifier.offlineMask.rawValue) == nil {
       let maskFillLayer = MLNFillStyleLayer(identifier: MapLayerIdentifier.offlineMask.rawValue, source: maskSource)
       maskFillLayer.fillColor = NSExpression(forConstantValue: UIColor(theme.colors.overlay))
       maskFillLayer.fillOpacity = NSExpression(forConstantValue: MarineTheme.ChartMetrics.offlineMaskFillOpacity)
       insertLayer(maskFillLayer, identifier: .offlineMask, into: style)
+    }
 
-      // 2. Offline Regions Border (Dashed boundary around saved offline packages)
-      let borderSource = MLNShapeSource(identifier: MapSourceIdentifier.offlineRegionsBorder.rawValue, shape: nil, options: nil)
-      style.addSource(borderSource)
+    let borderSource: MLNShapeSource
+    if let existing = style.source(withIdentifier: MapSourceIdentifier.offlineRegionsBorder.rawValue) as? MLNShapeSource {
+      borderSource = existing
+    } else {
+      let newSource = MLNShapeSource(identifier: MapSourceIdentifier.offlineRegionsBorder.rawValue, shape: nil, options: nil)
+      style.addSource(newSource)
+      borderSource = newSource
+    }
 
+    if style.layer(withIdentifier: MapLayerIdentifier.offlineRegionsBorder.rawValue) == nil {
       let borderLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.offlineRegionsBorder.rawValue, source: borderSource)
       borderLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.accent))
       borderLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.ChartMetrics.offlineRegionsBorderLineWidth)

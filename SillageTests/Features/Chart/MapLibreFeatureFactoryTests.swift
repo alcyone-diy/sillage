@@ -91,14 +91,53 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
 
   // MARK: - Offline Mask Tests
 
-  func testCreateOfflineMaskFeature_returnsNilBecauseDimmingIsManagedBySwiftUIHUD() {
+  func testCreateOfflineMaskFeature_whenNilOrInactiveOrEmpty_returnsNil() {
     XCTAssertNil(MapLibreFeatureFactory.createOfflineMaskFeature(from: nil))
 
     let inactiveState = OfflineMaskVisualState(isActive: false, maskHoles: [], savedOfflinePolygons: [])
     XCTAssertNil(MapLibreFeatureFactory.createOfflineMaskFeature(from: inactiveState))
 
-    let activeState = OfflineMaskVisualState(isActive: true, maskHoles: [], savedOfflinePolygons: [])
-    XCTAssertNil(MapLibreFeatureFactory.createOfflineMaskFeature(from: activeState))
+    let activeEmptyState = OfflineMaskVisualState(isActive: true, maskHoles: [], savedOfflinePolygons: [])
+    XCTAssertNil(MapLibreFeatureFactory.createOfflineMaskFeature(from: activeEmptyState))
+  }
+
+  func testCreateOfflineMaskFeature_whenSinglePolygon_returnsPolygonFeature() {
+    let ring = [
+      CLLocationCoordinate2D(latitude: 46.0, longitude: -1.5),
+      CLLocationCoordinate2D(latitude: 46.0, longitude: -1.0),
+      CLLocationCoordinate2D(latitude: 47.0, longitude: -1.0),
+      CLLocationCoordinate2D(latitude: 47.0, longitude: -1.5),
+      CLLocationCoordinate2D(latitude: 46.0, longitude: -1.5)
+    ]
+    let state = OfflineMaskVisualState(isActive: true, maskHoles: [], savedOfflinePolygons: [ring])
+    let shape = MapLibreFeatureFactory.createOfflineMaskFeature(from: state)
+
+    XCTAssertTrue(shape is MLNPolygonFeature)
+    let polygon = shape as? MLNPolygonFeature
+    XCTAssertEqual(polygon?.pointCount, 5)
+    XCTAssertEqual(polygon?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineMask.rawValue)
+  }
+
+  func testCreateOfflineMaskFeature_whenMultiplePolygons_returnsMultiPolygonFeature() {
+    let ring1 = [
+      CLLocationCoordinate2D(latitude: 46.0, longitude: -1.5),
+      CLLocationCoordinate2D(latitude: 46.0, longitude: -1.0),
+      CLLocationCoordinate2D(latitude: 47.0, longitude: -1.0),
+      CLLocationCoordinate2D(latitude: 46.0, longitude: -1.5)
+    ]
+    let ring2 = [
+      CLLocationCoordinate2D(latitude: 48.0, longitude: -2.5),
+      CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0),
+      CLLocationCoordinate2D(latitude: 49.0, longitude: -2.0),
+      CLLocationCoordinate2D(latitude: 48.0, longitude: -2.5)
+    ]
+    let state = OfflineMaskVisualState(isActive: true, maskHoles: [], savedOfflinePolygons: [ring1, ring2])
+    let shape = MapLibreFeatureFactory.createOfflineMaskFeature(from: state)
+
+    XCTAssertTrue(shape is MLNMultiPolygonFeature)
+    let multiPolygon = shape as? MLNMultiPolygonFeature
+    XCTAssertEqual(multiPolygon?.polygons.count, 2)
+    XCTAssertEqual(multiPolygon?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineMask.rawValue)
   }
 
   func testCreateOfflineRegionsBorderFeature_whenSinglePolygon_returnsPolylineFeature() {

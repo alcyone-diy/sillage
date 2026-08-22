@@ -109,10 +109,11 @@ struct MapLibreView: UIViewRepresentable {
     let headingVectorData = viewModel.headingVectorData
     let gpsAccuracyVisualState = viewModel.gpsAccuracyVisualState
     let activeTrackPoints = trackRecordingService.trackPoints
-    let savedTrackVisualState = viewModel.savedTrackVisualState
+    let savedTrackVisualS tate = viewModel.savedTrackVisualState
     let visibleWaypointVisualStates = viewModel.visibleWaypointVisualStates
     let goToWaypointVisualState = viewModel.goToWaypointVisualState
     let bearingLineVisualState = viewModel.bearingLineVisualState
+    let offlineMaskVisualState = viewModel.offlineMaskVisualState
     let isDataStale = viewModel.isDataStale
     let currentSource = viewModel.currentChartSource
     let isOpenSeaMapOverlayEnabled = viewModel.isOpenSeaMapOverlayEnabled
@@ -184,7 +185,6 @@ struct MapLibreView: UIViewRepresentable {
       }
 
       // Offline mask update
-      let offlineMaskVisualState = viewModel.offlineMaskVisualState
       if offlineMaskVisualState != context.coordinator.lastOfflineMaskVisualState {
         MapStyleController.updateOfflineMask(state: offlineMaskVisualState, in: style, theme: marineTheme)
         context.coordinator.lastOfflineMaskVisualState = offlineMaskVisualState

@@ -222,10 +222,27 @@ enum MapLibreFeatureFactory {
     }
   }
 
-  /// The global screen dimming and un-dimmed crop window are natively managed in screen space by SwiftUI's `OfflineSelectionHUD`.
-  /// MapLibre only renders the geographic boundary borders of saved offline packages (`offlineRegionsBorder`).
-  static func createOfflineMaskFeature(from state: OfflineMaskVisualState?) -> MLNPolygonFeature? {
-    return nil
+  /// Creates polygon features representing the filled white areas of all saved offline regions.
+  static func createOfflineMaskFeature(from state: OfflineMaskVisualState?) -> MLNShape? {
+    guard let state, state.isActive, !state.savedOfflinePolygons.isEmpty else { return nil }
+
+    if state.savedOfflinePolygons.count == 1 {
+      var coords = state.savedOfflinePolygons[0]
+      guard coords.count >= 3 else { return nil }
+      let feature = MLNPolygonFeature(coordinates: &coords, count: UInt(coords.count))
+      feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineMask.rawValue]
+      return feature
+    } else {
+      let polygons = state.savedOfflinePolygons.compactMap { ring -> MLNPolygon? in
+        guard ring.count >= 3 else { return nil }
+        var mutableRing = ring
+        return MLNPolygon(coordinates: &mutableRing, count: UInt(mutableRing.count))
+      }
+      guard !polygons.isEmpty else { return nil }
+      let feature = MLNMultiPolygonFeature(polygons: polygons)
+      feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineMask.rawValue]
+      return feature
+    }
   }
 
   /// Creates polyline features delineating the boundaries of all saved offline regions.
