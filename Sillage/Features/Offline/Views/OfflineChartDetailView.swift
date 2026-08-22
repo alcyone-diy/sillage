@@ -219,19 +219,30 @@ struct OfflineChartDetailView: View {
     }
     .navigationTitle("Chart Details")
     .navigationBarTitleDisplayMode(.inline)
+    .navigationBarBackButtonHidden(viewModel.isEditing)
     .toolbar {
       if viewModel.isEditing {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") {
+          Button {
             viewModel.cancelEditing()
+          } label: {
+            Image(marineIcon: .close)
+              .padding(8)
+              .contentShape(Rectangle())
           }
+          .accessibilityLabel(String(localized: "Cancel"))
         }
 
         ToolbarItem(placement: .confirmationAction) {
-          Button("Save") {
+          Button {
             performSave()
+          } label: {
+            Image(marineIcon: .save)
+              .padding(8)
+              .contentShape(Rectangle())
           }
           .disabled(viewModel.isSaveDisabled)
+          .accessibilityLabel(String(localized: "Save"))
         }
       } else {
         ToolbarItem(placement: .primaryAction) {

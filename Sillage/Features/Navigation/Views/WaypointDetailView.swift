@@ -172,6 +172,7 @@ struct WaypointDetailView: View {
                 .padding(8)
                 .contentShape(Rectangle())
             }
+            .accessibilityLabel(String(localized: "Cancel"))
           }
           ToolbarItem(placement: .confirmationAction) {
             Button {
@@ -190,6 +191,7 @@ struct WaypointDetailView: View {
                 .contentShape(Rectangle())
             }
             .disabled(!viewModel.isValid || viewModel.isSaving)
+            .accessibilityLabel(String(localized: "Save"))
           }
         } else {
           ToolbarItem(placement: .primaryAction) {
