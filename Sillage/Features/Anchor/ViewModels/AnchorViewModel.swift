@@ -13,7 +13,7 @@ import CoreLocation
 import Observation
 import OSLog
 
-public enum AnchorState: Equatable {
+public enum AnchorPresentationState: Sendable, Equatable {
   case setup
   case droppedPendingPosition
   case dropped
@@ -26,16 +26,9 @@ final class AnchorViewModel {
   
   private let anchorService: AnchorService
   
-  // MARK: - UI Properties
+  // MARK: - UI Configuration & Transient State
   
-  private(set) var currentDistance: Measurement<UnitLength>?
-  private(set) var sog: Measurement<UnitSpeed>?
-  private(set) var gpsAccuracy: Measurement<UnitLength>?
-  private(set) var status: AnchorStatus = .inactive
-  private(set) var triggerReason: AnchorTriggerReason?
-  private(set) var isAlertSilenced: Bool = false
-  
-  private(set) var configuredRadius: Measurement<UnitLength>
+  var configuredRadius: Measurement<UnitLength>
   private(set) var anchorDropError: String?
   
   /// Indicates whether the UI is currently in manual anchor position adjustment mode.
@@ -75,13 +68,20 @@ final class AnchorViewModel {
     }
   }
   
-  var initialAccuracy: Measurement<UnitLength>? {
-    anchorService.activeWatch?.initialAccuracy
-  }
+  // MARK: - Reactive UI State Properties
+  
+  private(set) var status: AnchorStatus = .inactive
+  private(set) var triggerReason: AnchorTriggerReason?
+  private(set) var currentDistance: Measurement<UnitLength>?
+  private(set) var sog: Measurement<UnitSpeed>?
+  private(set) var gpsAccuracy: Measurement<UnitLength>?
+  private(set) var initialAccuracy: Measurement<UnitLength>?
+  private(set) var anchorCoordinate: CLLocationCoordinate2D?
+  private(set) var isAlertSilenced: Bool = false
   
   var isGPSAccuracyDegraded: Bool {
-    guard let accuracy = gpsAccuracy?.converted(to: .meters).value else { return false }
-    return accuracy > 15.0
+    guard let accuracy = gpsAccuracy else { return false }
+    return accuracy > Measurement(value: 15.0, unit: .meters)
   }
 
   var triggerReasonDescription: String? {
@@ -102,7 +102,7 @@ final class AnchorViewModel {
     }
   }
   
-  var state: AnchorState {
+  var state: AnchorPresentationState {
     switch status {
     case .armed:
       return .armed(isDragging: false)
@@ -117,55 +117,56 @@ final class AnchorViewModel {
     }
   }
   
-  // MARK: - Internal State
+  // MARK: - Internal UI Permission State
   
   var permissionGateType: PermissionGateType? = nil
   private var pendingAction: (@MainActor () -> Void)? = nil
   
-  private(set) var anchorCoordinate: CLLocationCoordinate2D?
   @ObservationIgnored
-  nonisolated(unsafe) private var stateUpdateTask: Task<Void, Never>?
+  private var stateObservationTask: Task<Void, Never>?
+  
   // MARK: - Initialization
   
   init(anchorService: AnchorService) {
     self.anchorService = anchorService
+    let initial = anchorService.currentState
+    self.status = initial.status
+    self.triggerReason = initial.triggerReason
+    self.currentDistance = initial.currentDistance
+    self.sog = initial.latestFix?.speedOverGround
+    self.gpsAccuracy = initial.gpsAccuracy
+    self.initialAccuracy = initial.activeWatch?.initialAccuracy
+    self.anchorCoordinate = initial.activeWatch?.coordinate
+    self.isAlertSilenced = initial.isMuted
+    self.configuredRadius = initial.activeWatch?.radius ?? anchorService.defaultRadius
     
-    if let watch = anchorService.activeWatch {
-      self.configuredRadius = watch.radius
-      self.anchorCoordinate = watch.coordinate
-    } else {
-      self.configuredRadius = anchorService.defaultRadius
-    }
-    
-    syncState()
     startObservingService()
   }
   
   private func startObservingService() {
-    stateUpdateTask?.cancel()
-    stateUpdateTask = Task { [weak self] in
+    stateObservationTask?.cancel()
+    stateObservationTask = Task { @MainActor [weak self] in
       guard let anchorService = self?.anchorService else { return }
-      for await _ in anchorService.stateUpdates {
+      for await state in anchorService.stateUpdates {
         guard !Task.isCancelled else { break }
-        self?.syncState()
+        self?.applyState(state)
       }
     }
   }
   
-  private func syncState() {
-    self.currentDistance = anchorService.currentDistance
-    self.sog = anchorService.latestFix?.speedOverGround
-    self.gpsAccuracy = anchorService.gpsAccuracy
-    self.status = anchorService.status
-    self.triggerReason = anchorService.triggerReason
-    
-    if let watch = anchorService.activeWatch {
-      self.anchorCoordinate = watch.coordinate
-    } else {
-      self.anchorCoordinate = nil
-    }
-    
-    self.isAlertSilenced = anchorService.isMuted
+  private func applyState(_ state: Sillage.AnchorState) {
+    self.status = state.status
+    self.triggerReason = state.triggerReason
+    self.currentDistance = state.currentDistance
+    self.sog = state.latestFix?.speedOverGround
+    self.gpsAccuracy = state.gpsAccuracy
+    self.initialAccuracy = state.activeWatch?.initialAccuracy
+    self.anchorCoordinate = state.activeWatch?.coordinate
+    self.isAlertSilenced = state.isMuted
+  }
+  
+  deinit {
+    stateObservationTask?.cancel()
   }
   
   // MARK: - User Intents
@@ -177,23 +178,18 @@ final class AnchorViewModel {
     self.anchorDropError = nil
     
     if let fix = fix {
-      self.anchorCoordinate = fix.coordinate
       Logger.anchor.info("Anchor drop requested with available fix at (\(fix.coordinate.latitude, privacy: .public), \(fix.coordinate.longitude, privacy: .public)).")
       anchorService.drop(coordinate: fix.coordinate, radius: configuredRadius)
     } else {
-      self.anchorCoordinate = nil
       Logger.anchor.warning("Anchor drop requested without immediate GPS fix. Pending position lock.")
       anchorService.drop(coordinate: nil, radius: configuredRadius)
     }
-    syncState()
   }
 
   func cancelDrop() {
     Logger.anchor.info("Canceling anchor drop before arming.")
-    self.anchorCoordinate = nil
     self.anchorDropError = nil
     anchorService.clear()
-    syncState()
   }
 
   /// Technical Design Choice: Locale-Aware Round Stepping & Domain Bounds
@@ -244,7 +240,6 @@ final class AnchorViewModel {
     if anchorService.status != .inactive {
       anchorService.update(radius: newRadius)
     }
-    syncState()
   }
   
   func armAlarm() {
@@ -254,7 +249,6 @@ final class AnchorViewModel {
     }
     Logger.anchor.info("Arming anchor alarm from ViewModel.")
     anchorService.arm(coordinate: coord, radius: configuredRadius)
-    syncState()
   }
   
   func requestArmAlarm(in service: PermissionService) {
@@ -275,19 +269,16 @@ final class AnchorViewModel {
   func disarmAlarm() {
     Logger.anchor.info("Disarming anchor alarm from ViewModel.")
     anchorService.disarm()
-    syncState()
   }
   
   func silenceAlert() {
     Logger.anchor.info("Silencing anchor alert from ViewModel.")
     anchorService.silenceAlarm()
-    syncState()
   }
   
   func unSilenceAlert() {
     Logger.anchor.info("Unsilencing anchor alert from ViewModel.")
     anchorService.unSilenceAlarm()
-    syncState()
   }
 
   /// Technical Design Choice: Domain Isolation for Position Adjustment
@@ -300,10 +291,8 @@ final class AnchorViewModel {
 
   func confirmAdjustAnchor(to newCoordinate: CLLocationCoordinate2D) {
     Logger.anchor.info("Confirming manual anchor position adjustment to (\(newCoordinate.latitude, privacy: .public), \(newCoordinate.longitude, privacy: .public)).")
-    self.anchorCoordinate = newCoordinate
     anchorService.adjustAnchorPosition(to: newCoordinate)
     self.isAdjustingAnchor = false
-    syncState()
   }
 
   func cancelAdjustAnchor() {
@@ -328,10 +317,5 @@ final class AnchorViewModel {
   func cancelPreparingDropAnchor() {
     Logger.anchor.info("Canceling full-screen drop anchor preparation mode.")
     self.isPreparingDropAnchor = false
-  }
-
-
-  deinit {
-    stateUpdateTask?.cancel()
   }
 }

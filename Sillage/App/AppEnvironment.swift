@@ -177,12 +177,15 @@ final class AppEnvironment {
         positioningService: positioningService
       )
       
+      let alarmAudioService = AlarmAudioService()
+      
       let anchorService = AnchorService(
         positioningService: positioningService,
         preferencesService: preferencesService,
         notificationService: notificationService,
         permissionService: permissionService,
-        backgroundMonitoringService: backgroundMonitoringService
+        backgroundMonitoringService: backgroundMonitoringService,
+        alarmAudioService: alarmAudioService
       )
       
       let anchorViewModel = AnchorViewModel(anchorService: anchorService)
