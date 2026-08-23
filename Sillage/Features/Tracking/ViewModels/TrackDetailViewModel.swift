@@ -30,7 +30,8 @@ final class TrackDetailViewModel {
   var shareItem: TrackShareItem? = nil
   var exportError: String? = nil
 
-  nonisolated(unsafe) private var exportTask: Task<Void, Error>? = nil
+  @ObservationIgnored
+  private var exportTask: Task<Void, Error>? = nil
 
   let sessionID: String
   private let trackService: TrackService

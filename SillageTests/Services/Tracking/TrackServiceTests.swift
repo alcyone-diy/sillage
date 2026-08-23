@@ -343,7 +343,7 @@ struct TrackServiceTests {
     var session = TrackSessionRecord(id: sessionID, startTime: Date())
     session.name = "Stream Export Test"
 
-    try await dbManager.write { db in
+    try await dbManager.write { [session] db in
       try session.insert(db)
       // Insert 1200 points to trigger intermediate throttled progress updates (every 500 points)
       for i in 0..<1200 {
@@ -385,7 +385,7 @@ struct TrackServiceTests {
     var session = TrackSessionRecord(id: sessionID, startTime: Date())
     session.name = "Cancel Export Test"
 
-    try await dbManager.write { db in
+    try await dbManager.write { [session] db in
       try session.insert(db)
       for i in 0..<3000 {
         let point = TrackPointRecord(
@@ -442,7 +442,7 @@ struct TrackServiceTests {
     var session = TrackSessionRecord(id: sessionID, startTime: Date())
     session.name = "VM Export Test"
 
-    try await dbManager.write { db in
+    try await dbManager.write { [session] db in
       try session.insert(db)
       for i in 0..<100 {
         let point = TrackPointRecord(
@@ -494,7 +494,7 @@ struct TrackServiceTests {
     var session = TrackSessionRecord(id: sessionID, startTime: Date())
     session.name = "VM Cancel Test"
 
-    try await dbManager.write { db in
+    try await dbManager.write { [session] db in
       try session.insert(db)
       for i in 0..<3000 {
         let point = TrackPointRecord(
