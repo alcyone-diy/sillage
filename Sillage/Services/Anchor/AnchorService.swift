@@ -10,10 +10,8 @@
 
 import Foundation
 import CoreLocation
-import Observation
 import OSLog
 
-@Observable
 @MainActor
 final class AnchorService {
   
@@ -23,7 +21,7 @@ final class AnchorService {
   private let permissionService: PermissionServiceProtocol
   private let backgroundMonitoringService: BackgroundMonitoringService
   private let stateStore: AnchorStateStoreProtocol
-  let alarmAudioService = AlarmAudioService()
+  public let alarmAudioService: any AlarmAudioServiceProtocol
   
   private(set) var activeWatch: AnchorWatch?
   private(set) var status: AnchorStatus = .inactive
@@ -40,6 +38,19 @@ final class AnchorService {
   private(set) var latestFix: NavigationFix?
   private(set) var currentDistance: Measurement<UnitLength>?
   private(set) var gpsAccuracy: Measurement<UnitLength>?
+  
+  public var currentState: AnchorState {
+    AnchorState(
+      activeWatch: activeWatch,
+      status: status,
+      triggerReason: triggerReason,
+      currentDistance: currentDistance,
+      latestFix: latestFix,
+      gpsAccuracy: gpsAccuracy,
+      isMuted: isMuted,
+      isSensorDegraded: isSensorDegraded
+    )
+  }
   
   /// Returns the best available navigation fix for anchor operations.
   /// Technical Design Choice: Enforces a strict 60-second Time-To-Live (TTL) freshness check on `lastKnownLocation`.
@@ -62,7 +73,7 @@ final class AnchorService {
   }
   
   private var monitoringToken: (any BackgroundMonitoringToken)?
-  @ObservationIgnored private var setupLocationToken: (any LocationUpdateToken)?
+  private var setupLocationToken: (any LocationUpdateToken)?
   
   private final class TaskCancellable: @unchecked Sendable {
     var task: Task<Void, Never>?
@@ -74,12 +85,15 @@ final class AnchorService {
   
   // MARK: - State Stream
   
-  private var updateContinuations: [UUID: AsyncStream<Void>.Continuation] = [:]
+  private var updateContinuations: [UUID: AsyncStream<AnchorState>.Continuation] = [:]
   
-  var stateUpdates: AsyncStream<Void> {
-    let (stream, continuation) = AsyncStream.makeStream(of: Void.self)
+  public var stateUpdates: AsyncStream<AnchorState> {
+    let (stream, continuation) = AsyncStream.makeStream(of: AnchorState.self)
     let id = UUID()
     updateContinuations[id] = continuation
+    
+    // Yield current state snapshot immediately upon subscription
+    continuation.yield(currentState)
     
     continuation.onTermination = { @Sendable [weak self] _ in
       Task { @MainActor [weak self] in
@@ -91,8 +105,9 @@ final class AnchorService {
   }
   
   private func notifyStateChange() {
+    let snapshot = currentState
     for continuation in updateContinuations.values {
-      continuation.yield(())
+      continuation.yield(snapshot)
     }
   }
   
@@ -103,6 +118,7 @@ final class AnchorService {
     notificationService: NotificationService,
     permissionService: PermissionServiceProtocol,
     backgroundMonitoringService: BackgroundMonitoringService,
+    alarmAudioService: (any AlarmAudioServiceProtocol)? = nil,
     stateStore: AnchorStateStoreProtocol? = nil
   ) {
     let resolvedStore = stateStore ?? AnchorStateStore()
@@ -111,6 +127,7 @@ final class AnchorService {
     self.notificationService = notificationService
     self.permissionService = permissionService
     self.backgroundMonitoringService = backgroundMonitoringService
+    self.alarmAudioService = alarmAudioService ?? AlarmAudioService()
     self.stateStore = resolvedStore
     
     // Resume from persistent state
@@ -205,9 +222,7 @@ final class AnchorService {
     )
     
     if let fix = latestFix {
-      let anchorLocation = CLLocation(latitude: newCoordinate.latitude, longitude: newCoordinate.longitude)
-      let fixLocation = CLLocation(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude)
-      self.currentDistance = Measurement(value: fixLocation.distance(from: anchorLocation), unit: UnitLength.meters)
+      self.currentDistance = newCoordinate.distance(to: fix.coordinate)
     }
     
     persistState()
@@ -307,10 +322,8 @@ final class AnchorService {
     if monitoringToken == nil {
       monitoringToken = backgroundMonitoringService.startMonitoring(
         ownerIdentifier: "AnchorWatch",
-        // A 5-meter filter allows the CPU to sleep during small swings at anchor,
-        // preserving battery for overnight watches (10-12h), while still
-        // guaranteeing a rapid wakeup if the anchor actually drags.
-        distanceFilter: Measurement(value: 5, unit: .meters)
+        // A 1-meter filter guarantees high-precision telemetry and immediate wakeup if the anchor drags.
+        distanceFilter: Measurement(value: 1.0, unit: .meters)
       )
     }
   }
@@ -414,9 +427,7 @@ final class AnchorService {
     
     guard let watch = activeWatch, let anchorCoord = watch.coordinate, status != .inactive, status != .droppedPendingPosition else { return }
     
-    let anchorLocation = CLLocation(latitude: anchorCoord.latitude, longitude: anchorCoord.longitude)
-    let fixLocation = CLLocation(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude)
-    self.currentDistance = Measurement(value: fixLocation.distance(from: anchorLocation), unit: UnitLength.meters)
+    self.currentDistance = anchorCoord.distance(to: fix.coordinate)
     
     let evaluationResult = evaluator.evaluate(fix: fix, watch: watch, currentStatus: status)
     
@@ -464,9 +475,7 @@ final class AnchorService {
     
     let newCoord = fix.coordinate
     if let lastPoint = watch.evitementHistory.last {
-      let lastLocation = CLLocation(latitude: lastPoint.coordinate.latitude, longitude: lastPoint.coordinate.longitude)
-      let newLocation = CLLocation(latitude: newCoord.latitude, longitude: newCoord.longitude)
-      let deltaDistance = Measurement(value: newLocation.distance(from: lastLocation), unit: UnitLength.meters)
+      let deltaDistance = lastPoint.coordinate.distance(to: newCoord)
       
       // Purely spatial filter: strictly require moving >= 2 meters
       guard deltaDistance >= Self.minEvitementDistanceThreshold else {

@@ -14,7 +14,14 @@ import AudioToolbox
 import OSLog
 
 @MainActor
-final class AlarmAudioService {
+public protocol AlarmAudioServiceProtocol: AnyObject, Sendable {
+  func prepareAudioSession()
+  func startSiren()
+  func stopSiren()
+}
+
+@MainActor
+final class AlarmAudioService: AlarmAudioServiceProtocol {
   
   private var audioPlayer: AVAudioPlayer?
   private var isPlaying = false

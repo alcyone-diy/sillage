@@ -10,21 +10,20 @@
 
 import Foundation
 import CoreLocation
-import os
 
 /// The domain evaluation result specifying whether to trigger, resolve, or maintain an anchor alarm.
-public enum AnchorEvaluationResult: Equatable {
+public enum AnchorEvaluationResult: Sendable, Equatable {
   case maintainState
   case triggerAlarm(reason: AnchorTriggerReason)
   case autoResolveAlarm(reason: ResolutionReason)
 
-  public enum ResolutionReason: Equatable {
+  public enum ResolutionReason: Sendable, Equatable {
     case vesselReturnedInCircle(distance: Measurement<UnitLength>)
   }
 }
 
 /// A pure domain evaluation engine responsible for evaluating vessel telemetry against an active anchor watch.
-public struct AnchorEvaluator {
+public struct AnchorEvaluator: Sendable {
   public init() {}
 
   /// Evaluates a new GPS fix against the active watch and current watch status.
@@ -41,44 +40,27 @@ public struct AnchorEvaluator {
     guard let targetCoordinate = watch.coordinate else {
       return .maintainState
     }
-    let anchorLocation = CLLocation(
-      latitude: targetCoordinate.latitude,
-      longitude: targetCoordinate.longitude
-    )
-    let fixLocation = CLLocation(
-      latitude: fix.coordinate.latitude,
-      longitude: fix.coordinate.longitude
-    )
 
-    let distanceInMeters = fixLocation.distance(from: anchorLocation)
-    let radiusInMeters = watch.radius.converted(to: .meters).value
-
-    let accuracyInMeters = fix.horizontalAccuracy.converted(to: .meters).value
-    let requiredAccuracy = radiusInMeters / 2.0
-    let requiredAccuracyMeasurement = Measurement(value: requiredAccuracy, unit: UnitLength.meters)
-
-    if accuracyInMeters > requiredAccuracy {
-      Logger.anchor.warning(
-        "⚓️ Poor GPS accuracy (\(accuracyInMeters, privacy: .public)m). Required: <= \(requiredAccuracy, privacy: .public)m."
-      )
-      if currentStatus == .armed {
-        return .triggerAlarm(reason: .poorAccuracy(accuracy: fix.horizontalAccuracy, requiredAccuracy: requiredAccuracyMeasurement))
-      }
-      return .maintainState
-    }
-
-    if accuracyInMeters <= 0 {
-      Logger.anchor.warning("⚓️ Invalid GPS accuracy (\(accuracyInMeters, privacy: .public)m).")
+    let zeroDistance = Measurement<UnitLength>(value: 0.0, unit: .meters)
+    if fix.horizontalAccuracy <= zeroDistance {
       if currentStatus == .armed {
         return .triggerAlarm(reason: .gpsSignalLost)
       }
       return .maintainState
     }
 
-    let currentDistance = Measurement(value: distanceInMeters, unit: UnitLength.meters)
+    let requiredAccuracy = watch.radius / 2.0
+    if fix.horizontalAccuracy > requiredAccuracy {
+      if currentStatus == .armed {
+        return .triggerAlarm(reason: .poorAccuracy(accuracy: fix.horizontalAccuracy, requiredAccuracy: requiredAccuracy))
+      }
+      return .maintainState
+    }
 
-    // 2. State Transition Rules:
-    if distanceInMeters > radiusInMeters {
+    let currentDistance = targetCoordinate.distance(to: fix.coordinate)
+
+    // State Transition Rules
+    if currentDistance > watch.radius {
       if currentStatus == .armed {
         return .triggerAlarm(reason: .distanceExceeded(distance: currentDistance, radius: watch.radius))
       }
