@@ -221,12 +221,12 @@ public struct VitalTelemetryHUD: View {
 
     case .cog:
       let value = chartViewModel?.smoothedCOG
-      let string = value?.marineBearingFormatted ?? "---°"
+      let string = value?.marineBearingFormatted ?? "---"
       return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
     case .btw:
       let value = chartViewModel?.bearingToWaypoint
-      let string = value?.marineBearingFormatted ?? "---°"
+      let string = value?.marineBearingFormatted ?? "---"
       return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
     case .rng:
