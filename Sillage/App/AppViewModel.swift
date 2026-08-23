@@ -31,13 +31,14 @@ final class AppViewModel {
   private var preferencesService: PreferencesServiceProtocol
   private let chartImportService: ChartImportService
   private let authService: GeoGarageAuthService?
-  private let panelManagerViewModel: PanelManagerViewModel
   var anchorService: AnchorService?
 
   var importError: ChartImportError?
   var showImportError: Bool = false
   
   var waypointDraft: CoordinateWrapper?
+
+  var pendingNotificationIntent: NotificationIntent?
 
   var isGloveModeEnabled: Bool {
     didSet {
@@ -57,13 +58,11 @@ final class AppViewModel {
     preferencesService: PreferencesServiceProtocol,
     chartImportService: ChartImportService? = nil,
     authService: GeoGarageAuthService? = nil,
-    panelManagerViewModel: PanelManagerViewModel,
     anchorService: AnchorService? = nil
   ) {
     self.preferencesService = preferencesService
     self.chartImportService = chartImportService ?? ChartImportService()
     self.authService = authService
-    self.panelManagerViewModel = panelManagerViewModel
     self.anchorService = anchorService
     self.isGloveModeEnabled = preferencesService.gloveModeEnabled
   }
@@ -103,24 +102,12 @@ final class AppViewModel {
   
   @MainActor
   private func executeIntent(_ intent: NotificationIntent) {
-    switch intent {
-    case .anchorActionSilence:
+    if intent == .anchorActionSilence {
       Logger.anchor.info("⚓️ Silence action handled by AppViewModel.")
       anchorService?.silenceAlarm()
       return
-    case .barometerDrop:
-      if panelManagerViewModel.commandPath.last != .baroAlarm {
-        panelManagerViewModel.commandPath.append(.baroAlarm)
-      }
-    case .anchorDragging, .anchorGPSDegraded:
-      if panelManagerViewModel.commandPath.last != .anchorAlarm {
-        panelManagerViewModel.commandPath.append(.anchorAlarm)
-      }
-    case .appTerminated:
-      break
     }
-
-    panelManagerViewModel.openPanel(.command)
+    self.pendingNotificationIntent = intent
   }
 
 }

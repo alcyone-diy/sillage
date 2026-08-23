@@ -127,7 +127,7 @@ struct CommandPanelView: View {
             if activeTrackViewModel.isRecording {
               marineTheme.colors.activeToggle
             } else {
-              CellBackgroundView()
+              MarineCellBackgroundView()
             }
           }
         }
