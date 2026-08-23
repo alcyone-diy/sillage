@@ -89,6 +89,8 @@ final class TileProxyProtocolTests: XCTestCase {
 
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [TileProxyProtocol.self]
+    config.urlCache = nil
+    config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
     customSession = URLSession(configuration: config)
   }
 
@@ -99,6 +101,7 @@ final class TileProxyProtocolTests: XCTestCase {
     mockOfflineProvider = nil
     mockNetworkManager = nil
     KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token")
+    URLCache.shared.removeAllCachedResponses()
     super.tearDown()
   }
 
@@ -213,7 +216,7 @@ final class TileProxyProtocolTests: XCTestCase {
       return
     }
 
-    guard let tileURL = URL(string: "https://tiles.geogarage.com/cus_999/shom/14/4096/2720.png") else {
+    guard let tileURL = URL(string: "https://tiles.geogarage.com/cus_999/cancel/14/4096/2720.png") else {
       XCTFail("Failed to create tile URL")
       return
     }

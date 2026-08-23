@@ -522,4 +522,63 @@ struct TrackServiceTests {
     #expect(!viewModel.isExporting)
     #expect(viewModel.shareItem == nil)
   }
+
+  @Test("observeTrackSessions emits initial and updated sessions as AsyncStream")
+  func testObserveTrackSessionsStream() async throws {
+    let dbManager = try makeDatabaseManager()
+    let trackService = TrackService(databaseManager: dbManager)
+    let sessionID = "session-stream-observe-test"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date())
+
+    let stream = trackService.observeTrackSessions()
+    var iterator = stream.makeAsyncIterator()
+
+    // 1. Initial emission should be empty
+    let initial = await iterator.next()
+    #expect(initial?.isEmpty == true)
+
+    // 2. Insert session
+    try await dbManager.write { db in
+      try session.insert(db)
+    }
+
+    // 3. Next emission should contain the inserted session
+    let updated = await iterator.next()
+    #expect(updated?.count == 1)
+    #expect(updated?.first?.id == sessionID)
+  }
+
+  @Test("observeTrackSession emits session updates as AsyncStream")
+  func testObserveTrackSessionStream() async throws {
+    let dbManager = try makeDatabaseManager()
+    let trackService = TrackService(databaseManager: dbManager)
+    let sessionID = "session-single-stream-test"
+    var initialRecord = TrackSessionRecord(id: sessionID, startTime: Date())
+    initialRecord.name = "First Name"
+    let sessionToInsert = initialRecord
+
+    let stream = trackService.observeTrackSession(id: sessionID)
+    var iterator = stream.makeAsyncIterator()
+
+    // 1. Initial emission when non-existent should be nil
+    let initial = await iterator.next()
+    #expect(initial == nil || initial! == nil)
+
+    // 2. Insert session
+    try await dbManager.write { db in
+      try sessionToInsert.insert(db)
+    }
+
+    // 3. Next emission should contain the session with name
+    let inserted = await iterator.next()
+    #expect(inserted??.name == "First Name")
+
+    // 4. Update session
+    try await trackService.updateSession(id: sessionID, name: "Second Name", description: nil)
+
+    // 5. Next emission should reflect updated name
+    let modified = await iterator.next()
+    #expect(modified??.name == "Second Name")
+  }
 }
+

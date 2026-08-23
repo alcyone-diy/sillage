@@ -11,7 +11,6 @@
 import SwiftUI
 import Observation
 import OSLog
-import GRDB
 
 enum TrackError: LocalizedError {
   case deletionFailed
@@ -36,15 +35,9 @@ final class TrackListViewModel {
   init() {}
   
   func observe(trackService: TrackService) async {
-    do {
-      for try await newSessions in trackService.observeTrackSessions() {
-        if Task.isCancelled { break }
-        self.sessions = newSessions
-      }
-    } catch is CancellationError {
-      Logger.tracking.debug("Track sessions observation cancelled.")
-    } catch {
-      Logger.tracking.error("Failed to observe track sessions: \(error, privacy: .public)")
+    for await newSessions in trackService.observeTrackSessions() {
+      if Task.isCancelled { break }
+      self.sessions = newSessions
     }
   }
   
