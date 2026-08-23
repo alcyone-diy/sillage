@@ -743,6 +743,9 @@
     "No active recording to stop." : {
 
     },
+    "No chart layer available for download. Please select a valid layer." : {
+
+    },
     "No Offline Charts" : {
 
     },

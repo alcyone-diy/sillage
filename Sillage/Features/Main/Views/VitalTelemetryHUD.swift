@@ -146,7 +146,7 @@ public struct VitalTelemetryHUD: View {
     VStack(spacing: MarineTheme.Spacing.small) {
       HStack {
         Text("Available Instruments")
-          .marineFont(.instrumentLabel)
+          .marineFont(.subheadline)
           .foregroundColor(marineTheme.colors.textSecondary)
 
         Spacer()
@@ -169,7 +169,7 @@ public struct VitalTelemetryHUD: View {
 
       if inactiveTelemetryItems.isEmpty {
         Text("All instruments are active in HUD")
-          .marineFont(.instrumentLabel)
+          .marineFont(.subheadline)
           .foregroundColor(marineTheme.colors.textSecondary)
           .padding(.vertical, MarineTheme.Spacing.small)
       } else {
