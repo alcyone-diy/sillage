@@ -107,30 +107,6 @@ struct OfflineRegionsManagerView: View {
                     }
                     .tint(.red)
                   }
-                  .confirmationDialog(
-                    "Delete Offline Chart",
-                    isPresented: Binding(
-                      get: { itemToDelete?.id == item.id },
-                      set: { if !$0 && itemToDelete?.id == item.id { itemToDelete = nil } }
-                    ),
-                    titleVisibility: .visible
-                  ) {
-                    Button("Delete \"\(item.displayName)\"", role: .destructive) {
-                      Task { @MainActor in
-                        await deleteItem(item)
-                      }
-                    }
-                    Button("Cancel", role: .cancel) {
-                      itemToDelete = nil
-                    }
-                  } message: {
-                    switch item {
-                    case .downloaded:
-                      Text("Are you sure you want to delete this downloaded chart package?")
-                    case .inProgress:
-                      Text("Are you sure you want to cancel and delete this in-progress chart download?")
-                    }
-                  }
               }
             }
           }
@@ -151,6 +127,30 @@ struct OfflineRegionsManagerView: View {
           Image(systemName: "plus")
         }
         .disabled(isOfflineAreaDisabled)
+      }
+    }
+    .alert(
+      "Delete Offline Chart?",
+      isPresented: Binding(
+        get: { itemToDelete != nil },
+        set: { if !$0 { itemToDelete = nil } }
+      ),
+      presenting: itemToDelete
+    ) { item in
+      Button("Delete", role: .destructive) {
+        Task { @MainActor in
+          await deleteItem(item)
+        }
+      }
+      Button("Cancel", role: .cancel) {
+        itemToDelete = nil
+      }
+    } message: { item in
+      switch item {
+      case .downloaded:
+        Text("Are you sure you want to delete this downloaded chart package? This action cannot be undone.")
+      case .inProgress:
+        Text("Are you sure you want to cancel and delete this in-progress chart download?")
       }
     }
     .alert("Error", isPresented: Binding(
