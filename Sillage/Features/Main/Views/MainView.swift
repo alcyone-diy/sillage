@@ -41,14 +41,6 @@ struct ContentView: View {
         if chartViewModel.currentChartSource != nil {
           MapLibreView(viewModel: chartViewModel)
             .ignoresSafeArea() // Essential for full-screen immersion
-            .simultaneousGesture(
-              TapGesture().onEnded {
-                if panelManagerViewModel.activePanel != .none {
-                  panelManagerViewModel.closePanel()
-                }
-              }
-            )
-
         } else {
           // Fallback view if MBTiles data cannot be loaded
           VStack {
