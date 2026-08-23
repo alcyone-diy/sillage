@@ -98,22 +98,72 @@ public struct TrackService: Sendable {
     }
   }
   
-  /// Exports a track session to a GPX file.
+  /// Exports a track session to a GPX file, providing an `AsyncThrowingStream<Double, Error>` for real-time progress.
+  /// - Parameters:
+  ///   - id: The unique identifier of the track session.
+  ///   - url: The destination file URL.
+  /// - Returns: An `AsyncThrowingStream<Double, Error>` emitting normalized progress (0.0 to 1.0).
+  public func exportSession(id: String, to url: URL) -> AsyncThrowingStream<Double, Error> {
+    AsyncThrowingStream { continuation in
+      let task = Task.detached(priority: .userInitiated) {
+        do {
+          _ = try await self.databaseManager.reader.read { db in
+            let sessionName = try TrackSessionRecord.fetchOne(db, key: id)?.name
+            let totalCount = try TrackPointRecord
+              .filter(TrackPointRecord.Columns.sessionID == id)
+              .fetchCount(db)
+            let request = TrackPointRecord
+              .filter(TrackPointRecord.Columns.sessionID == id)
+              .order(TrackPointRecord.Columns.timestamp_unix.asc)
+            let cursor = try request.fetchCursor(db)
+
+            return try GPXExportService.export(
+              sessionID: id,
+              sessionName: sessionName,
+              cursor: cursor,
+              totalCount: totalCount,
+              to: url,
+              onProgress: { progress in
+                continuation.yield(progress)
+              }
+            )
+          }
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: error)
+        }
+      }
+
+      continuation.onTermination = { @Sendable _ in
+        task.cancel()
+      }
+    }
+  }
+
+  /// Exports a track session directly to a GPX file without observing intermediate progress.
   /// - Parameters:
   ///   - id: The unique identifier of the track session.
   ///   - url: The destination file URL.
   /// - Returns: The number of exported track points.
-  public func exportSession(id: String, to url: URL) async throws -> Int {
+  @discardableResult
+  public func exportSessionDirect(id: String, to url: URL) async throws -> Int {
     try await databaseManager.reader.read { db in
-      // Fetching the session record first to retrieve the user-defined name.
-      // This allows us to populate the GPX `<name>` tag with a human-readable title.
       let sessionName = try TrackSessionRecord.fetchOne(db, key: id)?.name
+      let totalCount = try TrackPointRecord
+        .filter(TrackPointRecord.Columns.sessionID == id)
+        .fetchCount(db)
       let request = TrackPointRecord
         .filter(TrackPointRecord.Columns.sessionID == id)
         .order(TrackPointRecord.Columns.timestamp_unix.asc)
       let cursor = try request.fetchCursor(db)
-      // We pass the sessionID and sessionName to ensure the exported GPX contains internal identifiers.
-      return try GPXExportService.export(sessionID: id, sessionName: sessionName, cursor: cursor, to: url)
+
+      return try GPXExportService.export(
+        sessionID: id,
+        sessionName: sessionName,
+        cursor: cursor,
+        totalCount: totalCount,
+        to: url
+      )
     }
   }
 }

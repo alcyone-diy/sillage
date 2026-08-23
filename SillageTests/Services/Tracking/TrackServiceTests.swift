@@ -334,4 +334,93 @@ struct TrackServiceTests {
     let currentDistance = try #require(updatedSession).totalDistanceOverGround_m // Example property name
     #expect(currentDistance == 27780.0)
   }
+  
+  @Test("exportSession stream emits progress updates and generates valid GPX file")
+  func testExportSessionStreamEmitsProgressAndCreatesGPX() async throws {
+    let dbManager = try makeDatabaseManager()
+    let trackService = TrackService(databaseManager: dbManager)
+    let sessionID = "session-export-stream-test"
+    var session = TrackSessionRecord(id: sessionID, startTime: Date())
+    session.name = "Stream Export Test"
+
+    try await dbManager.write { db in
+      try session.insert(db)
+      // Insert 1200 points to trigger intermediate throttled progress updates (every 500 points)
+      for i in 0..<1200 {
+        let point = TrackPointRecord(
+          id: nil,
+          sessionID: sessionID,
+          timestamp: Date().addingTimeInterval(Double(i)),
+          segmentIndex: 0,
+          coordinate: CLLocationCoordinate2D(latitude: 46.15 + Double(i) * 0.0001, longitude: -1.15 + Double(i) * 0.0001),
+          horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+        )
+        try point.insert(db)
+      }
+    }
+
+    let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_export_\(UUID().uuidString).gpx")
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    var progressUpdates: [Double] = []
+    for try await progress in trackService.exportSession(id: sessionID, to: tempURL) {
+      progressUpdates.append(progress)
+    }
+
+    #expect(!progressUpdates.isEmpty)
+    #expect(progressUpdates.last == 1.0)
+    #expect(FileManager.default.fileExists(atPath: tempURL.path))
+
+    let content = try String(contentsOf: tempURL, encoding: .utf8)
+    #expect(content.contains("<gpx version=\"1.1\""))
+    #expect(content.contains("<name>Stream Export Test</name>"))
+    #expect(content.contains("<trkpt lat=\"46.150000\" lon=\"-1.150000\">"))
+  }
+
+  @Test("exportSession cancellation stops export and cleans up temporary file")
+  func testExportSessionCancellationCleansUpFileAndThrows() async throws {
+    let dbManager = try makeDatabaseManager()
+    let trackService = TrackService(databaseManager: dbManager)
+    let sessionID = "session-export-cancel-test"
+    var session = TrackSessionRecord(id: sessionID, startTime: Date())
+    session.name = "Cancel Export Test"
+
+    try await dbManager.write { db in
+      try session.insert(db)
+      for i in 0..<3000 {
+        let point = TrackPointRecord(
+          id: nil,
+          sessionID: sessionID,
+          timestamp: Date().addingTimeInterval(Double(i)),
+          segmentIndex: 0,
+          coordinate: CLLocationCoordinate2D(latitude: 46.0 + Double(i) * 0.0001, longitude: -1.0),
+          horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+        )
+        try point.insert(db)
+      }
+    }
+
+    let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_cancel_\(UUID().uuidString).gpx")
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    let exportTask = Task {
+      for try await _ in trackService.exportSession(id: sessionID, to: tempURL) {
+        // Cancel as soon as we start receiving progress
+        throw CancellationError()
+      }
+    }
+
+    do {
+      try await exportTask.value
+      Issue.record("Expected cancellation error")
+    } catch is CancellationError {
+      // Expected
+    }
+
+    // Allow background task cleanup to complete
+    try await Task.sleep(for: .milliseconds(50))
+
+    // Verify temporary file was deleted
+    #expect(!FileManager.default.fileExists(atPath: tempURL.path))
+  }
 }

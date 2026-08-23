@@ -19,7 +19,24 @@ public enum GPXExportError: Error {
 
 public struct GPXExportService: Sendable {
   // Added sessionID and sessionName to uniquely identify and properly name the trace in the GPX file.
-  public nonisolated static func export(sessionID: String, sessionName: String? = nil, cursor: RecordCursor<TrackPointRecord>, to fileURL: URL) throws -> Int {
+  /// Exports track points from a database cursor into a GPX file.
+  /// - Parameters:
+  ///   - sessionID: The unique identifier of the track session.
+  ///   - sessionName: The optional user-defined name of the track session.
+  ///   - cursor: The GRDB record cursor providing `TrackPointRecord` entries.
+  ///   - totalCount: Optional total count of track points for calculating normalized progress.
+  ///   - fileURL: Destination URL on disk.
+  ///   - onProgress: Optional closure emitting normalized progress (0.0 to 1.0), throttled to at least 1% increments.
+  /// - Throws: `GPXExportError`, `CancellationError`, or file system/database errors.
+  /// - Returns: The number of track points exported.
+  public nonisolated static func export(
+    sessionID: String,
+    sessionName: String? = nil,
+    cursor: RecordCursor<TrackPointRecord>,
+    totalCount: Int? = nil,
+    to fileURL: URL,
+    onProgress: (@Sendable (Double) -> Void)? = nil
+  ) throws -> Int {
     if !FileManager.default.fileExists(atPath: fileURL.path) {
       guard FileManager.default.createFile(atPath: fileURL.path, contents: nil, attributes: nil) else {
         throw GPXExportError.fileCreationFailure
@@ -49,8 +66,13 @@ public struct GPXExportService: Sendable {
 
       var pointBuffer = ""
       var count = 0
+      let total = totalCount ?? 0
+      var lastEmittedProgress: Double = 0.0
 
       while let record = try cursor.next() {
+        // Strict cooperative cancellation check to immediately abort on user cancel
+        try Task.checkCancellation()
+
         let point = record.domainModel
         let latString = String(format: "%.6f", locale: enUSLocale, point.coordinate.latitude)
         let lonString = String(format: "%.6f", locale: enUSLocale, point.coordinate.longitude)
@@ -85,6 +107,15 @@ public struct GPXExportService: Sendable {
             try fileHandle.write(contentsOf: bufferData)
           }
           pointBuffer = ""
+
+          // Throttling: Emit progress only if it advanced by >= 1% to save CPU & battery
+          if total > 0 {
+            let currentProgress = min(1.0, Double(count) / Double(total))
+            if (currentProgress - lastEmittedProgress) >= 0.01 {
+              lastEmittedProgress = currentProgress
+              onProgress?(currentProgress)
+            }
+          }
         }
       }
 
@@ -108,9 +139,14 @@ public struct GPXExportService: Sendable {
         try fileHandle.write(contentsOf: footerData)
       }
 
+      // Emit 100% completion progress
+      if total > 0 {
+        onProgress?(1.0)
+      }
+
       return count
     } catch {
-      // Prevent leaving truncated/corrupt files on the user's storage in case of writing failure.
+      // Prevent leaving truncated/corrupt files on the user's storage in case of writing failure or cancellation.
       try? FileManager.default.removeItem(at: fileURL)
       throw error
     }
