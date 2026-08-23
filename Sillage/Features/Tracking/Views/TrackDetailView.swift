@@ -197,12 +197,11 @@ struct TrackDetailView: View {
         .background(marineTheme.colors.surfaceBackground)
       }
     }
-    .confirmationDialog(
+    .alert(
       "Delete Track?",
-      isPresented: $showDeleteConfirmation,
-      titleVisibility: .visible
+      isPresented: $showDeleteConfirmation
     ) {
-      Button("Delete", systemImage: "trash", role: .destructive) {
+      Button("Delete", role: .destructive) {
         Task {
           do {
             try await viewModel.deleteSession()
@@ -214,7 +213,7 @@ struct TrackDetailView: View {
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text("This action cannot be undone.")
+      Text("Are you sure you want to delete this track? This action cannot be undone.")
     }
     .navigationTitle("Track Detail")
     .navigationBarTitleDisplayMode(.inline)

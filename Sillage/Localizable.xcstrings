@@ -203,7 +203,7 @@
     "Are you sure you want to delete this downloaded chart package? This action cannot be undone." : {
 
     },
-    "Are you sure you want to delete this offline chart package? This will remove the map files from local storage." : {
+    "Are you sure you want to delete this offline chart package? This action cannot be undone." : {
 
     },
     "Are you sure you want to delete this track? This action cannot be undone." : {
@@ -353,13 +353,7 @@
     "Delete" : {
 
     },
-    "Delete \"%@\"" : {
-
-    },
     "Delete Chart" : {
-
-    },
-    "Delete Offline Chart" : {
 
     },
     "Delete Offline Chart?" : {
@@ -991,9 +985,6 @@
 
     },
     "Third-Party Licenses" : {
-
-    },
-    "This action cannot be undone." : {
 
     },
     "This will delete all temporary data and force the network to reload." : {
