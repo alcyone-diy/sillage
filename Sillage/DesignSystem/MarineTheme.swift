@@ -51,6 +51,7 @@ struct MarineTheme {
     var accent: Color { primary }
     var error: Color { destructive }
     var primaryFaded: Color { primary.opacity(0.4) }
+    var secondaryActionBackground: Color { primary.opacity(0.15) }
     var planningLine: Color { primary.opacity(0.5) }
   }
   
@@ -94,6 +95,11 @@ struct MarineTheme {
     static let paginationDotSize: CGFloat = 6.0
     static let shadowRadius: CGFloat = 4.0
     static let shadowOffset: CGFloat = 2.0
+
+    // MARK: - Button & Interaction Animation Metrics
+    static let pressedOpacity: Double = 0.6
+    static let pressedScale: CGFloat = 0.98
+    static let animationDuration: Double = 0.1
 
     // MARK: - Map Target Callout Overlay Metrics
     /// Standard width for map target callout overlay menu cards

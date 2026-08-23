@@ -162,7 +162,7 @@ struct TrackDetailView: View {
           ) {
             exportButtonLabel
           }
-          .buttonStyle(MarineButtonStyle())
+          .buttonStyle(MarineButtonStyle(.secondary))
 
           let isVisible = chartViewModel.displayedTrackSessionID == viewModel.sessionID
           Button(action: {
