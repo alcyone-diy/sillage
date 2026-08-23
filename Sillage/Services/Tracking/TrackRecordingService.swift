@@ -446,16 +446,13 @@ public final class TrackRecordingService {
     }
   }
   
-  /// Transitions the state machine to idle after a successful finalization.
-  /// The `trackPoints` buffer is intentionally preserved so the UI can continue
-  /// displaying the completed track. It will be cleared at the next `startRecording()` call.
+  /// Transitions the state machine to idle after a successful finalization
+  /// and clears the active track points buffer so the trace disappears from the map.
   private func stopSavingState() {
-    state = .idle
+    resetSessionState()
   }
 
   /// Resets the full session state, including the track points buffer.
-  /// Use this only on error paths that invalidate the current recording
-  /// (e.g., `abortedNoFix`), where displaying stale points would be misleading.
   private func resetSessionState() {
     state = .idle
     trackPoints.removeAll()

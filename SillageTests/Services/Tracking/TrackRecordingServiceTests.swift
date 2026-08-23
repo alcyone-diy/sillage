@@ -406,9 +406,7 @@ struct TrackRecordingServiceTests {
     }
     
     #expect(service.state == .idle)
-    // trackPoints is intentionally NOT cleared after a successful stop so the UI
-    // can keep displaying the completed track until the next startRecording() call.
-    #expect(!service.trackPoints.isEmpty)
+    #expect(service.trackPoints.isEmpty)
     #expect(mockPreferences.activeTrackSessionID == nil)
   }
   @Test("Coordinate precision is maintained as Double")
