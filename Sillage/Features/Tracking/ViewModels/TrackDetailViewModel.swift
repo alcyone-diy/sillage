@@ -11,8 +11,7 @@
 import Foundation
 import Observation
 import OSLog
-import UniformTypeIdentifiers
-import CoreTransferable
+import UIKit
 import GRDB
 
 @MainActor
@@ -24,6 +23,14 @@ final class TrackDetailViewModel {
 
   var isEditing: Bool = false
   var isSaving: Bool = false
+
+  // MARK: - Export State
+  var isExporting: Bool = false
+  var exportProgress: Double = 0.0
+  var shareItem: TrackShareItem? = nil
+  var exportError: String? = nil
+
+  nonisolated(unsafe) private var exportTask: Task<Void, Error>? = nil
 
   let sessionID: String
   private let trackService: TrackService
@@ -39,13 +46,26 @@ final class TrackDetailViewModel {
     self.trackRecordingService = trackRecordingService
   }
 
+  deinit {
+    exportTask?.cancel()
+  }
+
   /// Indicates whether deletion is allowed (hides/disables the button in the UI)
   var canDelete: Bool {
     return !trackRecordingService.isSessionActive(sessionID)
   }
 
-  /// Provides the export representation for sharing.
-  var gpxExport: GPXExport {
+  // MARK: - Export Lifecycle
+
+  /// Starts exporting the track session to a GPX file in background, streaming progress to UI.
+  func startExport() {
+    guard !isExporting else { return }
+
+    exportTask?.cancel()
+    isExporting = true
+    exportProgress = 0.0
+    exportError = nil
+
     let rawName = name.isEmpty ? "Track_\(sessionID)" : name
     let invalidCharacters = CharacterSet.alphanumerics.inverted
     var safeName = rawName.components(separatedBy: invalidCharacters)
@@ -55,7 +75,51 @@ final class TrackDetailViewModel {
       safeName = "Track_\(sessionID)"
     }
     let fileName = "\(safeName).gpx"
-    return GPXExport(sessionID: sessionID, trackService: trackService, defaultFileName: fileName)
+    let tempDir = FileManager.default.temporaryDirectory
+    let uniqueURL = tempDir.appendingPathComponent("\(UUID().uuidString)_\(fileName)")
+
+    // Prevent device from sleeping during long track exports to avoid background task suspension
+    UIApplication.shared.isIdleTimerDisabled = true
+
+    exportTask = Task { [weak self] in
+      defer {
+        Task { @MainActor in
+          UIApplication.shared.isIdleTimerDisabled = false
+        }
+      }
+
+      guard let self else { return }
+
+      do {
+        for try await progress in self.trackService.exportSession(id: self.sessionID, to: uniqueURL) {
+          try Task.checkCancellation()
+          self.exportProgress = progress
+        }
+
+        self.isExporting = false
+        self.shareItem = TrackShareItem(fileURL: uniqueURL)
+      } catch is CancellationError {
+        Logger.tracking.info("GPX export cancelled for session \(self.sessionID, privacy: .public)")
+        self.isExporting = false
+        self.exportProgress = 0.0
+        try? FileManager.default.removeItem(at: uniqueURL)
+      } catch {
+        Logger.tracking.error("GPX export failed for session \(self.sessionID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        self.isExporting = false
+        self.exportProgress = 0.0
+        self.exportError = String(localized: "Failed to export track: \(error.localizedDescription)")
+        try? FileManager.default.removeItem(at: uniqueURL)
+        throw error
+      }
+    }
+  }
+
+  /// Cancels any in-progress GPX export task and resets the export state.
+  func cancelExport() {
+    exportTask?.cancel()
+    exportTask = nil
+    isExporting = false
+    exportProgress = 0.0
   }
 
   // MARK: - Live Metrics
@@ -185,30 +249,11 @@ public enum TrackDeletionError: LocalizedError {
   }
 }
 
-public struct GPXExport: Transferable, Sendable {
-  public let sessionID: String
-  public let trackService: TrackService
-  public let defaultFileName: String
+public struct TrackShareItem: Identifiable, Sendable {
+  public let id = UUID()
+  public let fileURL: URL
 
-  public static var transferRepresentation: some TransferRepresentation {
-    FileRepresentation(exportedContentType: .gpx) { export in
-      let gpxTempDir = URL.temporaryDirectory.appendingPathComponent("GPXExports")
-      try FileManager.default.createDirectory(at: gpxTempDir, withIntermediateDirectories: true)
-      let uniqueFileName = "\(UUID().uuidString)_\(export.defaultFileName)"
-      let tempURL = gpxTempDir.appendingPathComponent(uniqueFileName)
-      do {
-        _ = try await export.trackService.exportSessionDirect(id: export.sessionID, to: tempURL)
-        return SentTransferredFile(tempURL)
-      } catch {
-        Logger.tracking.error("Failed to generate GPX for session \(export.sessionID): \(error.localizedDescription)")
-        throw error
-      }
-    }
-  }
-}
-
-extension UTType {
-  static var gpx: UTType {
-    UTType(importedAs: "org.topografix.gpx", conformingTo: .xml)
+  public init(fileURL: URL) {
+    self.fileURL = fileURL
   }
 }

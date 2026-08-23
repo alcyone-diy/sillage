@@ -71,6 +71,9 @@
     "%lld offline charts" : {
 
     },
+    "%lld%%" : {
+
+    },
     "%lldm out of zone" : {
 
     },
@@ -261,6 +264,9 @@
 
     },
     "Cancel" : {
+
+    },
+    "Cancel Export" : {
 
     },
     "Cancel Navigation" : {
@@ -455,6 +461,9 @@
     "Export GPX" : {
 
     },
+    "Exporting Track…" : {
+
+    },
     "Failed" : {
 
     },
@@ -468,6 +477,9 @@
 
     },
     "Failed to encode the request." : {
+
+    },
+    "Failed to export track: %@" : {
 
     },
     "Failed to fetch account settings. Server returned code %lld." : {
@@ -816,6 +828,9 @@
 
     },
     "Predictor Vector" : {
+
+    },
+    "Preparing GPX file…" : {
 
     },
     "Pressure" : {
