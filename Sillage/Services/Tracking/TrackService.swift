@@ -21,19 +21,39 @@ public struct TrackService: Sendable {
   }
   
   /// Observes saved track sessions, ordered by start time descending, in real-time.
-  /// - Returns: An AsyncSequence emitting arrays of `TrackSessionRecord` whenever the database updates.
-  public func observeTrackSessions() -> AsyncValueObservation<[TrackSession]> {
-    let observation = ValueObservation.tracking { db in
-      let records = try TrackSessionRecord
-        .order(TrackSessionRecord.Columns.startTimestamp_unix.desc)
-        .fetchAll(db)
+  /// - Returns: An AsyncStream emitting arrays of `TrackSession` whenever the database updates.
+  public func observeTrackSessions() -> AsyncStream<[TrackSession]> {
+    let reader = databaseManager.reader
+    return AsyncStream { continuation in
+      let observation = ValueObservation.tracking { db in
+        let records = try TrackSessionRecord
+          .order(TrackSessionRecord.Columns.startTimestamp_unix.desc)
+          .fetchAll(db)
+        
+        // The mapping is performed on the database queue,
+        // protecting the MainActor from heavy computation if the list is long.
+        return records.map { $0.toDomain() }
+      }
       
-      // The mapping is performed on the database queue,
-      // protecting the MainActor from heavy computation if the list is long.
-      return records.map { $0.toDomain() }
+      let task = Task.detached(priority: .userInitiated) {
+        do {
+          for try await sessions in observation.values(in: reader) {
+            guard !Task.isCancelled else { break }
+            continuation.yield(sessions)
+          }
+          continuation.finish()
+        } catch {
+          if !(error is CancellationError) {
+            Logger.database.error("Track sessions observation failed: \(error, privacy: .public)")
+          }
+          continuation.finish()
+        }
+      }
+      
+      continuation.onTermination = { @Sendable _ in
+        task.cancel()
+      }
     }
-    
-    return observation.values(in: databaseManager.reader)
   }
   
   /// Deletes a track session and its associated points (via cascade constraint) by id.
@@ -51,12 +71,33 @@ public struct TrackService: Sendable {
   
   /// Observes a single track session by its ID, reacting to database updates.
   /// - Parameter id: The ID of the session to observe.
-  /// - Returns: An AsyncSequence emitting `TrackSession?` whenever the session changes in the database.
-  public func observeTrackSession(id: String) -> AsyncValueObservation<TrackSession?> {
-    let observation = ValueObservation.tracking { db in
-      try TrackSessionRecord.fetchOne(db, key: id)?.toDomain()
+  /// - Returns: An AsyncStream emitting `TrackSession?` whenever the session changes in the database.
+  public func observeTrackSession(id: String) -> AsyncStream<TrackSession?> {
+    let reader = databaseManager.reader
+    return AsyncStream { continuation in
+      let observation = ValueObservation.tracking { db in
+        try TrackSessionRecord.fetchOne(db, key: id)?.toDomain()
+      }
+      
+      let task = Task.detached(priority: .userInitiated) {
+        do {
+          for try await session in observation.values(in: reader) {
+            guard !Task.isCancelled else { break }
+            continuation.yield(session)
+          }
+          continuation.finish()
+        } catch {
+          if !(error is CancellationError) {
+            Logger.database.error("Track session observation failed: \(error, privacy: .public)")
+          }
+          continuation.finish()
+        }
+      }
+      
+      continuation.onTermination = { @Sendable _ in
+        task.cancel()
+      }
     }
-    return observation.values(in: databaseManager.reader)
   }
   
   /// Updates the name and description of a track session.

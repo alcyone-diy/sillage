@@ -31,7 +31,7 @@ struct TileURLComponents: Sendable {
 }
 
 class TileProxyProtocol: URLProtocol, @unchecked Sendable {
-  private let taskLock = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
+  private let taskLock = OSAllocatedUnfairLock<(task: Task<Void, Never>?, isStopped: Bool)>(initialState: (task: nil, isStopped: false))
 
   private static let tilePathRegex = #/^/([^/]+)/([^/]+)/(\d+)/(\d+)/(\d+)\.png$/#
 
@@ -85,10 +85,12 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     // When MapLibre calls stopLoading(), we explicitly cancel this Task.
     // This top-level cancellation propagates down the entire hierarchy (including child Tasks).
     taskLock.withLock { lockState in
-      lockState = Task { [weak self] in
+      guard !lockState.isStopped else { return }
+      lockState.task = Task { [weak self] in
         guard let self = self else { return }
 
         do {
+          try Task.checkCancellation()
           guard let (data, source) = try await fetchTileData(for: url) else {
             try Task.checkCancellation()
             self.client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
@@ -117,7 +119,8 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
           
           // URLProtocol contract: do not send messages if cancelled
           guard !Task.isCancelled else { return }
-          self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .allowed)
+          let storagePolicy: URLCache.StoragePolicy = (source == .network) ? .allowed : .notAllowed
+          self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: storagePolicy)
           
           guard !Task.isCancelled else { return }
           self.client?.urlProtocol(self, didLoad: data)
@@ -138,7 +141,11 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
   override func stopLoading() {
     // Explicitly cancel the top-level Task when MapLibre aborts the request.
     // This triggers Task.checkCancellation() in child operations to abort immediately.
-    taskLock.withLock { let t = $0; $0 = nil; t?.cancel() }
+    taskLock.withLock { lockState in
+      lockState.isStopped = true
+      lockState.task?.cancel()
+      lockState.task = nil
+    }
   }
 
   // MARK: - Tile Resolution (Hybrid Offline/Online Pipeline)

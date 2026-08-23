@@ -21,10 +21,10 @@ public enum DatabaseError: Error {
 public final class DatabaseManager: Sendable {
   
   /// The database writer (DatabasePool for production, DatabaseQueue for in-memory tests)
-  public let writer: any DatabaseWriter
+  nonisolated public let writer: any DatabaseWriter
   
   /// Exposes the database as a reader
-  public var reader: any DatabaseReader { writer }
+  nonisolated public var reader: any DatabaseReader { writer }
   
   // MARK: - Initializers
   

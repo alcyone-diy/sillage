@@ -12,7 +12,6 @@ import Foundation
 import Observation
 import OSLog
 import UIKit
-import GRDB
 
 @MainActor
 @Observable
@@ -174,18 +173,13 @@ final class TrackDetailViewModel {
 
   func load() async {
     // Observe session updates reactively
-    do {
-      for try await updatedSession in trackService.observeTrackSession(id: sessionID) {
-        self.session = updatedSession
-        if let updatedSession, !isEditing {
-          self.name = updatedSession.name ?? ""
-          self.description = updatedSession.description ?? ""
-        }
+    for await updatedSession in trackService.observeTrackSession(id: sessionID) {
+      if Task.isCancelled { break }
+      self.session = updatedSession
+      if let updatedSession, !isEditing {
+        self.name = updatedSession.name ?? ""
+        self.description = updatedSession.description ?? ""
       }
-    } catch is CancellationError {
-      Logger.database.debug("Track session observation cancelled for \(self.sessionID, privacy: .public)")
-    } catch {
-      Logger.database.error("Failed to observe track session \(self.sessionID, privacy: .public): \(error, privacy: .public)")
     }
   }
 

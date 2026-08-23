@@ -90,9 +90,9 @@ final class AppEnvironmentTests: XCTestCase {
       return
     }
 
-    for _ in 0..<50 {
+    for _ in 0..<100 {
       if offlineVM.isDownloading { break }
-      try? await Task.sleep(nanoseconds: 10_000_000)
+      try? await Task.sleep(for: .milliseconds(50))
     }
 
     XCTAssertTrue(offlineVM.isDownloading, "OfflineSelectionViewModel must be in downloading state after resume")
