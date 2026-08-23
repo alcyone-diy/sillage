@@ -88,18 +88,14 @@ public struct TrackExportProgressDialog: View {
             Text("Cancel")
           }
         }
-        .buttonStyle(MarineButtonStyle(.secondary))
+        .buttonStyle(MarineButtonStyle(.cancel))
         .accessibilityLabel(String(localized: "Cancel Export"))
       }
       .padding(MarineTheme.Spacing.large)
       .frame(maxWidth: 340)
-      .background(marineTheme.colors.surfaceBackground)
+      .background(.thickMaterial)
       .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
-      .overlay(
-        RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-          .strokeBorder(marineTheme.colors.border, lineWidth: MarineTheme.Metrics.borderWidth)
-      )
-      .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
+      .shadow(color: Color.black.opacity(0.15), radius: 24, x: 0, y: 8)
       .padding(MarineTheme.Spacing.medium)
     }
   }
