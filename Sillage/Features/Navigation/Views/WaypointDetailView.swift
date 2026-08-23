@@ -157,12 +157,11 @@ struct WaypointDetailView: View {
         .background(marineTheme.colors.surfaceBackground)
       }
     }
-    .confirmationDialog(
+    .alert(
       "Delete Waypoint?",
-      isPresented: $showDeleteConfirmation,
-      titleVisibility: .visible
+      isPresented: $showDeleteConfirmation
     ) {
-      Button("Delete", systemImage: "trash", role: .destructive) {
+      Button("Delete", role: .destructive) {
         Task {
           if await viewModel.delete() {
             dismiss()
@@ -171,7 +170,7 @@ struct WaypointDetailView: View {
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text("This action cannot be undone.")
+      Text("Are you sure you want to delete this waypoint? This action cannot be undone.")
     }
     .navigationTitle(viewModel.editingWaypointID == nil ? "New Waypoint" : (viewModel.isEditable ? "Edit Waypoint" : viewModel.name))
     .navigationBarTitleDisplayMode(.inline)

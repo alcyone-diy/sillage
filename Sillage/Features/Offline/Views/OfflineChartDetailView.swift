@@ -239,17 +239,16 @@ struct OfflineChartDetailView: View {
         .background(marineTheme.colors.surfaceBackground)
       }
     }
-    .confirmationDialog(
-      "Delete Offline Chart",
-      isPresented: $showDeleteConfirmation,
-      titleVisibility: .visible
+    .alert(
+      "Delete Offline Chart?",
+      isPresented: $showDeleteConfirmation
     ) {
-      Button("Delete \"\(viewModel.chartName)\"", role: .destructive) {
+      Button("Delete", role: .destructive) {
         performDelete()
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text("Are you sure you want to delete this offline chart package? This will remove the map files from local storage.")
+      Text("Are you sure you want to delete this offline chart package? This action cannot be undone.")
     }
     .navigationTitle("Chart Details")
     .navigationBarTitleDisplayMode(.inline)
