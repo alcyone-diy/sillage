@@ -35,19 +35,29 @@ public struct TrackExportProgressDialog: View {
   }
 
   public var body: some View {
-    VStack(spacing: MarineTheme.Spacing.medium) {
-      // Header
-      HStack(spacing: MarineTheme.Spacing.small) {
-        Image(marineIcon: .track)
-          .foregroundStyle(marineTheme.colors.primary)
-          .font(.title3)
+    ZStack {
+      // Invisible full-screen touch and gesture barrier that strictly absorbs all interaction
+      Color.clear
+        .contentShape(Rectangle())
+        .ignoresSafeArea()
+        // Absorbs taps
+        .onTapGesture {}
+        // Absorbs scrolls and map pan/drag gestures
+        .highPriorityGesture(DragGesture(minimumDistance: 0).onChanged { _ in })
 
-        Text("Exporting Track…")
-          .marineFont(.headline)
-          .foregroundStyle(marineTheme.colors.textPrimary)
+      VStack(spacing: MarineTheme.Spacing.medium) {
+        // Header
+        HStack(spacing: MarineTheme.Spacing.small) {
+          Image(marineIcon: .track)
+            .foregroundStyle(marineTheme.colors.primary)
+            .font(.title3)
 
-        Spacer()
-      }
+          Text("Exporting Track…")
+            .marineFont(.headline)
+            .foregroundStyle(marineTheme.colors.textPrimary)
+
+          Spacer()
+        }
 
         // Progress indicator
         VStack(spacing: MarineTheme.Spacing.tiny) {
@@ -91,5 +101,6 @@ public struct TrackExportProgressDialog: View {
       )
       .shadow(color: Color.black.opacity(0.25), radius: 12, x: 0, y: 6)
       .padding(MarineTheme.Spacing.medium)
+    }
   }
 }

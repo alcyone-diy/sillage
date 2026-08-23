@@ -217,7 +217,7 @@ struct TrackDetailView: View {
     }
     .navigationTitle("Track Detail")
     .navigationBarTitleDisplayMode(.inline)
-    .navigationBarBackButtonHidden(viewModel.isEditing)
+    .navigationBarBackButtonHidden(viewModel.isEditing || viewModel.isExporting)
     .toolbar {
       if viewModel.isEditing {
         ToolbarItem(placement: .navigationBarLeading) {
@@ -250,6 +250,7 @@ struct TrackDetailView: View {
           Button("Edit") {
             viewModel.isEditing = true
           }
+          .disabled(viewModel.isExporting)
         }
       }
     }
