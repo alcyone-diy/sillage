@@ -147,13 +147,9 @@ struct TrackDetailView: View {
       
       if !viewModel.isEditing {
         VStack(spacing: MarineTheme.Spacing.small) {
-          ShareLink(
-            item: viewModel.gpxExport,
-            preview: SharePreview(
-              viewModel.name.isEmpty ? "Track Export" : viewModel.name,
-              image: Image(marineIcon: .track)
-            )
-          ) {
+          Button(action: {
+            viewModel.startExport()
+          }) {
             exportButtonLabel
           }
           .buttonStyle(MarineButtonStyle(.secondary))
@@ -185,6 +181,21 @@ struct TrackDetailView: View {
         .padding(MarineTheme.Spacing.medium)
         .background(marineTheme.colors.surfaceBackground)
       }
+    }
+    .overlay {
+      if viewModel.isExporting {
+        TrackExportProgressDialog(
+          progress: viewModel.exportProgress,
+          onCancel: {
+            viewModel.cancelExport()
+          }
+        )
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+      }
+    }
+    .animation(.easeInOut(duration: 0.2), value: viewModel.isExporting)
+    .sheet(item: $viewModel.shareItem) { item in
+      ShareSheet(activityItems: [item.fileURL])
     }
     .alert(
       "Delete Track?",
@@ -248,10 +259,15 @@ struct TrackDetailView: View {
     .alert(
       "Error",
       isPresented: Binding(
-        get: { errorMessage != nil },
-        set: { if !$0 { errorMessage = nil } }
+        get: { errorMessage != nil || viewModel.exportError != nil },
+        set: {
+          if !$0 {
+            errorMessage = nil
+            viewModel.exportError = nil
+          }
+        }
       ),
-      presenting: errorMessage
+      presenting: errorMessage ?? viewModel.exportError
     ) { _ in
       Button("OK", role: .cancel) {}
     } message: { message in

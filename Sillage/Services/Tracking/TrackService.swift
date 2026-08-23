@@ -139,31 +139,4 @@ public struct TrackService: Sendable {
       }
     }
   }
-
-  /// Exports a track session directly to a GPX file without observing intermediate progress.
-  /// - Parameters:
-  ///   - id: The unique identifier of the track session.
-  ///   - url: The destination file URL.
-  /// - Returns: The number of exported track points.
-  @discardableResult
-  public func exportSessionDirect(id: String, to url: URL) async throws -> Int {
-    try await databaseManager.reader.read { db in
-      let sessionName = try TrackSessionRecord.fetchOne(db, key: id)?.name
-      let totalCount = try TrackPointRecord
-        .filter(TrackPointRecord.Columns.sessionID == id)
-        .fetchCount(db)
-      let request = TrackPointRecord
-        .filter(TrackPointRecord.Columns.sessionID == id)
-        .order(TrackPointRecord.Columns.timestamp_unix.asc)
-      let cursor = try request.fetchCursor(db)
-
-      return try GPXExportService.export(
-        sessionID: id,
-        sessionName: sessionName,
-        cursor: cursor,
-        totalCount: totalCount,
-        to: url
-      )
-    }
-  }
 }

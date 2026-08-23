@@ -423,4 +423,103 @@ struct TrackServiceTests {
     // Verify temporary file was deleted
     #expect(!FileManager.default.fileExists(atPath: tempURL.path))
   }
+
+  @Test("TrackDetailViewModel startExport completes and sets shareItem")
+  @MainActor
+  func testViewModelStartExportCompletesAndSetsShareItem() async throws {
+    let dbManager = try makeDatabaseManager()
+    let trackService = TrackService(databaseManager: dbManager)
+    let mockPositioning = MockPositioningService()
+    let mockPreferences = MockPreferencesService()
+    let recordingService = TrackRecordingService(
+      positioningService: mockPositioning,
+      databaseManager: dbManager,
+      preferencesService: mockPreferences,
+      messageService: MessageService()
+    )
+
+    let sessionID = "session-vm-export-test"
+    var session = TrackSessionRecord(id: sessionID, startTime: Date())
+    session.name = "VM Export Test"
+
+    try await dbManager.write { db in
+      try session.insert(db)
+      for i in 0..<100 {
+        let point = TrackPointRecord(
+          id: nil,
+          sessionID: sessionID,
+          timestamp: Date().addingTimeInterval(Double(i)),
+          segmentIndex: 0,
+          coordinate: CLLocationCoordinate2D(latitude: 46.15, longitude: -1.15),
+          horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+        )
+        try point.insert(db)
+      }
+    }
+
+    let viewModel = TrackDetailViewModel(
+      sessionID: sessionID,
+      trackService: trackService,
+      trackRecordingService: recordingService
+    )
+
+    viewModel.startExport()
+    #expect(viewModel.isExporting)
+
+    try await waitUntil { !viewModel.isExporting && viewModel.shareItem != nil }
+
+    #expect(viewModel.exportProgress == 1.0)
+    #expect(viewModel.shareItem != nil)
+    if let fileURL = viewModel.shareItem?.fileURL {
+      #expect(FileManager.default.fileExists(atPath: fileURL.path))
+      try? FileManager.default.removeItem(at: fileURL)
+    }
+  }
+
+  @Test("TrackDetailViewModel cancelExport immediately aborts export")
+  @MainActor
+  func testViewModelCancelExportAbortsExport() async throws {
+    let dbManager = try makeDatabaseManager()
+    let trackService = TrackService(databaseManager: dbManager)
+    let mockPositioning = MockPositioningService()
+    let mockPreferences = MockPreferencesService()
+    let recordingService = TrackRecordingService(
+      positioningService: mockPositioning,
+      databaseManager: dbManager,
+      preferencesService: mockPreferences,
+      messageService: MessageService()
+    )
+
+    let sessionID = "session-vm-cancel-test"
+    var session = TrackSessionRecord(id: sessionID, startTime: Date())
+    session.name = "VM Cancel Test"
+
+    try await dbManager.write { db in
+      try session.insert(db)
+      for i in 0..<3000 {
+        let point = TrackPointRecord(
+          id: nil,
+          sessionID: sessionID,
+          timestamp: Date().addingTimeInterval(Double(i)),
+          segmentIndex: 0,
+          coordinate: CLLocationCoordinate2D(latitude: 46.0 + Double(i) * 0.0001, longitude: -1.0),
+          horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+        )
+        try point.insert(db)
+      }
+    }
+
+    let viewModel = TrackDetailViewModel(
+      sessionID: sessionID,
+      trackService: trackService,
+      trackRecordingService: recordingService
+    )
+
+    viewModel.startExport()
+    #expect(viewModel.isExporting)
+
+    viewModel.cancelExport()
+    #expect(!viewModel.isExporting)
+    #expect(viewModel.shareItem == nil)
+  }
 }
