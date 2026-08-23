@@ -160,14 +160,8 @@ struct OfflineChartDetailView: View {
                   Image(marineIcon: .delete)
                   Text("Delete Chart")
                 }
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(marineTheme.colors.onPrimary)
-                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-                .background(marineTheme.colors.destructive)
-                .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
               }
-              .buttonStyle(MarineButtonStyle())
+              .buttonStyle(MarineButtonStyle(.destructive))
               .disabled(viewModel.isDeleting)
               .textCase(nil)
               .padding(.top, MarineTheme.Spacing.medium)
@@ -225,14 +219,8 @@ struct OfflineChartDetailView: View {
               Image(marineIcon: .offlineChart)
               Text("Show on Chart")
             }
-            .font(.headline)
-            .fontWeight(.semibold)
-            .foregroundColor(isEnabled ? marineTheme.colors.onPrimary : marineTheme.colors.inactive)
-            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(isEnabled ? marineTheme.colors.primary : marineTheme.colors.disabledBackground)
-            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
           }
-          .buttonStyle(MarineButtonStyle())
+          .buttonStyle(MarineButtonStyle(.primary))
           .disabled(!isEnabled)
         }
         .padding(MarineTheme.Spacing.medium)

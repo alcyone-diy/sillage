@@ -84,14 +84,8 @@ struct TrackDetailView: View {
                   Image(marineIcon: .delete)
                   Text("Delete")
                 }
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(viewModel.canDelete ? marineTheme.colors.onPrimary : marineTheme.colors.inactive)
-                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-                .background(viewModel.canDelete ? marineTheme.colors.destructive : marineTheme.colors.disabledBackground)
-                .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
               }
-              .buttonStyle(MarineButtonStyle())
+              .buttonStyle(MarineButtonStyle(.destructive))
               .disabled(!viewModel.canDelete)
               .textCase(nil)
               .padding(.top, MarineTheme.Spacing.medium)
@@ -185,14 +179,8 @@ struct TrackDetailView: View {
               Image(marineIcon: .track)
               Text(isVisible ? "Hide" : "Show")
             }
-            .font(.headline)
-            .fontWeight(.semibold)
-            .foregroundColor(marineTheme.colors.onPrimary)
-            .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-            .background(isVisible ? marineTheme.colors.cancelAction : marineTheme.colors.primary)
-            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
           }
-          .buttonStyle(MarineButtonStyle())
+          .buttonStyle(MarineButtonStyle(isVisible ? .cancel : .primary))
         }
         .padding(MarineTheme.Spacing.medium)
         .background(marineTheme.colors.surfaceBackground)

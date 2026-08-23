@@ -246,7 +246,7 @@ struct WaypointDetailContainer: View {
           Button("Retry") {
             state = .loading
           }
-          .buttonStyle(MarineButtonStyle())
+          .buttonStyle(MarineButtonStyle(.primary))
         }
         .padding()
       }

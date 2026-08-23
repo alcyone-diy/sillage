@@ -66,14 +66,8 @@ struct WaypointDetailView: View {
                   Image(marineIcon: .delete)
                   Text("Delete Waypoint")
                 }
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(marineTheme.colors.onPrimary)
-                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-                .background(marineTheme.colors.destructive)
-                .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
               }
-              .buttonStyle(MarineButtonStyle())
+              .buttonStyle(MarineButtonStyle(.destructive))
               .textCase(nil)
             }
           }
@@ -126,14 +120,8 @@ struct WaypointDetailView: View {
                 Image(marineIcon: .cancelAction)
                 Text("Cancel Navigation")
               }
-              .font(.headline)
-              .fontWeight(.semibold)
-              .foregroundColor(marineTheme.colors.onPrimary)
-              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-              .background(marineTheme.colors.cancelAction)
-              .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
             }
-            .buttonStyle(MarineButtonStyle())
+            .buttonStyle(MarineButtonStyle(.cancel))
           } else {
             Button(action: {
               onGoToRequested?(waypointID)
@@ -142,14 +130,8 @@ struct WaypointDetailView: View {
                 Image(marineIcon: .waypoint)
                 Text("Go To")
               }
-              .font(.headline)
-              .fontWeight(.semibold)
-              .foregroundColor(marineTheme.colors.onPrimary)
-              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-              .background(marineTheme.colors.primary)
-              .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
             }
-            .buttonStyle(MarineButtonStyle())
+            .buttonStyle(MarineButtonStyle(.primary))
           }
         }
         .padding(MarineTheme.Spacing.medium)
