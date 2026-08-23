@@ -90,7 +90,7 @@ fileprivate struct LineOfSightHUDView: View {
     let bearing = vesselCoord?.greatCircleBearing(to: centerCoord)
 
     let distanceString = distance?.marineContextualDistanceFormatted(locale: locale) ?? "---"
-    let bearingString = bearing?.marineBearingFormatted ?? "---°"
+    let bearingString = bearing?.marineBearingFormatted ?? "---"
 
     let items = [
       MarineTelemetryItem(label: "DISTANCE", value: distanceString, isPlaceholder: distance == nil),

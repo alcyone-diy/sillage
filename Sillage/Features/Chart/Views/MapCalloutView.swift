@@ -89,7 +89,7 @@ struct MapCalloutView: View {
               .marineFont(.body)
               .foregroundColor(marineTheme.colors.textPrimary)
           } else {
-            Text("---°")
+            Text("---")
               .monospacedDigit()
               .bold()
               .marineFont(.body)
