@@ -39,7 +39,6 @@ final class AppEnvironment {
     
     let appViewModel: AppViewModel
     let chartViewModel: ChartViewModel
-    let panelManagerViewModel: PanelManagerViewModel
     let activeTrackViewModel: ActiveTrackViewModel
     let barometerViewModel: BarometerViewModel
     let anchorViewModel: AnchorViewModel
@@ -189,11 +188,9 @@ final class AppEnvironment {
       let anchorViewModel = AnchorViewModel(anchorService: anchorService)
       
       // d. ViewModels instantiation (injecting the ready Services)
-      let panelManagerViewModel = PanelManagerViewModel()
       let appViewModel = AppViewModel(
         preferencesService: preferencesService,
         authService: geoGarageAuthService,
-        panelManagerViewModel: panelManagerViewModel,
         anchorService: anchorService
       )
 
@@ -265,7 +262,6 @@ final class AppEnvironment {
         anchorService: anchorService,
         appViewModel: appViewModel,
         chartViewModel: chartViewModel,
-        panelManagerViewModel: panelManagerViewModel,
         activeTrackViewModel: activeTrackViewModel,
         barometerViewModel: barometerViewModel,
         anchorViewModel: anchorViewModel,

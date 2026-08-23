@@ -16,7 +16,6 @@ struct ContentView: View {
   @Environment(\.verticalSizeClass) private var verticalSizeClass
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(ChartViewModel.self) var chartViewModel
-  @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(\.waypointService) private var waypointService
   @Environment(AnchorViewModel.self) private var anchorViewModel
@@ -24,6 +23,7 @@ struct ContentView: View {
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   @Environment(\.marineTheme) private var marineTheme
 
+  @State private var panelManagerViewModel = PanelManagerViewModel()
   @State private var localSheetPresented: Bool = false
   @State private var permissionGateType: PermissionGateType? = nil
 
@@ -273,6 +273,25 @@ struct ContentView: View {
         PermissionGateView(type: gateType)
           .presentationDetents([.medium, .large])
       }
+    }
+    .environment(panelManagerViewModel)
+    .onChange(of: appViewModel.pendingNotificationIntent) { _, intent in
+      guard let intent else { return }
+      switch intent {
+      case .barometerDrop:
+        if panelManagerViewModel.commandPath.last != .baroAlarm {
+          panelManagerViewModel.commandPath.append(.baroAlarm)
+        }
+        panelManagerViewModel.openPanel(.command)
+      case .anchorDragging, .anchorGPSDegraded:
+        if panelManagerViewModel.commandPath.last != .anchorAlarm {
+          panelManagerViewModel.commandPath.append(.anchorAlarm)
+        }
+        panelManagerViewModel.openPanel(.command)
+      case .anchorActionSilence, .appTerminated:
+        break
+      }
+      appViewModel.pendingNotificationIntent = nil
     }
   }
 

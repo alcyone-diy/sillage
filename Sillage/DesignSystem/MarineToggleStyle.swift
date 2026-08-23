@@ -33,7 +33,7 @@ struct MarineToggleStyle: ToggleStyle {
         if configuration.isOn {
           marineTheme.colors.activeToggle
         } else {
-          CellBackgroundView()
+          MarineCellBackgroundView()
         }
       }
     }
