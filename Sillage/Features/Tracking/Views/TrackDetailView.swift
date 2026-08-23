@@ -73,7 +73,31 @@ struct TrackDetailView: View {
         }
         
         // Metrics Section (Static)
-        Section(header: Text("Details")) {
+        Section(
+          header: Text("Details"),
+          footer: Group {
+            if viewModel.isEditing {
+              Button(action: {
+                showDeleteConfirmation = true
+              }) {
+                HStack {
+                  Image(marineIcon: .delete)
+                  Text("Delete")
+                }
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(viewModel.canDelete ? marineTheme.colors.onPrimary : marineTheme.colors.inactive)
+                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+                .background(viewModel.canDelete ? marineTheme.colors.destructive : marineTheme.colors.disabledBackground)
+                .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
+              }
+              .buttonStyle(MarineButtonStyle())
+              .disabled(!viewModel.canDelete)
+              .textCase(nil)
+              .padding(.top, MarineTheme.Spacing.medium)
+            }
+          }
+        ) {
           DetailRow(
             label: "Start Time",
             value: viewModel.session?.startTime.formatted(date: .abbreviated, time: .shortened) ?? "—"
@@ -122,29 +146,6 @@ struct TrackDetailView: View {
           )
           .marineListCell()
         }
-        
-        if viewModel.isEditing {
-          Section {
-            Button(role: .destructive, action: {
-              showDeleteConfirmation = true
-            }) {
-              HStack {
-                Image(marineIcon: .delete)
-                Text("Delete")
-              }
-              .font(.headline)
-              .fontWeight(.semibold)
-              .foregroundColor(viewModel.canDelete ? marineTheme.colors.onPrimary : marineTheme.colors.inactive)
-              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-              .background(viewModel.canDelete ? marineTheme.colors.destructive : marineTheme.colors.disabledBackground)
-              .cornerRadius(MarineTheme.Metrics.cornerRadius)
-            }
-            .buttonStyle(MarineButtonStyle())
-            .disabled(!viewModel.canDelete)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
-          }
-        }
       }
       .listStyle(.insetGrouped)
       .marineListBackground()
@@ -189,7 +190,7 @@ struct TrackDetailView: View {
             .foregroundColor(marineTheme.colors.onPrimary)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
             .background(isVisible ? marineTheme.colors.cancelAction : marineTheme.colors.primary)
-            .cornerRadius(MarineTheme.Metrics.cornerRadius)
+            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
           }
           .buttonStyle(MarineButtonStyle())
         }

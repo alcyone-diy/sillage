@@ -149,7 +149,31 @@ struct OfflineChartDetailView: View {
         }
 
         // MARK: - Geographic Coverage
-        Section(header: Text("Geographic Coverage")) {
+        Section(
+          header: Text("Geographic Coverage"),
+          footer: Group {
+            if viewModel.isEditing {
+              Button(action: {
+                showDeleteConfirmation = true
+              }) {
+                HStack {
+                  Image(marineIcon: .delete)
+                  Text("Delete Chart")
+                }
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(marineTheme.colors.onPrimary)
+                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+                .background(marineTheme.colors.destructive)
+                .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
+              }
+              .buttonStyle(MarineButtonStyle())
+              .disabled(viewModel.isDeleting)
+              .textCase(nil)
+              .padding(.top, MarineTheme.Spacing.medium)
+            }
+          }
+        ) {
           if let area = viewModel.geographicArea {
             let nm2 = area.converted(to: .squareNauticalMiles).value
             DetailRow(
@@ -183,30 +207,6 @@ struct OfflineChartDetailView: View {
             .marineListCell()
           }
         }
-
-        // MARK: - Delete Section (Edit Mode)
-        if viewModel.isEditing {
-          Section {
-            Button(role: .destructive, action: {
-              showDeleteConfirmation = true
-            }) {
-              HStack {
-                Image(marineIcon: .delete)
-                Text("Delete Chart")
-              }
-              .font(.headline)
-              .fontWeight(.semibold)
-              .foregroundColor(marineTheme.colors.onPrimary)
-              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-              .background(marineTheme.colors.destructive)
-              .cornerRadius(MarineTheme.Metrics.cornerRadius)
-            }
-            .buttonStyle(MarineButtonStyle())
-            .disabled(viewModel.isDeleting)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
-          }
-        }
       }
       .listStyle(.insetGrouped)
       .marineListBackground()
@@ -230,7 +230,7 @@ struct OfflineChartDetailView: View {
             .foregroundColor(isEnabled ? marineTheme.colors.onPrimary : marineTheme.colors.inactive)
             .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
             .background(isEnabled ? marineTheme.colors.primary : marineTheme.colors.disabledBackground)
-            .cornerRadius(MarineTheme.Metrics.cornerRadius)
+            .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
           }
           .buttonStyle(MarineButtonStyle())
           .disabled(!isEnabled)
