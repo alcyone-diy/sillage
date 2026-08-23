@@ -55,7 +55,28 @@ struct WaypointDetailView: View {
         
         Section(
           header: Text("Location"),
-          footer: Text("Format: N/S Degrees Minutes.")
+          footer: VStack(alignment: .leading, spacing: MarineTheme.Spacing.medium) {
+            Text("Format: N/S Degrees Minutes.")
+            
+            if let _ = viewModel.editingWaypointID, viewModel.isEditable {
+              Button(action: {
+                showDeleteConfirmation = true
+              }) {
+                HStack {
+                  Image(marineIcon: .delete)
+                  Text("Delete Waypoint")
+                }
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(marineTheme.colors.onPrimary)
+                .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+                .background(marineTheme.colors.destructive)
+                .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
+              }
+              .buttonStyle(MarineButtonStyle())
+              .textCase(nil)
+            }
+          }
         ) {
           VStack(alignment: .leading, spacing: 4) {
             CoordinateInputView(
@@ -92,28 +113,6 @@ struct WaypointDetailView: View {
           .marineListCell()
         }
         .disabled(!viewModel.isEditable)
-        
-        if let _ = viewModel.editingWaypointID, viewModel.isEditable {
-          Section {
-            Button(role: .destructive, action: {
-              showDeleteConfirmation = true
-            }) {
-              HStack {
-                Image(marineIcon: .delete)
-                Text("Delete Waypoint")
-              }
-              .font(.headline)
-              .fontWeight(.semibold)
-              .foregroundColor(marineTheme.colors.onPrimary)
-              .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
-              .background(marineTheme.colors.destructive)
-              .cornerRadius(MarineTheme.Metrics.cornerRadius)
-            }
-            .buttonStyle(MarineButtonStyle())
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
-          }
-        }
       }
       .marineListBackground()
       
@@ -132,7 +131,7 @@ struct WaypointDetailView: View {
               .foregroundColor(marineTheme.colors.onPrimary)
               .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
               .background(marineTheme.colors.cancelAction)
-              .cornerRadius(MarineTheme.Metrics.cornerRadius)
+              .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
             }
             .buttonStyle(MarineButtonStyle())
           } else {
@@ -148,7 +147,7 @@ struct WaypointDetailView: View {
               .foregroundColor(marineTheme.colors.onPrimary)
               .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
               .background(marineTheme.colors.primary)
-              .cornerRadius(MarineTheme.Metrics.cornerRadius)
+              .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
             }
             .buttonStyle(MarineButtonStyle())
           }
