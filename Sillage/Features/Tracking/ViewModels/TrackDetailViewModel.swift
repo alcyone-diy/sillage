@@ -197,7 +197,7 @@ public struct GPXExport: Transferable, Sendable {
       let uniqueFileName = "\(UUID().uuidString)_\(export.defaultFileName)"
       let tempURL = gpxTempDir.appendingPathComponent(uniqueFileName)
       do {
-        _ = try await export.trackService.exportSession(id: export.sessionID, to: tempURL)
+        _ = try await export.trackService.exportSessionDirect(id: export.sessionID, to: tempURL)
         return SentTransferredFile(tempURL)
       } catch {
         Logger.tracking.error("Failed to generate GPX for session \(export.sessionID): \(error.localizedDescription)")
