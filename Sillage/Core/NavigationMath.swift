@@ -174,7 +174,3 @@ extension CLLocationCoordinate2D {
     return Measurement(value: crossTrackMeters, unit: .meters)
   }
 }
-
-extension UnitArea {
-  public static let squareNauticalMiles = UnitArea(symbol: "NM²", converter: UnitConverterLinear(coefficient: 3429904.0)) // 1852.0 * 1852.0
-}

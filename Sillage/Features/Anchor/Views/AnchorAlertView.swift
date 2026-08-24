@@ -71,8 +71,7 @@ struct AnchorAlertView: View {
                 .foregroundColor(.white.opacity(0.8))
               
               if let sog = anchorViewModel.sog {
-                let knots = sog.converted(to: .knots).value
-                Text(String(format: "%.1f kts", knots))
+                Text(sog.marineFormatted)
                   .font(.system(size: 32, weight: .bold, design: .monospaced))
                   .lineLimit(1)
                   .minimumScaleFactor(0.6)

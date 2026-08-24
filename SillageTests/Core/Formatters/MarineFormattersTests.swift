@@ -39,13 +39,39 @@ final class MarineFormattersTests: XCTestCase {
   }
 
   func testMarineContextualDistanceFormattedForLongDistance() {
+    let enUSLocale = Locale(identifier: "en_US_POSIX")
     let dist = Measurement<UnitLength>(value: 500, unit: .meters)
-    let formatted = dist.marineContextualDistanceFormatted()
-    // 500 meters is ~0.27 nautical miles
-    let expected = dist.converted(to: .nauticalMiles).formatted(
-      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(2)))
+    let formatted = dist.marineContextualDistanceFormatted(locale: enUSLocale)
+    let expected = dist.converted(to: .marineNauticalMiles).formatted(
+      .measurement(
+        width: .abbreviated,
+        usage: .asProvided,
+        numberFormatStyle: .number.precision(.fractionLength(2))
+      ).locale(enUSLocale)
     )
     XCTAssertEqual(formatted, expected)
+    XCTAssertEqual(formatted, "0.27 NM")
+  }
+
+  func testMarineNauticalMilesFormattedPrecision_EnUSLocale() {
+    let enUSLocale = Locale(identifier: "en_US_POSIX")
+
+    let smallDist = Measurement<UnitLength>(value: 5.234, unit: .marineNauticalMiles)
+    XCTAssertEqual(smallDist.marineNauticalMilesFormatted(locale: enUSLocale), "5.23 NM")
+
+    let mediumDist = Measurement<UnitLength>(value: 25.46, unit: .marineNauticalMiles)
+    XCTAssertEqual(mediumDist.marineNauticalMilesFormatted(locale: enUSLocale), "25.5 NM")
+
+    let largeDist = Measurement<UnitLength>(value: 150.8, unit: .marineNauticalMiles)
+    XCTAssertEqual(largeDist.marineNauticalMilesFormatted(locale: enUSLocale), "151 NM")
+  }
+
+  func testMarineNauticalMilesFormatted_FrenchLocaleUsesComma() {
+    let frLocale = Locale(identifier: "fr_FR")
+    let dist = Measurement<UnitLength>(value: 5.23, unit: .marineNauticalMiles)
+    let formatted = dist.marineNauticalMilesFormatted(locale: frLocale)
+    XCTAssertTrue(formatted.contains("5,23"), "Expected comma decimal separator in French locale, got: \(formatted)")
+    XCTAssertTrue(formatted.contains("NM"), "Expected NM symbol in French locale, got: \(formatted)")
   }
 
   func testMarineAnchorDistanceFormatted_MetricLocale() {
@@ -93,4 +119,24 @@ final class MarineFormattersTests: XCTestCase {
     XCTAssertEqual(angle365.normalizedDegrees, 5.0, accuracy: 0.001)
     XCTAssertEqual(angle365.marineBearingFormatted, "005°")
   }
+
+  func testSpeedMarineFormatting() {
+    let enUSLocale = Locale(identifier: "en_US_POSIX")
+    let speed = Measurement<UnitSpeed>(value: 6.24, unit: .marineKnots)
+    XCTAssertEqual(speed.marineFormatted(locale: enUSLocale), "6.2 kts")
+  }
+
+  func testMaritimeCustomUnitSymbols() {
+    XCTAssertEqual(UnitLength.marineNauticalMiles.symbol, "NM")
+    XCTAssertEqual(UnitSpeed.marineKnots.symbol, "kts")
+    XCTAssertEqual(UnitArea.marineSquareNauticalMiles.symbol, "NM²")
+    XCTAssertEqual(UnitArea.squareNauticalMiles.symbol, "NM²")
+  }
+
+  func testAreaMarineFormatting() {
+    let enUSLocale = Locale(identifier: "en_US_POSIX")
+    let area = Measurement<UnitArea>(value: 12.345, unit: .marineSquareNauticalMiles)
+    XCTAssertEqual(area.marineFormatted(locale: enUSLocale), "12.3 NM²")
+  }
 }
+
