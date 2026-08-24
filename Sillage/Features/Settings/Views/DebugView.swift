@@ -25,6 +25,7 @@ struct DebugView: View {
   
   @State private var activeError: AlertError? = nil
   @State private var showClearCacheConfirmation: Bool = false
+  @State private var showCorruptTokenConfirmation: Bool = false
   
   var body: some View {
     Form {
@@ -146,12 +147,23 @@ struct DebugView: View {
       
       Section(header: Text("GeoGarage Testing")) {
         Button(role: .destructive) {
-          viewModel.invalidateGeoGarageToken()
+          showCorruptTokenConfirmation = true
         } label: {
-          Text("Corrupt GeoGarage Token")
-            .marineFont(.body)
+          HStack {
+            Text("Corrupt GeoGarage Token")
+              .marineFont(.body)
+            Spacer()
+          }
         }
         .marineListCell()
+        .confirmationDialog("Corrupt GeoGarage Token", isPresented: $showCorruptTokenConfirmation, titleVisibility: .visible) {
+          Button("Corrupt Token", role: .destructive) {
+            viewModel.invalidateGeoGarageToken()
+          }
+          Button("Cancel", role: .cancel) { }
+        } message: {
+          Text("This will replace the active GeoGarage token with an invalid test token.")
+        }
       }
       
       Section(header: Text("Notification Testing")) {
