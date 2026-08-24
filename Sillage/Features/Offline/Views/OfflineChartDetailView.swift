@@ -169,10 +169,9 @@ struct OfflineChartDetailView: View {
           }
         ) {
           if let area = viewModel.geographicArea {
-            let nm2 = area.converted(to: .squareNauticalMiles).value
             DetailRow(
               label: String(localized: "Surface Area"),
-              value: String(format: "%.1f NM²", nm2)
+              value: area.marineFormatted
             )
             .marineListCell()
           }

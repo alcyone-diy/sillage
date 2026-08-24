@@ -34,10 +34,39 @@ extension Duration {
   }
 }
 
+// MARK: - Maritime Units
+
+extension UnitLength {
+  /// Standard marine nautical miles unit with symbol "NM".
+  public static let marineNauticalMiles = UnitLength(
+    symbol: "NM",
+    converter: UnitConverterLinear(coefficient: 1852.0)
+  )
+}
+
+extension UnitSpeed {
+  /// Standard marine knots unit with symbol "kts".
+  public static let marineKnots = UnitSpeed(
+    symbol: "kts",
+    converter: UnitConverterLinear(coefficient: 1852.0 / 3600.0)
+  )
+}
+
+extension UnitArea {
+  /// Standard marine square nautical miles unit with symbol "NM²".
+  public static let marineSquareNauticalMiles = UnitArea(
+    symbol: "NM²",
+    converter: UnitConverterLinear(coefficient: 3429904.0) // 1852.0 * 1852.0
+  )
+
+  /// Convenience alias for backward compatibility.
+  public static let squareNauticalMiles = marineSquareNauticalMiles
+}
+
 extension Measurement where UnitType == UnitLength {
   /// Base formatter: formats strictly in Nautical Miles with dynamic precision based on magnitude.
-  public var marineNauticalMilesFormatted: String {
-    let nm = self.converted(to: .nauticalMiles)
+  public func marineNauticalMilesFormatted(locale: Locale = .autoupdatingCurrent) -> String {
+    let nm = self.converted(to: .marineNauticalMiles)
     let magnitude = abs(nm.value)
     
     let fractionDigits: Int
@@ -54,8 +83,12 @@ extension Measurement where UnitType == UnitLength {
         width: .abbreviated,
         usage: .asProvided,
         numberFormatStyle: .number.precision(.fractionLength(fractionDigits))
-      )
+      ).locale(locale)
     )
+  }
+
+  public var marineNauticalMilesFormatted: String {
+    marineNauticalMilesFormatted()
   }
   
   /// Formats a distance measurement for marine contextual displays.
@@ -69,7 +102,7 @@ extension Measurement where UnitType == UnitLength {
     if self.converted(to: .meters) < MarineFormatters.shortDistanceThreshold {
       return marineAnchorDistanceFormatted(locale: locale)
     } else {
-      return self.marineNauticalMilesFormatted
+      return self.marineNauticalMilesFormatted(locale: locale)
     }
   }
   
@@ -82,15 +115,15 @@ extension Measurement where UnitType == UnitLength {
     let isMetric = locale.measurementSystem == .metric
     let targetUnit: UnitLength = isMetric ? .meters : .feet
     return self.converted(to: targetUnit).formatted(
-      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0)))
+      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0))).locale(locale)
     )
   }
   
   /// Formats a cross-track error measurement in nautical miles (NM) with 2 decimal places (e.g. "0.02 NM").
-  public var marineCrossTrackFormatted: String {
-    let value = self.converted(to: .nauticalMiles).value
-    let absMeasurement = Measurement(value: abs(value), unit: UnitLength.nauticalMiles)
-    let formattedMagnitude = absMeasurement.marineNauticalMilesFormatted
+  public func marineCrossTrackFormatted(locale: Locale = .autoupdatingCurrent) -> String {
+    let value = self.converted(to: .marineNauticalMiles).value
+    let absMeasurement = Measurement(value: abs(value), unit: UnitLength.marineNauticalMiles)
+    let formattedMagnitude = absMeasurement.marineNauticalMilesFormatted(locale: locale)
     
     // Seuil de tolérance pour le zéro technique (0.0001 NM)
     if value > 0.0001 {
@@ -100,6 +133,10 @@ extension Measurement where UnitType == UnitLength {
     } else {
       return formattedMagnitude
     }
+  }
+
+  public var marineCrossTrackFormatted: String {
+    marineCrossTrackFormatted()
   }
 }
 
@@ -112,18 +149,26 @@ extension Float {
 }
 
 extension Measurement where UnitType == UnitSpeed {
-    public var marineFormatted: String {
-        self.converted(to: .knots).formatted(
-            .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(1)))
-        )
-    }
+  public func marineFormatted(locale: Locale = .autoupdatingCurrent) -> String {
+    self.converted(to: .marineKnots).formatted(
+      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(1))).locale(locale)
+    )
+  }
+
+  public var marineFormatted: String {
+    marineFormatted()
+  }
 }
 
 extension Measurement where UnitType == UnitAngle {
-  public var marineFormatted: String {
+  public func marineFormatted(locale: Locale = .autoupdatingCurrent) -> String {
     self.converted(to: .degrees).formatted(
-      .measurement(width: .narrow, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(6)))
+      .measurement(width: .narrow, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(6))).locale(locale)
     )
+  }
+
+  public var marineFormatted: String {
+    marineFormatted()
   }
 
   /// Returns the normalized angle value in degrees clamped strictly to [0, 360).
@@ -140,10 +185,14 @@ extension Measurement where UnitType == UnitAngle {
 }
 
 extension Measurement where UnitType == UnitArea {
-  public var marineFormatted: String {
-    self.converted(to: .squareNauticalMiles).formatted(
-      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(1)))
+  public func marineFormatted(locale: Locale = .autoupdatingCurrent) -> String {
+    self.converted(to: .marineSquareNauticalMiles).formatted(
+      .measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(1))).locale(locale)
     )
+  }
+
+  public var marineFormatted: String {
+    marineFormatted()
   }
 }
 
