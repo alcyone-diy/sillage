@@ -157,6 +157,7 @@
 			name = SillageTests;
 			packageProductDependencies = (
 				0265CA152FAFE4000077046A /* SQLCipher */,
+				020D22012FC3BBF900101B1B /* Clocks */,
 			);
 			productName = SillageTests;
 			productReference = 020D21E82FC2B58F00101B1B /* SillageTests.xctest */;
@@ -681,6 +682,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0265CA142FAFE4000077046A /* XCRemoteSwiftPackageReference "SQLCipher.swift" */;
 			productName = SQLCipher;
+		};
+		020D22012FC3BBF900101B1B /* Clocks */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 020D22002FC3BBF900101B1B /* XCRemoteSwiftPackageReference "swift-clocks" */;
+			productName = Clocks;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
