@@ -185,6 +185,22 @@ public final class DatabaseManager: Sendable {
       try db.create(index: "idx_waypoint_timestamp_unix", on: "waypoint", columns: ["timestamp_unix"])
     }
     
+    migrator.registerMigration("v2") { db in
+      // Create the barometric reading table for weather telemetry history
+      try db.create(table: BarometricReadingRecord.databaseTableName) { t in
+        t.autoIncrementedPrimaryKey("id")
+        t.column("timestamp_unix", .double).notNull()
+        t.column("pressure_hpa", .double).notNull()
+      }
+      
+      // Index for efficient time-range queries (1h, 3h, 24h, custom DateInterval) and pruning
+      try db.create(
+        index: "idx_barometric_reading_timestamp_unix",
+        on: BarometricReadingRecord.databaseTableName,
+        columns: ["timestamp_unix"]
+      )
+    }
+    
     return migrator
   }
 }
