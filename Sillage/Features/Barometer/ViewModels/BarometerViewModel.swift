@@ -21,6 +21,7 @@ public final class BarometerViewModel {
   private var preferencesService: PreferencesService
   
   // MARK: - Internal Tasks
+  @ObservationIgnored
   nonisolated(unsafe) private var fetchTask: Task<Void, Never>?
   
   // MARK: - Settings Bindings

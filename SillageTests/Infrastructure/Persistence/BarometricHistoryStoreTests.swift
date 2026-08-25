@@ -13,6 +13,7 @@ import Foundation
 import GRDB
 @testable import Sillage
 
+@MainActor
 @Suite("Barometric History Store Tests")
 final class BarometricHistoryStoreTests {
   let dbManager: DatabaseManager
@@ -73,7 +74,7 @@ final class BarometricHistoryStoreTests {
     
     // Insert older point directly into SQLite to simulate existing pre-cutoff record
     try await dbManager.write { db in
-      var oldRecord = BarometricReadingRecord(domainModel: reading8DaysAgo)
+      let oldRecord = BarometricReadingRecord(domainModel: reading8DaysAgo)
       try oldRecord.insert(db)
     }
     

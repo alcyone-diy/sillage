@@ -15,7 +15,7 @@ import UniformTypeIdentifiers
 import os
 import OSLog
 
-fileprivate enum TileSource: Sendable {
+private enum TilePayloadSource: Sendable {
   case localPackage
   case network
   case fallback
@@ -101,11 +101,14 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
           guard !Task.isCancelled else { return }
 
           let cacheControl: String
+          let storagePolicy: URLCache.StoragePolicy
           switch source {
           case .network:
             cacheControl = "max-age=604800, public"
+            storagePolicy = .allowed
           case .localPackage, .fallback, .transparent:
             cacheControl = "no-store"
+            storagePolicy = .notAllowed
           }
           let headers = [
             "Content-Type": "image/png",
@@ -119,7 +122,6 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
           
           // URLProtocol contract: do not send messages if cancelled
           guard !Task.isCancelled else { return }
-          let storagePolicy: URLCache.StoragePolicy = (source == .network) ? .allowed : .notAllowed
           self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: storagePolicy)
           
           guard !Task.isCancelled else { return }
@@ -150,7 +152,7 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
   // MARK: - Tile Resolution (Hybrid Offline/Online Pipeline)
 
-  private func fetchTileData(for url: URL, depth: Int = 0) async throws -> (Data, TileSource)? {
+  private func fetchTileData(for url: URL, depth: Int = 0) async throws -> (Data, TilePayloadSource)? {
     guard let host = url.host, host == "tiles.geogarage.com" else { return nil }
 
     // 1. Safe parsing of XYZ tile coordinates
@@ -215,7 +217,7 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
   // MARK: - Fallback & Overzooming
 
-  private func generateFallbackTile(for url: URL, depth: Int) async throws -> (Data, TileSource)? {
+  private func generateFallbackTile(for url: URL, depth: Int) async throws -> (Data, TilePayloadSource)? {
     guard let match = url.path.firstMatch(of: Self.tilePathRegex) else { return nil }
 
     let clientID = String(match.output.1)
