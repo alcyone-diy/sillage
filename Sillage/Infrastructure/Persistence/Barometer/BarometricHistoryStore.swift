@@ -23,10 +23,10 @@ public actor BarometricHistoryStore {
   /// Call `load()` after initialization to populate the history from disk.
   /// - Parameters:
   ///   - fileURL: The URL where the JSON history is stored. Defaults to `barometric_history.json` in the documents directory.
-  ///   - maxHistoryDuration: The maximum duration of data to retain (defaults to 48 hours).
+  ///   - maxHistoryDuration: The maximum duration of data to retain (defaults to 7 days / 168 hours).
   public init(
     fileURL: URL = URL.documentsDirectory.appendingPathComponent("barometric_history.json"),
-    maxHistoryDuration: TimeInterval = 48 * 3600
+    maxHistoryDuration: TimeInterval = 7 * 24 * 3600
   ) {
     self.fileURL = fileURL
     self.maxHistoryDuration = maxHistoryDuration
