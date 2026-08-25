@@ -84,4 +84,62 @@ public actor BarometricHistoryStore {
       return []
     }
   }
+  
+  // MARK: - Legacy Migration
+  
+  /// Migrates legacy JSON history into SQLite in a single non-blocking batch transaction.
+  /// The legacy JSON file is deleted if and only if the batch insertion succeeds without throwing.
+  /// - Parameter fileURL: The URL of the legacy JSON file. Defaults to `barometric_history.json` in Documents directory.
+  public func migrateLegacyJSONIfNeeded(
+    fileURL: URL = URL.documentsDirectory.appendingPathComponent("barometric_history.json")
+  ) async {
+    guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+    
+    Logger.barometer.info("Detected legacy barometric_history.json. Starting one-shot batch migration to SQLite...")
+    
+    do {
+      let data = try Data(contentsOf: fileURL)
+      let legacyReadings = try JSONDecoder().decode([LegacyJSONReading].self, from: data)
+      
+      guard !legacyReadings.isEmpty else {
+        try? FileManager.default.removeItem(at: fileURL)
+        Logger.barometer.info("Legacy JSON file was empty. Removed legacy file.")
+        return
+      }
+      
+      let maxDuration = self.maxHistoryDuration
+      let cutoffUnix = Date.now.addingTimeInterval(-maxDuration).timeIntervalSince1970
+      
+      // Perform batch insertion within a single atomic SQLite transaction
+      try await databaseManager.write { db in
+        for legacy in legacyReadings {
+          let timestampUnix = legacy.timestamp.timeIntervalSince1970
+          // Retain only readings within the maximum history duration
+          guard timestampUnix >= cutoffUnix else { continue }
+          
+          let pressureHPa = legacy.pressure.converted(to: .hectopascals).value
+          let record = BarometricReadingRecord(
+            id: nil,
+            timestampUnix: timestampUnix,
+            pressureHPa: pressureHPa
+          )
+          try record.insert(db)
+        }
+      }
+      
+      // Only delete the legacy JSON file if database insertion succeeded without throwing
+      try FileManager.default.removeItem(at: fileURL)
+      Logger.barometer.info("Successfully migrated \(legacyReadings.count, privacy: .public) legacy barometric readings to SQLite and removed JSON file.")
+    } catch {
+      Logger.barometer.error("Failed to migrate legacy barometric JSON to SQLite: \(error.localizedDescription, privacy: .public)")
+    }
+  }
+}
+
+// MARK: - Legacy Migration DTO
+
+/// Private DTO used strictly to decode legacy `barometric_history.json` files during one-shot migration.
+private struct LegacyJSONReading: Decodable {
+  let timestamp: Date
+  let pressure: Measurement<UnitPressure>
 }
