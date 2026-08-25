@@ -193,6 +193,17 @@ public struct BarometerAlarmView: View {
     .onChange(of: scrollPosition) { _, newPosition in
       loadVisibleData(around: newPosition)
     }
+    .task {
+      // Periodically refresh the time anchor every minute while active so the user can always scroll right to the present
+      while !Task.isCancelled {
+        viewModel.updateLatestTimestamp()
+        do {
+          try await Task.sleep(for: .seconds(60))
+        } catch {
+          break
+        }
+      }
+    }
     .task(id: viewModel.service.lastHistoryUpdate) {
       loadVisibleData(around: scrollPosition)
     }
@@ -237,13 +248,24 @@ public struct BarometerAlarmView: View {
     }
   }
   
-  /// Midday (12:00) timestamps across the 7-day span for day badge placement
+  /// Midday (12:00) or midpoint timestamps across the 7-day span for day badge placement
   private var middayAnchors: [Date] {
     let calendar = Calendar.current
     let startOfToday = calendar.startOfDay(for: viewModel.latestTimestamp)
     return (0...7).compactMap { daysAgo in
       guard let dayStart = calendar.date(byAdding: .day, value: -daysAgo, to: startOfToday) else { return nil }
-      return calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart)
+      if daysAgo == 0 {
+        // For today, if midday hasn't occurred yet, place anchor at the middle of elapsed time today
+        if let midday = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart),
+           viewModel.latestTimestamp >= midday {
+          return midday
+        } else {
+          let elapsed = max(60, viewModel.latestTimestamp.timeIntervalSince(dayStart))
+          return dayStart.addingTimeInterval(elapsed / 2.0)
+        }
+      } else {
+        return calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart)
+      }
     }
   }
   
