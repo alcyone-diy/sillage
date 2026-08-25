@@ -85,6 +85,11 @@ final class AppEnvironment {
       
       let barometricHistoryStore = BarometricHistoryStore(databaseManager: databaseManager)
       
+      // Perform legacy JSON migration asynchronously in background without blocking bootstrap
+      Task.detached(priority: .utility) {
+        await barometricHistoryStore.migrateLegacyJSONIfNeeded()
+      }
+      
       let notificationService = LocalNotificationService()
       
       let permissionService = PermissionService(
