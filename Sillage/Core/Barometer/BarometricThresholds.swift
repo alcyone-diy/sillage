@@ -22,4 +22,10 @@ public extension Measurement where UnitType == UnitPressure {
   
   /// Drop >= 5.0 hPa / 3h (Storm Warning)
   static let stormThreshold = Measurement(value: -5.0, unit: UnitPressure.hectopascals)
+  
+  /// Minimum plausible atmospheric sea-level pressure (800 hPa)
+  static let minimumPlausiblePressure = Measurement(value: 800.0, unit: UnitPressure.hectopascals)
+  
+  /// Maximum plausible atmospheric sea-level pressure (1100 hPa)
+  static let maximumPlausiblePressure = Measurement(value: 1100.0, unit: UnitPressure.hectopascals)
 }

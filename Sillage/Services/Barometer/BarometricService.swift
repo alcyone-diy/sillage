@@ -160,6 +160,12 @@ public final class BarometricService {
     let offsetMeasurement = preferencesService.barometerOffset
     let correctedPressure = pressureHPa + offsetMeasurement
     
+    // Upstream validation: discard aberrant sensor glitches outside physical meteorological bounds
+    guard correctedPressure >= .minimumPlausiblePressure && correctedPressure <= .maximumPlausiblePressure else {
+      Logger.barometer.warning("Ignoring aberrant barometric reading outside plausible range [800, 1100] hPa: \(correctedPressure.description, privacy: .public)")
+      return
+    }
+    
     // Add to micro-buffer
     microBuffer.append((timestamp: now, pressure: correctedPressure))
     

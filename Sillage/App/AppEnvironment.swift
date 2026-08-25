@@ -83,8 +83,7 @@ final class AppEnvironment {
       let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
       instrumentDampingService.start()
       
-      let barometricHistoryStore = BarometricHistoryStore()
-      await barometricHistoryStore.load()
+      let barometricHistoryStore = BarometricHistoryStore(databaseManager: databaseManager)
       
       let notificationService = LocalNotificationService()
       
