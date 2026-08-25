@@ -32,7 +32,7 @@ public final class TrackPersistenceWriter: Sendable {
     let (stream, continuation) = AsyncStream.makeStream(of: Action.self)
     self.continuation = continuation
     
-    self.persistenceTask = Task.detached(priority: .utility) { [databaseManager] in
+    self.persistenceTask = Task.detached(priority: .userInitiated) { [databaseManager] in
       var buffer: [TrackPointRecord] = []
       
       for await action in stream {

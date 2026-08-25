@@ -75,7 +75,7 @@ public final class AnchorStateStore: AnchorStateStoreProtocol, @unchecked Sendab
     let writer = diskWriter
     do {
       let data = try JSONEncoder().encode(session)
-      Task.detached(priority: .utility) {
+      Task.detached(priority: .medium) {
         await writer.write(data, to: url)
       }
     } catch {
