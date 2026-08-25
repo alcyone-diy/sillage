@@ -95,7 +95,7 @@ public enum BackgroundTaskRunner {
   /// when the closure returns. Use for short fire-and-forget work.
   public static func execute(
     name: String,
-    priority: TaskPriority = .utility,
+    priority: TaskPriority = .medium,
     operation: @escaping @Sendable () async -> Void
   ) {
     let token = BackgroundTaskToken(name: name)

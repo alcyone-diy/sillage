@@ -204,7 +204,8 @@ public final class BarometricService {
       let reading = BarometricReading(timestamp: now, pressure: averagePressure)
       let store = self.historyStore
       
-      Task {
+      Task(priority: .medium) { [weak self] in
+        guard let self else { return }
         await store.add(reading: reading)
         await self.updateTrend()
       }
