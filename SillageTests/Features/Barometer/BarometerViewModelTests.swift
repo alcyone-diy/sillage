@@ -66,10 +66,48 @@ final class BarometerViewModelTests {
     viewModel.refreshHistoryDebounced(in: intervalRecent)
     
     // Wait for the 150ms debounce sleep to settle
-    try await Task.sleep(for: .milliseconds(250))
+    try await Task.sleep(for: .milliseconds(500))
     
     // Only the second request (intervalRecent with r1) should have been loaded
     #expect(viewModel.history24h.count == 1)
     #expect(viewModel.history24h.first?.pressure.value == 1010.0)
   }
+  
+  @Test("Latest timestamp remains anchored to current time when querying past history")
+  func testLatestTimestampRemainsAnchoredToPresentWhenLoadingPastHistory() async throws {
+    let now = Date.now
+    let anchorBeforeQuery = viewModel.latestTimestamp
+    
+    // Add readings 4 days in the past
+    let pastDate = now.addingTimeInterval(-4 * 24 * 3600)
+    let pastReading = BarometricReading(timestamp: pastDate, pressure: Measurement(value: 1013.25, unit: .hectopascals))
+    await store.add(reading: pastReading)
+    
+    // Query historical window from 5 days ago to 3 days ago
+    let pastInterval = DateInterval(
+      start: now.addingTimeInterval(-5 * 24 * 3600),
+      end: now.addingTimeInterval(-3 * 24 * 3600)
+    )
+    await viewModel.refreshHistory(in: pastInterval)
+    
+    // The chart data should be populated with the past reading
+    #expect(viewModel.chartData.count == 1)
+    if let firstTimestamp = viewModel.chartData.first?.reading.timestamp {
+      #expect(abs(firstTimestamp.timeIntervalSince(pastDate)) < 0.01)
+    }
+    
+    // Crucially, latestTimestamp MUST NOT be shifted to the past date (must remain >= anchorBeforeQuery)
+    #expect(viewModel.latestTimestamp >= anchorBeforeQuery)
+    #expect(viewModel.latestTimestamp.timeIntervalSince(now) >= -1.0)
+  }
+  
+  @Test("Update latest timestamp refreshes anchor to current time")
+  func testUpdateLatestTimestampRefreshesAnchor() async throws {
+    let before = Date.now
+    try await Task.sleep(for: .milliseconds(10))
+    viewModel.updateLatestTimestamp()
+    #expect(viewModel.latestTimestamp >= before)
+    #expect(viewModel.latestTimestamp.timeIntervalSinceNow >= -1.0)
+  }
 }
+

@@ -86,9 +86,14 @@ public final class BarometerViewModel {
   /// Holds the active lookback window barometric history (defaults to 24 hours) for chart rendering.
   public var history24h: [BarometricReading] = []
   
-  /// Stable anchor timestamp of the most recently refreshed history point or operation.
-  /// Used by UI views to bound chart scales without causing redraw micro-stutters from dynamic `Date.now`.
-  public var latestTimestamp: Date = Date.now
+  /// Stable anchor timestamp representing the current time reference for the chart.
+  /// Used by UI views to bound chart scales up to the current date and time.
+  public private(set) var latestTimestamp: Date = Date.now
+  
+  /// Explicitly updates the chart scale reference timestamp to current time.
+  public func updateLatestTimestamp() {
+    self.latestTimestamp = Date.now
+  }
   
   /// Wrapper for graph data to properly break the line across missing data gaps.
   public struct ChartDataPoint: Identifiable, Sendable {
@@ -165,7 +170,10 @@ public final class BarometerViewModel {
     
     self.history24h = readings
     self.chartData = newChartData
-    self.latestTimestamp = sortedReadings.last?.timestamp ?? Date.now
+    // Keep latestTimestamp anchored to current time so the user can always scroll right to the present
+    if Date.now > self.latestTimestamp {
+      self.latestTimestamp = Date.now
+    }
   }
   
   // MARK: - Lifecycle Actions
