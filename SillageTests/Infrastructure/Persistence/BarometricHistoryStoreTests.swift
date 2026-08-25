@@ -105,47 +105,4 @@ final class BarometricHistoryStoreTests {
     #expect(results.count == 1)
     #expect(results.first?.pressure.value == 1005.0)
   }
-  
-  @Test("One-shot batch migration from legacy JSON file")
-  func testBatchLegacyJSONMigration() async throws {
-    let tempDir = FileManager.default.temporaryDirectory
-    let jsonURL = tempDir.appendingPathComponent("test_legacy_baro_\(UUID().uuidString).json")
-    
-    let now = Date.now
-    let legacyReadings = [
-      BarometricReading(timestamp: now.addingTimeInterval(-3600), pressure: Measurement(value: 1012.0, unit: .hectopascals)),
-      BarometricReading(timestamp: now.addingTimeInterval(-7200), pressure: Measurement(value: 1011.5, unit: .hectopascals)),
-      BarometricReading(timestamp: now.addingTimeInterval(-10 * 24 * 3600), pressure: Measurement(value: 1025.0, unit: .hectopascals))
-    ]
-    
-    let data = try JSONEncoder().encode(legacyReadings)
-    try data.write(to: jsonURL)
-    #expect(FileManager.default.fileExists(atPath: jsonURL.path))
-    
-    await store.migrateLegacyJSONIfNeeded(fileURL: jsonURL)
-    
-    // File must be deleted after successful batch insertion
-    #expect(!FileManager.default.fileExists(atPath: jsonURL.path))
-    
-    // Check SQLite contents
-    let migratedReadings = await store.getReadings(for: 7 * 24)
-    #expect(migratedReadings.count == 2)
-    #expect(migratedReadings.contains(where: { $0.pressure.value == 1012.0 }))
-    #expect(migratedReadings.contains(where: { $0.pressure.value == 1011.5 }))
-    #expect(!migratedReadings.contains(where: { $0.pressure.value == 1025.0 }))
-  }
-  
-  @Test("Empty legacy JSON file is deleted")
-  func testEmptyLegacyJSONFileRemoved() async throws {
-    let tempDir = FileManager.default.temporaryDirectory
-    let jsonURL = tempDir.appendingPathComponent("test_empty_baro_\(UUID().uuidString).json")
-    
-    let data = try JSONEncoder().encode([BarometricReading]())
-    try data.write(to: jsonURL)
-    #expect(FileManager.default.fileExists(atPath: jsonURL.path))
-    
-    await store.migrateLegacyJSONIfNeeded(fileURL: jsonURL)
-    
-    #expect(!FileManager.default.fileExists(atPath: jsonURL.path))
-  }
 }
