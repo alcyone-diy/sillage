@@ -202,6 +202,26 @@ struct CommandPanelView: View {
   @ViewBuilder
   private var navigationSection: some View {
     Section(header: Text("Navigation")) {
+      NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
+        Label {
+          Text("Tracks").foregroundStyle(.primary)
+        } icon: {
+          Image(marineIcon: .track).foregroundStyle(.blue)
+        }
+        .marineFont(.body)
+      }
+      .marineListCell()
+
+      NavigationLink(value: PanelManagerViewModel.CommandDestination.waypoints) {
+        Label {
+          Text("Waypoints").foregroundStyle(.primary)
+        } icon: {
+          Image(marineIcon: .waypoint).foregroundStyle(.blue)
+        }
+        .marineFont(.body)
+      }
+      .marineListCell()
+
       NavigationLink(value: PanelManagerViewModel.CommandDestination.offlineCharts) {
         HStack(spacing: MarineTheme.Spacing.medium) {
           Image(marineIcon: .offlineChart)
@@ -224,26 +244,6 @@ struct CommandPanelView: View {
         }
       }
       .animation(.default, value: appEnvironment.offlineChartsDownloadProgress != nil)
-      .marineListCell()
-
-      NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
-        Label {
-          Text("Tracks").foregroundStyle(.primary)
-        } icon: {
-          Image(marineIcon: .track).foregroundStyle(.blue)
-        }
-        .marineFont(.body)
-      }
-      .marineListCell()
-
-      NavigationLink(value: PanelManagerViewModel.CommandDestination.waypoints) {
-        Label {
-          Text("Waypoints").foregroundStyle(.primary)
-        } icon: {
-          Image(marineIcon: .waypoint).foregroundStyle(.blue)
-        }
-        .marineFont(.body)
-      }
       .marineListCell()
     }
   }
