@@ -102,6 +102,11 @@ public final class BarometricService {
     return await historyStore.getReadings(for: lastHours)
   }
   
+  /// Retrieves the barometric history for the specified date interval.
+  public func getHistoryReadings(in interval: DateInterval) async throws -> [BarometricReading] {
+    return try await historyStore.getReadings(in: interval)
+  }
+  
   public func startUpdates() {
     guard sensorState == .idle || sensorState == .degraded else {
       Logger.barometer.debug("Update already in progress. Ignoring start request.")
