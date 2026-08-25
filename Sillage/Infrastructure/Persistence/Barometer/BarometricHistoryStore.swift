@@ -9,81 +9,79 @@
 //
 
 import Foundation
+import GRDB
 import OSLog
 
-/// Actor responsible for thread-safe storage and persistence of barometric history.
-/// It acts as a circular buffer, maintaining readings up to a specified maximum duration.
+/// Actor responsible for thread-safe storage and persistence of barometric history in SQLite using GRDB.
+/// It acts as a circular database store, automatically pruning readings older than the maximum history duration.
 public actor BarometricHistoryStore {
   
-  private var buffer: [BarometricReading] = []
-  private let fileURL: URL
+  private let databaseManager: DatabaseManager
   private let maxHistoryDuration: TimeInterval
   
-  /// Instant, memory-only initialization.
-  /// Call `load()` after initialization to populate the history from disk.
+  /// Initializes the store with a GRDB `DatabaseManager` instance.
   /// - Parameters:
-  ///   - fileURL: The URL where the JSON history is stored. Defaults to `barometric_history.json` in the documents directory.
+  ///   - databaseManager: The database manager coordinating SQLite transactions.
   ///   - maxHistoryDuration: The maximum duration of data to retain (defaults to 7 days / 168 hours).
   public init(
-    fileURL: URL = URL.documentsDirectory.appendingPathComponent("barometric_history.json"),
+    databaseManager: DatabaseManager,
     maxHistoryDuration: TimeInterval = 7 * 24 * 3600
   ) {
-    self.fileURL = fileURL
+    self.databaseManager = databaseManager
     self.maxHistoryDuration = maxHistoryDuration
   }
   
-  /// Loads the history from disk asynchronously using a detached task.
-  /// This should be called once during app startup (e.g. from AppEnvironment).
-  public func load() async {
-    let url = fileURL
-    let loadedBuffer = await Task.detached(priority: .background) {
-      guard FileManager.default.fileExists(atPath: url.path) else { return [BarometricReading]() }
-      do {
-        let data = try Data(contentsOf: url)
-        return try JSONDecoder().decode([BarometricReading].self, from: data)
-      } catch {
-        Logger.barometer.error("Failed to load barometric history from disk: \(error.localizedDescription, privacy: .public)")
-        return []
-      }
-    }.value
+  /// Adds a new reading to the database and prunes readings older than `maxHistoryDuration` in an asynchronous transaction.
+  /// - Parameter reading: The new `BarometricReading` to persist.
+  public func add(reading: BarometricReading) async {
+    let maxDuration = maxHistoryDuration
+    let cutoffUnix = Date.now.addingTimeInterval(-maxDuration).timeIntervalSince1970
+    let record = BarometricReadingRecord(domainModel: reading)
     
-    self.buffer = loadedBuffer
-    self.pruneBuffer()
+    do {
+      try await databaseManager.write { db in
+        try record.insert(db)
+        // Prune older points to maintain the 7-day circular rolling window
+        try BarometricReadingRecord
+          .filter(BarometricReadingRecord.Columns.timestampUnix < cutoffUnix)
+          .deleteAll(db)
+      }
+    } catch {
+      Logger.barometer.error("Failed to persist barometric reading to database: \(error.localizedDescription, privacy: .public)")
+    }
   }
   
-  /// Adds a new reading to the buffer and persists the updated buffer to disk in the background.
-  /// - Parameter reading: The new `BarometricReading` to add.
-  public func add(reading: BarometricReading) {
-    buffer.append(reading)
-    pruneBuffer()
+  /// Retrieves all readings recorded within the specified arbitrary `DateInterval`.
+  /// Enables seamless querying for custom intervals (e.g. historical scrolling).
+  /// - Parameter interval: The date interval to fetch readings for.
+  /// - Returns: An array of `BarometricReading` ordered chronologically.
+  public func getReadings(in interval: DateInterval) async throws -> [BarometricReading] {
+    let startUnix = interval.start.timeIntervalSince1970
+    let endUnix = interval.end.timeIntervalSince1970
     
-    let snapshot = buffer
-    let url = fileURL
-    
-    // Detached task ensures that writing to disk does not block the actor's execution queue
-    Task.detached(priority: .background) {
-      do {
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(snapshot)
-        // Atomic write prevents file corruption if the app is killed during the write process
-        try data.write(to: url, options: .atomic)
-      } catch {
-        Logger.barometer.error("Failed to write barometric history to disk: \(error.localizedDescription, privacy: .public)")
-      }
+    return try await databaseManager.reader.read { db in
+      let records = try BarometricReadingRecord
+        .filter(BarometricReadingRecord.Columns.timestampUnix >= startUnix && BarometricReadingRecord.Columns.timestampUnix <= endUnix)
+        .order(BarometricReadingRecord.Columns.timestampUnix.asc)
+        .fetchAll(db)
+      return records.map { $0.domainModel }
     }
   }
   
   /// Retrieves all readings recorded within the specified number of past hours.
+  /// Convenience helper maintaining backward compatibility for fixed lookback windows (e.g. 1h, 3h, 24h).
   /// - Parameter lastHours: The number of hours to look back.
   /// - Returns: An array of `BarometricReading` matching the timeframe.
-  public func getReadings(for lastHours: Int) -> [BarometricReading] {
-    let cutoffDate = Date.now.addingTimeInterval(-Double(lastHours) * 3600)
-    return buffer.filter { $0.timestamp >= cutoffDate }
-  }
-  
-  /// Removes readings that are older than the maximum allowed history duration.
-  private func pruneBuffer() {
-    let cutoff = Date.now.addingTimeInterval(-maxHistoryDuration)
-    buffer = buffer.filter { $0.timestamp >= cutoff }
+  public func getReadings(for lastHours: Int) async -> [BarometricReading] {
+    let now = Date.now
+    let cutoff = now.addingTimeInterval(-Double(lastHours) * 3600)
+    let interval = DateInterval(start: cutoff, end: now)
+    
+    do {
+      return try await getReadings(in: interval)
+    } catch {
+      Logger.barometer.error("Failed to fetch barometric history for last \(lastHours)h: \(error.localizedDescription, privacy: .public)")
+      return []
+    }
   }
 }
