@@ -11,10 +11,12 @@
 import Testing
 import Foundation
 import CoreMotion
+import Synchronization
+import Clocks
 @testable import Sillage
 
 @MainActor
-@Suite("Barometer View Model Tests")
+@Suite(.serialized, "Barometer View Model Tests")
 final class BarometerViewModelTests {
   let dbManager: DatabaseManager
   let store: BarometricHistoryStore
@@ -23,6 +25,8 @@ final class BarometerViewModelTests {
   let permissionService: PermissionService
   let positioningService: CoreLocationPositioningService
   let barometricService: BarometricService
+  let testClock: TestClock<Duration>
+  let simulatedNow: Mutex<Date>
   let viewModel: BarometerViewModel
   
   init() throws {
@@ -41,15 +45,21 @@ final class BarometerViewModelTests {
       notificationService: notificationService,
       permissionService: permissionService
     )
-    viewModel = BarometerViewModel(
+    let clock = TestClock()
+    let nowMutex = Mutex(Date(timeIntervalSince1970: 1_700_000_000))
+    self.testClock = clock
+    self.simulatedNow = nowMutex
+    self.viewModel = BarometerViewModel(
       service: barometricService,
-      preferencesService: preferencesService
+      preferencesService: preferencesService,
+      clock: clock,
+      dateProvider: { nowMutex.withLock { $0 } }
     )
   }
   
   @Test("Debounced refresh cancels preceding rapid requests")
   func testDebouncedRefreshCancelsPrecedingRequests() async throws {
-    let now = Date.now
+    let now = simulatedNow.withLock { $0 }
     
     // Add readings at -1h and -5h
     let r1 = BarometricReading(timestamp: now.addingTimeInterval(-3600), pressure: Measurement(value: 1010.0, unit: .hectopascals))
@@ -65,8 +75,14 @@ final class BarometerViewModelTests {
     viewModel.refreshHistoryDebounced(in: intervalOld)
     viewModel.refreshHistoryDebounced(in: intervalRecent)
     
-    // Wait for the 150ms debounce sleep to settle
-    try await Task.sleep(for: .milliseconds(500))
+    // Allow the debounced task to start and suspend on clock.sleep
+    for _ in 0..<10 { await Task.yield() }
+    
+    // Virtual advance through test clock (instantaneous, no real-time wait!)
+    await testClock.advance(by: .milliseconds(150))
+    
+    // Allow the resumed task to fetch and process readings
+    for _ in 0..<10 { await Task.yield() }
     
     // Only the second request (intervalRecent with r1) should have been loaded
     #expect(viewModel.history24h.count == 1)
@@ -75,7 +91,7 @@ final class BarometerViewModelTests {
   
   @Test("Latest timestamp remains anchored to current time when querying past history")
   func testLatestTimestampRemainsAnchoredToPresentWhenLoadingPastHistory() async throws {
-    let now = Date.now
+    let now = simulatedNow.withLock { $0 }
     let anchorBeforeQuery = viewModel.latestTimestamp
     
     // Add readings 4 days in the past
@@ -96,18 +112,20 @@ final class BarometerViewModelTests {
       #expect(abs(firstTimestamp.timeIntervalSince(pastDate)) < 0.01)
     }
     
-    // Crucially, latestTimestamp MUST NOT be shifted to the past date (must remain >= anchorBeforeQuery)
-    #expect(viewModel.latestTimestamp >= anchorBeforeQuery)
-    #expect(viewModel.latestTimestamp.timeIntervalSince(now) >= -1.0)
+    // Crucially, latestTimestamp MUST NOT be shifted to the past date
+    #expect(viewModel.latestTimestamp == anchorBeforeQuery)
   }
   
   @Test("Update latest timestamp refreshes anchor to current time")
   func testUpdateLatestTimestampRefreshesAnchor() async throws {
-    let before = Date.now
-    try await Task.sleep(for: .milliseconds(10))
+    let before = simulatedNow.withLock { $0 }
+    #expect(viewModel.latestTimestamp == before)
+    
+    let advancedDate = before.addingTimeInterval(3600)
+    simulatedNow.withLock { $0 = advancedDate }
     viewModel.updateLatestTimestamp()
-    #expect(viewModel.latestTimestamp >= before)
-    #expect(viewModel.latestTimestamp.timeIntervalSinceNow >= -1.0)
+    
+    #expect(viewModel.latestTimestamp == advancedDate)
   }
 }
 

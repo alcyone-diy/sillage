@@ -19,6 +19,8 @@ public final class BarometerViewModel {
   // MARK: - Dependencies
   public let service: BarometricService
   private var preferencesService: PreferencesService
+  private let clock: any Clock<Duration>
+  private let dateProvider: @Sendable () -> Date
   
   // MARK: - Internal Tasks
   @ObservationIgnored
@@ -72,9 +74,17 @@ public final class BarometerViewModel {
   }()
   
   // MARK: - Initialization
-  init(service: BarometricService, preferencesService: PreferencesService) {
+  init(
+    service: BarometricService,
+    preferencesService: PreferencesService,
+    clock: any Clock<Duration> = ContinuousClock(),
+    dateProvider: @escaping @Sendable () -> Date = { Date.now }
+  ) {
     self.service = service
     self.preferencesService = preferencesService
+    self.clock = clock
+    self.dateProvider = dateProvider
+    self.latestTimestamp = dateProvider()
   }
   
   deinit {
@@ -88,11 +98,11 @@ public final class BarometerViewModel {
   
   /// Stable anchor timestamp representing the current time reference for the chart.
   /// Used by UI views to bound chart scales up to the current date and time.
-  public private(set) var latestTimestamp: Date = Date.now
+  public private(set) var latestTimestamp: Date
   
   /// Explicitly updates the chart scale reference timestamp to current time.
   public func updateLatestTimestamp() {
-    self.latestTimestamp = Date.now
+    self.latestTimestamp = dateProvider()
   }
   
   /// Wrapper for graph data to properly break the line across missing data gaps.
@@ -128,7 +138,7 @@ public final class BarometerViewModel {
     fetchTask = Task { @MainActor [weak self] in
       guard let self else { return }
       do {
-        try await Task.sleep(for: .milliseconds(150))
+        try await self.clock.sleep(for: .milliseconds(150))
         guard !Task.isCancelled else { return }
         
         let readings = try await self.service.getHistoryReadings(in: interval)
@@ -145,7 +155,7 @@ public final class BarometerViewModel {
   
   /// Asynchronously refreshes the barometric history for a specific lookback window with debouncing (150ms).
   public func refreshHistoryDebounced(lastHours: Int = 24) {
-    let now = Date.now
+    let now = dateProvider()
     let interval = DateInterval(start: now.addingTimeInterval(-Double(lastHours) * 3600), end: now)
     refreshHistoryDebounced(in: interval)
   }
@@ -171,8 +181,9 @@ public final class BarometerViewModel {
     self.history24h = readings
     self.chartData = newChartData
     // Keep latestTimestamp anchored to current time so the user can always scroll right to the present
-    if Date.now > self.latestTimestamp {
-      self.latestTimestamp = Date.now
+    let now = dateProvider()
+    if now > self.latestTimestamp {
+      self.latestTimestamp = now
     }
   }
   
