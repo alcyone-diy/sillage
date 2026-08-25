@@ -347,6 +347,9 @@
     "Critical GPS accuracy. Anchor alarm is temporarily unreliable." : {
 
     },
+    "Day Boundary" : {
+
+    },
     "Debug" : {
 
     },
@@ -758,6 +761,9 @@
     "No chart layer available for download. Please select a valid layer." : {
 
     },
+    "No data recorded for this time period" : {
+
+    },
     "No Offline Charts" : {
 
     },
@@ -1020,6 +1026,9 @@
     "To alert you if your vessel drags anchor, %@ needs continuous background GPS access." : {
 
     },
+    "Today" : {
+
+    },
     "Total size: %@" : {
 
     },
@@ -1139,6 +1148,9 @@
 
     },
     "XTE" : {
+
+    },
+    "Yesterday" : {
 
     },
     "You can change this at any time in the Settings app." : {
