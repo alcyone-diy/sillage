@@ -256,6 +256,28 @@ public final class BarometerViewModel {
   
   public var chartData: [ChartDataPoint] = []
   
+  /// Computes a Y-axis domain that spans at least 5 hPa to avoid exaggerating micro-fluctuations
+  public var chartDomain: ClosedRange<Double> {
+    guard let minReading = history24h.min(by: { $0.pressure < $1.pressure }),
+          let maxReading = history24h.max(by: { $0.pressure < $1.pressure }) else {
+      let defaultCenter = service.currentPressure?.converted(to: .hectopascals).value ?? 1013.25
+      return (defaultCenter - 2.5)...(defaultCenter + 2.5)
+    }
+    
+    let minVal = minReading.pressure.converted(to: .hectopascals).value
+    let maxVal = maxReading.pressure.converted(to: .hectopascals).value
+    let range = maxVal - minVal
+    
+    // Ensure a minimum 5 hPa span so normal diurnal tides (2-3 hPa) fit without exaggerating small drops.
+    if range < 5.0 {
+      let center = (minVal + maxVal) / 2.0
+      return (center - 2.5)...(center + 2.5)
+    } else {
+      let padding = range * 0.1
+      return (minVal - padding)...(maxVal + padding)
+    }
+  }
+  
   /// Asynchronously refreshes the barometric history for a specific lookback window (defaults to 24 hours)
   /// without loading the full 7-day database into memory.
   public func refreshHistory(lastHours: Int = 24) async {
