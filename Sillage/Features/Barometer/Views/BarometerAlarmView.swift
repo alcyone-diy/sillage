@@ -24,6 +24,9 @@ public struct BarometerAlarmView: View {
   /// Maximum history span available in SQLite (7 days in seconds)
   private let maxHistorySpanSeconds: TimeInterval = 7 * 24 * 3600
   
+  /// Tolerance window (in seconds) to consider the scroll position attached to the rightmost trailing edge
+  private let trailingEdgeToleranceSeconds: TimeInterval = 60
+  
   /// Current horizontal scroll anchor position (defaults to the start of the latest 24-hour slice)
   @State private var scrollPosition: Date = Date.now.addingTimeInterval(-24 * 3600)
   
@@ -69,7 +72,7 @@ public struct BarometerAlarmView: View {
           // MARK: - Horizontally Scrollable 7-Day History Chart (Persistent)
           Chart {
             // 1. Midnight vertical day separators
-            ForEach(midnightBoundaries, id: \.self) { midnight in
+            ForEach(viewModel.midnightBoundaries, id: \.self) { midnight in
               RuleMark(x: .value("Day Boundary", midnight))
                 .foregroundStyle(marineTheme.colors.textSecondary.opacity(0.45))
                 .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
@@ -102,16 +105,7 @@ public struct BarometerAlarmView: View {
             }
           }
           .chartXAxis {
-            // Top axis: Clear day labels positioned at midday (12:00)
-            AxisMarks(position: .top, values: middayAnchors) { value in
-              AxisValueLabel {
-                if let date = value.as(Date.self) {
-                  Text(dayLabel(for: date))
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(marineTheme.colors.textSecondary)
-                }
-              }
-            }
+            topDayAxisMarks
             
             // Bottom axis: Standard hour markers
             AxisMarks(position: .bottom, values: .automatic(desiredCount: 6)) { value in
@@ -188,15 +182,26 @@ public struct BarometerAlarmView: View {
     .navigationBarTitleDisplayMode(.inline)
     .onAppear {
       viewModel.startUpdates()
+      viewModel.updateVisibleDayAnchors(scrollPosition: scrollPosition, visibleDurationSeconds: visibleDurationSeconds)
       loadVisibleData(around: scrollPosition)
     }
     .onChange(of: scrollPosition) { _, newPosition in
       loadVisibleData(around: newPosition)
+      viewModel.updateVisibleDayAnchorsDebounced(scrollPosition: newPosition, visibleDurationSeconds: visibleDurationSeconds)
+    }
+    .onChange(of: viewModel.latestTimestamp) { oldTimestamp, newTimestamp in
+      // When anchored to the rightmost trailing edge (present time), automatically advance the scroll window
+      let wasAtTrailingEdge = scrollPosition >= oldTimestamp.addingTimeInterval(-visibleDurationSeconds - trailingEdgeToleranceSeconds)
+      if wasAtTrailingEdge {
+        scrollPosition = newTimestamp.addingTimeInterval(-visibleDurationSeconds)
+        viewModel.updateVisibleDayAnchors(scrollPosition: scrollPosition, visibleDurationSeconds: visibleDurationSeconds)
+      }
     }
     .task {
       // Periodically refresh the time anchor every minute while active so the user can always scroll right to the present
       while !Task.isCancelled {
         viewModel.updateLatestTimestamp()
+        viewModel.updateVisibleDayAnchors(scrollPosition: scrollPosition, visibleDurationSeconds: visibleDurationSeconds)
         do {
           try await Task.sleep(for: .seconds(60))
         } catch {
@@ -239,52 +244,26 @@ public struct BarometerAlarmView: View {
   
   // MARK: - Day Boundary & Label Helpers
   
-  /// Midnight timestamps across the 7-day span for vertical separator lines
-  private var midnightBoundaries: [Date] {
-    let calendar = Calendar.current
-    let startOfToday = calendar.startOfDay(for: viewModel.latestTimestamp)
-    return (0...7).compactMap { daysAgo in
-      calendar.date(byAdding: .day, value: -daysAgo, to: startOfToday)
-    }
+  private var visibleAnchorDates: [Date] {
+    viewModel.visibleDayAnchors.map(\.date)
   }
   
-  /// Midday (12:00) or midpoint timestamps across the 7-day span for day badge placement
-  private var middayAnchors: [Date] {
-    let calendar = Calendar.current
-    let startOfToday = calendar.startOfDay(for: viewModel.latestTimestamp)
-    return (0...7).compactMap { daysAgo in
-      guard let dayStart = calendar.date(byAdding: .day, value: -daysAgo, to: startOfToday) else { return nil }
-      if daysAgo == 0 {
-        // For today, if midday hasn't occurred yet, place anchor at the middle of elapsed time today
-        if let midday = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart),
-           viewModel.latestTimestamp >= midday {
-          return midday
-        } else {
-          let elapsed = max(60, viewModel.latestTimestamp.timeIntervalSince(dayStart))
-          return dayStart.addingTimeInterval(elapsed / 2.0)
+  private func labelForAnchorDate(_ date: Date) -> String? {
+    viewModel.visibleDayAnchors.first(where: { $0.date == date })?.label
+  }
+  
+  /// Top axis day markers with explicit collisionResolution: .disabled to guarantee zero position drift
+  @AxisContentBuilder
+  private var topDayAxisMarks: some AxisContent {
+    AxisMarks(position: .top, values: visibleAnchorDates) { (value: AxisValue) in
+      if let date = value.as(Date.self),
+         let label = labelForAnchorDate(date) {
+        AxisValueLabel(anchor: .bottom, collisionResolution: .disabled) {
+          Text(label)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(marineTheme.colors.textSecondary)
         }
-      } else {
-        return calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart)
       }
-    }
-  }
-  
-  /// Formats a legible day label in English combining relative offset and weekday (e.g. "Today", "Yesterday (Mon.)", "Sun. 23 (D-2)")
-  private func dayLabel(for date: Date) -> String {
-    let calendar = Calendar.current
-    let today = calendar.startOfDay(for: viewModel.latestTimestamp)
-    let dateDay = calendar.startOfDay(for: date)
-    
-    let daysAgo = calendar.dateComponents([.day], from: dateDay, to: today).day ?? 0
-    let weekday = date.formatted(.dateTime.weekday(.short))
-    
-    if daysAgo == 0 {
-      return String(localized: "Today")
-    } else if daysAgo == 1 {
-      return "\(String(localized: "Yesterday")) (\(weekday))"
-    } else {
-      let dayNumber = date.formatted(.dateTime.day())
-      return "\(weekday) \(dayNumber) (D-\(daysAgo))"
     }
   }
   
