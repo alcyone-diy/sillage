@@ -34,14 +34,7 @@ public struct BarometricHistoryChartView: View {
   
   public var body: some View {
     Chart {
-      // 1. Midnight vertical day separators
-      ForEach(viewModel.midnightBoundaries, id: \.self) { midnight in
-        RuleMark(x: .value("Day Boundary", midnight))
-          .foregroundStyle(marineTheme.colors.textSecondary.opacity(0.45))
-          .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-      }
-      
-      // 2. Pressure curve data points
+      // Pressure curve data points
       ForEach(viewModel.chartData) { dataPoint in
         LineMark(
           x: .value("Time", dataPoint.reading.timestamp),
@@ -57,25 +50,11 @@ public struct BarometricHistoryChartView: View {
     .chartXScale(domain: viewModel.latestTimestamp.addingTimeInterval(-maxHistorySpanSeconds)...viewModel.latestTimestamp)
     .chartYScale(domain: viewModel.chartDomain)
     .chartYAxis {
-      AxisMarks(position: .leading) { value in
-        AxisGridLine()
-        AxisTick()
-        AxisValueLabel {
-          if let hpa = value.as(Double.self) {
-            Text(String(format: "%.1f", hpa))
-          }
-        }
-      }
+      leadingPressureAxisMarks
     }
     .chartXAxis {
       topDayAxisMarks
-      
-      // Bottom axis: Standard hour markers
-      AxisMarks(position: .bottom, values: .automatic(desiredCount: 6)) { value in
-        AxisGridLine()
-        AxisTick()
-        AxisValueLabel(format: .dateTime.hour().minute())
-      }
+      bottomHourAxisMarks
     }
     .overlay {
       if viewModel.chartData.isEmpty {
@@ -85,26 +64,22 @@ public struct BarometricHistoryChartView: View {
       }
     }
     .onAppear {
-      viewModel.updateVisibleDayAnchors(scrollPosition: scrollPosition, visibleDurationSeconds: visibleDurationSeconds)
       loadVisibleData(around: scrollPosition)
     }
     .onChange(of: scrollPosition) { _, newPosition in
       loadVisibleData(around: newPosition)
-      viewModel.updateVisibleDayAnchorsDebounced(scrollPosition: newPosition, visibleDurationSeconds: visibleDurationSeconds)
     }
     .onChange(of: viewModel.latestTimestamp) { oldTimestamp, newTimestamp in
       // When anchored to the rightmost trailing edge (present time), automatically advance the scroll window
       let wasAtTrailingEdge = scrollPosition >= oldTimestamp.addingTimeInterval(-visibleDurationSeconds - trailingEdgeToleranceSeconds)
       if wasAtTrailingEdge {
         scrollPosition = newTimestamp.addingTimeInterval(-visibleDurationSeconds)
-        viewModel.updateVisibleDayAnchors(scrollPosition: scrollPosition, visibleDurationSeconds: visibleDurationSeconds)
       }
     }
     .task {
       // Periodically refresh the time anchor every minute while active so the user can always scroll right to the present
       while !Task.isCancelled {
         viewModel.updateLatestTimestamp()
-        viewModel.updateVisibleDayAnchors(scrollPosition: scrollPosition, visibleDurationSeconds: visibleDurationSeconds)
         do {
           try await Task.sleep(for: .seconds(60))
         } catch {
@@ -114,6 +89,48 @@ public struct BarometricHistoryChartView: View {
     }
     .task(id: viewModel.service.lastHistoryUpdate) {
       loadVisibleData(around: scrollPosition)
+    }
+  }
+  
+  // MARK: - Axis Marks Builders
+  
+  /// Top axis day markers with native day stride and midnight separator grid lines
+  @AxisContentBuilder
+  private var topDayAxisMarks: some AxisContent {
+    AxisMarks(position: .top, values: .stride(by: .day)) { (value: AxisValue) in
+      if let date = value.as(Date.self) {
+        AxisValueLabel(anchor: .bottom, collisionResolution: .disabled) {
+          Text(formatDayLabel(date))
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(marineTheme.colors.textSecondary)
+        }
+      }
+      AxisGridLine(stroke: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+        .foregroundStyle(marineTheme.colors.textSecondary.opacity(0.45))
+    }
+  }
+  
+  /// Bottom axis standard hour markers
+  @AxisContentBuilder
+  private var bottomHourAxisMarks: some AxisContent {
+    AxisMarks(position: .bottom, values: .automatic(desiredCount: 6)) { (_: AxisValue) in
+      AxisGridLine()
+      AxisTick()
+      AxisValueLabel(format: .dateTime.hour().minute())
+    }
+  }
+  
+  /// Leading Y-axis pressure markers
+  @AxisContentBuilder
+  private var leadingPressureAxisMarks: some AxisContent {
+    AxisMarks(position: .leading) { (value: AxisValue) in
+      AxisGridLine()
+      AxisTick()
+      AxisValueLabel {
+        if let hpa = value.as(Double.self) {
+          Text(String(format: "%.1f", hpa))
+        }
+      }
     }
   }
   
@@ -135,28 +152,23 @@ public struct BarometricHistoryChartView: View {
     viewModel.refreshHistoryDebounced(in: interval)
   }
   
-  // MARK: - Day Boundary & Label Helpers
+  // MARK: - Day Label Formatting
   
-  private var visibleAnchorDates: [Date] {
-    viewModel.visibleDayAnchors.map(\.date)
-  }
-  
-  private func labelForAnchorDate(_ date: Date) -> String? {
-    viewModel.visibleDayAnchors.first(where: { $0.date == date })?.label
-  }
-  
-  /// Top axis day markers with explicit collisionResolution: .disabled to guarantee zero position drift
-  @AxisContentBuilder
-  private var topDayAxisMarks: some AxisContent {
-    AxisMarks(position: .top, values: visibleAnchorDates) { (value: AxisValue) in
-      if let date = value.as(Date.self),
-         let label = labelForAnchorDate(date) {
-        AxisValueLabel(anchor: .bottom, collisionResolution: .disabled) {
-          Text(label)
-            .font(.system(size: 11, weight: .bold))
-            .foregroundColor(marineTheme.colors.textSecondary)
-        }
-      }
+  /// Formats a legible day label for a given midnight boundary date ("Today", "Yesterday", or "<Weekday> (D-<N>)").
+  private func formatDayLabel(_ date: Date) -> String {
+    let calendar = Calendar.current
+    let today = calendar.startOfDay(for: viewModel.latestTimestamp)
+    let dateDay = calendar.startOfDay(for: date)
+    
+    let daysAgo = calendar.dateComponents([.day], from: dateDay, to: today).day ?? 0
+    let fullWeekday = date.formatted(.dateTime.weekday(.wide))
+    
+    if daysAgo == 0 {
+      return String(localized: "Today")
+    } else if daysAgo == 1 {
+      return String(localized: "Yesterday")
+    } else {
+      return "\(fullWeekday) (D-\(daysAgo))"
     }
   }
   

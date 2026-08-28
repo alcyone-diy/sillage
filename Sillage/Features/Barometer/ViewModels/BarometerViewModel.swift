@@ -25,8 +25,6 @@ public final class BarometerViewModel {
   // MARK: - Internal Tasks
   @ObservationIgnored
   private var fetchTask: Task<Void, Never>?
-  @ObservationIgnored
-  private var anchorUpdateTask: Task<Void, Never>?
   
   // MARK: - Settings Bindings
   public var isAlarmEnabled: Bool {
@@ -83,30 +81,6 @@ public final class BarometerViewModel {
   }()
   
   // MARK: - Initialization
-  /// Cached localized strings to avoid re-evaluating localization on every frame
-  private let todayLocalized = String(localized: "Today")
-  private let yesterdayLocalized = String(localized: "Yesterday")
-  
-  /// Safe time margin from midnight boundaries to keep day labels centered within their day zone
-  public static let labelTimeMargin: TimeInterval = 3 * 3600
-  
-  /// Information structure pairing each day anchor date coordinate with its formatted label.
-  public struct DayAnchorItem: Identifiable, Equatable, Sendable {
-    public var id: Date { date }
-    public let date: Date
-    public let label: String
-    
-    public init(date: Date, label: String) {
-      self.date = date
-      self.label = label
-    }
-  }
-  
-  /// Precomputed day boundary anchors for the top axis of the barometric chart.
-  public private(set) var visibleDayAnchors: [DayAnchorItem] = []
-  
-  /// Precomputed midnight timestamps across the 7-day span for chart vertical separator lines.
-  public private(set) var midnightBoundaries: [Date] = []
   
   init(
     service: BarometricService,
@@ -118,114 +92,12 @@ public final class BarometerViewModel {
     self.preferencesService = preferencesService
     self.clock = clock
     self.dateProvider = dateProvider
-    let now = dateProvider()
-    self.latestTimestamp = now
-    let calendar = Calendar.current
-    let startOfToday = calendar.startOfDay(for: now)
-    self.midnightBoundaries = (0...7).compactMap { daysAgo in
-      calendar.date(byAdding: .day, value: -daysAgo, to: startOfToday)
-    }
+    self.latestTimestamp = dateProvider()
   }
   
-  /// Awaits completion of ongoing debounced tasks (history fetch and anchor update) for deterministic unit testing.
+  /// Awaits completion of ongoing debounced tasks for deterministic unit testing.
   public func waitUntilIdle() async {
     await fetchTask?.value
-    await anchorUpdateTask?.value
-  }
-  
-  // MARK: - Day Boundary & Label Calculations
-  
-  /// Formats a legible day label in English: "Today", "Yesterday", or "<Weekday> (D-<N>)"
-  public func dayLabel(for date: Date) -> String {
-    let calendar = Calendar.current
-    let today = calendar.startOfDay(for: latestTimestamp)
-    let dateDay = calendar.startOfDay(for: date)
-    
-    let daysAgo = calendar.dateComponents([.day], from: dateDay, to: today).day ?? 0
-    let fullWeekday = date.formatted(.dateTime.weekday(.wide))
-    
-    if daysAgo == 0 {
-      return todayLocalized
-    } else if daysAgo == 1 {
-      return yesterdayLocalized
-    } else {
-      return "\(fullWeekday) (D-\(daysAgo))"
-    }
-  }
-  
-  /// Calculates the day anchors dynamically centered within each day's visible section in the pure time domain.
-  public func computeVisibleDayAnchors(scrollPosition: Date, visibleDurationSeconds: TimeInterval) -> [DayAnchorItem] {
-    let calendar = Calendar.current
-    let visibleStart = scrollPosition
-    let visibleEnd = scrollPosition.addingTimeInterval(visibleDurationSeconds)
-    let startOfToday = calendar.startOfDay(for: latestTimestamp)
-    let margin = Self.labelTimeMargin
-    
-    return (0...7).compactMap { daysAgo -> DayAnchorItem? in
-      guard let dayStart = calendar.date(byAdding: .day, value: -daysAgo, to: startOfToday),
-            let nextDayStart = calendar.date(byAdding: .day, value: 1, to: dayStart) else {
-        return nil
-      }
-      
-      // Upper bound of the calendar day (clamped to latest available timestamp for today)
-      let dayEnd = min(nextDayStart, latestTimestamp)
-      
-      // Intersection between this day and the active 24-hour viewport
-      let segmentStart = max(dayStart, visibleStart)
-      let segmentEnd = min(dayEnd, visibleEnd)
-      
-      let visibleDuration = segmentEnd.timeIntervalSince(segmentStart)
-      // Hide label if the visible portion is smaller than the safety margin
-      guard visibleDuration >= margin else {
-        return nil
-      }
-      
-      let fullDayDuration = dayEnd.timeIntervalSince(dayStart)
-      let anchorDate: Date
-      if fullDayDuration < margin * 2 {
-        // When the day duration itself is shorter than twice the margin (e.g. early morning of today),
-        // place anchor at the center of the available day
-        anchorDate = dayStart.addingTimeInterval(fullDayDuration / 2.0)
-      } else {
-        // Geometric center of the visible portion of this day on screen
-        let visibleMidpoint = segmentStart.addingTimeInterval(visibleDuration / 2.0)
-        
-        // Clamping bounds to guarantee zero character overflow beyond midnight lines
-        let minAnchor = dayStart.addingTimeInterval(margin)
-        let maxAnchor = dayEnd.addingTimeInterval(-margin)
-        anchorDate = min(max(visibleMidpoint, minAnchor), maxAnchor)
-      }
-      
-      let label = dayLabel(for: dayStart.addingTimeInterval(12 * 3600))
-      return DayAnchorItem(date: anchorDate, label: label)
-    }
-  }
-  
-  /// Immediately updates visible day anchors without debouncing (e.g. on view appear or initial orientation layout).
-  public func updateVisibleDayAnchors(scrollPosition: Date, visibleDurationSeconds: TimeInterval) {
-    anchorUpdateTask?.cancel()
-    self.visibleDayAnchors = computeVisibleDayAnchors(
-      scrollPosition: scrollPosition,
-      visibleDurationSeconds: visibleDurationSeconds
-    )
-  }
-  
-  /// Updates visible day anchors with throttling/debouncing (50ms) to conserve CPU during high-frequency scrolling.
-  public func updateVisibleDayAnchorsDebounced(scrollPosition: Date, visibleDurationSeconds: TimeInterval) {
-    anchorUpdateTask?.cancel()
-    anchorUpdateTask = Task { @MainActor [weak self] in
-      guard let self else { return }
-      do {
-        try await self.clock.sleep(for: .milliseconds(50))
-        guard !Task.isCancelled else { return }
-        self.visibleDayAnchors = self.computeVisibleDayAnchors(
-          scrollPosition: scrollPosition,
-          visibleDurationSeconds: visibleDurationSeconds
-        )
-      } catch {
-        // Task cancelled
-      }
-    }
   }
   
   // MARK: - History State
@@ -237,14 +109,9 @@ public final class BarometerViewModel {
   /// Used by UI views to bound chart scales up to the current date and time.
   public private(set) var latestTimestamp: Date
   
-  /// Explicitly updates the chart scale reference timestamp to current time and refreshes day boundaries.
+  /// Explicitly updates the chart scale reference timestamp to current time.
   public func updateLatestTimestamp() {
     self.latestTimestamp = dateProvider()
-    let calendar = Calendar.current
-    let startOfToday = calendar.startOfDay(for: latestTimestamp)
-    self.midnightBoundaries = (0...7).compactMap { daysAgo in
-      calendar.date(byAdding: .day, value: -daysAgo, to: startOfToday)
-    }
   }
   
   /// Wrapper for graph data to properly break the line across missing data gaps.
