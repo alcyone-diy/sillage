@@ -79,10 +79,12 @@ public struct BarometricHistoryChartView: View {
       }
     }
     .onAppear {
-      loadVisibleData(around: scrollPosition)
+      Task {
+        await viewModel.refreshFullHistory()
+      }
     }
     .onChange(of: scrollPosition) { _, newPosition in
-      loadVisibleData(around: newPosition)
+      viewModel.updateVisibleWindow(start: newPosition, duration: visibleDurationSeconds)
     }
     .onChange(of: viewModel.latestTimestamp) { oldTimestamp, newTimestamp in
       // When anchored to the rightmost trailing edge (present time), automatically advance the scroll window
@@ -95,6 +97,7 @@ public struct BarometricHistoryChartView: View {
       // Periodically refresh the time anchor every minute while active so the user can always scroll right to the present
       while !Task.isCancelled {
         viewModel.updateLatestTimestamp()
+        await viewModel.refreshFullHistory()
         do {
           try await Task.sleep(for: .seconds(60))
         } catch {
@@ -103,7 +106,7 @@ public struct BarometricHistoryChartView: View {
       }
     }
     .task(id: viewModel.service.lastHistoryUpdate) {
-      loadVisibleData(around: scrollPosition)
+      await viewModel.refreshFullHistory()
     }
   }
   
@@ -158,24 +161,6 @@ public struct BarometricHistoryChartView: View {
         }
       }
     }
-  }
-  
-  // MARK: - Dynamic Pagination / Debounced Load
-  
-  /// Computes the active visible DateInterval from the scroll position (with 1-hour prefetch margin)
-  /// and triggers a debounced load from SQLite via BarometerViewModel.
-  private func loadVisibleData(around position: Date) {
-    let anchor = viewModel.latestTimestamp
-    let historyLimit = anchor.addingTimeInterval(-maxHistorySpanSeconds)
-    
-    // Add 1 hour padding on both ends to ensure uninterrupted line drawing during active scrolling
-    let paddedStart = max(historyLimit, position.addingTimeInterval(-3600))
-    let paddedEnd = min(anchor, position.addingTimeInterval(visibleDurationSeconds + 3600))
-    
-    guard paddedEnd > paddedStart else { return }
-    let interval = DateInterval(start: paddedStart, end: paddedEnd)
-    
-    viewModel.refreshHistoryDebounced(in: interval)
   }
   
   // MARK: - Day Label Positioning Helpers
