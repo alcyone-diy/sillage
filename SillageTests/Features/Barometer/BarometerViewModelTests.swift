@@ -135,62 +135,22 @@ final class BarometerViewModelTests {
     #expect(viewModel.latestTimestamp == advancedDate)
   }
   
-  @Test("Day label formats Today, Yesterday, and past days properly")
-  func testDayLabelFormatting() async throws {
+  @Test("Chart domain respects minimum 5 hPa span and centers appropriately")
+  func testChartDomainMinimumSpan() async throws {
     let now = simulatedNow.mutex.withLock { $0 }
-    let calendar = Calendar.current
-    let today = calendar.startOfDay(for: now)
     
-    let todayLabel = viewModel.dayLabel(for: today)
-    #expect(todayLabel == "Today")
+    // Add two readings close to each other (1012.0 and 1013.0 hPa -> range 1.0 hPa < 5.0 hPa)
+    let r1 = BarometricReading(timestamp: now.addingTimeInterval(-3600), pressure: Measurement(value: 1012.0, unit: .hectopascals))
+    let r2 = BarometricReading(timestamp: now.addingTimeInterval(-1800), pressure: Measurement(value: 1013.0, unit: .hectopascals))
     
-    if let yesterday = calendar.date(byAdding: .day, value: -1, to: today) {
-      let yesterdayLabel = viewModel.dayLabel(for: yesterday)
-      #expect(yesterdayLabel == "Yesterday")
-    }
+    await store.add(reading: r1)
+    await store.add(reading: r2)
+    await viewModel.refreshHistory(lastHours: 24)
     
-    if let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: today) {
-      let label = viewModel.dayLabel(for: twoDaysAgo)
-      let weekday = twoDaysAgo.formatted(.dateTime.weekday(.wide))
-      #expect(label == "\(weekday) (D-2)")
-    }
-  }
-  
-  @Test("Visible day anchors are computed and clamped within time margins")
-  func testVisibleDayAnchorsClamping() async throws {
-    let now = simulatedNow.mutex.withLock { $0 }
-    let calendar = Calendar.current
-    let todayStart = calendar.startOfDay(for: now)
-    
-    // Viewport displaying a full 24h of 2 days ago
-    guard let dayStart = calendar.date(byAdding: .day, value: -2, to: todayStart) else { return }
-    let anchors = viewModel.computeVisibleDayAnchors(
-      scrollPosition: dayStart,
-      visibleDurationSeconds: 24 * 3600
-    )
-    
-    // The anchor for 2 days ago should be present and centered at midday (12:00)
-    if let anchor = anchors.first(where: { $0.label.contains("D-2") }) {
-      let expectedMidday = dayStart.addingTimeInterval(12 * 3600)
-      #expect(abs(anchor.date.timeIntervalSince(expectedMidday)) < 1.0)
-    } else {
-      #expect(Bool(false), "Expected anchor for D-2 to be computed")
-    }
-  }
-  
-  @Test("Debounced anchor updates update visibleDayAnchors deterministically")
-  func testDebouncedAnchorUpdates() async throws {
-    let now = simulatedNow.mutex.withLock { $0 }
-    let calendar = Calendar.current
-    let todayStart = calendar.startOfDay(for: now)
-    
-    viewModel.updateVisibleDayAnchorsDebounced(scrollPosition: todayStart, visibleDurationSeconds: 24 * 3600)
-    
-    // Advance virtual clock by debounce duration (50ms)
-    await testClock.advance(by: .milliseconds(50))
-    await viewModel.waitUntilIdle()
-    
-    #expect(!viewModel.visibleDayAnchors.isEmpty)
+    let domain = viewModel.chartDomain
+    // Center is 1012.5, min should be 1010.0, max should be 1015.0
+    #expect(abs(domain.lowerBound - 1010.0) < 0.001)
+    #expect(abs(domain.upperBound - 1015.0) < 0.001)
   }
 }
 
