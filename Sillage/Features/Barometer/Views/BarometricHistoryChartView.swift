@@ -10,6 +10,7 @@
 
 import SwiftUI
 import Charts
+import UIKit
 
 /// A dedicated presentation view for the horizontally scrollable 7-day barometric history chart.
 public struct BarometricHistoryChartView: View {
@@ -27,6 +28,12 @@ public struct BarometricHistoryChartView: View {
   
   /// Current horizontal scroll anchor position (defaults to the start of the latest 24-hour slice)
   @State private var scrollPosition: Date = Date.now.addingTimeInterval(-24 * 3600)
+  
+  /// Width of the chart plot area in points, dynamically updated on geometry change
+  @State private var chartWidth: CGFloat = 360.0
+  
+  /// UI font matching the Day AxisValueLabel for exact typographical width measurement
+  private let labelFont = UIFont.systemFont(ofSize: 11, weight: .bold)
   
   public init(viewModel: BarometerViewModel) {
     self.viewModel = viewModel
@@ -53,7 +60,8 @@ public struct BarometricHistoryChartView: View {
       leadingPressureAxisMarks
     }
     .chartXAxis {
-      topDayAxisMarks
+      topMidnightGridMarks
+      topDayLabelMarks
       bottomHourAxisMarks
     }
     .overlay {
@@ -61,6 +69,13 @@ public struct BarometricHistoryChartView: View {
         Text("No data recorded for this time period")
           .marineFont(.caption)
           .foregroundColor(marineTheme.colors.textSecondary)
+      }
+    }
+    .onGeometryChange(for: CGFloat.self) { proxy in
+      proxy.size.width
+    } action: { newWidth in
+      if newWidth > 0 && newWidth != chartWidth {
+        chartWidth = newWidth
       }
     }
     .onAppear {
@@ -94,19 +109,30 @@ public struct BarometricHistoryChartView: View {
   
   // MARK: - Axis Marks Builders
   
-  /// Top axis day markers with native day stride and midnight separator grid lines
+  /// Midnight vertical grid lines aligned strictly to startOfDay (00:00:00)
   @AxisContentBuilder
-  private var topDayAxisMarks: some AxisContent {
-    AxisMarks(position: .top, values: .stride(by: .day)) { (value: AxisValue) in
-      if let date = value.as(Date.self) {
+  private var topMidnightGridMarks: some AxisContent {
+    AxisMarks(position: .top, values: .stride(by: .day)) { (_: AxisValue) in
+      AxisGridLine(stroke: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
+        .foregroundStyle(marineTheme.colors.textSecondary.opacity(0.45))
+    }
+  }
+  
+  /// Day name labels dynamically positioned following rules:
+  /// 1. Never crosses day boundaries (previous/next day)
+  /// 2. If insufficient visible space, placed at day edge and clipped by chart bounds
+  /// 3. When sufficient space is available, centered in the visible day section
+  @AxisContentBuilder
+  private var topDayLabelMarks: some AxisContent {
+    AxisMarks(position: .top, values: visibleDayAnchors.map(\.date)) { (value: AxisValue) in
+      if let date = value.as(Date.self),
+         let label = visibleDayAnchors.first(where: { $0.date == date })?.label {
         AxisValueLabel(anchor: .bottom, collisionResolution: .disabled) {
-          Text(formatDayLabel(date))
+          Text(label)
             .font(.system(size: 11, weight: .bold))
             .foregroundColor(marineTheme.colors.textSecondary)
         }
       }
-      AxisGridLine(stroke: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
-        .foregroundStyle(marineTheme.colors.textSecondary.opacity(0.45))
     }
   }
   
@@ -152,7 +178,65 @@ public struct BarometricHistoryChartView: View {
     viewModel.refreshHistoryDebounced(in: interval)
   }
   
-  // MARK: - Day Label Formatting
+  // MARK: - Day Label Positioning Helpers
+  
+  private struct DayAnchorItem: Identifiable, Equatable {
+    var id: Date { date }
+    let date: Date
+    let label: String
+  }
+  
+  /// Converts the exact typographic point width of a label into a TimeInterval in the 24-hour viewport
+  private func labelWidthTime(for label: String) -> TimeInterval {
+    let size = (label as NSString).size(withAttributes: [.font: labelFont])
+    let widthInPoints = size.width
+    let effectiveChartWidth = max(chartWidth, 100.0)
+    return (Double(widthInPoints) / Double(effectiveChartWidth)) * visibleDurationSeconds
+  }
+  
+  /// Computes the dynamic horizontal anchors for day labels adhering to rules 1, 2, and 3
+  private var visibleDayAnchors: [DayAnchorItem] {
+    let calendar = Calendar.current
+    let visibleStart = scrollPosition
+    let visibleEnd = scrollPosition.addingTimeInterval(visibleDurationSeconds)
+    let startOfToday = calendar.startOfDay(for: viewModel.latestTimestamp)
+    
+    return (0...7).compactMap { daysAgo -> DayAnchorItem? in
+      guard let dayStart = calendar.date(byAdding: .day, value: -daysAgo, to: startOfToday),
+            let nextDayStart = calendar.date(byAdding: .day, value: 1, to: dayStart) else {
+        return nil
+      }
+      
+      let dayEnd = min(nextDayStart, viewModel.latestTimestamp)
+      let segmentStart = max(dayStart, visibleStart)
+      let segmentEnd = min(dayEnd, visibleEnd)
+      
+      // Ensure the day intersects the current viewport
+      guard segmentEnd > segmentStart else {
+        return nil
+      }
+      
+      let label = formatDayLabel(dayStart)
+      // Exact typographic half-width converted to time domain
+      let exactLabelDuration = labelWidthTime(for: label)
+      let labelMargin: TimeInterval = exactLabelDuration / 2.0
+      
+      let fullDayDuration = dayEnd.timeIntervalSince(dayStart)
+      let visibleDuration = segmentEnd.timeIntervalSince(segmentStart)
+      let visibleMidpoint = segmentStart.addingTimeInterval(visibleDuration / 2.0)
+      let minAnchor = dayStart.addingTimeInterval(labelMargin)
+      let maxAnchor = dayEnd.addingTimeInterval(-labelMargin)
+      
+      let anchorDate: Date
+      if fullDayDuration < labelMargin * 2 {
+        anchorDate = dayStart.addingTimeInterval(fullDayDuration / 2.0)
+      } else {
+        anchorDate = min(max(visibleMidpoint, minAnchor), maxAnchor)
+      }
+      
+      return DayAnchorItem(date: anchorDate, label: label)
+    }
+  }
   
   /// Formats a legible day label for a given midnight boundary date ("Today", "Yesterday", or "<Weekday> (D-<N>)").
   private func formatDayLabel(_ date: Date) -> String {
