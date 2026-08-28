@@ -152,5 +152,75 @@ final class BarometerViewModelTests {
     #expect(abs(domain.lowerBound - 1010.0) < 0.001)
     #expect(abs(domain.upperBound - 1015.0) < 0.001)
   }
+  
+  @Test("Chart domain expands monotonically during scrolling (upper bound never decreases, lower bound never increases)")
+  func testChartDomainExpandsMonotonicallyDuringScrolling() async throws {
+    let now = simulatedNow.mutex.withLock { $0 }
+    let localDB = try DatabaseManager.inMemory()
+    let localStore = BarometricHistoryStore(databaseManager: localDB, dateProvider: { now })
+    let localService = BarometricService(
+      historyStore: localStore,
+      preferencesService: preferencesService,
+      notificationService: notificationService,
+      permissionService: permissionService,
+      dateProvider: { now }
+    )
+    let localVM = BarometerViewModel(
+      service: localService,
+      preferencesService: preferencesService,
+      clock: testClock,
+      dateProvider: { now }
+    )
+    
+    // Slice 1: Initial Today readings (1010 to 1014 hPa -> domain [1009.5, 1014.5])
+    let rToday1 = BarometricReading(timestamp: now.addingTimeInterval(-3600), pressure: Measurement(value: 1010.0, unit: .hectopascals))
+    let rToday2 = BarometricReading(timestamp: now.addingTimeInterval(-1800), pressure: Measurement(value: 1014.0, unit: .hectopascals))
+    await localStore.add(reading: rToday1)
+    await localStore.add(reading: rToday2)
+    
+    let intervalToday = DateInterval(start: now.addingTimeInterval(-24 * 3600), end: now)
+    await localVM.refreshHistory(in: intervalToday)
+    
+    let domain1 = localVM.chartDomain
+    #expect(abs(domain1.lowerBound - 1009.5) < 0.001)
+    #expect(abs(domain1.upperBound - 1014.5) < 0.001)
+    
+    // Slice 2: Scroll to Low-pressure depression window at D-3 (995 to 1005 hPa -> slice domain [994.0, 1006.0])
+    let d3Date = now.addingTimeInterval(-3 * 24 * 3600)
+    let rD3Low = BarometricReading(timestamp: d3Date.addingTimeInterval(-3600), pressure: Measurement(value: 995.0, unit: .hectopascals))
+    let rD3High = BarometricReading(timestamp: d3Date, pressure: Measurement(value: 1005.0, unit: .hectopascals))
+    await localStore.add(reading: rD3Low)
+    await localStore.add(reading: rD3High)
+    
+    let intervalD3 = DateInterval(start: d3Date.addingTimeInterval(-24 * 3600), end: d3Date)
+    await localVM.refreshHistory(in: intervalD3)
+    
+    let domain2 = localVM.chartDomain
+    // Lower bound decreased (expanded), upper bound must not decrease (stays 1014.5)
+    #expect(abs(domain2.lowerBound - 994.0) < 0.001)
+    #expect(abs(domain2.upperBound - 1014.5) < 0.001)
+    
+    // Slice 3: Scroll to High-pressure anticyclone window at D-1 (1020 to 1030 hPa -> slice domain [1019.0, 1031.0])
+    let d1Date = now.addingTimeInterval(-24 * 3600)
+    let rD1Low = BarometricReading(timestamp: d1Date.addingTimeInterval(-3600), pressure: Measurement(value: 1020.0, unit: .hectopascals))
+    let rD1High = BarometricReading(timestamp: d1Date.addingTimeInterval(-60), pressure: Measurement(value: 1030.0, unit: .hectopascals))
+    await localStore.add(reading: rD1Low)
+    await localStore.add(reading: rD1High)
+    
+    let intervalD1 = DateInterval(start: d1Date.addingTimeInterval(-24 * 3600), end: d1Date)
+    await localVM.refreshHistory(in: intervalD1)
+    
+    let domain3 = localVM.chartDomain
+    // Lower bound must not increase (stays 994.0), upper bound increased (expanded to 1031.0)
+    #expect(abs(domain3.lowerBound - 994.0) < 0.001)
+    #expect(abs(domain3.upperBound - 1031.0) < 0.001)
+    
+    // Slice 4: Scroll back to Today (1010 to 1014 hPa)
+    await localVM.refreshHistory(in: intervalToday)
+    let domain4 = localVM.chartDomain
+    // Domain envelope remains expanded to the maximum envelope discovered
+    #expect(abs(domain4.lowerBound - 994.0) < 0.001)
+    #expect(abs(domain4.upperBound - 1031.0) < 0.001)
+  }
 }
 

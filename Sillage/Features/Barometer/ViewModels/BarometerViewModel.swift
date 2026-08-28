@@ -123,10 +123,23 @@ public final class BarometerViewModel {
   
   public var chartData: [ChartDataPoint] = []
   
-  /// Computes a Y-axis domain that spans at least 5 hPa to avoid exaggerating micro-fluctuations
+  /// Persistent accumulated Y-axis domain envelope ensuring the scale only expands (upper bound never decreases, lower bound never increases) during scrolling.
+  private var accumulatedChartDomain: ClosedRange<Double>?
+  
+  /// The active Y-axis domain for chart rendering.
   public var chartDomain: ClosedRange<Double> {
-    guard let minReading = history24h.min(by: { $0.pressure < $1.pressure }),
-          let maxReading = history24h.max(by: { $0.pressure < $1.pressure }) else {
+    accumulatedChartDomain ?? computeSliceDomain(for: history24h)
+  }
+  
+  /// Resets the accumulated chart domain envelope back to the initial state.
+  public func resetChartDomain() {
+    accumulatedChartDomain = nil
+  }
+  
+  /// Computes a Y-axis domain that spans at least 5 hPa for a given slice of readings to avoid exaggerating micro-fluctuations.
+  private func computeSliceDomain(for readings: [BarometricReading]) -> ClosedRange<Double> {
+    guard let minReading = readings.min(by: { $0.pressure < $1.pressure }),
+          let maxReading = readings.max(by: { $0.pressure < $1.pressure }) else {
       let defaultCenter = service.currentPressure?.converted(to: .hectopascals).value ?? 1013.25
       return (defaultCenter - 2.5)...(defaultCenter + 2.5)
     }
@@ -211,6 +224,19 @@ public final class BarometerViewModel {
     
     self.history24h = readings
     self.chartData = newChartData
+    
+    // Update expanding accumulated Y-domain envelope so bounds monotonically widen
+    if !readings.isEmpty {
+      let sliceDomain = computeSliceDomain(for: readings)
+      if let current = accumulatedChartDomain {
+        let newLower = min(current.lowerBound, sliceDomain.lowerBound)
+        let newUpper = max(current.upperBound, sliceDomain.upperBound)
+        self.accumulatedChartDomain = newLower...newUpper
+      } else {
+        self.accumulatedChartDomain = sliceDomain
+      }
+    }
+    
     // Keep latestTimestamp anchored to current time so the user can always scroll right to the present
     let now = dateProvider()
     if now > self.latestTimestamp {
@@ -220,8 +246,9 @@ public final class BarometerViewModel {
   
   // MARK: - Lifecycle Actions
   
-  /// Starts barometric updates if not already running.
+  /// Starts barometric updates and resets the chart domain envelope for a fresh session.
   public func startUpdates() {
+    resetChartDomain()
     service.startUpdates()
   }
   
