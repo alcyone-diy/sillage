@@ -18,24 +18,28 @@ public actor BarometricHistoryStore {
   
   private let databaseManager: DatabaseManager
   private let maxHistoryDuration: TimeInterval
+  private let dateProvider: @Sendable () -> Date
   
   /// Initializes the store with a GRDB `DatabaseManager` instance.
   /// - Parameters:
   ///   - databaseManager: The database manager coordinating SQLite transactions.
   ///   - maxHistoryDuration: The maximum duration of data to retain (defaults to 7 days / 168 hours).
+  ///   - dateProvider: Closure providing the current time (defaults to Date.now).
   public init(
     databaseManager: DatabaseManager,
-    maxHistoryDuration: TimeInterval = 7 * 24 * 3600
+    maxHistoryDuration: TimeInterval = 7 * 24 * 3600,
+    dateProvider: @escaping @Sendable () -> Date = { Date.now }
   ) {
     self.databaseManager = databaseManager
     self.maxHistoryDuration = maxHistoryDuration
+    self.dateProvider = dateProvider
   }
   
   /// Adds a new reading to the database and prunes readings older than `maxHistoryDuration` in an asynchronous transaction.
   /// - Parameter reading: The new `BarometricReading` to persist.
   public func add(reading: BarometricReading) async {
     let maxDuration = maxHistoryDuration
-    let cutoffUnix = Date.now.addingTimeInterval(-maxDuration).timeIntervalSince1970
+    let cutoffUnix = dateProvider().addingTimeInterval(-maxDuration).timeIntervalSince1970
     let record = BarometricReadingRecord(domainModel: reading)
     
     do {
@@ -73,7 +77,7 @@ public actor BarometricHistoryStore {
   /// - Parameter lastHours: The number of hours to look back.
   /// - Returns: An array of `BarometricReading` matching the timeframe.
   public func getReadings(for lastHours: Int) async -> [BarometricReading] {
-    let now = Date.now
+    let now = dateProvider()
     let cutoff = now.addingTimeInterval(-Double(lastHours) * 3600)
     let interval = DateInterval(start: cutoff, end: now)
     
