@@ -102,8 +102,17 @@ public final class BarometerViewModel {
   
   // MARK: - History State
   
-  /// Holds the active lookback window barometric history (defaults to 24 hours) for chart rendering.
-  public var history24h: [BarometricReading] = []
+  /// Maximum history duration in hours to load into memory for continuous chart scrolling (7 days = 168 hours)
+  public static let maxHistoryHours: Int = 7 * 24
+
+  /// Holds the cached barometric history for the chart.
+  public var historyReadings: [BarometricReading] = []
+  
+  /// Backwards-compatible alias for existing consumers
+  public var history24h: [BarometricReading] {
+    get { historyReadings }
+    set { historyReadings = newValue }
+  }
   
   /// Stable anchor timestamp representing the current time reference for the chart.
   /// Used by UI views to bound chart scales up to the current date and time.
@@ -128,12 +137,28 @@ public final class BarometerViewModel {
   
   /// The active Y-axis domain for chart rendering.
   public var chartDomain: ClosedRange<Double> {
-    accumulatedChartDomain ?? computeSliceDomain(for: history24h)
+    accumulatedChartDomain ?? computeSliceDomain(for: historyReadings)
   }
   
   /// Resets the accumulated chart domain envelope back to the initial state.
   public func resetChartDomain() {
     accumulatedChartDomain = nil
+  }
+  
+  /// Updates the dynamic accumulated chart domain based on in-memory readings within the currently visible window.
+  public func updateVisibleWindow(start: Date, duration: TimeInterval = 24 * 3600) {
+    let windowEnd = start.addingTimeInterval(duration)
+    let visibleSlice = historyReadings.filter { $0.timestamp >= start && $0.timestamp <= windowEnd }
+    guard !visibleSlice.isEmpty else { return }
+    
+    let sliceDomain = computeSliceDomain(for: visibleSlice)
+    if let current = accumulatedChartDomain {
+      let newLower = min(current.lowerBound, sliceDomain.lowerBound)
+      let newUpper = max(current.upperBound, sliceDomain.upperBound)
+      self.accumulatedChartDomain = newLower...newUpper
+    } else {
+      self.accumulatedChartDomain = sliceDomain
+    }
   }
   
   /// Computes a Y-axis domain that spans at least 5 hPa for a given slice of readings to avoid exaggerating micro-fluctuations.
@@ -156,6 +181,11 @@ public final class BarometerViewModel {
       let padding = range * 0.1
       return (minVal - padding)...(maxVal + padding)
     }
+  }
+  
+  /// Asynchronously loads the full 7-day barometric history into memory for seamless, real-time scrolling without SQLite thrashing.
+  public func refreshFullHistory() async {
+    await refreshHistory(lastHours: Self.maxHistoryHours)
   }
   
   /// Asynchronously refreshes the barometric history for a specific lookback window (defaults to 24 hours)
@@ -222,12 +252,16 @@ public final class BarometerViewModel {
       lastTimestamp = reading.timestamp
     }
     
-    self.history24h = readings
+    self.historyReadings = readings
     self.chartData = newChartData
     
     // Update expanding accumulated Y-domain envelope so bounds monotonically widen
     if !readings.isEmpty {
-      let sliceDomain = computeSliceDomain(for: readings)
+      let now = dateProvider()
+      let recentSlice = readings.filter { $0.timestamp >= now.addingTimeInterval(-24 * 3600) }
+      let sliceToUse = recentSlice.isEmpty ? readings : recentSlice
+      let sliceDomain = computeSliceDomain(for: sliceToUse)
+      
       if let current = accumulatedChartDomain {
         let newLower = min(current.lowerBound, sliceDomain.lowerBound)
         let newUpper = max(current.upperBound, sliceDomain.upperBound)
