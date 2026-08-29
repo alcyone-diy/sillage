@@ -49,6 +49,7 @@ struct MapCalloutView: View {
         }
         .presentationDetents([.height(measuredHeight)])
         .presentationDragIndicator(.visible)
+        .presentationBackground(marineTheme.colors.panelBackground)
         .presentationBackgroundInteraction(.enabled(upThrough: .height(measuredHeight)))
     }
   }
@@ -85,9 +86,10 @@ struct MapCalloutView: View {
   
   @ViewBuilder
   private var headerView: some View {
-    if let waypointID = calloutViewModel.targetWaypointID,
-       let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == waypointID }) {
-      HStack(spacing: MarineTheme.Spacing.small) {
+    HStack(spacing: MarineTheme.Spacing.small) {
+      Spacer()
+      if let waypointID = calloutViewModel.targetWaypointID,
+         let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == waypointID }) {
         Image(marineIcon: .waypoint)
           .foregroundColor(marineTheme.colors.primary)
           .marineFont(.body)
@@ -95,15 +97,13 @@ struct MapCalloutView: View {
           .marineFont(.headline)
           .foregroundColor(marineTheme.colors.textPrimary)
           .lineLimit(1)
-        Spacer()
-      }
-    } else {
-      HStack(spacing: MarineTheme.Spacing.small) {
+      } else {
         Image(marineIcon: .crosshair)
           .foregroundColor(marineTheme.colors.primary)
           .marineFont(.body)
         if let formatted = calloutViewModel.formattedCoordinate {
           Text(formatted)
+            .monospacedDigit()
             .marineFont(.subheadline)
             .foregroundColor(marineTheme.colors.textPrimary)
             .lineLimit(1)
@@ -112,9 +112,10 @@ struct MapCalloutView: View {
             .marineFont(.headline)
             .foregroundColor(marineTheme.colors.textPrimary)
         }
-        Spacer()
       }
+      Spacer()
     }
+    .frame(maxWidth: .infinity, alignment: .center)
   }
   
   private func telemetryBar(bearing: Measurement<UnitAngle>?, distance: Measurement<UnitLength>?) -> some View {
@@ -201,8 +202,6 @@ struct MapCalloutView: View {
         }
         .buttonStyle(.plain)
         
-        Divider()
-        
         Button {
           Task { @MainActor [weak panelManager, weak calloutViewModel] in
             guard let panelManager, let calloutViewModel else { return }
@@ -243,8 +242,6 @@ struct MapCalloutView: View {
         .buttonStyle(.plain)
         
         if chartViewModel.goToWaypointID != nil {
-          Divider()
-          
           Button {
             Task { @MainActor [weak waypointService, weak calloutViewModel] in
               guard let waypointService, let calloutViewModel else { return }
@@ -276,6 +273,10 @@ struct MapCalloutView: View {
     }
     .padding(.horizontal, MarineTheme.Spacing.actionRowHorizontal)
     .frame(minHeight: marineTheme.minTouchTarget)
+    .background(
+      marineTheme.colors.surfaceBackground,
+      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+    )
     .contentShape(Rectangle())
   }
 }
