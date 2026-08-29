@@ -257,6 +257,8 @@ struct ContentView: View {
               }
             )
           }
+          .presentationDetents([.medium, .large])
+          .presentationDragIndicator(.visible)
         }
       }
     }

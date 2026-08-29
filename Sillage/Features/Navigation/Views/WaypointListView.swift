@@ -141,6 +141,8 @@ struct WaypointListView: View {
             }
           )
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
       }
     }
     .sheet(item: $editingWaypoint) { waypoint in
@@ -164,6 +166,8 @@ struct WaypointListView: View {
             }
           )
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
       }
     }
   }
