@@ -918,6 +918,9 @@
     "Select Drop Point" : {
 
     },
+    "Selected Time" : {
+
+    },
     "Sensor Offset" : {
 
     },
@@ -1024,6 +1027,9 @@
 
     },
     "Today" : {
+
+    },
+    "TopAnchor" : {
 
     },
     "Total size: %@" : {
