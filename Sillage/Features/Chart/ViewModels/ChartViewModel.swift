@@ -685,7 +685,7 @@ final class ChartViewModel {
     
     /// Technical Design Choice: Camera Lock Suspension
     /// When manual anchor position adjustment is active, auto-centering on incoming GPS updates is suspended
-    /// to prevent pulling the chart camera away while the user is aiming with the reticle.
+    /// to prevent pulling the chart camera away while the user is aiming with the crosshair.
     if trackingMode != .free, !anchorViewModel.isAdjustingAnchor, let coordinate = safeState?.coordinate {
       let heading = (trackingMode == .courseUp) ? safeState?.smoothedCOG : nil
       let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: heading)

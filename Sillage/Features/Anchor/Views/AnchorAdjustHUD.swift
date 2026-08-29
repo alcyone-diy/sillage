@@ -24,7 +24,7 @@ public struct AnchorAdjustHUD: View {
 
   public var body: some View {
     ZStack {
-      // 1. Central Crosshair Reticle (Fixed at center of map viewport)
+      // 1. Central Crosshair (Fixed at center of map viewport)
       MarineCrosshairView(
         color: marineTheme.colors.vectorHDG,
         centerDotColor: marineTheme.colors.destructive

@@ -102,6 +102,8 @@ struct MarineTheme {
     static let animationDuration: Double = 0.1
 
     // MARK: - Map Target Callout Overlay Metrics
+    /// Standard size for map target crosshair aiming view
+    static let crosshairSize: CGFloat = MarineCrosshairView.defaultSize
     /// Standard width for map target callout overlay menu cards
     static let calloutCardWidth: CGFloat = 270.0
     /// Vertical clearance from top toolbar to invert callout card placement

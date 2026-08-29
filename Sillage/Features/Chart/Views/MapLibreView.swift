@@ -374,15 +374,27 @@ struct MapLibreView: UIViewRepresentable {
       ensureTargetVisible(at: targetPoint, in: mapView)
     }
     
-    /// Technical Design Choice: Animate Map Upwards if Target Point is Obscured by Bottom Dialog
-    /// When the contextual dialog opens from the bottom, any target point located in the lower portion of the screen
-    /// is automatically panned upwards into the unobstructed visible map area above the dialog with smooth animation.
+    /// Technical Design Choice: Automatic Map Camera Framing for Contextual Callout Crosshair
+    /// Ensures the selected target point is never obscured by the bottom sheet or the top telemetry HUD.
+    /// If the point is too close to the bottom (under the sheet) or too close to the top (under the HUD),
+    /// the map camera smoothly animates to bring the target into comfortable, unobstructed view with full crosshair clearance.
     private func ensureTargetVisible(at point: CGPoint, in mapView: MLNMapView, sheetHeight: CGFloat = 220) {
-      let clearance: CGFloat = 40.0
-      let maxY = mapView.bounds.height - sheetHeight - clearance
+      let crosshairSize: CGFloat = MarineCrosshairView.defaultSize
+      let bottomClearance: CGFloat = 40.0 + crosshairSize
+      let topClearance: CGFloat = max(mapView.safeAreaInsets.top + 80.0, MarineTheme.Metrics.topToolbarClearance)
+      
+      let maxY = mapView.bounds.height - sheetHeight - bottomClearance
+      let minY = topClearance
+      
+      var deltaY: CGFloat = 0.0
       
       if point.y > maxY {
-        let deltaY = point.y - maxY
+        deltaY = point.y - maxY
+      } else if point.y < minY {
+        deltaY = point.y - minY
+      }
+      
+      if abs(deltaY) > 1.0 {
         let currentCenterPoint = mapView.convert(mapView.centerCoordinate, toPointTo: mapView)
         let newCenterPoint = CGPoint(x: currentCenterPoint.x, y: currentCenterPoint.y + deltaY)
         let newCenterCoordinate = mapView.convert(newCenterPoint, toCoordinateFrom: mapView)

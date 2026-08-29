@@ -31,7 +31,7 @@ struct MapCalloutView: View {
   
   var body: some View {
     ZStack {
-      // 1. Target Crosshair Reticle (Displayed only when targeting empty map space)
+      // 1. Target Crosshair (Displayed only when targeting empty map space)
       if calloutViewModel.isCalloutVisible && calloutViewModel.targetWaypointID == nil {
         MarineCrosshairView()
           .position(x: calloutViewModel.screenPoint.x, y: calloutViewModel.screenPoint.y)
