@@ -10,17 +10,19 @@
 
 import SwiftUI
 
-/// Standardized high-contrast crosshair reticle view used across marine map overlays
+/// Standardized high-contrast crosshair view used across marine map overlays
 /// (e.g. anchor position adjustment, map callout waypoint targeting).
 public struct MarineCrosshairView: View {
   @Environment(\.marineTheme) private var marineTheme
+
+  public static let defaultSize: CGFloat = 44.0
 
   public var size: CGFloat
   public var color: Color?
   public var centerDotColor: Color?
 
   public init(
-    size: CGFloat = 44,
+    size: CGFloat = MarineCrosshairView.defaultSize,
     color: Color? = nil,
     centerDotColor: Color? = nil
   ) {
@@ -35,7 +37,7 @@ public struct MarineCrosshairView: View {
     let circleDiameter = size * 0.65
 
     ZStack {
-      // 1. Outer reticle ring with dual-layer white contrast stroke for high legibility over dark & light chart layers
+      // 1. Outer crosshair ring with dual-layer white contrast stroke for high legibility over dark & light chart layers
       Circle()
         .stroke(Color.white, lineWidth: 3.5)
         .frame(width: circleDiameter, height: circleDiameter)
