@@ -119,17 +119,25 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.distance(from: nil))
   }
   
-  func testHybridAnchorModeSelection() {
+  func testTargetSelectionAndEnsureVisible() {
     let viewModel = MapCalloutViewModel()
     let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
     
-    // 1. Long pressing an existing waypoint sets fixedGeographic mode (targetWaypointID != nil)
+    // 1. Long pressing an existing waypoint
     viewModel.presentCallout(at: CGPoint(x: 100, y: 200), coordinate: coord, waypointID: "existing-wp-1")
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertEqual(viewModel.targetWaypointID, "existing-wp-1")
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, coord.latitude)
     
-    // 2. Long pressing empty map space sets fixedScreen mode (targetWaypointID == nil)
+    // 2. Testing ensureVisible callback
+    var reportedHeight: CGFloat = 0
+    viewModel.onEnsureVisibleRequested = { height in
+      reportedHeight = height
+    }
+    viewModel.ensureVisible(sheetHeight: 250.0)
+    XCTAssertEqual(reportedHeight, 250.0)
+    
+    // 3. Long pressing empty map space
     viewModel.presentCallout(at: CGPoint(x: 200, y: 400), coordinate: coord, waypointID: nil)
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertNil(viewModel.targetWaypointID)

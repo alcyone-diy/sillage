@@ -44,6 +44,7 @@ struct MapCalloutView: View {
         } action: { newHeight in
           if newHeight > 0 {
             measuredHeight = newHeight
+            calloutViewModel.ensureVisible(sheetHeight: newHeight)
           }
         }
         .presentationDetents([.height(measuredHeight)])

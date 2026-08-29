@@ -12,19 +12,12 @@ import SwiftUI
 import CoreLocation
 import MapLibre
 
-/// Manages the state and telemetry calculation for the floating map target callout overlay.
-/// Implements a hybrid anchor mode:
-/// - `fixedGeographic`: Used when long-pressing an existing waypoint. Coordinate is fixed, screen position updates with map movement.
-/// - `fixedScreen`: Used when long-pressing empty map space. Screen reticle stays fixed, coordinate updates as map is panned beneath it.
-/// Enforces strict Swift 6 MainActor isolation and throttles map projection updates to ~10Hz.
+/// Manages the state and telemetry calculation for the map target callout overlay.
+/// Geographic coordinate is fixed, and screen position updates synchronously with map movement (zero lag).
+/// Enforces strict Swift 6 MainActor isolation.
 @Observable
 @MainActor
 final class MapCalloutViewModel {
-  
-  private enum AnchorMode {
-    case fixedGeographic // Target coordinate stays constant, screenPoint follows the map
-    case fixedScreen     // Screen point stays constant, targetCoordinate updates as map moves under reticle
-  }
   
   var isCalloutVisible: Bool = false
   var screenPoint: CGPoint = .zero
@@ -36,7 +29,9 @@ final class MapCalloutViewModel {
     targetCoordinate?.formatted(.marineCoordinate)
   }
   
-  private var anchorMode: AnchorMode = .fixedScreen
+  /// Closure invoked when the UI requests ensuring the target point is not obscured by overlay sheets.
+  var onEnsureVisibleRequested: (@MainActor (CGFloat) -> Void)? = nil
+  
   private var throttleTask: TaskCancellable?
   
   /// Presents the map callout overlay at the specified screen point and coordinate.
@@ -48,8 +43,14 @@ final class MapCalloutViewModel {
     self.screenPoint = point
     self.targetCoordinate = coordinate
     self.targetWaypointID = waypointID
-    self.anchorMode = (waypointID != nil) ? .fixedGeographic : .fixedScreen
     self.isCalloutVisible = true
+  }
+  
+  /// Requests the map view to pan upwards if the target point is obscured by the bottom sheet.
+  /// - Parameter sheetHeight: The rendered height of the bottom sheet.
+  func ensureVisible(sheetHeight: CGFloat) {
+    guard isCalloutVisible else { return }
+    onEnsureVisibleRequested?(sheetHeight)
   }
   
   /// Dismisses the callout overlay and cancels any pending throttled projection tasks.
@@ -60,32 +61,15 @@ final class MapCalloutViewModel {
     self.targetWaypointID = nil
   }
   
-  /// Throttles screen/coordinate updates during high-frequency map region changes (60-120Hz).
-  /// Executes synchronously for .fixedGeographic mode (zero lag), and throttles to AppConstants.Map.regionThrottleInterval for .fixedScreen mode.
+  /// Throttles screen position updates during high-frequency map region changes (60-120Hz).
+  /// Matrix projection from CLLocationCoordinate2D to screen CGPoint is lightweight,
+  /// so screenPosition is updated synchronously at full 60/120Hz display refresh rate with zero lag.
   func throttledUpdateScreenPosition(from mapView: MLNMapView) {
     guard isCalloutVisible else { return }
-    
-    switch anchorMode {
-    case .fixedGeographic:
-      // Fixed geographic mode requires zero lag during map panning.
-      // Matrix projection from CLLocationCoordinate2D to screen CGPoint is lightweight,
-      // so update screenPosition synchronously at full 60/120Hz display refresh rate.
-      performProjectionUpdate(from: mapView)
-      
-    case .fixedScreen:
-      // Throttle coordinate updates to AppConstants.Map.regionThrottleInterval to conserve CPU/battery and prevent continuous SwiftUI re-renders.
-      guard throttleTask == nil else { return }
-      let task = Task { @MainActor [weak self] in
-        try? await Task.sleep(for: AppConstants.Map.regionThrottleInterval)
-        guard let self = self, !Task.isCancelled, self.isCalloutVisible else { return }
-        self.performProjectionUpdate(from: mapView)
-        self.throttleTask = nil
-      }
-      self.throttleTask = TaskCancellable(task)
-    }
+    performProjectionUpdate(from: mapView)
   }
   
-  /// Forces an immediate update of screen or geographic coordinates from the map view.
+  /// Forces an immediate update of screen coordinates from the map view.
   /// Called when map region animation or gesture completes.
   func updateScreenPositionImmediately(from mapView: MLNMapView) {
     guard isCalloutVisible else { return }
@@ -96,30 +80,17 @@ final class MapCalloutViewModel {
   
   private static let screenPointUpdateThreshold: CGFloat = 0.5
   
-  /// Performs projection re-calculation according to the current anchorMode.
+  /// Performs projection re-calculation from target geographic coordinate to screen point.
   private func performProjectionUpdate(from mapView: MLNMapView) {
-    switch anchorMode {
-    case .fixedGeographic:
-      guard let targetCoord = targetCoordinate else { return }
-      let newPoint = mapView.convert(targetCoord, toPointTo: mapView)
-      if mapView.bounds.contains(newPoint) {
-        if abs(self.screenPoint.x - newPoint.x) >= Self.screenPointUpdateThreshold ||
-           abs(self.screenPoint.y - newPoint.y) >= Self.screenPointUpdateThreshold {
-          self.screenPoint = newPoint
-        }
-      } else {
-        self.dismiss()
+    guard let targetCoord = targetCoordinate else { return }
+    let newPoint = mapView.convert(targetCoord, toPointTo: mapView)
+    if mapView.bounds.contains(newPoint) {
+      if abs(self.screenPoint.x - newPoint.x) >= Self.screenPointUpdateThreshold ||
+         abs(self.screenPoint.y - newPoint.y) >= Self.screenPointUpdateThreshold {
+        self.screenPoint = newPoint
       }
-    case .fixedScreen:
-      let newCoord = mapView.convert(self.screenPoint, toCoordinateFrom: mapView)
-      if let current = self.targetCoordinate {
-        let deltaDistance = current.distance(to: newCoord)
-        if deltaDistance >= AppConstants.Map.coordinateUpdateThreshold {
-          self.targetCoordinate = newCoord
-        }
-      } else {
-        self.targetCoordinate = newCoord
-      }
+    } else {
+      self.dismiss()
     }
   }
   
