@@ -149,49 +149,22 @@ struct SegmentedScaleBar: View {
   let width: CGFloat
   private let segments: Int = 4 // Division en quarts (moitié, quart)
   private let barHeight: CGFloat = 3.0
-  private let tickHeight: CGFloat = 5.0
-  private let tickWidth: CGFloat = 1.0
 
   var body: some View {
-    ZStack {
-      // Barre segmentée (alternance Noir / Blanc)
-      HStack(spacing: 0) {
-        ForEach(0..<segments, id: \.self) { index in
-          if index % 2 == 0 {
-            Color.black
-          } else {
-            Color.white
-          }
+    // Barre segmentée (alternance Noir / Blanc)
+    HStack(spacing: 0) {
+      ForEach(0..<segments, id: \.self) { index in
+        if index % 2 == 0 {
+          Color.black
+        } else {
+          Color.white
         }
       }
-      .frame(width: width, height: barHeight)
-      .overlay(
-        Rectangle()
-          .strokeBorder(Color.black.opacity(0.35), lineWidth: 0.5)
-      )
-
-      // Ticks aux extrémités
-      HStack {
-        Rectangle()
-          .fill(Color.white)
-          .frame(width: tickWidth, height: tickHeight)
-          .overlay(
-            Rectangle()
-              .stroke(Color.black.opacity(0.4), lineWidth: 0.5)
-          )
-
-        Spacer()
-
-        Rectangle()
-          .fill(Color.white)
-          .frame(width: tickWidth, height: tickHeight)
-          .overlay(
-            Rectangle()
-              .stroke(Color.black.opacity(0.4), lineWidth: 0.5)
-          )
-      }
-      .frame(width: width)
     }
-    .frame(width: width, height: tickHeight)
+    .frame(width: width, height: barHeight)
+    .overlay(
+      Rectangle()
+        .strokeBorder(Color.black.opacity(0.35), lineWidth: 0.5)
+    )
   }
 }
