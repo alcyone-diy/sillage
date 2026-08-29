@@ -71,9 +71,6 @@ struct MapCalloutView: View {
       telemetryBar(bearing: bearing, distance: distance)
         .padding(.horizontal, MarineTheme.Spacing.medium)
       
-      Divider()
-        .padding(.horizontal, MarineTheme.Spacing.small)
-      
       // 3. Contextual Action Buttons
       actionsView
         .padding(.horizontal, MarineTheme.Spacing.medium)
@@ -181,7 +178,7 @@ struct MapCalloutView: View {
     if let waypointID = calloutViewModel.targetWaypointID {
       let isSelected = chartViewModel.goToWaypointID == waypointID
       
-      VStack(spacing: MarineTheme.Spacing.small) {
+      VStack(spacing: 0) {
         Button {
           Task { @MainActor [weak waypointService, weak calloutViewModel] in
             guard let waypointService, let calloutViewModel else { return }
@@ -202,6 +199,8 @@ struct MapCalloutView: View {
         }
         .buttonStyle(.plain)
         
+        Divider()
+        
         Button {
           Task { @MainActor [weak panelManager, weak calloutViewModel] in
             guard let panelManager, let calloutViewModel else { return }
@@ -218,8 +217,12 @@ struct MapCalloutView: View {
         }
         .buttonStyle(.plain)
       }
+      .background(
+        marineTheme.colors.surfaceBackground,
+        in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+      )
     } else {
-      VStack(spacing: MarineTheme.Spacing.small) {
+      VStack(spacing: 0) {
         Button {
           guard let targetCoord = calloutViewModel.targetCoordinate else { return }
           Task { @MainActor [weak waypointService, weak appViewModel, weak calloutViewModel] in
@@ -242,6 +245,8 @@ struct MapCalloutView: View {
         .buttonStyle(.plain)
         
         if chartViewModel.goToWaypointID != nil {
+          Divider()
+          
           Button {
             Task { @MainActor [weak waypointService, weak calloutViewModel] in
               guard let waypointService, let calloutViewModel else { return }
@@ -258,6 +263,10 @@ struct MapCalloutView: View {
           .buttonStyle(.plain)
         }
       }
+      .background(
+        marineTheme.colors.surfaceBackground,
+        in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+      )
     }
   }
   
@@ -273,10 +282,6 @@ struct MapCalloutView: View {
     }
     .padding(.horizontal, MarineTheme.Spacing.actionRowHorizontal)
     .frame(minHeight: marineTheme.minTouchTarget)
-    .background(
-      marineTheme.colors.surfaceBackground,
-      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-    )
     .contentShape(Rectangle())
   }
 }
