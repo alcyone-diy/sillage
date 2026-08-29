@@ -996,6 +996,9 @@
     "Tap '+' to select an area on the chart to download." : {
 
     },
+    "Target Position" : {
+
+    },
     "The application has been closed by iOS. Active services (like tracking or anchor watch) have been stopped." : {
 
     },

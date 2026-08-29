@@ -10,199 +10,254 @@
 
 import SwiftUI
 import CoreLocation
+import OSLog
 
-/// A floating Apple-style callout overlay view rendered over MapLibreView.
-/// Features an exact target crosshair at the screen coordinate and an offset material menu card
+/// A native contextual bottom dialog sheet overlay view rendered for map targets.
+/// Displays an exact target crosshair at the screen coordinate when targeting empty map space,
+/// and presents a self-sizing native bottom sheet (.presentationDetents([.height(...)]) with
+/// .presentationDragIndicator(.visible) and .presentationBackgroundInteraction(.enabled))
 /// displaying live bearing & distance telemetry and contextual marine action buttons.
 struct MapCalloutView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.waypointService) private var waypointService
   @Environment(PanelManagerViewModel.self) private var panelManager
   @Environment(AppViewModel.self) private var appViewModel
+  @Environment(\.locale) private var locale
   
   @Bindable var calloutViewModel: MapCalloutViewModel
   var chartViewModel: ChartViewModel
   
+  @State private var measuredHeight: CGFloat = 220
+  
   var body: some View {
-    if calloutViewModel.isCalloutVisible {
-      GeometryReader { geometry in
-        let vesselCoord = chartViewModel.currentCoordinate
-        let bearing = calloutViewModel.bearing(from: vesselCoord)
-        let distance = calloutViewModel.distance(from: vesselCoord)
-        
-        let screenPoint = calloutViewModel.screenPoint
-        let cardWidth = MarineTheme.Metrics.calloutCardWidth
-        
-        // Determine whether to place the card above or below the crosshair reticle
-        let isNearTop = screenPoint.y < MarineTheme.Metrics.topToolbarClearance
-        let verticalOffset = MarineTheme.Metrics.calloutVerticalOffset
-        let cardY = isNearTop ? screenPoint.y + verticalOffset : screenPoint.y - verticalOffset
-        let horizontalMargin = MarineTheme.Spacing.medium
-        let cardX = min(max(screenPoint.x, cardWidth / 2 + horizontalMargin), geometry.size.width - cardWidth / 2 - horizontalMargin)
-        
-        ZStack {
-          // 1. Target Crosshair Reticle (Displayed only when targeting empty map space)
-          if calloutViewModel.targetWaypointID == nil {
-            MarineCrosshairView()
-              .position(x: screenPoint.x, y: screenPoint.y)
-          }
-          
-          // 2. Floating Callout Menu Card (Offset above/below target point)
-          calloutCardView(bearing: bearing, distance: distance)
-            .frame(width: cardWidth)
-            .background(
-              .regularMaterial,
-              in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-            )
-            .overlay(
-              RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-                .stroke(marineTheme.colors.border.opacity(0.4), lineWidth: MarineTheme.Metrics.borderWidth / 2)
-            )
-            .shadow(color: Color.black.opacity(0.15), radius: MarineTheme.Metrics.shadowRadius * 3, x: 0, y: MarineTheme.Metrics.shadowOffset * 3)
-            .position(x: cardX, y: cardY)
-            .transition(.scale(scale: 0.95).combined(with: .opacity))
-        }
+    ZStack {
+      // 1. Target Crosshair Reticle (Displayed only when targeting empty map space)
+      if calloutViewModel.isCalloutVisible && calloutViewModel.targetWaypointID == nil {
+        MarineCrosshairView()
+          .position(x: calloutViewModel.screenPoint.x, y: calloutViewModel.screenPoint.y)
       }
-      .ignoresSafeArea()
+    }
+    .sheet(isPresented: $calloutViewModel.isCalloutVisible) {
+      calloutSheetContent
+        .onGeometryChange(for: CGFloat.self) { proxy in
+          proxy.size.height
+        } action: { newHeight in
+          if newHeight > 0 {
+            measuredHeight = newHeight
+          }
+        }
+        .presentationDetents([.height(measuredHeight)])
+        .presentationDragIndicator(.visible)
+        .presentationBackgroundInteraction(.enabled(upThrough: .height(measuredHeight)))
     }
   }
   
-  // MARK: - Callout Card Content
+  // MARK: - Callout Sheet Content
   
-  private func calloutCardView(bearing: Measurement<UnitAngle>?, distance: Measurement<UnitLength>?) -> some View {
-    VStack(spacing: 0) {
-      // Telemetry Header (Bearing & Distance)
-      HStack(spacing: 0) {
-        // Bearing Cell
-        VStack(spacing: MarineTheme.Spacing.tiny / 2) {
-          Text("BTW")
-            .bold()
-            .marineFont(.caption)
-            .foregroundColor(marineTheme.colors.textSecondary)
-          
-          if let brg = bearing {
-            let degValue = Int(brg.converted(to: .degrees).value.rounded())
-            let normalizedDeg = (degValue % 360 + 360) % 360
-            Text(String(format: "%03d°", normalizedDeg))
-              .monospacedDigit()
-              .bold()
-              .marineFont(.body)
-              .foregroundColor(marineTheme.colors.textPrimary)
-          } else {
-            Text("---")
-              .monospacedDigit()
-              .bold()
-              .marineFont(.body)
-              .foregroundColor(marineTheme.colors.textSecondary)
-          }
-        }
-        .frame(maxWidth: .infinity)
-        
-        Divider()
-          .frame(height: MarineTheme.Metrics.calloutDividerHeight)
-        
-        // Distance Cell
-        VStack(spacing: MarineTheme.Spacing.tiny / 2) {
-          Text("RNG")
-            .bold()
-            .marineFont(.caption)
-            .foregroundColor(marineTheme.colors.textSecondary)
-          
-          if let dist = distance {
-            Text(formatDistance(dist))
-              .monospacedDigit()
-              .bold()
-              .marineFont(.body)
-              .foregroundColor(marineTheme.colors.textPrimary)
-          } else {
-            Text("--")
-              .monospacedDigit()
-              .bold()
-              .marineFont(.body)
-              .foregroundColor(marineTheme.colors.textSecondary)
-          }
-        }
-        .frame(maxWidth: .infinity)
-      }
-      .padding(.vertical, MarineTheme.Spacing.small + 2)
-      .padding(.horizontal, MarineTheme.Spacing.small)
+  private var calloutSheetContent: some View {
+    VStack(spacing: MarineTheme.Spacing.small) {
+      // 1. Contextual Header (Waypoint name or Target coordinate)
+      headerView
+        .padding(.top, MarineTheme.Spacing.small)
+        .padding(.horizontal, MarineTheme.Spacing.medium)
+      
+      // 2. Telemetry Section (BTW & RNG)
+      let vesselCoord = chartViewModel.currentCoordinate
+      let bearing = calloutViewModel.bearing(from: vesselCoord)
+      let distance = calloutViewModel.distance(from: vesselCoord)
+      
+      telemetryBar(bearing: bearing, distance: distance)
+        .padding(.horizontal, MarineTheme.Spacing.medium)
       
       Divider()
+        .padding(.horizontal, MarineTheme.Spacing.small)
       
-      // Contextual Actions
-      VStack(spacing: 0) {
-        if let waypointID = calloutViewModel.targetWaypointID {
-          let isSelected = chartViewModel.goToWaypointID == waypointID
-          
-          Button {
-            Task { @MainActor in
-              if isSelected {
-                waypointService?.setDestination(waypointID: nil)
-              } else {
-                waypointService?.setDestination(waypointID: waypointID)
-              }
+      // 3. Contextual Action Buttons
+      actionsView
+        .padding(.horizontal, MarineTheme.Spacing.medium)
+        .padding(.bottom, MarineTheme.Spacing.small)
+    }
+    .frame(maxWidth: .infinity)
+  }
+  
+  // MARK: - Subviews
+  
+  @ViewBuilder
+  private var headerView: some View {
+    if let waypointID = calloutViewModel.targetWaypointID,
+       let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == waypointID }) {
+      HStack(spacing: MarineTheme.Spacing.small) {
+        Image(marineIcon: .waypoint)
+          .foregroundColor(marineTheme.colors.primary)
+          .marineFont(.body)
+        Text(waypoint.name)
+          .marineFont(.headline)
+          .foregroundColor(marineTheme.colors.textPrimary)
+          .lineLimit(1)
+        Spacer()
+      }
+    } else {
+      HStack(spacing: MarineTheme.Spacing.small) {
+        Image(marineIcon: .crosshair)
+          .foregroundColor(marineTheme.colors.primary)
+          .marineFont(.body)
+        if let formatted = calloutViewModel.formattedCoordinate {
+          Text(formatted)
+            .marineFont(.subheadline)
+            .foregroundColor(marineTheme.colors.textPrimary)
+            .lineLimit(1)
+        } else {
+          Text("Target Position")
+            .marineFont(.headline)
+            .foregroundColor(marineTheme.colors.textPrimary)
+        }
+        Spacer()
+      }
+    }
+  }
+  
+  private func telemetryBar(bearing: Measurement<UnitAngle>?, distance: Measurement<UnitLength>?) -> some View {
+    HStack(spacing: 0) {
+      // Bearing Cell (BTW)
+      VStack(spacing: MarineTheme.Spacing.tiny / 2) {
+        Text("BTW")
+          .bold()
+          .marineFont(.caption)
+          .foregroundColor(marineTheme.colors.textSecondary)
+        
+        if let brg = bearing {
+          Text(brg.marineBearingFormatted)
+            .monospacedDigit()
+            .bold()
+            .marineFont(.body)
+            .foregroundColor(marineTheme.colors.textPrimary)
+        } else {
+          Text("---")
+            .monospacedDigit()
+            .bold()
+            .marineFont(.body)
+            .foregroundColor(marineTheme.colors.textSecondary)
+        }
+      }
+      .frame(maxWidth: .infinity)
+      
+      Divider()
+        .frame(height: MarineTheme.Metrics.calloutDividerHeight)
+      
+      // Distance Cell (RNG)
+      VStack(spacing: MarineTheme.Spacing.tiny / 2) {
+        Text("RNG")
+          .bold()
+          .marineFont(.caption)
+          .foregroundColor(marineTheme.colors.textSecondary)
+        
+        if let dist = distance {
+          Text(dist.marineContextualDistanceFormatted(locale: locale))
+            .monospacedDigit()
+            .bold()
+            .marineFont(.body)
+            .foregroundColor(marineTheme.colors.textPrimary)
+        } else {
+          Text("--")
+            .monospacedDigit()
+            .bold()
+            .marineFont(.body)
+            .foregroundColor(marineTheme.colors.textSecondary)
+        }
+      }
+      .frame(maxWidth: .infinity)
+    }
+    .padding(.vertical, MarineTheme.Spacing.small)
+    .background(
+      marineTheme.colors.surfaceBackground,
+      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+    )
+  }
+  
+  @ViewBuilder
+  private var actionsView: some View {
+    if let waypointID = calloutViewModel.targetWaypointID {
+      let isSelected = chartViewModel.goToWaypointID == waypointID
+      
+      VStack(spacing: MarineTheme.Spacing.small) {
+        Button {
+          Task { @MainActor [weak waypointService, weak calloutViewModel] in
+            guard let waypointService, let calloutViewModel else { return }
+            if isSelected {
+              Logger.navigation.info("Deselecting destination waypoint ID: \(waypointID, privacy: .public)")
+              waypointService.setDestination(waypointID: nil)
+            } else {
+              Logger.navigation.info("Setting destination waypoint ID: \(waypointID, privacy: .public)")
+              waypointService.setDestination(waypointID: waypointID)
             }
             calloutViewModel.dismiss()
-          } label: {
-            actionRow(
-              title: isSelected ? String(localized: "Deselect") : String(localized: "Select"),
-              systemImage: isSelected ? MarineIcon.deselect.rawValue : MarineIcon.select.rawValue
-            )
           }
-          .buttonStyle(.plain)
-          
+        } label: {
+          actionRow(
+            title: isSelected ? String(localized: "Deselect") : String(localized: "Select"),
+            systemImage: isSelected ? MarineIcon.deselect.rawValue : MarineIcon.select.rawValue
+          )
+        }
+        .buttonStyle(.plain)
+        
+        Divider()
+        
+        Button {
+          Task { @MainActor [weak panelManager, weak calloutViewModel] in
+            guard let panelManager, let calloutViewModel else { return }
+            Logger.navigation.info("Opening waypoint detail for ID: \(waypointID, privacy: .public)")
+            panelManager.commandPath = [.waypoints, .waypointDetail(waypointID)]
+            panelManager.openPanel(.command)
+            calloutViewModel.dismiss()
+          }
+        } label: {
+          actionRow(
+            title: String(localized: "Show Details"),
+            systemImage: MarineIcon.details.rawValue
+          )
+        }
+        .buttonStyle(.plain)
+      }
+    } else {
+      VStack(spacing: MarineTheme.Spacing.small) {
+        Button {
+          guard let targetCoord = calloutViewModel.targetCoordinate else { return }
+          Task { @MainActor [weak waypointService, weak appViewModel, weak calloutViewModel] in
+            guard let appViewModel, let calloutViewModel else { return }
+            var defaultName: String? = nil
+            if let service = waypointService {
+              defaultName = await service.generateDefaultName()
+            }
+            Logger.navigation.info("Initiating waypoint creation draft from map target")
+            let draftCoord = CoordinateWrapper(coordinate: targetCoord, defaultName: defaultName)
+            calloutViewModel.dismiss()
+            appViewModel.waypointDraft = draftCoord
+          }
+        } label: {
+          actionRow(
+            title: String(localized: "Create Waypoint…"),
+            systemImage: MarineIcon.waypoint.rawValue
+          )
+        }
+        .buttonStyle(.plain)
+        
+        if chartViewModel.goToWaypointID != nil {
           Divider()
           
           Button {
-            Task { @MainActor in
-              panelManager.commandPath = [.waypoints, .waypointDetail(waypointID)]
-              panelManager.openPanel(.command)
-            }
-            calloutViewModel.dismiss()
-          } label: {
-            actionRow(
-              title: String(localized: "Show Details"),
-              systemImage: MarineIcon.details.rawValue
-            )
-          }
-          .buttonStyle(.plain)
-          
-        } else {
-          Button {
-            guard let targetCoord = calloutViewModel.targetCoordinate else { return }
-            Task { @MainActor in
-              var defaultName: String? = nil
-              if let service = waypointService {
-                defaultName = await service.generateDefaultName()
-              }
-              let draftCoord = CoordinateWrapper(coordinate: targetCoord, defaultName: defaultName)
-              appViewModel.waypointDraft = draftCoord
-            }
-            calloutViewModel.dismiss()
-          } label: {
-            actionRow(
-              title: String(localized: "Create Waypoint…"),
-              systemImage: MarineIcon.waypoint.rawValue
-            )
-          }
-          .buttonStyle(.plain)
-          
-          if chartViewModel.goToWaypointID != nil {
-            Divider()
-            
-            Button {
-              Task { @MainActor in
-                waypointService?.setDestination(waypointID: nil)
-              }
+            Task { @MainActor [weak waypointService, weak calloutViewModel] in
+              guard let waypointService, let calloutViewModel else { return }
+              Logger.navigation.info("Deselecting active target from map callout")
+              waypointService.setDestination(waypointID: nil)
               calloutViewModel.dismiss()
-            } label: {
-              actionRow(
-                title: String(localized: "Deselect Target"),
-                systemImage: MarineIcon.deselect.rawValue
-              )
             }
-            .buttonStyle(.plain)
+          } label: {
+            actionRow(
+              title: String(localized: "Deselect Target"),
+              systemImage: MarineIcon.deselect.rawValue
+            )
           }
+          .buttonStyle(.plain)
         }
       }
     }
@@ -221,9 +276,5 @@ struct MapCalloutView: View {
     .padding(.horizontal, MarineTheme.Spacing.actionRowHorizontal)
     .frame(minHeight: marineTheme.minTouchTarget)
     .contentShape(Rectangle())
-  }
-  
-  private func formatDistance(_ distance: Measurement<UnitLength>) -> String {
-    distance.marineContextualDistanceFormatted()
   }
 }
