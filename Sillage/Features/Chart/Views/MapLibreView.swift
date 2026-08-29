@@ -346,23 +346,61 @@ struct MapLibreView: UIViewRepresentable {
       
       guard let mapView = sender.view as? MLNMapView else { return }
 
+      // Disable active tracking mode during target inspection
+      parent.viewModel.chartInteractedByUser()
+
       let point = sender.location(in: mapView)
       let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
       
       let touchRect = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
       let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: [MapLayerIdentifier.goToWaypoint.rawValue, MapLayerIdentifier.visibleWaypoints.rawValue])
 
+      let targetCoordinate: CLLocationCoordinate2D
+      let targetPoint: CGPoint
+      let waypointID: String?
+
       if let feature = features.first as? MLNPointFeature,
          let id = feature.attributes[MapFeatureKey.id.rawValue] as? String {
-        let exactCoordinate = feature.coordinate
-        let exactPoint = mapView.convert(exactCoordinate, toPointTo: mapView)
-        self.parent.viewModel.calloutViewModel.presentCallout(at: exactPoint, coordinate: exactCoordinate, waypointID: id)
+        targetCoordinate = feature.coordinate
+        targetPoint = mapView.convert(targetCoordinate, toPointTo: mapView)
+        waypointID = id
       } else {
-        self.parent.viewModel.calloutViewModel.presentCallout(at: point, coordinate: coordinate, waypointID: nil)
+        targetCoordinate = coordinate
+        targetPoint = point
+        waypointID = nil
+      }
+
+      self.parent.viewModel.calloutViewModel.presentCallout(at: targetPoint, coordinate: targetCoordinate, waypointID: waypointID)
+      ensureTargetVisible(at: targetPoint, in: mapView)
+    }
+    
+    /// Technical Design Choice: Animate Map Upwards if Target Point is Obscured by Bottom Dialog
+    /// When the contextual dialog opens from the bottom, any target point located in the lower portion of the screen
+    /// is automatically panned upwards into the unobstructed visible map area above the dialog with smooth animation.
+    private func ensureTargetVisible(at point: CGPoint, in mapView: MLNMapView, sheetHeight: CGFloat = 220) {
+      let clearance: CGFloat = 40.0
+      let maxY = mapView.bounds.height - sheetHeight - clearance
+      
+      if point.y > maxY {
+        let deltaY = point.y - maxY
+        let currentCenterPoint = mapView.convert(mapView.centerCoordinate, toPointTo: mapView)
+        let newCenterPoint = CGPoint(x: currentCenterPoint.x, y: currentCenterPoint.y + deltaY)
+        let newCenterCoordinate = mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
+        
+        mapView.setCenter(newCenterCoordinate, animated: true)
       }
     }
     
     func setupSubscription(for mapView: MLNMapView) {
+      // Connect ensureVisible callback from MapCalloutViewModel
+      parent.viewModel.calloutViewModel.onEnsureVisibleRequested = { [weak self, weak mapView] sheetHeight in
+        guard let self = self, let mapView = mapView else { return }
+        guard self.parent.viewModel.calloutViewModel.isCalloutVisible,
+              let targetCoord = self.parent.viewModel.calloutViewModel.targetCoordinate else { return }
+        let currentPoint = mapView.convert(targetCoord, toPointTo: mapView)
+        self.ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: sheetHeight)
+      }
+
       streamTask?.cancel()
       streamTask = Task { @MainActor in
         for await event in parent.viewModel.cameraMoveStream {
