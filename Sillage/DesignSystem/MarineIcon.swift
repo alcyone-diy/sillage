@@ -16,6 +16,7 @@ enum MarineIcon: String {
     case track = "point.topleft.down.curvedto.point.bottomright.up"
     case instruments = "barometer"
     case anchorAlarm = "location.viewfinder"
+    case crosshair = "scope"
     case settings = "gearshape.fill"
     case offlineChart = "square.and.arrow.down.on.square"
     

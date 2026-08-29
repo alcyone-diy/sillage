@@ -31,6 +31,11 @@ final class MapCalloutViewModel {
   var targetCoordinate: CLLocationCoordinate2D? = nil
   var targetWaypointID: String? = nil
   
+  /// Formatted coordinate string for UI presentation without altering raw coordinate precision.
+  var formattedCoordinate: String? {
+    targetCoordinate?.formatted(.marineCoordinate)
+  }
+  
   private var anchorMode: AnchorMode = .fixedScreen
   private var throttleTask: TaskCancellable?
   

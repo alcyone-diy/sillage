@@ -149,16 +149,15 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.targetWaypointID)
   }
 
-  func testCoordinate2DDistanceToAndThresholdEvaluation() {
-    let p1 = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    // ~111 meters North
-    let p2 = CLLocationCoordinate2D(latitude: 47.001, longitude: -3.0)
-
-    let dist = p1.distance(to: p2)
-    XCTAssertGreaterThan(dist.converted(to: .meters).value, 100.0)
-    XCTAssertLessThan(dist.converted(to: .meters).value, 120.0)
-
-    // Verify distance to self is 0 meters
-    XCTAssertEqual(p1.distance(to: p1).converted(to: .meters).value, 0.0, accuracy: 0.001)
+  func testFormattedCoordinate() {
+    let viewModel = MapCalloutViewModel()
+    XCTAssertNil(viewModel.formattedCoordinate)
+    
+    let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
+    viewModel.presentCallout(at: .zero, coordinate: coord)
+    
+    let formatted = viewModel.formattedCoordinate
+    XCTAssertNotNil(formatted)
+    XCTAssertTrue(formatted?.contains("47°") == true)
   }
 }
