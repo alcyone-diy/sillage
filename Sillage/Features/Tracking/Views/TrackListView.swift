@@ -50,18 +50,12 @@ struct TrackListView: View {
             } else {
               Button {
                 Task {
-                  if let trackService {
-                    do {
-                      try await chartViewModel.loadAndDisplaySavedTrack(
-                        sessionID: session.id,
-                        trackService: trackService,
-                        edgePadding: MarineTheme.Spacing.large
-                      )
-                      panelManager.closePanel()
-                    } catch {
-                      Logger.chart.error("Failed to display track \(session.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                      viewModel.activeError = .loadFailed
-                    }
+                  do {
+                    try await chartViewModel.loadAndDisplaySavedTrack(sessionID: session.id)
+                    panelManager.closePanel()
+                  } catch {
+                    Logger.chart.error("Failed to display track \(session.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    viewModel.activeError = .loadFailed
                   }
                 }
               } label: {

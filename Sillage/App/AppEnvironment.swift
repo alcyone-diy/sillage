@@ -203,6 +203,8 @@ final class AppEnvironment {
         authService: geoGarageAuthService,
         anchorService: anchorService,
         anchorViewModel: anchorViewModel,
+        trackService: trackService,
+        trackRecordingService: trackRecordingService,
         waypointService: waypointService,
         messageService: messageService
       )
@@ -239,7 +241,7 @@ final class AppEnvironment {
       if let displayedTrackID = preferencesService.displayedTrackSessionID {
         Task { @MainActor in
           do {
-            try await chartViewModel.loadAndDisplaySavedTrack(sessionID: displayedTrackID, trackService: trackService, edgePadding: 50, centerOnTrack: false)
+            try await chartViewModel.loadAndDisplaySavedTrack(sessionID: displayedTrackID, edgePadding: 50, centerOnTrack: false)
           } catch {
             Logger.system.error("❌ Failed to reload previous active track: \(error.localizedDescription, privacy: .public)")
           }

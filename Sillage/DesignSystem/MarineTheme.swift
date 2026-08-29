@@ -120,37 +120,37 @@ struct MarineTheme {
     Metrics(touchTarget: minTouchTarget, handleSize: isGloveMode ? 36.0 : 24.0)
   }
 
-  struct Spacing {
-    static let tiny: CGFloat = 4
-    static let small: CGFloat = 8
-    static let actionRowHorizontal: CGFloat = 14.0
-    static let medium: CGFloat = 16
-    static let large: CGFloat = 24
-    static let extraLarge: CGFloat = 32
+  struct Spacing: Sendable {
+    nonisolated static let tiny: CGFloat = 4
+    nonisolated static let small: CGFloat = 8
+    nonisolated static let actionRowHorizontal: CGFloat = 14.0
+    nonisolated static let medium: CGFloat = 16
+    nonisolated static let large: CGFloat = 24
+    nonisolated static let extraLarge: CGFloat = 32
 
     /// Standard top offset for floating top telemetry HUD cards below the safe area
-    static let hudCardTopPadding: CGFloat = 10.0
+    nonisolated static let hudCardTopPadding: CGFloat = 10.0
 
     /// Vertical margin offset for native MapLibre compass to clear top telemetry HUD overlay
-    static let compassTopMargin: CGFloat = 90.0
+    nonisolated static let compassTopMargin: CGFloat = 90.0
 
     /// Standard margin for full-screen overlay action cards
-    static let overlayCardBottom: CGFloat = 40.0
+    nonisolated static let overlayCardBottom: CGFloat = 40.0
 
     /// Default bottom safe area clearance for floating action buttons (FAB)
-    static let fabBottomDefault: CGFloat = 32.0
+    nonisolated static let fabBottomDefault: CGFloat = 32.0
   }
 
-  struct ChartMetrics {
-    static let vesselCursorBaseSize = CGSize(width: 24, height: 36)
-    static let headingLineWidth: Double = 2.5
-    static let planningLineWidth: Double = 1.0
-    static let gpsAccuracyFillOpacity: Double = 0.15
-    static let gpsAccuracyStrokeOpacity: Double = 0.4
-    static let gpsAccuracyLineWidth: Double = 1.0
-    static let offlineMaskFillOpacity: Double = 0.55
-    static let offlineRegionsBorderLineWidth: Double = 1.5
-    static let offlineRegionsBorderOpacity: Double = 0.85
+  struct ChartMetrics: Sendable {
+    nonisolated static let vesselCursorBaseSize = CGSize(width: 24, height: 36)
+    nonisolated static let headingLineWidth: Double = 2.5
+    nonisolated static let planningLineWidth: Double = 1.0
+    nonisolated static let gpsAccuracyFillOpacity: Double = 0.15
+    nonisolated static let gpsAccuracyStrokeOpacity: Double = 0.4
+    nonisolated static let gpsAccuracyLineWidth: Double = 1.0
+    nonisolated static let offlineMaskFillOpacity: Double = 0.55
+    nonisolated static let offlineRegionsBorderLineWidth: Double = 1.5
+    nonisolated static let offlineRegionsBorderOpacity: Double = 0.85
   }
 
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false, colors: dayColors)

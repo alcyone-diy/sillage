@@ -281,11 +281,7 @@ struct CommandPanelView: View {
           trackRecordingService: trackRecordingService
         )
         TrackDetailView(viewModel: model) { id in
-          try await chartViewModel.loadAndDisplaySavedTrack(
-            sessionID: id,
-            trackService: trackService,
-            edgePadding: MarineTheme.Spacing.large
-          )
+          try await chartViewModel.loadAndDisplaySavedTrack(sessionID: id)
           viewModel.closePanel()
         }
       }

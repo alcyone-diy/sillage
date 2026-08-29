@@ -167,6 +167,8 @@ final class ChartViewModel {
   private var preferencesService: PreferencesServiceProtocol
   private let authService: GeoGarageAuthServiceProtocol
   private let waypointService: WaypointService?
+  private let trackService: TrackService
+  private let trackRecordingService: TrackRecordingService
   private let anchorService: AnchorService
   let anchorViewModel: AnchorViewModel
   let calloutViewModel = MapCalloutViewModel()
@@ -180,6 +182,7 @@ final class ChartViewModel {
   private var waypointSelectionTask: TaskCancellable?
   private var waypointsObservationTask: TaskCancellable?
   private var anchorObservationTask: TaskCancellable?
+  private var finalizedTrackSessionsTask: TaskCancellable?
   private var centerCoordinateThrottleTask: TaskCancellable?
   private var mapScaleThrottleTask: TaskCancellable?
   private var pendingCenterCoordinate: CLLocationCoordinate2D?
@@ -295,6 +298,8 @@ final class ChartViewModel {
     authService: GeoGarageAuthServiceProtocol,
     anchorService: AnchorService,
     anchorViewModel: AnchorViewModel,
+    trackService: TrackService,
+    trackRecordingService: TrackRecordingService,
     waypointService: WaypointService? = nil,
     messageService: MessageService? = nil
   ) {
@@ -305,6 +310,8 @@ final class ChartViewModel {
     self.anchorService = anchorService
     self.anchorViewModel = anchorViewModel
     self.waypointService = waypointService
+    self.trackService = trackService
+    self.trackRecordingService = trackRecordingService
     self.messageService = messageService
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
     
@@ -312,6 +319,7 @@ final class ChartViewModel {
     setupInstrumentTask()
     setupWaypointService()
     setupAnchorService()
+    setupTrackRecordingService()
     silentlyFetchGeoGarageLayers()
     setupGeoGarageLayersObservation()
     startObservingLocalCharts()
@@ -390,6 +398,28 @@ final class ChartViewModel {
     
     observeSelection()
     observeWaypoints()
+  }
+  
+  /// Observes finalized track sessions via native NotificationCenter async stream.
+  /// Automatically loads and renders newly saved tracks onto the chart in a decoupled, data-driven manner.
+  private func setupTrackRecordingService() {
+    finalizedTrackSessionsTask?.cancel()
+    let task = Task { @MainActor [weak self] in
+      for await notification in NotificationCenter.default.notifications(named: .trackRecordingDidFinalize) {
+        guard !Task.isCancelled, let self = self,
+              let sessionID = notification.userInfo?["sessionID"] as? String else { continue }
+        do {
+          try await self.loadAndDisplaySavedTrack(
+            sessionID: sessionID,
+            edgePadding: MarineTheme.Spacing.large,
+            centerOnTrack: false
+          )
+        } catch {
+          Logger.chart.error("Failed to auto-display saved track \(sessionID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+      }
+    }
+    finalizedTrackSessionsTask = TaskCancellable(task)
   }
   
   private func handleGoToWaypointChange(id: String?) {
@@ -1024,7 +1054,12 @@ final class ChartViewModel {
 
   // MARK: - Saved Tracks
   
-  func loadAndDisplaySavedTrack(sessionID: String, trackService: TrackService, edgePadding: CGFloat, centerOnTrack: Bool = true) async throws {
+  func loadAndDisplaySavedTrack(
+    sessionID: String,
+    edgePadding: CGFloat? = nil,
+    centerOnTrack: Bool = true
+  ) async throws {
+    let resolvedPadding = edgePadding ?? MarineTheme.Spacing.large
     // Switch to free tracking mode when viewing a saved track
     if centerOnTrack {
       trackingMode = .free
@@ -1044,7 +1079,7 @@ final class ChartViewModel {
     
     if centerOnTrack {
       if let bounds = bounds {
-        let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: edgePadding, left: edgePadding, bottom: edgePadding, right: edgePadding))
+        let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: resolvedPadding, left: resolvedPadding, bottom: resolvedPadding, right: resolvedPadding))
         for continuation in self.cameraMoveContinuations.values {
           continuation.yield(event)
         }

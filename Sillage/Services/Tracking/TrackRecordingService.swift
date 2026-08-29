@@ -195,6 +195,12 @@ public final class TrackRecordingService {
     currentSessionID = nil
     preferencesService.clearActiveTrackSessionID()
     
+    NotificationCenter.default.post(
+      name: .trackRecordingDidFinalize,
+      object: nil,
+      userInfo: ["sessionID": sessionID]
+    )
+    
     return sessionID
   }
   
@@ -492,4 +498,10 @@ public final class TrackRecordingService {
       totalPointCount: telemetry.totalPointCount
     )
   }
+}
+
+extension Notification.Name {
+  /// Posted when a track recording session is successfully finalized and persisted in the database.
+  /// UserInfo dictionary contains "sessionID" (String).
+  public static let trackRecordingDidFinalize = Notification.Name("trackRecordingDidFinalize")
 }
