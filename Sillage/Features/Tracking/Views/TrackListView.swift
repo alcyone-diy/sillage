@@ -36,7 +36,11 @@ struct TrackListView: View {
       } else {
         ForEach(viewModel.sessions) { session in
           NavigationLink(value: PanelManagerViewModel.CommandDestination.sessionDetail(sessionID: session.id)) {
-            TrackRowView(session: session, subtitle: viewModel.subtitle(for: session))
+            TrackRowView(
+              session: session,
+              subtitle: viewModel.subtitle(for: session),
+              isSelected: chartViewModel.displayedTrackSessionID == session.id
+            )
           }
           .swipeActions(edge: .leading) {
             let isVisible = chartViewModel.displayedTrackSessionID == session.id
@@ -124,32 +128,42 @@ struct TrackListView: View {
 struct TrackRowView: View {
   let session: TrackSession
   let subtitle: String?
+  let isSelected: Bool
   
   var body: some View {
-    ZStack(alignment: .leading) {
-      // Invisible template to enforce uniform height whether it has 1 or 2 lines.
-      VStack(alignment: .leading, spacing: 4) {
-        Text(" ")
-          .marineFont(.body)
-        Text(" ")
-          .marineFont(.caption)
-      }
-      .hidden()
-      
-      VStack(alignment: .leading, spacing: 4) {
-        if let name = session.name {
-          Text(name)
+    HStack {
+      ZStack(alignment: .leading) {
+        // Invisible template to enforce uniform height whether it has 1 or 2 lines.
+        VStack(alignment: .leading, spacing: 4) {
+          Text(" ")
             .marineFont(.body)
-        } else {
-          Text(session.startTime.formatted(date: .complete, time: .shortened))
-            .marineFont(.body)
-        }
-        
-        if let subtitle = subtitle {
-          Text(verbatim: subtitle)
-            .foregroundStyle(.secondary)
+          Text(" ")
             .marineFont(.caption)
         }
+        .hidden()
+        
+        VStack(alignment: .leading, spacing: 4) {
+          if let name = session.name {
+            Text(name)
+              .marineFont(.body)
+          } else {
+            Text(session.startTime.formatted(date: .complete, time: .shortened))
+              .marineFont(.body)
+          }
+          
+          if let subtitle = subtitle {
+            Text(verbatim: subtitle)
+              .foregroundStyle(.secondary)
+              .marineFont(.caption)
+          }
+        }
+      }
+      
+      Spacer()
+      
+      if isSelected {
+        Image(marineIcon: .track)
+          .foregroundColor(.blue)
       }
     }
   }
