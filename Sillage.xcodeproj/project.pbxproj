@@ -12,6 +12,7 @@
 		0238E18A3032657B001F3B1F /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA152FAFE4000077046A /* SQLCipher */; };
 		0265CA132FAFE3FF0077046A /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA122FAFE3FF0077046A /* GRDB */; };
 		0265CA162FAFE4000077046A /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA152FAFE4000077046A /* SQLCipher */; };
+		02E3D3AA304CCA980074950E /* Clocks in Frameworks */ = {isa = PBXBuildFile; productRef = 020D22012FC3BBF900101B1B /* Clocks */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,6 +73,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				02E3D3AA304CCA980074950E /* Clocks in Frameworks */,
 				0238E18A3032657B001F3B1F /* SQLCipher in Frameworks */,
 				0238E1893032657B001F3B1F /* (null) in Frameworks */,
 			);
@@ -673,6 +675,11 @@
 			package = 020ACF652F6E43C1002C5C1B /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
 			productName = MapLibre;
 		};
+		020D22012FC3BBF900101B1B /* Clocks */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 020D22002FC3BBF900101B1B /* XCRemoteSwiftPackageReference "swift-clocks" */;
+			productName = Clocks;
+		};
 		0265CA122FAFE3FF0077046A /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 0265CA0A2FAFDFC10077046A /* XCRemoteSwiftPackageReference "GRDB.swift" */;
@@ -682,11 +689,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0265CA142FAFE4000077046A /* XCRemoteSwiftPackageReference "SQLCipher.swift" */;
 			productName = SQLCipher;
-		};
-		020D22012FC3BBF900101B1B /* Clocks */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 020D22002FC3BBF900101B1B /* XCRemoteSwiftPackageReference "swift-clocks" */;
-			productName = Clocks;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
