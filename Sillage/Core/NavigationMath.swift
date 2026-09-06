@@ -127,6 +127,9 @@ extension CLLocationCoordinate2D {
   /// - Parameter destination: The target coordinate.
   /// - Returns: The compass bearing as a `Measurement<UnitAngle>` (0 = True North).
   func greatCircleBearing(to destination: CLLocationCoordinate2D) -> Measurement<UnitAngle>? {
+    // Technical Design Choice: Indeterminate bearing to identical position returns nil per maritime navigation principles
+    guard self.latitude != destination.latitude || self.longitude != destination.longitude else { return nil }
+
     let lat1 = Measurement(value: self.latitude, unit: UnitAngle.degrees).converted(to: .radians).value
     let lon1 = Measurement(value: self.longitude, unit: UnitAngle.degrees).converted(to: .radians).value
     let lat2 = Measurement(value: destination.latitude, unit: UnitAngle.degrees).converted(to: .radians).value
