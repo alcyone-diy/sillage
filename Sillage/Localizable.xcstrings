@@ -251,9 +251,6 @@
     "BATTERY" : {
 
     },
-    "BEARING" : {
-
-    },
     "BTW" : {
 
     },
@@ -393,6 +390,9 @@
 
     },
     "Details" : {
+
+    },
+    "DIR" : {
 
     },
     "DISARM ANCHOR" : {
@@ -792,6 +792,9 @@
 
     },
     "Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences." : {
+
+    },
+    "OFFSET" : {
 
     },
     "OK" : {

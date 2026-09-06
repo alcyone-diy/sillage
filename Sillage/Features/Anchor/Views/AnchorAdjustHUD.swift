@@ -93,8 +93,8 @@ fileprivate struct LineOfSightHUDView: View {
     let bearingString = bearing?.marineBearingFormatted ?? "---"
 
     let items = [
-      MarineTelemetryItem(label: "DISTANCE", value: distanceString, isPlaceholder: distance == nil),
-      MarineTelemetryItem(label: "BEARING", value: bearingString, isPlaceholder: bearing == nil)
+      MarineTelemetryItem(label: "OFFSET", value: distanceString, isPlaceholder: distance == nil),
+      MarineTelemetryItem(label: "DIR", value: bearingString, isPlaceholder: bearing == nil)
     ]
 
     MarineTelemetryHUDCard(items: items)
