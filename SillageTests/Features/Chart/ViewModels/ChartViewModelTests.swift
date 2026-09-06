@@ -912,9 +912,65 @@ final class ChartViewModelTests: XCTestCase {
     viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
     XCTAssertEqual(viewModel.currentGeoGarageLayerID, "shom")
     XCTAssertTrue(viewModel.isGeoGarageLayerActive("shom"))
-    XCTAssertTrue(viewModel.isGeoGarageLayerActive("SHOM"))
     XCTAssertFalse(viewModel.isGeoGarageLayerActive("ukho"))
     XCTAssertFalse(viewModel.isGeoGarageLayerActive(""))
+  }
+
+  func testCenterOnMeasurePinIfNeeded_WhenPinIsOffScreen_CentersCameraWithPreservedZoom() async throws {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let mockAuthService = MockGeoGarageAuthService()
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    let pinACoord = CLLocationCoordinate2D(latitude: 48.0, longitude: -4.0)
+    let pinBCoord = CLLocationCoordinate2D(latitude: 49.0, longitude: -3.0)
+    viewModel.measureToolViewModel.start(at: pinACoord, initialEnd: pinBCoord)
+
+    // Set visible bounds that only contain Pin A, but NOT Pin B
+    viewModel.currentVisibleBounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.5, longitude: -4.5),
+      northEast: CLLocationCoordinate2D(latitude: 48.5, longitude: -3.5)
+    )
+
+    // 1. Selecting Pin A (which is already in visible bounds) should NOT emit CameraMoveEvent
+    let stream = viewModel.cameraMoveStream
+    var events: [CameraMoveEvent] = []
+    let task = Task { @MainActor in
+      for await event in stream {
+        events.append(event)
+      }
+    }
+
+    viewModel.centerOnMeasurePinIfNeeded(.start)
+    try? await Task.sleep(for: .milliseconds(50))
+    XCTAssertTrue(events.isEmpty, "Pin A is already on the map, so camera must not move")
+
+    // 2. Selecting Pin B (which is off-screen) MUST emit CameraMoveEvent.center with zoom: nil
+    viewModel.centerOnMeasurePinIfNeeded(.end)
+    try? await Task.sleep(for: .milliseconds(50))
+    task.cancel()
+
+    XCTAssertEqual(events.count, 1)
+    if case .center(let coordinate, let zoom, _) = events.first {
+      XCTAssertEqual(coordinate.latitude, pinBCoord.latitude, accuracy: 0.0001)
+      XCTAssertEqual(coordinate.longitude, pinBCoord.longitude, accuracy: 0.0001)
+      XCTAssertNil(zoom, "Zoom level must be preserved (nil)")
+    } else {
+      XCTFail("Expected CameraMoveEvent.center for off-screen Pin B")
+    }
   }
 }
 

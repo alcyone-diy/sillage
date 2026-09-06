@@ -29,55 +29,133 @@ struct MapCalloutView: View {
   
   @State private var measuredHeight: CGFloat = 220
   
+  private var isSheetPresented: Binding<Bool> {
+    Binding(
+      get: { calloutViewModel.isCalloutVisible || chartViewModel.measureToolViewModel.isActive },
+      set: { isPresented in
+        if !isPresented {
+          calloutViewModel.dismiss()
+          chartViewModel.measureToolViewModel.stop()
+        }
+      }
+    )
+  }
+  
   var body: some View {
     ZStack {
-      // 1. Target Crosshair (Displayed only when targeting empty map space)
-      if calloutViewModel.isCalloutVisible && calloutViewModel.targetWaypointID == nil {
+      // Target Crosshair (Displayed only when targeting empty map space and not measuring)
+      if calloutViewModel.isCalloutVisible && calloutViewModel.targetWaypointID == nil && !chartViewModel.measureToolViewModel.isActive {
         MarineCrosshairView()
           .position(x: calloutViewModel.screenPoint.x, y: calloutViewModel.screenPoint.y)
       }
     }
-    .sheet(isPresented: $calloutViewModel.isCalloutVisible) {
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .sheet(isPresented: isSheetPresented) {
       calloutSheetContent
         .onGeometryChange(for: CGFloat.self) { proxy in
           proxy.size.height
         } action: { newHeight in
           if newHeight > 0 && abs(measuredHeight - newHeight) > 1.0 {
             measuredHeight = newHeight
-            calloutViewModel.ensureVisible(sheetHeight: newHeight)
+            if !chartViewModel.measureToolViewModel.isActive {
+              calloutViewModel.ensureVisible(sheetHeight: newHeight)
+            }
           }
         }
         .presentationDetents([.height(measuredHeight)])
         .presentationDragIndicator(.visible)
         .presentationBackground(marineTheme.colors.panelBackground)
         .presentationBackgroundInteraction(.enabled(upThrough: .height(measuredHeight)))
-        .interactiveDismissDisabled(chartViewModel.isMapMoving)
+        .interactiveDismissDisabled(chartViewModel.isMapMoving || chartViewModel.measureToolViewModel.isDraggingPin)
     }
   }
   
   // MARK: - Callout Sheet Content
   
+  @ViewBuilder
   private var calloutSheetContent: some View {
     VStack(spacing: MarineTheme.Spacing.small) {
-      // 1. Contextual Header (Waypoint name or Target coordinate)
-      headerView
-        .padding(.top, MarineTheme.Spacing.small)
-        .padding(.horizontal, MarineTheme.Spacing.medium)
-      
-      // 2. Telemetry Section (BTW & RNG)
-      let vesselCoord = chartViewModel.currentCoordinate
-      let bearing = calloutViewModel.bearing(from: vesselCoord)
-      let distance = calloutViewModel.distance(from: vesselCoord)
-      
-      telemetryBar(bearing: bearing, distance: distance)
-        .padding(.horizontal, MarineTheme.Spacing.medium)
-      
-      // 3. Contextual Action Buttons
-      actionsView
-        .padding(.horizontal, MarineTheme.Spacing.medium)
-        .padding(.bottom, MarineTheme.Spacing.small)
+      if chartViewModel.measureToolViewModel.isActive {
+        measureSheetContent
+      } else {
+        standardCalloutSheetContent
+      }
     }
     .frame(maxWidth: .infinity)
+  }
+  
+  @ViewBuilder
+  private var standardCalloutSheetContent: some View {
+    // 1. Contextual Header (Waypoint name or Target coordinate)
+    headerView
+      .padding(.top, MarineTheme.Spacing.small)
+      .padding(.horizontal, MarineTheme.Spacing.medium)
+    
+    // 2. Telemetry Section (BTW & RNG)
+    let vesselCoord = chartViewModel.currentCoordinate
+    let bearing = calloutViewModel.bearing(from: vesselCoord)
+    let distance = calloutViewModel.distance(from: vesselCoord)
+    
+    standardTelemetryBar(bearing: bearing, distance: distance)
+      .padding(.horizontal, MarineTheme.Spacing.medium)
+    
+    // 3. Contextual Action Buttons
+    actionsView
+      .padding(.horizontal, MarineTheme.Spacing.medium)
+      .padding(.bottom, MarineTheme.Spacing.small)
+  }
+  
+  @ViewBuilder
+  private var measureSheetContent: some View {
+    let measureVM = chartViewModel.measureToolViewModel
+    
+    // 1. Contextual Header (Ruler icon + Measure Distance)
+    HStack(spacing: MarineTheme.Spacing.small) {
+      Spacer()
+      Image(marineIcon: .ruler)
+        .foregroundColor(marineTheme.colors.primary)
+        .marineFont(.body)
+      Text("Measure Distance")
+        .marineFont(.headline)
+        .foregroundColor(marineTheme.colors.textPrimary)
+        .lineLimit(1)
+      Spacer()
+    }
+    .frame(maxWidth: .infinity, alignment: .center)
+    .padding(.top, MarineTheme.Spacing.small)
+    .padding(.horizontal, MarineTheme.Spacing.medium)
+    
+    // 2. Telemetry Section: BRG, RECIPROCAL, RNG (reusing callout telemetry styling)
+    measureTelemetryBar(
+      bearing: measureVM.bearing,
+      reciprocal: measureVM.reciprocalBearing,
+      distance: measureVM.distance
+    )
+    .padding(.horizontal, MarineTheme.Spacing.medium)
+    
+    // 3. Contextual Actions: Active Pin Selection
+    HStack {
+      Text("Active Pin")
+        .marineFont(.body)
+        .foregroundColor(marineTheme.colors.textPrimary)
+      Spacer()
+      HStack(spacing: MarineTheme.Spacing.small) {
+        pinSelectionButton(title: "Pin A", pin: .start, viewModel: measureVM)
+        pinSelectionButton(title: "Pin B", pin: .end, viewModel: measureVM)
+      }
+    }
+    .padding(.horizontal, MarineTheme.Spacing.actionRowHorizontal)
+    .frame(minHeight: marineTheme.minTouchTarget)
+    .background(
+      marineTheme.colors.surfaceBackground,
+      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+    )
+    .padding(.horizontal, MarineTheme.Spacing.medium)
+    
+    Text("Drag pins or long press chart to reposition")
+      .marineFont(.caption)
+      .foregroundColor(marineTheme.colors.textSecondary)
+      .padding(.bottom, MarineTheme.Spacing.small)
   }
   
   // MARK: - Subviews
@@ -116,62 +194,84 @@ struct MapCalloutView: View {
     .frame(maxWidth: .infinity, alignment: .center)
   }
   
-  private func telemetryBar(bearing: Measurement<UnitAngle>?, distance: Measurement<UnitLength>?) -> some View {
+  private func standardTelemetryBar(bearing: Measurement<UnitAngle>?, distance: Measurement<UnitLength>?) -> some View {
     HStack(spacing: 0) {
-      // Bearing Cell (BTW)
-      VStack(spacing: MarineTheme.Spacing.tiny / 2) {
-        Text("BTW")
-          .bold()
-          .marineFont(.caption)
-          .foregroundColor(marineTheme.colors.textSecondary)
-        
-        if let brg = bearing {
-          Text(brg.marineBearingFormatted)
-            .monospacedDigit()
-            .bold()
-            .marineFont(.body)
-            .foregroundColor(marineTheme.colors.textPrimary)
-        } else {
-          Text("---")
-            .monospacedDigit()
-            .bold()
-            .marineFont(.body)
-            .foregroundColor(marineTheme.colors.textSecondary)
-        }
-      }
-      .frame(maxWidth: .infinity)
-      
-      Divider()
-        .frame(height: MarineTheme.Metrics.calloutDividerHeight)
-      
-      // Distance Cell (RNG)
-      VStack(spacing: MarineTheme.Spacing.tiny / 2) {
-        Text("RNG")
-          .bold()
-          .marineFont(.caption)
-          .foregroundColor(marineTheme.colors.textSecondary)
-        
-        if let dist = distance {
-          Text(dist.marineContextualDistanceFormatted(locale: locale))
-            .monospacedDigit()
-            .bold()
-            .marineFont(.body)
-            .foregroundColor(marineTheme.colors.textPrimary)
-        } else {
-          Text("--")
-            .monospacedDigit()
-            .bold()
-            .marineFont(.body)
-            .foregroundColor(marineTheme.colors.textSecondary)
-        }
-      }
-      .frame(maxWidth: .infinity)
+      telemetryCell(label: "BTW", value: bearing?.marineBearingFormatted)
+      Divider().frame(height: MarineTheme.Metrics.calloutDividerHeight)
+      telemetryCell(label: "RNG", value: distance?.marineContextualDistanceFormatted(locale: locale))
     }
     .padding(.vertical, MarineTheme.Spacing.small)
     .background(
       marineTheme.colors.surfaceBackground,
       in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
     )
+  }
+  
+  private func measureTelemetryBar(
+    bearing: Measurement<UnitAngle>?,
+    reciprocal: Measurement<UnitAngle>?,
+    distance: Measurement<UnitLength>?
+  ) -> some View {
+    HStack(spacing: 0) {
+      telemetryCell(label: "BRG", value: bearing?.marineBearingFormatted)
+      Divider().frame(height: MarineTheme.Metrics.calloutDividerHeight)
+      telemetryCell(label: "RECIPROCAL", value: reciprocal?.marineBearingFormatted)
+      Divider().frame(height: MarineTheme.Metrics.calloutDividerHeight)
+      telemetryCell(label: "RNG", value: distance?.marineContextualDistanceFormatted(locale: locale))
+    }
+    .padding(.vertical, MarineTheme.Spacing.small)
+    .background(
+      marineTheme.colors.surfaceBackground,
+      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+    )
+  }
+  
+  private func telemetryCell(label: LocalizedStringKey, value: String?) -> some View {
+    VStack(spacing: MarineTheme.Spacing.tiny / 2) {
+      Text(label)
+        .bold()
+        .marineFont(.caption)
+        .foregroundColor(marineTheme.colors.textSecondary)
+      
+      Text(value ?? "---")
+        .monospacedDigit()
+        .bold()
+        .marineFont(.body)
+        .foregroundColor(value != nil ? marineTheme.colors.textPrimary : marineTheme.colors.textSecondary)
+    }
+    .frame(maxWidth: .infinity)
+  }
+  
+  @ViewBuilder
+  private func pinSelectionButton(title: LocalizedStringKey, pin: ActiveMeasurePin, viewModel: MeasureToolViewModel) -> some View {
+    let isSelected = viewModel.activePin == pin
+    Button {
+      viewModel.activePin = pin
+      chartViewModel.centerOnMeasurePinIfNeeded(pin)
+    } label: {
+      HStack(spacing: MarineTheme.Spacing.tiny) {
+        Circle()
+          .fill(isSelected ? marineTheme.colors.accent : marineTheme.colors.textSecondary)
+          .frame(width: 8, height: 8)
+        Text(title)
+          .bold()
+          .marineFont(.subheadline)
+          .foregroundColor(isSelected ? marineTheme.colors.textPrimary : marineTheme.colors.textSecondary)
+      }
+      .padding(.horizontal, MarineTheme.Spacing.small)
+      .frame(minHeight: max(36, marineTheme.minTouchTarget - 12))
+      .background(
+        isSelected ? marineTheme.colors.panelBackground : Color.clear,
+        in: Capsule()
+      )
+      .overlay(
+        Capsule()
+          .strokeBorder(isSelected ? marineTheme.colors.accent : marineTheme.colors.panelBackground, lineWidth: 1.5)
+      )
+    }
+    .buttonStyle(.plain)
+    .accessibilityElement(children: .combine)
+    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : [.isButton])
   }
   
   @ViewBuilder
@@ -214,6 +314,21 @@ struct MapCalloutView: View {
           actionRow(
             title: String(localized: "Show Details"),
             systemImage: MarineIcon.details.rawValue
+          )
+        }
+        .buttonStyle(.plain)
+        
+        Divider()
+        
+        Button {
+          guard let targetCoord = calloutViewModel.targetCoordinate else { return }
+          Logger.navigation.info("Activating measure tool from waypoint callout")
+          calloutViewModel.dismiss()
+          chartViewModel.startMeasuring(from: targetCoord)
+        } label: {
+          actionRow(
+            title: String(localized: "Measure Distance…"),
+            systemImage: MarineIcon.ruler.rawValue
           )
         }
         .buttonStyle(.plain)
@@ -263,6 +378,21 @@ struct MapCalloutView: View {
           }
           .buttonStyle(.plain)
         }
+        
+        Divider()
+        
+        Button {
+          guard let targetCoord = calloutViewModel.targetCoordinate else { return }
+          Logger.navigation.info("Activating measure tool from map target callout")
+          calloutViewModel.dismiss()
+          chartViewModel.startMeasuring(from: targetCoord)
+        } label: {
+          actionRow(
+            title: String(localized: "Measure Distance…"),
+            systemImage: MarineIcon.ruler.rawValue
+          )
+        }
+        .buttonStyle(.plain)
       }
       .background(
         marineTheme.colors.surfaceBackground,
@@ -286,3 +416,4 @@ struct MapCalloutView: View {
     .contentShape(Rectangle())
   }
 }
+

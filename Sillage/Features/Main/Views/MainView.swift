@@ -59,6 +59,7 @@ struct ContentView: View {
         .onChange(of: panelManagerViewModel.activePanel) { _, newPanel in
           if newPanel != .none {
             chartViewModel.calloutViewModel.dismiss()
+            chartViewModel.measureToolViewModel.stop()
           }
         }
 

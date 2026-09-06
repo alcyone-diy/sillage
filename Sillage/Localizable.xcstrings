@@ -10,9 +10,6 @@
     "--" : {
 
     },
-    "---" : {
-
-    },
     "--:--:--" : {
 
     },
@@ -140,6 +137,9 @@
     "Acquiring..." : {
 
     },
+    "Active Pin" : {
+
+    },
     "Active Track" : {
 
     },
@@ -249,6 +249,9 @@
 
     },
     "BATTERY" : {
+
+    },
+    "BRG" : {
 
     },
     "BTW" : {
@@ -429,6 +432,9 @@
 
     },
     "Drag map to adjust anchor position" : {
+
+    },
+    "Drag pins or long press chart to reposition" : {
 
     },
     "DRAGGING ALERT" : {
@@ -728,6 +734,12 @@
     "MBTiles" : {
 
     },
+    "Measure Distance" : {
+
+    },
+    "Measure Distance…" : {
+
+    },
     "Medium" : {
       "comment" : "Medium sensitivity"
     },
@@ -827,6 +839,12 @@
     "Permission Required" : {
 
     },
+    "Pin A" : {
+
+    },
+    "Pin B" : {
+
+    },
     "Please enter a valid username." : {
 
     },
@@ -858,6 +876,9 @@
 
     },
     "Re-authenticate" : {
+
+    },
+    "RECIPROCAL" : {
 
     },
     "Record Track" : {

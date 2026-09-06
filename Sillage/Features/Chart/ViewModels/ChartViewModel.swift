@@ -173,6 +173,7 @@ final class ChartViewModel {
   private let anchorService: AnchorService
   let anchorViewModel: AnchorViewModel
   let calloutViewModel = MapCalloutViewModel()
+  let measureToolViewModel = MeasureToolViewModel()
   private let messageService: MessageService?
   
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
@@ -269,6 +270,29 @@ final class ChartViewModel {
     }
   }
   
+  // MARK: - Measure Tool
+
+  var isCoordinateVisible: ((CLLocationCoordinate2D) -> Bool)?
+
+  /// Technical Design Choice: Distance & Bearing Measurement Activation
+  /// Activates the 2-point measurement tool starting from the given coordinate (e.g. callout target).
+  /// Computes an initial end point based on current map center or a small geographic offset to guarantee two distinct visible pins.
+  func startMeasuring(from coordinate: CLLocationCoordinate2D) {
+    chartInteractedByUser()
+    let initialEnd: CLLocationCoordinate2D
+    if abs(centerCoordinate.latitude - coordinate.latitude) > 0.001 ||
+       abs(centerCoordinate.longitude - coordinate.longitude) > 0.001 {
+      initialEnd = centerCoordinate
+    } else {
+      // Small 0.01 degree offset (~0.6 NM) to ensure immediate visual distinction
+      initialEnd = CLLocationCoordinate2D(
+        latitude: coordinate.latitude + 0.01,
+        longitude: coordinate.longitude + 0.01
+      )
+    }
+    measureToolViewModel.start(at: coordinate, initialEnd: initialEnd)
+  }
+
   // MARK: - Camera Multicast Stream
   
   private var cameraMoveContinuations: [UUID: AsyncStream<CameraMoveEvent>.Continuation] = [:]
@@ -1031,6 +1055,41 @@ final class ChartViewModel {
     let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
+    }
+  }
+
+  /// Centers the chart camera on the specified coordinate while strictly preserving the current zoom level.
+  func centerCamera(on coordinate: CLLocationCoordinate2D) {
+    self.trackingMode = .free
+    let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
+    for continuation in cameraMoveContinuations.values {
+      continuation.yield(event)
+    }
+  }
+
+  /// Returns whether a coordinate is currently visible in the visible map area.
+  func isCoordinateVisibleOnMap(_ coordinate: CLLocationCoordinate2D) -> Bool {
+    if let isVisible = isCoordinateVisible?(coordinate) {
+      return isVisible
+    }
+    return currentVisibleBounds?.contains(coordinate) ?? false
+  }
+
+  /// Centers the map camera on the specified measure pin if it is not currently visible on the chart.
+  /// Strictly preserves the current map zoom level.
+  func centerOnMeasurePinIfNeeded(_ pin: ActiveMeasurePin) {
+    let coordinate: CLLocationCoordinate2D?
+    switch pin {
+    case .start:
+      coordinate = measureToolViewModel.startCoordinate
+    case .end:
+      coordinate = measureToolViewModel.endCoordinate
+    }
+    guard let coordinate else { return }
+
+    if !isCoordinateVisibleOnMap(coordinate) {
+      Logger.navigation.info("Measure pin \(pin == .start ? "A" : "B", privacy: .public) is off-screen. Re-centering map camera on pin coordinate.")
+      centerCamera(on: coordinate)
     }
   }
 

@@ -24,8 +24,10 @@ enum MapLayerIdentifier: String, CaseIterable, Comparable {
   case savedTrack = "saved-track-layer"
   case activeTrack = "active-track-layer"
   case bearingLine = "bearing-line-layer"
+  case measureLine = "measure-line-layer"
   case visibleWaypoints = "visible-waypoints-layer"
   case goToWaypoint = "goto-waypoint-layer"
+  case measurePins = "measure-pins-layer"
   case anchorRadiusFill = "anchor-radius-layer"
   case anchorRadiusStrokeDashed = "anchor-radius-stroke-dashed-layer"
   case anchorRadiusStrokeSolid = "anchor-radius-stroke-solid-layer"
@@ -55,6 +57,8 @@ enum MapSourceIdentifier: String, CaseIterable {
   case savedTrack = "saved-track-source"
   case activeTrack = "active-track-source"
   case bearingLine = "bearing-line-source"
+  case measureLine = "measure-line-source"
+  case measurePins = "measure-pins-source"
   case visibleWaypoints = "visible-waypoints-source"
   case goToWaypoint = "goto-waypoint-source"
   case heading = "heading-vector-source"
@@ -340,11 +344,31 @@ struct MapStyleController {
     }
   }
 
+  /// Ensures all 4 measure pin icon images (A/B, selected/idle) are registered in the MapLibre style stack.
+  static func ensureMeasurePinImagesExist(in style: MLNStyle, theme: MarineTheme) {
+    let pins: [ActiveMeasurePin] = [.start, .end]
+    let states: [Bool] = [true, false]
+    for pin in pins {
+      let pinLetter = pin == .start ? "a" : "b"
+      for isSelected in states {
+        let stateKey = isSelected ? "selected" : "idle"
+        let imageName = "measure-pin-\(pinLetter)-\(stateKey)"
+        if style.image(forName: imageName) == nil {
+          if let image = MeasurePinGraphicsFactory.createPinImage(for: pin, isSelected: isSelected, theme: theme) {
+            style.setImage(image, forName: imageName)
+            Logger.mapStyle.debug("Registered measure pin icon image \(imageName, privacy: .public)")
+          }
+        }
+      }
+    }
+  }
   // MARK: - Navigation Layers (Tracks, Waypoints, Bearing Line, Anchor)
 
   /// Ensures navigation sources and layers (active track, saved track, waypoints, bearing line, anchor) exist.
   static func ensureNavigationLayersExist(in style: MLNStyle, theme: MarineTheme) {
+    style.performsPlacementTransitions = false
     ensureAnchorImagesExist(in: style, theme: theme)
+    ensureMeasurePinImagesExist(in: style, theme: theme)
     if style.source(withIdentifier: MapSourceIdentifier.activeTrack.rawValue) == nil {
       // 1. Active Track
       let activeTrackSource = MLNShapeSource(identifier: MapSourceIdentifier.activeTrack.rawValue, shape: nil, options: nil)
@@ -373,6 +397,16 @@ struct MapStyleController {
       bearingLineLayer.lineColor = NSExpression(forKeyPath: "color")
       bearingLineLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
       insertLayer(bearingLineLayer, identifier: .bearingLine, into: style)
+
+      // 3b. Measure Line
+      let measureLineSource = MLNShapeSource(identifier: MapSourceIdentifier.measureLine.rawValue, shape: nil, options: nil)
+      style.addSource(measureLineSource)
+
+      let measureLineLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.measureLine.rawValue, source: measureLineSource)
+      measureLineLayer.lineWidth = NSExpression(forConstantValue: 2.5)
+      measureLineLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.accent))
+      measureLineLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
+      insertLayer(measureLineLayer, identifier: .measureLine, into: style)
 
       // 4. Visible Waypoints
       let visibleWaypointsSource = MLNShapeSource(identifier: MapSourceIdentifier.visibleWaypoints.rawValue, shape: nil, options: nil)
@@ -411,6 +445,22 @@ struct MapStyleController {
       )
       goToWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       insertLayer(goToWaypointLayer, identifier: .goToWaypoint, into: style)
+
+      // 5b. Measure Pins (positioned above all waypoints)
+      let measurePinsSource = MLNShapeSource(identifier: MapSourceIdentifier.measurePins.rawValue, shape: nil, options: nil)
+      style.addSource(measurePinsSource)
+
+      let measurePinsLayer = MLNSymbolStyleLayer(identifier: MapLayerIdentifier.measurePins.rawValue, source: measurePinsSource)
+      measurePinsLayer.iconImageName = NSExpression(forKeyPath: "icon")
+      measurePinsLayer.iconAnchor = NSExpression(forConstantValue: "top")
+      measurePinsLayer.iconOffset = NSExpression(forConstantValue: [0.0, -MeasurePinGraphicsFactory.focalPointY])
+      measurePinsLayer.iconRotationAlignment = NSExpression(forConstantValue: "viewport")
+      measurePinsLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
+      measurePinsLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
+      measurePinsLayer.symbolSortKey = NSExpression(forKeyPath: "sortKey")
+      measurePinsLayer.iconOpacity = NSExpression(forConstantValue: 1.0)
+      measurePinsLayer.iconOpacityTransition = MLNTransition(duration: 0, delay: 0)
+      insertLayer(measurePinsLayer, identifier: .measurePins, into: style)
       // 6. Anchor Radius Fill, Stroke, Rode Line & Symbol Point
       let anchorRadiusSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorRadius.rawValue, shape: nil, options: nil)
       style.addSource(anchorRadiusSource)
@@ -504,6 +554,54 @@ struct MapStyleController {
     ensureNavigationLayersExist(in: style, theme: theme)
     if let source = style.source(withIdentifier: MapSourceIdentifier.bearingLine.rawValue) as? MLNShapeSource {
       source.shape = MapLibreFeatureFactory.createBearingLineFeature(from: state)
+    }
+  }
+
+  /// Updates 2-point measurement line feature on the MapLibre style.
+  static func updateMeasureLine(state: MeasureState, in style: MLNStyle, theme: MarineTheme) {
+    ensureNavigationLayersExist(in: style, theme: theme)
+    guard let lineSource = style.source(withIdentifier: MapSourceIdentifier.measureLine.rawValue) as? MLNShapeSource else { return }
+    switch state {
+    case .inactive:
+      lineSource.shape = nil
+    case .active(let start, let end):
+      var coordinates = [start, end]
+      let lineFeature = MLNPolylineFeature(coordinates: &coordinates, count: 2)
+      lineSource.shape = lineFeature
+    }
+  }
+
+  /// Updates 2-point measurement pin features (Pins A and B) on the MapLibre style.
+  static func updateMeasurePins(
+    state: MeasureState,
+    activePin: ActiveMeasurePin,
+    in style: MLNStyle,
+    theme: MarineTheme
+  ) {
+    ensureNavigationLayersExist(in: style, theme: theme)
+    guard let pinSource = style.source(withIdentifier: MapSourceIdentifier.measurePins.rawValue) as? MLNShapeSource else { return }
+
+    switch state {
+    case .inactive:
+      pinSource.shape = nil
+    case .active(let start, let end):
+      let featureA = MLNPointFeature()
+      featureA.coordinate = start
+      featureA.attributes = [
+        "id": "A",
+        "icon": activePin == .start ? "measure-pin-a-selected" : "measure-pin-a-idle",
+        "sortKey": activePin == .start ? 2 : 1
+      ]
+
+      let featureB = MLNPointFeature()
+      featureB.coordinate = end
+      featureB.attributes = [
+        "id": "B",
+        "icon": activePin == .end ? "measure-pin-b-selected" : "measure-pin-b-idle",
+        "sortKey": activePin == .end ? 2 : 1
+      ]
+
+      pinSource.shape = MLNShapeCollectionFeature(shapes: [featureA, featureB])
     }
   }
 

@@ -12,6 +12,7 @@ import SwiftUI
 import MapLibre
 import CoreLocation
 import OSLog
+import QuartzCore
 extension UIView {
   var parentViewController: UIViewController? {
     var parentResponder: UIResponder? = self
@@ -81,6 +82,42 @@ struct MapLibreView: UIViewRepresentable {
     longPressGesture.minimumPressDuration = 0.5
     mapView.addGestureRecognizer(longPressGesture)
     
+    // Setup single tap gesture for measure tool interactions (pin selection, placing Pin B)
+    let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+    tapGesture.cancelsTouchesInView = false
+    
+    // Prevent single-tap from interfering with MapLibre's native double-tap zoom gestures
+    if let gestureRecognizers = mapView.gestureRecognizers {
+      for recognizer in gestureRecognizers {
+        if let tapRecognizer = recognizer as? UITapGestureRecognizer, tapRecognizer.numberOfTapsRequired == 2 {
+          tapGesture.require(toFail: tapRecognizer)
+        }
+      }
+    }
+    
+    mapView.addGestureRecognizer(tapGesture)
+    
+    // Setup dedicated pan gesture for interactive measure pin drag-and-drop
+    let pinPanGesture = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinPan(_:)))
+    pinPanGesture.delegate = context.coordinator
+    pinPanGesture.cancelsTouchesInView = true
+    mapView.addGestureRecognizer(pinPanGesture)
+    context.coordinator.pinPanGesture = pinPanGesture
+    
+    viewModel.isCoordinateVisible = { [weak mapView] coord in
+      guard let mapView = mapView else { return false }
+      let pt = mapView.convert(coord, toPointTo: mapView)
+      let sheetClearance: CGFloat = 240.0
+      let topInset = mapView.safeAreaInsets.top
+      let visibleRect = CGRect(
+        x: 0,
+        y: topInset,
+        width: mapView.bounds.width,
+        height: max(50.0, mapView.bounds.height - sheetClearance - topInset)
+      )
+      return visibleRect.contains(pt)
+    }
+    
     return mapView
   }
   
@@ -103,6 +140,8 @@ struct MapLibreView: UIViewRepresentable {
     let currentSource = viewModel.currentChartSource
     let isOpenSeaMapOverlayEnabled = viewModel.isOpenSeaMapOverlayEnabled
     let trackingMode = viewModel.trackingMode
+    let _ = viewModel.measureToolViewModel.state
+    let _ = viewModel.measureToolViewModel.activePin
     
     // Defensive Update for Vessel and Heading Features
     if let style = uiView.style {
@@ -160,6 +199,16 @@ struct MapLibreView: UIViewRepresentable {
       if bearingLineVisualState != context.coordinator.lastBearingLineVisualState {
         MapStyleController.updateBearingLine(state: bearingLineVisualState, in: style, theme: marineTheme)
         context.coordinator.lastBearingLineVisualState = bearingLineVisualState
+      }
+
+      // Measure feature update (polyline and pins)
+      let measureState = viewModel.measureToolViewModel.state
+      let measureActivePin = viewModel.measureToolViewModel.activePin
+      if measureState != context.coordinator.lastMeasureState || measureActivePin != context.coordinator.lastMeasureActivePin {
+        MapStyleController.updateMeasureLine(state: measureState, in: style, theme: marineTheme)
+        MapStyleController.updateMeasurePins(state: measureState, activePin: measureActivePin, in: style, theme: marineTheme)
+        context.coordinator.lastMeasureState = measureState
+        context.coordinator.lastMeasureActivePin = measureActivePin
       }
       
       // Anchor update
@@ -270,7 +319,7 @@ struct MapLibreView: UIViewRepresentable {
   // MARK: - Coordinator
   
   @MainActor
-  class Coordinator: NSObject, MLNMapViewDelegate {
+  class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
     var parent: MapLibreView
     private var streamTask: Task<Void, Never>?
     private var pendingBoundsUpdateTask: Task<Void, Never>?
@@ -285,6 +334,11 @@ struct MapLibreView: UIViewRepresentable {
     var lastVisibleWaypointVisualStates: [WaypointVisualState] = []
     var lastGoToWaypointVisualState: WaypointVisualState?
     var lastBearingLineVisualState: BearingLineVisualState?
+    var lastMeasureState: MeasureState = .inactive
+    var lastMeasureActivePin: ActiveMeasurePin?
+    weak var pinPanGesture: UIPanGestureRecognizer?
+    private var activeDraggedPin: ActiveMeasurePin?
+    private var lastPanUpdateTime: CFTimeInterval = 0
     var lastAnchorVisualState: AnchorVisualState?
     var lastOfflineMaskVisualState: OfflineMaskVisualState?
     
@@ -313,7 +367,192 @@ struct MapLibreView: UIViewRepresentable {
       NotificationCenter.default.removeObserver(self)
     }
     
+    /// Tests whether a screen touch point is within the touch hit target of Pin A or Pin B.
+    func hitTestMeasurePin(at point: CGPoint, in mapView: MLNMapView) -> ActiveMeasurePin? {
+      guard parent.viewModel.measureToolViewModel.isActive else { return nil }
+      let measureVM = parent.viewModel.measureToolViewModel
+      guard let startCoord = measureVM.startCoordinate,
+            let endCoord = measureVM.endCoordinate else { return nil }
+
+      let ptA = mapView.convert(startCoord, toPointTo: mapView)
+      let ptB = mapView.convert(endCoord, toPointTo: mapView)
+
+      let headOffset = MarineMapPinShape.needleToHeadCenterOffset
+      let headCenterA = CGPoint(x: ptA.x, y: ptA.y + headOffset)
+      let headCenterB = CGPoint(x: ptB.x, y: ptB.y + headOffset)
+
+      let hitRadius: CGFloat = 36.0 // 72 pt diameter target for Glove Mode
+
+      let distA = hypot(point.x - headCenterA.x, point.y - headCenterA.y)
+      let distB = hypot(point.x - headCenterB.x, point.y - headCenterB.y)
+
+      let tipDistA = hypot(point.x - ptA.x, point.y - ptA.y)
+      let tipDistB = hypot(point.x - ptB.x, point.y - ptB.y)
+
+      let minA = min(distA, tipDistA)
+      let minB = min(distB, tipDistB)
+
+      if minA <= hitRadius && minB <= hitRadius {
+        if measureVM.activePin == .start {
+          return .start
+        } else if measureVM.activePin == .end {
+          return .end
+        }
+        return minA <= minB ? .start : .end
+      } else if minA <= hitRadius {
+        return .start
+      } else if minB <= hitRadius {
+        return .end
+      }
+      return nil
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+      if gestureRecognizer == pinPanGesture {
+        guard parent.viewModel.measureToolViewModel.isActive,
+              let mapView = self.mapView else { return false }
+        let touchPoint = gestureRecognizer.location(in: mapView)
+        return hitTestMeasurePin(at: touchPoint, in: mapView) != nil
+      }
+      return true
+    }
+    
+    @objc func handleTap(_ sender: UITapGestureRecognizer) {
+      guard sender.state == .ended else { return }
+      if parent.viewModel.measureToolViewModel.isActive {
+        guard let mapView = sender.view as? MLNMapView else { return }
+        parent.viewModel.chartInteractedByUser()
+        let point = sender.location(in: mapView)
+        // Check if user tapped directly on Pin A or Pin B to select it
+        if let hitPin = hitTestMeasurePin(at: point, in: mapView) {
+          parent.viewModel.measureToolViewModel.activePin = hitPin
+          return
+        }
+        let coord = mapView.convert(point, toCoordinateFrom: mapView)
+        parent.viewModel.measureToolViewModel.handleMapTap(at: coord)
+        return
+      }
+    }
+    
+    @objc func handlePinPan(_ sender: UIPanGestureRecognizer) {
+      guard parent.viewModel.measureToolViewModel.isActive,
+             let mapView = sender.view as? MLNMapView else { return }
+
+      let touchPoint = sender.location(in: mapView)
+
+      switch sender.state {
+      case .began:
+        guard let pin = hitTestMeasurePin(at: touchPoint, in: mapView) else { return }
+        activeDraggedPin = pin
+        parent.viewModel.measureToolViewModel.activePin = pin
+        parent.viewModel.measureToolViewModel.isDraggingPin = true
+        parent.viewModel.chartInteractedByUser()
+
+        let tipPoint = CGPoint(
+          x: touchPoint.x,
+          y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
+        )
+        let coord = mapView.convert(tipPoint, toCoordinateFrom: mapView)
+        switch pin {
+        case .start:
+          parent.viewModel.measureToolViewModel.updateStart(to: coord)
+        case .end:
+          parent.viewModel.measureToolViewModel.updateEnd(to: coord)
+        }
+        lastPanUpdateTime = CACurrentMediaTime()
+
+      case .changed:
+        guard let pin = activeDraggedPin else { return }
+        let now = CACurrentMediaTime()
+        guard now - lastPanUpdateTime >= 0.05 else { return }
+        lastPanUpdateTime = now
+
+        let tipPoint = CGPoint(
+          x: touchPoint.x,
+          y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
+        )
+        let coord = mapView.convert(tipPoint, toCoordinateFrom: mapView)
+        switch pin {
+        case .start:
+          parent.viewModel.measureToolViewModel.updateStart(to: coord)
+        case .end:
+          parent.viewModel.measureToolViewModel.updateEnd(to: coord)
+        }
+
+      case .ended:
+        if let pin = activeDraggedPin {
+          let tipPoint = CGPoint(
+            x: touchPoint.x,
+            y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
+          )
+          let coord = mapView.convert(tipPoint, toCoordinateFrom: mapView)
+          switch pin {
+          case .start:
+            parent.viewModel.measureToolViewModel.updateStart(to: coord)
+          case .end:
+            parent.viewModel.measureToolViewModel.updateEnd(to: coord)
+          }
+        }
+        activeDraggedPin = nil
+        parent.viewModel.measureToolViewModel.isDraggingPin = false
+
+      case .cancelled, .failed:
+        activeDraggedPin = nil
+        parent.viewModel.measureToolViewModel.isDraggingPin = false
+
+      default:
+        break
+      }
+    }
+    
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+      if gestureRecognizer == pinPanGesture || otherGestureRecognizer == pinPanGesture {
+        return false
+      }
+      return true
+    }
+    
     @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
+      if parent.viewModel.measureToolViewModel.isActive {
+        guard let mapView = sender.view as? MLNMapView else { return }
+        let touchPoint = sender.location(in: mapView)
+        // Technical Design Choice: Offset so the circular round head arrives directly under the user's finger,
+        // leaving the needle tip pointing above the finger for full chart feature visibility.
+        let tipPoint = CGPoint(
+          x: touchPoint.x,
+          y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
+        )
+        let coord = mapView.convert(tipPoint, toCoordinateFrom: mapView)
+
+        switch sender.state {
+        case .began:
+          parent.viewModel.measureToolViewModel.isDraggingPin = true
+          parent.viewModel.chartInteractedByUser()
+          parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
+          lastPanUpdateTime = CACurrentMediaTime()
+
+        case .changed:
+          let now = CACurrentMediaTime()
+          guard now - lastPanUpdateTime >= 0.05 else { return }
+          lastPanUpdateTime = now
+
+          parent.viewModel.chartInteractedByUser()
+          parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
+
+        case .ended:
+          parent.viewModel.chartInteractedByUser()
+          parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
+          parent.viewModel.measureToolViewModel.isDraggingPin = false
+
+        case .cancelled, .failed:
+          parent.viewModel.measureToolViewModel.isDraggingPin = false
+
+        default:
+          break
+        }
+        return
+      }
+
       // Only trigger at the start of the gesture to prevent multiple openings
       guard sender.state == .began else { return }
       
@@ -496,6 +735,13 @@ struct MapLibreView: UIViewRepresentable {
       let bearingState = parent.viewModel.bearingLineVisualState
       MapStyleController.updateBearingLine(state: bearingState, in: style, theme: parent.marineTheme)
       lastBearingLineVisualState = bearingState
+
+      let measureState = parent.viewModel.measureToolViewModel.state
+      let measureActivePin = parent.viewModel.measureToolViewModel.activePin
+      MapStyleController.updateMeasureLine(state: measureState, in: style, theme: parent.marineTheme)
+      MapStyleController.updateMeasurePins(state: measureState, activePin: measureActivePin, in: style, theme: parent.marineTheme)
+      lastMeasureState = measureState
+      lastMeasureActivePin = measureActivePin
 
       let anchorVisualState = parent.viewModel.anchorVisualState
       MapStyleController.updateAnchor(state: anchorVisualState, in: style, theme: parent.marineTheme)
