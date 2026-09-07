@@ -10,6 +10,7 @@
 
 import XCTest
 import CoreLocation
+import MapLibre
 @testable import Sillage
 
 @MainActor
@@ -167,5 +168,20 @@ final class MapCalloutViewModelTests: XCTestCase {
     let formatted = viewModel.formattedCoordinate
     XCTAssertNotNil(formatted)
     XCTAssertTrue(formatted?.contains("47°") == true)
+  }
+
+  func testMapPanDoesNotDismissCallout() {
+    let viewModel = MapCalloutViewModel()
+    let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
+    viewModel.presentCallout(at: CGPoint(x: 200, y: 400), coordinate: coord)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+
+    // Simulate an offscreen projection: MLNMapView converts offscreen coordinate
+    let mapView = MLNMapView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+    // Call updateScreenPositionImmediately with mapView where the coordinate is off-screen
+    viewModel.updateScreenPositionImmediately(from: mapView)
+
+    // Callout must remain visible even if the coordinate projected outside map bounds
+    XCTAssertTrue(viewModel.isCalloutVisible)
   }
 }

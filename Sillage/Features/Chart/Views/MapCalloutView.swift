@@ -42,7 +42,7 @@ struct MapCalloutView: View {
         .onGeometryChange(for: CGFloat.self) { proxy in
           proxy.size.height
         } action: { newHeight in
-          if newHeight > 0 {
+          if newHeight > 0 && abs(measuredHeight - newHeight) > 1.0 {
             measuredHeight = newHeight
             calloutViewModel.ensureVisible(sheetHeight: newHeight)
           }
@@ -51,6 +51,7 @@ struct MapCalloutView: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(marineTheme.colors.panelBackground)
         .presentationBackgroundInteraction(.enabled(upThrough: .height(measuredHeight)))
+        .interactiveDismissDisabled(chartViewModel.isMapMoving)
     }
   }
   

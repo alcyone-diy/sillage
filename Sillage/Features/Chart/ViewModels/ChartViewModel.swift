@@ -80,6 +80,7 @@ final class ChartViewModel {
   var centerCoordinate: CLLocationCoordinate2D = AppConstants.defaultMapCenter
   var zoomLevel: Double = 10.0
   var chartDirection: Measurement<UnitAngle> = Measurement(value: 0.0, unit: UnitAngle.degrees)
+  var isMapMoving: Bool = false
   
   // MARK: - Offline Area State
   

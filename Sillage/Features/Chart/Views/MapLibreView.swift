@@ -81,21 +81,6 @@ struct MapLibreView: UIViewRepresentable {
     longPressGesture.minimumPressDuration = 0.5
     mapView.addGestureRecognizer(longPressGesture)
     
-    // Setup single tap gesture for implicit context callout dismissal
-    let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-    tapGesture.cancelsTouchesInView = false
-    
-    // Prevent single-tap callout dismiss from interfering with MapLibre's native double-tap zoom gestures
-    if let gestureRecognizers = mapView.gestureRecognizers {
-      for recognizer in gestureRecognizers {
-        if let tapRecognizer = recognizer as? UITapGestureRecognizer, tapRecognizer.numberOfTapsRequired == 2 {
-          tapGesture.require(toFail: tapRecognizer)
-        }
-      }
-    }
-    
-    mapView.addGestureRecognizer(tapGesture)
-    
     return mapView
   }
   
@@ -326,13 +311,6 @@ struct MapLibreView: UIViewRepresentable {
       streamTask?.cancel()
       pendingBoundsUpdateTask?.cancel()
       NotificationCenter.default.removeObserver(self)
-    }
-    
-    @objc func handleTap(_ sender: UITapGestureRecognizer) {
-      guard sender.state == .ended else { return }
-      if parent.viewModel.calloutViewModel.isCalloutVisible {
-        parent.viewModel.calloutViewModel.dismiss()
-      }
     }
     
     @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
@@ -577,6 +555,9 @@ struct MapLibreView: UIViewRepresentable {
     }
     
     func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+      if !reason.contains(.programmatic) {
+        self.parent.viewModel.isMapMoving = true
+      }
       if shouldBreakTracking(for: reason) {
         Task { @MainActor [weak self] in
           guard let self else { return }
@@ -632,6 +613,7 @@ struct MapLibreView: UIViewRepresentable {
     // Capture user's chart movements to break tracking ONLY when the movement stops, as requested
     // Also sync the final camera state back to the ViewModel so it knows where the chart is.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+      self.parent.viewModel.isMapMoving = false
       Task { @MainActor [weak self] in
         guard let self else { return }
         

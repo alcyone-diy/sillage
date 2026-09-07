@@ -84,13 +84,9 @@ final class MapCalloutViewModel {
   private func performProjectionUpdate(from mapView: MLNMapView) {
     guard let targetCoord = targetCoordinate else { return }
     let newPoint = mapView.convert(targetCoord, toPointTo: mapView)
-    if mapView.bounds.contains(newPoint) {
-      if abs(self.screenPoint.x - newPoint.x) >= Self.screenPointUpdateThreshold ||
-         abs(self.screenPoint.y - newPoint.y) >= Self.screenPointUpdateThreshold {
-        self.screenPoint = newPoint
-      }
-    } else {
-      self.dismiss()
+    if abs(self.screenPoint.x - newPoint.x) >= Self.screenPointUpdateThreshold ||
+       abs(self.screenPoint.y - newPoint.y) >= Self.screenPointUpdateThreshold {
+      self.screenPoint = newPoint
     }
   }
   
