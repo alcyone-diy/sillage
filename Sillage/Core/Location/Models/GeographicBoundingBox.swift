@@ -79,6 +79,19 @@ public struct GeographicBoundingBox: Sendable, Equatable, Codable {
   
   // MARK: - Geometry & Topology
 
+  /// Returns whether the specified coordinate is located within this geographic bounding box.
+  /// Correctly handles bounding boxes crossing the international anti-meridian.
+  public nonisolated func contains(_ coordinate: CLLocationCoordinate2D) -> Bool {
+    guard coordinate.latitude >= southWest.latitude && coordinate.latitude <= northEast.latitude else {
+      return false
+    }
+    if southWest.longitude <= northEast.longitude {
+      return coordinate.longitude >= southWest.longitude && coordinate.longitude <= northEast.longitude
+    } else {
+      return coordinate.longitude >= southWest.longitude || coordinate.longitude <= northEast.longitude
+    }
+  }
+
   /// Indicates whether the bounding box crosses the international anti-meridian (-180° / +180° longitude).
   public nonisolated var crossesAntiMeridian: Bool {
     southWest.longitude > northEast.longitude

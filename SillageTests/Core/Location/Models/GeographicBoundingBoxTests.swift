@@ -432,5 +432,27 @@ struct GeographicBoundingBoxTests {
     #expect(polygons[0].count == 5) // 4 corners + 1 closed
     #expect(polygons[1].count == 5)
   }
+
+  @Test("Contains coordinate with standard and anti-meridian boxes")
+  func testContainsCoordinate() {
+    // 1. Standard box
+    let standardBox = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 10.0, longitude: 10.0),
+      northEast: CLLocationCoordinate2D(latitude: 20.0, longitude: 20.0)
+    )
+    #expect(standardBox.contains(CLLocationCoordinate2D(latitude: 15.0, longitude: 15.0)))
+    #expect(standardBox.contains(CLLocationCoordinate2D(latitude: 10.0, longitude: 10.0))) // on boundary
+    #expect(!standardBox.contains(CLLocationCoordinate2D(latitude: 25.0, longitude: 15.0))) // outside north
+    #expect(!standardBox.contains(CLLocationCoordinate2D(latitude: 15.0, longitude: 5.0))) // outside west
+
+    // 2. Anti-meridian crossing box (e.g. 170°E to 170°W / -170°)
+    let antiMeridianBox = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: -10.0, longitude: 170.0),
+      northEast: CLLocationCoordinate2D(latitude: 10.0, longitude: -170.0)
+    )
+    #expect(antiMeridianBox.contains(CLLocationCoordinate2D(latitude: 0.0, longitude: 175.0))) // in eastern half
+    #expect(antiMeridianBox.contains(CLLocationCoordinate2D(latitude: 0.0, longitude: -175.0))) // in western half
+    #expect(!antiMeridianBox.contains(CLLocationCoordinate2D(latitude: 0.0, longitude: 0.0))) // outside
+  }
 }
 
