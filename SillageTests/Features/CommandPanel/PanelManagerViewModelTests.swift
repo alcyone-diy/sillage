@@ -42,7 +42,7 @@ final class PanelManagerViewModelTests: XCTestCase {
 
   func testClosePanelResetsPathAndDeactivates() {
     viewModel.openPanel(.command)
-    viewModel.commandPath = [.settings, .chartPreferences, .geoGarageLogin]
+    viewModel.commandPath = [.settings, .chartPreferences, .geoGarageLogin(context: .initialSetup)]
 
     viewModel.closePanel()
 
@@ -84,7 +84,7 @@ final class PanelManagerViewModelTests: XCTestCase {
 
   func testHandleIntentOpenSettingsGeoGarage() {
     viewModel.handle(intent: .openSettings(target: .geoGarage))
-    XCTAssertEqual(viewModel.commandPath, [.geoGarageLogin])
+    XCTAssertEqual(viewModel.commandPath, [.geoGarageLogin(context: .reauthentication)])
   }
 
   func testHandleIntentOpenSettingsOther() {

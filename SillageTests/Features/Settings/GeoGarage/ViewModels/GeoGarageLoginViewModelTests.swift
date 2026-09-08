@@ -26,10 +26,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
-    
-    // Await the task cleanly instead of polling
-    await viewModel.loginTask?.value
+    _ = await viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
 
     // Assert
     XCTAssertNotNil(viewModel.errorMessage, "An error message should be set on auth failure")
@@ -55,10 +52,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: messageService)
-
-    // Await the task cleanly instead of polling
-    await viewModel.loginTask?.value
+    _ = await viewModel.login(authService: mockAuthService, messageService: messageService)
 
     // Assert
     XCTAssertTrue(viewModel.isAuthorizationReady)
@@ -90,10 +84,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: messageService)
-
-    // Await the task cleanly
-    await viewModel.loginTask?.value
+    _ = await viewModel.login(authService: mockAuthService, messageService: messageService)
 
     // Assert
     XCTAssertTrue(viewModel.isAuthorizationReady)
@@ -116,10 +107,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
-
-    // Await the task cleanly
-    await viewModel.loginTask?.value
+    _ = await viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
 
     // Assert
     XCTAssertTrue(viewModel.isAuthorizationReady)
@@ -137,10 +125,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
-
-    // Await the task cleanly
-    await viewModel.loginTask?.value
+    _ = await viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
 
     // Assert
     XCTAssertFalse(viewModel.isAuthorizationReady)
@@ -157,10 +142,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     viewModel.password = "testpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
-
-    // Await task
-    await viewModel.loginTask?.value
+    _ = await viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
 
     // Assert
     XCTAssertFalse(viewModel.isAuthorizationReady)
@@ -274,8 +256,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     viewModel.password = "secret_password_123"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
-    await viewModel.loginTask?.value
+    _ = await viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
 
     // Assert
     XCTAssertEqual(viewModel.password, "", "Password must be wiped from memory immediately after login completion")
@@ -292,8 +273,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     viewModel.password = "wrongpass"
 
     // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
-    await viewModel.loginTask?.value
+    _ = await viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
 
     // Assert
     XCTAssertFalse(viewModel.isAuthorizationReady)

@@ -297,8 +297,7 @@ struct GeoGarageLoginView: View {
         .focused($focusedField, equals: .password)
         .submitLabel(.go)
         .onSubmit {
-          focusedField = nil
-          viewModel.login(authService: authService, messageService: messageService)
+          performLogin()
         }
         .frame(minHeight: 44)
     }
