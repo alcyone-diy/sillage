@@ -162,33 +162,6 @@ struct TrackRecordingServiceTests {
     )
   }
 
-  func waitUntil(
-    _ condition: @escaping @MainActor () -> Bool,
-    timeout: Duration = .seconds(2)
-  ) async throws {
-    try await withThrowingTaskGroup(of: Void.self) { group in
-      group.addTask {
-        try await Task.sleep(for: timeout)
-        throw CancellationError()
-      }
-      group.addTask { @MainActor in
-        while !condition() {
-          await withCheckedContinuation { continuation in
-            withObservationTracking {
-              _ = condition()
-            } onChange: {
-              Task { @MainActor in
-                continuation.resume()
-              }
-            }
-          }
-        }
-      }
-      try await group.next()
-      group.cancelAll()
-    }
-  }
-
   // MARK: - Tests
 
 

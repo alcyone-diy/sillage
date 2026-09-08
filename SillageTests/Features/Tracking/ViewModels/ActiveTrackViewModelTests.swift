@@ -31,7 +31,24 @@ struct ActiveTrackViewModelTests {
 
   @MainActor
   class MockPositioningService: PositioningService, Sendable {
-    let (locationUpdates, locationContinuation) = AsyncStream.makeStream(of: PositioningState.self)
+    private var locationContinuations: [UUID: AsyncStream<PositioningState>.Continuation] = [:]
+
+    var locationUpdates: AsyncStream<PositioningState> {
+      let (stream, continuation) = AsyncStream.makeStream(of: PositioningState.self)
+      let id = UUID()
+      locationContinuations[id] = continuation
+      continuation.onTermination = { @Sendable [weak self] _ in
+        Task { @MainActor in
+          self?.locationContinuations.removeValue(forKey: id)
+        }
+      }
+      return stream
+    }
+
+    var isSubscribed: Bool {
+      !locationContinuations.isEmpty
+    }
+
     var currentDistanceFilter: Measurement<UnitLength> = Measurement(value: 5, unit: .meters)
     let (authorizationStatusStream, authContinuation) = AsyncStream.makeStream(of: CLAuthorizationStatus.self)
     
@@ -62,7 +79,9 @@ struct ActiveTrackViewModelTests {
     }
     
     func emit(fix: NavigationFix) {
-      locationContinuation.yield(.active(fix))
+      for continuation in locationContinuations.values {
+        continuation.yield(.active(fix))
+      }
     }
   }
 
@@ -126,32 +145,6 @@ struct ActiveTrackViewModelTests {
     )
   }
 
-  func waitUntil(
-    _ condition: @escaping @MainActor () -> Bool,
-    timeout: Duration = .seconds(3)
-  ) async throws {
-    try await withThrowingTaskGroup(of: Void.self) { group in
-      group.addTask {
-        try await Task.sleep(for: timeout)
-        throw CancellationError()
-      }
-      group.addTask { @MainActor in
-        while !condition() {
-          await withCheckedContinuation { continuation in
-            withObservationTracking {
-              _ = condition()
-            } onChange: {
-              Task { @MainActor in
-                continuation.resume()
-              }
-            }
-          }
-        }
-      }
-      try await group.next()
-      group.cancelAll()
-    }
-  }
 
   @Test("Stopping recording automatically displays saved track on chart")
   func testAutoDisplaySavedTrackOnStop() async throws {
@@ -210,22 +203,22 @@ struct ActiveTrackViewModelTests {
     activeTrackViewModel.toggleRecording()
 
     try await waitUntil {
-      trackRecordingService.state == .waitingForFix
+      trackRecordingService.state == .waitingForFix && positioningService.isSubscribed
     }
 
     // 2. Feed GPS fixes
     let baseTime = Date()
     let fix1 = createNavigationFix(latitude: 48.8566, longitude: 2.3522, timestamp: baseTime)
-    let fix2 = createNavigationFix(latitude: 48.8576, longitude: 2.3532, timestamp: baseTime.addingTimeInterval(5))
-    let fix3 = createNavigationFix(latitude: 48.8586, longitude: 2.3542, timestamp: baseTime.addingTimeInterval(10))
-
     positioningService.emit(fix: fix1)
-    positioningService.emit(fix: fix2)
-    positioningService.emit(fix: fix3)
+    try await waitUntil { trackRecordingService.trackPoints.count >= 1 }
 
-    try await waitUntil {
-      trackRecordingService.trackPoints.count >= 3
-    }
+    let fix2 = createNavigationFix(latitude: 48.8576, longitude: 2.3532, timestamp: baseTime.addingTimeInterval(5))
+    positioningService.emit(fix: fix2)
+    try await waitUntil { trackRecordingService.trackPoints.count >= 2 }
+
+    let fix3 = createNavigationFix(latitude: 48.8586, longitude: 2.3542, timestamp: baseTime.addingTimeInterval(10))
+    positioningService.emit(fix: fix3)
+    try await waitUntil { trackRecordingService.trackPoints.count >= 3 }
 
     #expect(activeTrackViewModel.isRecording == true)
 
