@@ -40,6 +40,8 @@ enum MarineIcon: String {
     // Status
     case warning = "exclamationmark.triangle"
     case warningFill = "exclamationmark.triangle.fill"
+    case alarmArmed = "bell.fill"
+    case alarmTriggered = "bell.and.waves.left.and.right.fill"
     
     // Modes
     case gloveMode = "hand.raised.fill"

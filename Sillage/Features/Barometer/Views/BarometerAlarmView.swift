@@ -48,7 +48,7 @@ public struct BarometerAlarmView: View {
                   .marineFont(.title3)
                   .foregroundColor(alarmColor)
               }
-              if let alarm = viewModel.alarmLevel, alarm != .none {
+              if let alarm = viewModel.alarmLevel {
                 Text(alarm.localizedName)
                   .font(.caption.bold())
                   .foregroundColor(alarmColor)

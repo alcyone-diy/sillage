@@ -239,7 +239,7 @@ public final class BarometricService {
   
   private func evaluateAlarms() {
     guard preferencesService.isBaroAlarmEnabled else {
-      activeAlarm = WeatherAlarmLevel.none
+      activeAlarm = nil
       lastNotifiedAlarmLevel = nil
       return
     }
@@ -259,23 +259,23 @@ public final class BarometricService {
       } else if let d3 = d3, d3 <= .vigilanceThreshold {
         activeAlarm = .vigilance
       } else {
-        activeAlarm = WeatherAlarmLevel.none
+        activeAlarm = nil
       }
     case .medium:
       guard let d3 = d3 else {
         activeAlarm = nil
         return
       }
-      activeAlarm = d3 <= .galeThreshold ? .gale : WeatherAlarmLevel.none
+      activeAlarm = d3 <= .galeThreshold ? .gale : nil
     case .low:
       guard let d3 = d3 else {
         activeAlarm = nil
         return
       }
-      activeAlarm = d3 <= .stormThreshold ? .storm : WeatherAlarmLevel.none
+      activeAlarm = d3 <= .stormThreshold ? .storm : nil
     }
     
-    if let newAlarm = activeAlarm, newAlarm != WeatherAlarmLevel.none, newAlarm != lastNotifiedAlarmLevel {
+    if let newAlarm = activeAlarm, newAlarm != lastNotifiedAlarmLevel {
       lastNotifiedAlarmLevel = newAlarm
       
       let title = "Weather Alarm: \(newAlarm.localizedName)"
@@ -289,8 +289,8 @@ public final class BarometricService {
           Logger.system.error("Failed to trigger barometer notification: \(error.localizedDescription, privacy: .public)")
         }
       }
-    } else if activeAlarm == WeatherAlarmLevel.none {
-      lastNotifiedAlarmLevel = WeatherAlarmLevel.none
+    } else if activeAlarm == nil {
+      lastNotifiedAlarmLevel = nil
     }
   }
 }

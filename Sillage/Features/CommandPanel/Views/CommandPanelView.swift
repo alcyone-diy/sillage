@@ -143,59 +143,8 @@ struct CommandPanelView: View {
   @ViewBuilder
   private var safetySection: some View {
     Section(header: Text("Safety")) {
-      Button {
-        if let gate = viewModel.executeOrRequestPermission(
-          type: .location(trigger: .anchorAlarm),
-          in: permissionService,
-          action: { [weak viewModel] in
-            viewModel?.commandPath.append(.anchorAlarm)
-          }
-        ) {
-          permissionGateType = gate
-        }
-      } label: {
-        HStack {
-          Label {
-            Text("Anchor Alarm").foregroundStyle(.primary)
-          } icon: {
-            Image(marineIcon: .anchorAlarm).foregroundStyle(.blue)
-          }
-          .marineFont(.body)
-          Spacer()
-          Image(systemName: "chevron.right")
-            .font(.footnote.weight(.semibold))
-            .foregroundColor(Color(uiColor: .tertiaryLabel))
-        }
-      }
-      .tint(.primary)
-      .marineListCell()
-
-      Button {
-        if let gate = viewModel.executeOrRequestPermission(
-          type: .motion,
-          in: permissionService,
-          action: { [weak viewModel] in
-            viewModel?.commandPath.append(.baroAlarm)
-          }
-        ) {
-          permissionGateType = gate
-        }
-      } label: {
-        HStack {
-          Label {
-            Text("Baro Alarm").foregroundStyle(.primary)
-          } icon: {
-            Image(marineIcon: .instruments).foregroundStyle(.blue)
-          }
-          .marineFont(.body)
-          Spacer()
-          Image(systemName: "chevron.right")
-            .font(.footnote.weight(.semibold))
-            .foregroundColor(Color(uiColor: .tertiaryLabel))
-        }
-      }
-      .tint(.primary)
-      .marineListCell()
+      AnchorCommandRowView(permissionGateType: $permissionGateType)
+      BarometerCommandRowView(permissionGateType: $permissionGateType)
     }
   }
 
