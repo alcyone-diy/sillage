@@ -972,6 +972,168 @@ final class ChartViewModelTests: XCTestCase {
       XCTFail("Expected CameraMoveEvent.center for off-screen Pin B")
     }
   }
+
+  // MARK: - GeoGarage Login Handling & Chart Safety Tests
+
+  func testGeoGarageReauthenticationPreservesExistingChartSource() {
+    // Arrange
+    let mockAuthService = MockGeoGarageAuthService()
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    let initialSource: ChartSource = .openSeaMap
+    viewModel.currentChartSource = initialSource
+
+    let layers = [
+      GeoGarageLayer(layer: "shom", brandName: "SHOM France", versionDate: "2026-01-01", validUntil: "2027-01-01")
+    ]
+
+    // Act
+    viewModel.handleGeoGarageLoginSuccess(context: .reauthentication, availableLayers: layers)
+
+    // Assert
+    XCTAssertEqual(viewModel.currentChartSource, initialSource, "Reauthentication must strictly preserve the existing chart source")
+  }
+
+  func testGeoGarageInitialLoginPreservesLocalMBTilesChart() {
+    // Arrange
+    let mockAuthService = MockGeoGarageAuthService()
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    let dummyURL = URL(fileURLWithPath: "/path/to/harbor_detail.mbtiles")
+    viewModel.currentChartSource = .localMBTiles(url: dummyURL)
+
+    let layers = [
+      GeoGarageLayer(layer: "shom", brandName: "SHOM France", versionDate: "2026-01-01", validUntil: "2027-01-01")
+    ]
+
+    // Act
+    viewModel.handleGeoGarageLoginSuccess(context: .initialSetup, availableLayers: layers)
+
+    // Assert
+    XCTAssertEqual(viewModel.currentChartSource, .localMBTiles(url: dummyURL), "Initial login must never overwrite an active local MBTiles chart")
+  }
+
+  func testGeoGarageInitialLoginSwitchesToFirstLayerWhenPassiveOpenSeaMap() {
+    // Arrange
+    let mockAuthService = MockGeoGarageAuthService()
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    viewModel.currentChartSource = .openSeaMap
+
+    let layers = [
+      GeoGarageLayer(layer: "ukho", brandName: "UKHO Admiralty", versionDate: "2026-01-01", validUntil: "2027-01-01")
+    ]
+
+    // Act
+    viewModel.handleGeoGarageLoginSuccess(context: .initialSetup, availableLayers: layers)
+
+    // Assert
+    let expected = ChartSource.remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: "ukho")
+    XCTAssertEqual(viewModel.currentChartSource, expected, "Initial login with passive OpenSeaMap should switch to the first available layer")
+  }
+
+  func testGeoGarageInitialLoginPreservesChartWhenGoToIsActive() {
+    // Arrange
+    let mockAuthService = MockGeoGarageAuthService()
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    viewModel.currentChartSource = .openSeaMap
+    viewModel.goToWaypointID = "active_wp_id"
+
+    let layers = [
+      GeoGarageLayer(layer: "shom", brandName: "SHOM France", versionDate: "2026-01-01", validUntil: "2027-01-01")
+    ]
+
+    // Act
+    viewModel.handleGeoGarageLoginSuccess(context: .initialSetup, availableLayers: layers)
+
+    // Assert
+    XCTAssertEqual(viewModel.currentChartSource, .openSeaMap, "Initial login must preserve chart when active navigation (goTo) is in progress")
+  }
 }
 
 

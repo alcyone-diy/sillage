@@ -134,7 +134,9 @@ struct ChartPreferencesView: View {
       // Note: Value-based navigation in the Command Panel stack must use `CommandDestination` cases
       // resolved at the root level in `CommandPanelView.swift` (do not define local navigation enums or child .navigationDestination).
       Section(header: Text("Accounts & Services").marineFont(.headline)) {
-        NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin) {
+        NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin(
+          context: chartViewModel.isGeoGarageAuthenticated ? .reauthentication : .initialSetup
+        )) {
           Text(chartViewModel.isGeoGarageAuthenticated ? "Manage GeoGarage Account" : "Login to GeoGarage")
             .marineFont(.body)
         }

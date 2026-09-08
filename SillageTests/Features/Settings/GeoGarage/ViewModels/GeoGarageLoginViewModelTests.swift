@@ -302,5 +302,71 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
 
     _ = viewModel
   }
+
+  func testContextInjectionPreservedImmutably() {
+    let setupVM = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), context: .initialSetup)
+    XCTAssertEqual(setupVM.context, .initialSetup)
+
+    let reauthVM = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), context: .reauthentication)
+    XCTAssertEqual(reauthVM.context, .reauthentication)
+  }
+
+  func testAsyncLoginReturnsSuccessAndDecouplesChartViewModel() async {
+    // Arrange
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let chartViewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: nil,
+      messageService: messageService
+    )
+
+    let viewModel = GeoGarageLoginViewModel(
+      offlineMapManager: MockOfflineMapManager(),
+      context: .initialSetup
+    )
+    viewModel.username = "testuser"
+    viewModel.password = "testpass"
+
+    // Act
+    let success = await viewModel.login(
+      authService: mockAuthService,
+      messageService: messageService
+    )
+
+    if success {
+      // Orchestration at View/Coordinator level
+      chartViewModel.handleGeoGarageLoginSuccess(
+        context: viewModel.context,
+        availableLayers: viewModel.availableLayers
+      )
+    }
+
+    // Assert
+    XCTAssertTrue(success)
+    XCTAssertTrue(viewModel.isAuthorizationReady)
+    XCTAssertNil(viewModel.errorMessage)
+    XCTAssertEqual(viewModel.password, "")
+    _ = viewModel
+  }
 }
 

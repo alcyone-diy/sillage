@@ -10,6 +10,14 @@
 
 import Foundation
 
+/// Context indicating user intent when presenting the GeoGarage login flow.
+public enum GeoGarageLoginContext: Hashable, Sendable {
+  /// Initial setup when the user connects their GeoGarage account for the first time.
+  case initialSetup
+  /// Re-authentication flow triggered by a session expiration or auth error.
+  case reauthentication
+}
+
 struct AuthSuccessResponse: Codable {
   let access_token: String
   let token_type: String

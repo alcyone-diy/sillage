@@ -240,8 +240,8 @@ struct CommandPanelView: View {
       BarometerAlarmView(viewModel: barometerViewModel)
     case .anchorAlarm:
       AnchorAlarmView()
-    case .geoGarageLogin:
-      GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager)
+    case .geoGarageLogin(let context):
+      GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager, context: context)
     case .offlineCharts:
       OfflineRegionsManagerView()
     case .offlineChartDetail(let id):

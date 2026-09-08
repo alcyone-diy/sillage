@@ -23,8 +23,11 @@ struct GeoGarageLoginView: View {
   
   @State private var showLogoutConfirmation = false
   
-  init(offlineMapManager: OfflineMapManager) {
-    self._viewModel = State(initialValue: GeoGarageLoginViewModel(offlineMapManager: offlineMapManager))
+  init(
+    offlineMapManager: OfflineMapManager,
+    context: GeoGarageLoginContext = .initialSetup
+  ) {
+    self._viewModel = State(initialValue: GeoGarageLoginViewModel(offlineMapManager: offlineMapManager, context: context))
   }
   
   private enum Field {
@@ -74,15 +77,6 @@ struct GeoGarageLoginView: View {
             .controlSize(.large)
             .tint(marineTheme.colors.onPrimary)
         }
-      }
-    }
-    .onChange(of: viewModel.isAuthorizationReady) { oldState, isReady in
-      if isReady {
-        chartViewModel.clearGeoGarageMessages()
-        if let firstLayer = viewModel.availableLayers.first {
-          chartViewModel.switchChartSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: firstLayer.layer))
-        }
-        dismiss()
       }
     }
     .onDisappear {
@@ -167,10 +161,7 @@ struct GeoGarageLoginView: View {
       loginForm()
 
       VStack(spacing: MarineTheme.Spacing.medium) {
-        Button(action: {
-          focusedField = nil
-          viewModel.login(authService: authService, messageService: messageService)
-        }) {
+        Button(action: performLogin) {
           if viewModel.isLoading {
             ProgressView()
               .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -202,10 +193,7 @@ struct GeoGarageLoginView: View {
             .multilineTextAlignment(.center)
         }
         
-        Button(action: {
-          focusedField = nil
-          viewModel.login(authService: authService, messageService: messageService)
-        }) {
+        Button(action: performLogin) {
           if viewModel.isLoading {
             ProgressView()
               .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -227,6 +215,21 @@ struct GeoGarageLoginView: View {
   }
 
   // MARK: - Actions
+
+  private func performLogin() {
+    focusedField = nil
+    Task {
+      let success = await viewModel.login(authService: authService, messageService: messageService)
+      if success {
+        // Orchestration at View/Coordinator level
+        chartViewModel.handleGeoGarageLoginSuccess(
+          context: viewModel.context,
+          availableLayers: viewModel.availableLayers
+        )
+        dismiss()
+      }
+    }
+  }
 
   private func initiateLogout() {
     if viewModel.requiresOfflineMapsWarning() {

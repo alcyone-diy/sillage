@@ -21,6 +21,7 @@ enum GeoGarageViewState {
 @MainActor
 @Observable
 final class GeoGarageLoginViewModel {
+  let context: GeoGarageLoginContext
   var username = ""
   var password = ""
   var isLoading = false
@@ -72,12 +73,16 @@ final class GeoGarageLoginViewModel {
     }
   }
 
-  var loginTask: Task<Void, Never>?
+  var loginTask: Task<Bool, Never>?
 
   private let offlineMapManager: OfflineMapManagerProtocol
 
-  init(offlineMapManager: OfflineMapManagerProtocol) {
+  init(
+    offlineMapManager: OfflineMapManagerProtocol,
+    context: GeoGarageLoginContext = .initialSetup
+  ) {
     self.offlineMapManager = offlineMapManager
+    self.context = context
   }
 
   func requiresOfflineMapsWarning() -> Bool {
@@ -120,53 +125,62 @@ final class GeoGarageLoginViewModel {
     }
   }
 
-  func login(authService: GeoGarageAuthServiceProtocol, messageService: MessageService?) {
+  @discardableResult
+  func login(
+    authService: GeoGarageAuthServiceProtocol,
+    messageService: MessageService?
+  ) async -> Bool {
     loginTask?.cancel()
-    loginTask = Task { [weak self] in
-      self?.isLoading = true
+    let task = Task { [weak self] () -> Bool in
+      guard let self else { return false }
+      self.isLoading = true
 
       defer {
-        self?.isLoading = false
-        self?.password = ""
+        self.isLoading = false
+        self.password = ""
       }
 
-      guard let username = self?.username, let password = self?.password else { return }
-
-      if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        self?.errorMessage = String(localized: "Please enter a valid username.")
-        return
+      guard !self.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        self.errorMessage = String(localized: "Please enter a valid username.")
+        return false
       }
 
       do {
-        let response = try await authService.authenticate(username: username, password: password)
+        let response = try await authService.authenticate(username: self.username, password: self.password)
 
         // Save tokens securely
         await KeychainManager.shared.save(token: response.access_token, for: "geogarage_access_token")
         await KeychainManager.shared.save(token: response.refresh_token, for: "geogarage_refresh_token")
 
         // Save username for display
-        authService.savedUsername = username
+        authService.savedUsername = self.username
 
         // Fetch account settings/layers
         let settingsResponse = try await authService.fetchAccountSettings(accessToken: response.access_token)
 
-        self?.availableLayers = settingsResponse.layers
-        self?.isAuthorizationReady = true
-        self?.forceReauthentication = false
+        self.availableLayers = settingsResponse.layers
+        self.isAuthorizationReady = true
+        self.forceReauthentication = false
 
         // Log successful fetch
         let layerNames = settingsResponse.layers.map { $0.brandName }.joined(separator: ", ")
         Logger.network.info("Successfully fetched layers: \(layerNames, privacy: .public)")
         
         // Clear any previous authentication error messages
-        self?.errorMessage = nil
+        self.errorMessage = nil
         messageService?.clear(category: .geoGarage)
+        return true
       } catch let error as AuthError {
-        self?.errorMessage = error.localizedDescription
+        self.errorMessage = error.localizedDescription
+        return false
       } catch {
-        self?.errorMessage = AuthError.unknown.localizedDescription
+        self.errorMessage = AuthError.unknown.localizedDescription
+        return false
       }
     }
+
+    loginTask = task
+    return await task.value
   }
 
   func cancelLogin() {

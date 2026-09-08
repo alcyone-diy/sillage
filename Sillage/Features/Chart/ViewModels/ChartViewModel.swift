@@ -558,6 +558,44 @@ final class ChartViewModel {
   func clearGeoGarageMessages() {
     self.messageService?.clear(category: .geoGarage)
   }
+
+  /// Handles post-login domain orchestration for GeoGarage.
+  ///
+  /// - Important: Safety check! Never overwrite an active navigation/recording or a local MBTiles chart.
+  ///   On reauthentication, the existing chart source is strictly preserved.
+  func handleGeoGarageLoginSuccess(
+    context: GeoGarageLoginContext,
+    availableLayers: [GeoGarageLayer]
+  ) {
+    clearGeoGarageMessages()
+
+    guard context == .initialSetup else {
+      Logger.network.info("GeoGarage reauthentication: preserving existing active chart source.")
+      return
+    }
+
+    // Defensive safety check: never overwrite an active navigation or recording session.
+    let isTrackingActive = trackRecordingService.state != .idle
+    let isGoToActive = goToWaypointID != nil
+
+    if isTrackingActive || isGoToActive {
+      Logger.network.info("GeoGarage initial setup: active navigation or recording session in progress, preserving current chart.")
+      return
+    }
+
+    // Defensive safety check: never crush a local MBTiles chart or an existing GeoGarage selection.
+    switch currentChartSource {
+    case .localMBTiles:
+      Logger.network.info("GeoGarage initial setup: local MBTiles chart active, preserving current chart.")
+    case .remoteGeoGarage:
+      Logger.network.info("GeoGarage initial setup: GeoGarage chart already active, preserving current chart.")
+    case .openSeaMap, .none:
+      if let firstLayer = availableLayers.first {
+        Logger.network.info("GeoGarage initial setup: switching to default layer \(firstLayer.layer, privacy: .public).")
+        switchChartSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: firstLayer.layer))
+      }
+    }
+  }
   
   func logoutGeoGarage() {
     silentFetchTask?.cancel()

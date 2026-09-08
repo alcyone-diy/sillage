@@ -36,7 +36,7 @@ public final class PanelManagerViewModel {
     case waypointDetail(String)
     case baroAlarm
     case anchorAlarm
-    case geoGarageLogin
+    case geoGarageLogin(context: GeoGarageLoginContext = .initialSetup)
     case offlineCharts
     case offlineChartDetail(id: UUID)
     case chartPreferences
@@ -107,7 +107,7 @@ public final class PanelManagerViewModel {
     switch intent {
     case .openSettings(let target):
       if target == .geoGarage {
-        commandPath.append(.geoGarageLogin)
+        commandPath.append(.geoGarageLogin(context: .reauthentication))
       } else {
         commandPath.append(.settings)
       }

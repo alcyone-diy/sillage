@@ -108,7 +108,7 @@ final class PanelManagerViewModelTests: XCTestCase {
       .waypointDetail("wp_1"),
       .baroAlarm,
       .anchorAlarm,
-      .geoGarageLogin,
+      .geoGarageLogin(context: .initialSetup),
       .offlineCharts,
       .offlineChartDetail(id: UUID()),
       .chartPreferences
@@ -124,10 +124,10 @@ final class PanelManagerViewModelTests: XCTestCase {
     // Simulates navigating from Settings -> Chart Preferences -> GeoGarage Login
     viewModel.commandPath.append(.settings)
     viewModel.commandPath.append(.chartPreferences)
-    viewModel.commandPath.append(.geoGarageLogin)
+    viewModel.commandPath.append(.geoGarageLogin(context: .initialSetup))
 
     XCTAssertEqual(viewModel.commandPath.count, 3)
-    XCTAssertEqual(viewModel.commandPath.last, .geoGarageLogin)
+    XCTAssertEqual(viewModel.commandPath.last, .geoGarageLogin(context: .initialSetup))
 
     // Simulates popping back to Chart Preferences
     viewModel.commandPath.removeLast()
