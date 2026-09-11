@@ -83,6 +83,41 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     XCTAssertNil(stored)
   }
 
+  /// Feuille de connexion fermée pendant /partners/me/ : une annulation n'est pas une panne réseau
+  /// (revue de la Task 5, 11 sept. 2026), même politique que GeoGarageAuthService.requestTokens.
+  func testRefreshMapsURLCancellationToCancelled() async {
+    MockURLProtocol.setErrorHandler { _ in URLError(.cancelled) }
+    let service = GeoGaragePartnerSecretService(session: session)
+
+    do {
+      _ = try await service.refresh(accessToken: "tok")
+      XCTFail("cancelled attendu")
+    } catch PartnerSecretError.cancelled {
+      // attendu
+    } catch {
+      XCTFail("erreur inattendue : \(error)")
+    }
+  }
+
+  func testRefreshRejectsEmptySecret() async {
+    MockURLProtocol.setHandler { request in
+      let json = #"{"client_id":"abc","customer_id":"cus_1","package_secret":"","tea_secret":""}"#
+      return (Self.response(request, status: 200), Data(json.utf8))
+    }
+    let service = GeoGaragePartnerSecretService(session: session)
+
+    do {
+      _ = try await service.refresh(accessToken: "tok")
+      XCTFail("invalidResponse attendu")
+    } catch PartnerSecretError.invalidResponse {
+      // attendu : un secret vide déchiffrerait zéro paquet, autant le traiter comme une réponse illisible
+    } catch {
+      XCTFail("erreur inattendue : \(error)")
+    }
+    let stored = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    XCTAssertNil(stored, "un secret vide ne doit rien écrire dans le trousseau")
+  }
+
   func testRefreshThrowsNoProfileOn404() async {
     MockURLProtocol.setHandler { request in (Self.response(request, status: 404), Data(#"{"error":"unknown"}"#.utf8)) }
     let service = GeoGaragePartnerSecretService(session: session)

@@ -15,21 +15,32 @@ import XCTest
 final class AppEnvironmentTests: XCTestCase {
 
   private var environment: AppEnvironment!
+  /// Injecté pour que le rattrapage du secret au démarrage n'appelle jamais le vrai portail
+  /// (revue de la Task 5, 11 sept. 2026).
+  private var partnerSecretService: MockGeoGaragePartnerSecretService!
 
-  override func setUp() {
-    super.setUp()
-    environment = AppEnvironment()
+  override func setUp() async throws {
+    try await super.setUp()
+    partnerSecretService = MockGeoGaragePartnerSecretService()
+    environment = AppEnvironment(partnerSecretService: partnerSecretService)
     let prefs = PreferencesService()
     prefs.pendingCAASDownloads = []
     prefs.geoGarageCustomerID = nil
+    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+    await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
+    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     let prefs = PreferencesService()
     prefs.pendingCAASDownloads = []
     prefs.geoGarageCustomerID = nil
+    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+    await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
+    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
     environment = nil
-    super.tearDown()
+    partnerSecretService = nil
+    try await super.tearDown()
   }
 
   func testInitialStateIsUninitialized() {
@@ -136,5 +147,58 @@ final class AppEnvironmentTests: XCTestCase {
 
     XCTAssertFalse(environment.isDownloadingOfflineCharts)
     XCTAssertNil(environment.offlineChartsDownloadProgress)
+  }
+
+  // MARK: - Secret de paquets rattrapé au démarrage (revue de la Task 5, 11 sept. 2026)
+
+  func testBootstrapRestoresTheMissingPackageSecretForAnAlreadySignedInInstall() async {
+    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+
+    await environment.bootstrap()
+
+    XCTAssertEqual(
+      partnerSecretService.receivedAccessTokens,
+      ["legacy_access_token"],
+      "installation connectée avant la voie B : le secret doit être demandé une fois au démarrage"
+    )
+  }
+
+  func testBootstrapDoesNotFetchThePackageSecretWhenTheKeychainAlreadyHasOne() async {
+    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+    await KeychainManager.shared.save(token: "already-here", for: GeoGaragePartnerSecretService.keychainAccount)
+
+    await environment.bootstrap()
+
+    XCTAssertTrue(partnerSecretService.receivedAccessTokens.isEmpty, "aucun appel réseau si le secret est déjà là")
+  }
+
+  func testBootstrapWarnsWhenThePackageSecretCannotBeRestored() async {
+    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+    partnerSecretService.errorToThrow = .noProfile
+
+    await environment.bootstrap()
+
+    guard case .ready(let container) = environment.state else {
+      XCTFail("bootstrap doit aboutir même sans secret")
+      return
+    }
+    let warnings = container.messageService.messages.filter { $0.category == .geoGarage && $0.severity == .warning }
+    XCTAssertEqual(warnings.count, 1, "l'utilisateur doit savoir pourquoi ses cartes hors ligne ont disparu")
+  }
+
+  func testBootstrapStaysSilentWhenThePackageSecretFetchIsOffline() async {
+    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+    partnerSecretService.errorToThrow = .networkError("offline")
+
+    await environment.bootstrap()
+
+    guard case .ready(let container) = environment.state else {
+      XCTFail("bootstrap doit aboutir même sans secret")
+      return
+    }
+    XCTAssertFalse(
+      container.messageService.messages.contains { $0.category == .geoGarage && $0.severity == .warning },
+      "hors couverture au lancement : la prochaine ouverture réessaiera, inutile d'alarmer"
+    )
   }
 }

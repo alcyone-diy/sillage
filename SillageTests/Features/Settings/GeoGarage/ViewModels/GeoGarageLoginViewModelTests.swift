@@ -221,6 +221,23 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.first?.severity, .warning)
   }
 
+  /// Feuille refermée pendant /partners/me/ : l'annulation ne doit pas devenir « erreur inconnue »
+  /// (revue de la Task 5, 11 sept. 2026).
+  func testSecretCancellationDuringSignInStaysSilent() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let secretService = MockGeoGaragePartnerSecretService()
+    secretService.errorToThrow = .cancelled
+    let messageService = MessageService()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: secretService)
+
+    viewModel.login(authService: mockAuthService, messageService: messageService, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+
+    XCTAssertNil(viewModel.errorMessage, "une annulation n'est pas un échec à afficher")
+    XCTAssertFalse(viewModel.isAuthorizationReady)
+    XCTAssertTrue(messageService.messages.isEmpty)
+  }
+
   func testSecretIsRefreshedWithTheFreshAccessToken() async {
     let mockAuthService = MockGeoGarageAuthService()
     let secretService = MockGeoGaragePartnerSecretService()

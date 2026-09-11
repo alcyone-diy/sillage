@@ -35,6 +35,9 @@ nonisolated enum PartnerSecretError: Error {
   case noProfile
   case invalidResponse
   case networkError(String)
+  /// Tâche annulée pendant l'appel (feuille de connexion refermée) : ni une panne ni un échec à
+  /// afficher (revue de la Task 5, 11 sept. 2026), même politique que GeoGarageAuthService.
+  case cancelled
 }
 
 protocol GeoGaragePartnerSecretServiceProtocol: Sendable {
@@ -68,6 +71,11 @@ actor GeoGaragePartnerSecretService: GeoGaragePartnerSecretServiceProtocol {
     let (data, response): (Data, URLResponse)
     do {
       (data, response) = try await session.data(for: request)
+    } catch is CancellationError {
+      throw PartnerSecretError.cancelled
+    } catch let error as URLError where error.code == .cancelled {
+      // URLSession traduit l'annulation de la tâche Swift en URLError.cancelled : même sortie.
+      throw PartnerSecretError.cancelled
     } catch {
       throw PartnerSecretError.networkError(error.localizedDescription)
     }
@@ -81,6 +89,12 @@ actor GeoGaragePartnerSecretService: GeoGaragePartnerSecretServiceProtocol {
         secrets = try JSONDecoder().decode(GeoGaragePartnerSecrets.self, from: data)
       } catch {
         Logger.network.error("Failed to decode /partners/me/ response: \(error, privacy: .public)")
+        throw PartnerSecretError.invalidResponse
+      }
+      // Un 200 avec un secret vide ne déchiffrerait aucun paquet : le stocker ferait passer pour
+      // saine une session inutilisable hors ligne (revue de la Task 5, 11 sept. 2026).
+      guard !secrets.packageSecret.isEmpty else {
+        Logger.network.error("/partners/me/ returned an empty package secret for client \(secrets.clientID, privacy: .public).")
         throw PartnerSecretError.invalidResponse
       }
       await KeychainManager.shared.save(token: secrets.packageSecret, for: Self.keychainAccount)

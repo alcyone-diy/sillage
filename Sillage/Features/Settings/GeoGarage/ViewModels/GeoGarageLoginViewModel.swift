@@ -133,6 +133,10 @@ final class GeoGarageLoginViewModel {
         var secretWarning: AppMessage?
         do {
           _ = try await self?.partnerSecretService.refresh(accessToken: response.access_token)
+        } catch PartnerSecretError.cancelled {
+          // Feuille refermée (ou loginTask annulée) pendant /partners/me/ : ce n'est pas un secret
+          // indisponible, la sortie silencieuse reprend la main (revue de la Task 5, 11 sept. 2026).
+          throw AuthError.cancelled
         } catch {
           // Connexion réussie mais secret indisponible : les cartes en ligne fonctionnent, pas le
           // hors ligne. On prévient sans bloquer la connexion (spec 2026-09-10, plan Task 5).

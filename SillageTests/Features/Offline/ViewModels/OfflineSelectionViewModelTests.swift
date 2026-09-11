@@ -348,6 +348,27 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertFalse(sut.isDownloading)
   }
 
+  /// Voie B (revue de la Task 5, 11 sept. 2026) : le paquet part avec le jeton de l'utilisateur ;
+  /// sans jeton dans le trousseau, le générateur ne doit jamais être appelé.
+  func testStartDownload_withoutAccessToken_failsWithoutCallingTheDownloadService() async {
+    let mockDownloadService = MockGeoGarageDownloadService()
+    let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
+    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+
+    sut.startDownload(chartSource: nil)
+
+    for _ in 0..<100 {
+      if mockDownloadService.failDownloadCalled { break }
+      try? await Task.sleep(for: .milliseconds(10))
+    }
+
+    XCTAssertTrue(mockDownloadService.failDownloadCalled, "sans jeton, le téléchargement doit échouer immédiatement")
+    XCTAssertFalse(mockDownloadService.startDownloadCalled, "aucun paquet ne doit être demandé au générateur")
+
+    // Le setUp de la classe suppose un jeton présent : on le remet pour les tests suivants.
+    await KeychainManager.shared.save(token: "token123", for: "geogarage_access_token")
+  }
+
   func testStartDownload_unauthenticated_setsFailedState() {
     let (sut, _, _, _, _, _, _, _) = makeSUT(authenticated: false)
 

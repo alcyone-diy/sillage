@@ -23,7 +23,7 @@ final class AppEnvironment {
   public let offlineMapManager: OfflineMapManager
   /// Voie B (11 sept. 2026) : lit le secret de déchiffrement des paquets sur /partners/me/ après
   /// connexion. Rien de secret dans le binaire, le secret vit dans le trousseau.
-  public let geoGaragePartnerSecretService: GeoGaragePartnerSecretService
+  public let geoGaragePartnerSecretService: any GeoGaragePartnerSecretServiceProtocol
   
   struct AppContainer {
     let messageService: MessageService
@@ -52,12 +52,15 @@ final class AppEnvironment {
     let secondaryTelemetryViewModel: SecondaryTelemetryViewModel
   }
   
-  public init(metadata: AppMetadata? = nil) {
+  public init(
+    metadata: AppMetadata? = nil,
+    partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil
+  ) {
     self.metadata = metadata ?? AppMetadataProvider.resolve()
     self.bootDate = Date.now
     Self.setupMapLibreProtocol()
     self.offlineMapManager = OfflineMapManager()
-    self.geoGaragePartnerSecretService = GeoGaragePartnerSecretService()
+    self.geoGaragePartnerSecretService = partnerSecretService ?? GeoGaragePartnerSecretService()
     setupMapLibreProgressObservation()
   }
   
@@ -144,6 +147,11 @@ final class AppEnvironment {
       TileProxyProtocol.configure(
         offlineTileProvider: geoGarageOfflineTileProvider,
         tileProxyManager: TileProxyManager.shared
+      )
+
+      await restorePackageSecretIfMissing(
+        authService: geoGarageAuthService,
+        messageService: messageService
       )
 
       // Secret lu dans le trousseau, plus dans le binaire (voie B, 11 sept. 2026) : vide tant que
@@ -287,6 +295,69 @@ final class AppEnvironment {
       Logger.system.error("❌ AppEnvironment bootstrap failed: \(error.localizedDescription, privacy: .public)")
       state = .error(error)
     }
+  }
+
+  // MARK: - GeoGarage Package Secret Recovery
+
+  /// Rattrape en une fois le secret de déchiffrement absent du trousseau au démarrage.
+  ///
+  /// Revue de la Task 5, 11 sept. 2026 : une installation déjà connectée avant la voie B (ou dont
+  /// l'appel à /partners/me/ avait échoué à la connexion) garde ses tokens mais n'a pas de secret.
+  /// Sans cette reprise, `reloadDownloads` refermait tous les lecteurs hors ligne en silence et
+  /// l'utilisateur perdait ses cartes téléchargées sans le moindre indice.
+  private func restorePackageSecretIfMissing(
+    authService: GeoGarageAuthService,
+    messageService: MessageService
+  ) async {
+    guard authService.isGeoGarageAuthenticated else { return }
+    let storedSecret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount) ?? ""
+    guard storedSecret.isEmpty else { return }
+    let accessToken = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token") ?? ""
+    guard !accessToken.isEmpty else { return }
+
+    do {
+      _ = try await geoGaragePartnerSecretService.refresh(accessToken: accessToken)
+      Logger.network.info("Partner package secret restored at startup.")
+      return
+    } catch PartnerSecretError.unauthorized {
+      // Jeton d'accès expiré depuis la dernière ouverture : un refresh, puis un seul nouvel essai.
+      Logger.network.info("Partner package secret restore rejected the access token, refreshing once.")
+    } catch PartnerSecretError.networkError(let description) {
+      // Hors couverture au lancement : la prochaine ouverture réessaiera, inutile d'alarmer.
+      Logger.network.info("Partner package secret restore skipped, network unavailable: \(description, privacy: .public)")
+      return
+    } catch PartnerSecretError.cancelled {
+      Logger.network.info("Partner package secret restore cancelled.")
+      return
+    } catch {
+      Logger.network.error("Partner package secret restore failed: \(String(describing: error), privacy: .public)")
+      postPackageSecretWarning(on: messageService)
+      return
+    }
+
+    do {
+      let tokens = try await authService.refreshTokens()
+      _ = try await geoGaragePartnerSecretService.refresh(accessToken: tokens.access_token)
+      Logger.network.info("Partner package secret restored at startup after a token refresh.")
+    } catch PartnerSecretError.networkError(let description) {
+      Logger.network.info("Partner package secret restore skipped after token refresh, network unavailable: \(description, privacy: .public)")
+    } catch PartnerSecretError.cancelled {
+      Logger.network.info("Partner package secret restore cancelled after token refresh.")
+    } catch {
+      Logger.network.error("Partner package secret restore failed after token refresh: \(String(describing: error), privacy: .public)")
+      postPackageSecretWarning(on: messageService)
+    }
+  }
+
+  private func postPackageSecretWarning(on messageService: MessageService) {
+    let appMessage = AppMessage(
+      title: LocalizedStringResource("Offline charts unavailable"),
+      detail: LocalizedStringResource("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
+      severity: .warning,
+      category: .geoGarage,
+      intent: .openSettings(target: .geoGarage)
+    )
+    messageService.post(appMessage)
   }
 
   // MARK: - GeoGarage Offline Services
