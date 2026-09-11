@@ -17,11 +17,9 @@ protocol GeoGarageAuthServiceProtocol: AnyObject {
   var isGeoGarageAuthenticated: Bool { get }
   var availableLayers: [GeoGarageLayer] { get }
   var authError: Error? { get set }
-  var savedUsername: String? { get set }
   var discoverURL: URL? { get }
   var accountManagementURL: URL? { get }
   func bootstrap() async
-  func authenticate(username: String, password: String) async throws -> AuthSuccessResponse
   /// Connexion authorization code + PKCE : ouvre la page GeoGarage via `presenter`, échange le
   /// code sur /o/token/ et range les deux tokens dans le trousseau.
   func authenticate(presenter: any GeoGarageAuthorizationPresenting) async throws -> AuthSuccessResponse
@@ -42,11 +40,6 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   var authError: Error? = nil
   private var preferencesService: PreferencesServiceProtocol
   private let layerRepository: GeoGarageLayerRepositoryProtocol
-  
-  var savedUsername: String? {
-    get { preferencesService.geoGarageUsername }
-    set { preferencesService.geoGarageUsername = newValue }
-  }
 
   var discoverURL: URL? {
     URL(string: "https://geogarage.com/")
@@ -56,10 +49,10 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   }
 
   private var endpoint: URL? {
-    URL(string: "https://accounts.geogarage.com/o/token/")
+    URL(string: "\(AppConstants.GeoGarage.accountsBaseURLString)/o/token/")
   }
   private var settingsEndpoint: URL? {
-    URL(string: "https://accounts.geogarage.com/api/account/settings")
+    URL(string: "\(AppConstants.GeoGarage.accountsBaseURLString)/api/account/settings")
   }
 
   private let session: URLSession
@@ -102,72 +95,11 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
     self.authError = nil
-    self.savedUsername = nil
+    // Installations venues de la version à mot de passe (avant le 11 sept. 2026) : le nom
+    // d'utilisateur mémorisé n'a plus d'usage, on l'efface à la première déconnexion.
+    preferencesService.geoGarageUsername = nil
     self.isGeoGarageAuthenticated = false
     await layerRepository.clearCache()
-  }
-
-  func authenticate(username: String, password: String) async throws -> AuthSuccessResponse {
-    guard let endpoint else {
-      throw AuthError.invalidResponse
-    }
-
-    var request = URLRequest(url: endpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-    request.timeoutInterval = 15.0 // Marine Context: Fail Fast
-
-    let parameters: [String: String] = [
-      "grant_type": "password",
-      "client_id": AppConfiguration.shared.geoGarageClientID,
-      "username": username,
-      "password": password
-    ]
-
-    let bodyString = encodeParameters(parameters)
-    guard let bodyData = bodyString.data(using: .utf8) else {
-      throw AuthError.encodingError
-    }
-    request.httpBody = bodyData
-
-    let (data, response): (Data, URLResponse)
-    do {
-      (data, response) = try await session.data(for: request)
-    } catch {
-      throw AuthError.networkError(error)
-    }
-
-    guard let httpResponse = response as? HTTPURLResponse else {
-      throw AuthError.invalidResponse
-    }
-
-    if httpResponse.statusCode == 200 {
-      do {
-        let successResponse = try JSONDecoder().decode(AuthSuccessResponse.self, from: data)
-        self.authError = nil
-        self.isGeoGarageAuthenticated = true
-        return successResponse
-      } catch {
-        Logger.network.error("Failed to decode AuthSuccessResponse: \(error, privacy: .public)")
-        throw AuthError.invalidResponse
-      }
-    } else if httpResponse.statusCode == 400 || httpResponse.statusCode == 401 {
-      if let errorResponse = try? JSONDecoder().decode(AuthErrorResponse.self, from: data) {
-        if errorResponse.error == "invalid_grant" {
-          let error = AuthError.invalidCredentials
-          self.authError = error
-          throw error
-        }
-        if let description = errorResponse.error_description, !description.isEmpty {
-          let error = AuthError.apiError(description: description)
-          self.authError = error
-          throw error
-        }
-      }
-      throw AuthError.unknown
-    } else {
-      throw AuthError.invalidResponse
-    }
   }
 
   // MARK: - Authorization code + PKCE (11 sept. 2026)

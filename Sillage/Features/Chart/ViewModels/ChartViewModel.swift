@@ -538,6 +538,11 @@ final class ChartViewModel {
     if let authError = error as? AuthError, case .networkError = authError {
       return // Ignore offline / network issues silently
     }
+    // .cancelled : refreshTokens()/fetchAccountSettings interrompus par l'annulation de la tâche
+    // appelante (pas un échec d'authentification à afficher, revue de la Task 5a.2, 11 sept. 2026).
+    if let authError = error as? AuthError, case .cancelled = authError {
+      return
+    }
     
     let appMessage = AppMessage(
       title: LocalizedStringResource("GeoGarage Auth Error"),

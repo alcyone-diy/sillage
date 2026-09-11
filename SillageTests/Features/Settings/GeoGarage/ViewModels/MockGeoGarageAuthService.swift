@@ -17,7 +17,6 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
   var isGeoGarageAuthenticated: Bool = false
   var availableLayers: [GeoGarageLayer] = []
   var authError: Error?
-  var savedUsername: String?
   var discoverURL: URL? { URL(string: "https://geogarage.com/") }
   var accountManagementURL: URL? { URL(string: "https://accounts.geogarage.com/") }
   var shouldFailAuthenticate = false
@@ -29,17 +28,6 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
 
   func bootstrap() async {
     // Mock bootstrap
-  }
-
-  func authenticate(username: String, password: String) async throws -> AuthSuccessResponse {
-    if let error = authErrorToThrow {
-      throw error
-    }
-    if shouldFailAuthenticate {
-      throw AuthError.invalidResponse
-    }
-    isGeoGarageAuthenticated = true
-    return AuthSuccessResponse(access_token: "mock_access", token_type: "Bearer", expires_in: 3600, refresh_token: "mock_refresh", scope: "read")
   }
 
   func authenticate(presenter: any GeoGarageAuthorizationPresenting) async throws -> AuthSuccessResponse {
@@ -78,7 +66,6 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
     await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
     self.authError = nil
-    self.savedUsername = nil
     self.isGeoGarageAuthenticated = false
     self.availableLayers = []
   }
