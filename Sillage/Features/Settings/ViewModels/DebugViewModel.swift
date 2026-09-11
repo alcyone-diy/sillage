@@ -19,6 +19,9 @@ final class DebugViewModel {
   
   func invalidateGeoGarageToken() {
     KeychainManager.shared.saveSync(token: "invalid_debug_token", for: "geogarage_access_token")
+    // Depuis le passage en PKCE (11 sept. 2026), un access token invalide est renouvelé en silence :
+    // pour simuler une session vraiment expirée il faut aussi corrompre le refresh token.
+    KeychainManager.shared.saveSync(token: "invalid_debug_refresh_token", for: "geogarage_refresh_token")
   }
   
   func scheduleDebugBarometerNotification(permissionService: PermissionServiceProtocol, notificationService: NotificationService) async throws {

@@ -24,6 +24,8 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
   var authErrorToThrow: AuthError?
   var shouldFailFetchAccountSettings = false
   var shouldFailWithNetworkError = false
+  var refreshErrorToThrow: AuthError?
+  private(set) var lastPresenter: (any GeoGarageAuthorizationPresenting)?
 
   func bootstrap() async {
     // Mock bootstrap
@@ -38,6 +40,25 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
     }
     isGeoGarageAuthenticated = true
     return AuthSuccessResponse(access_token: "mock_access", token_type: "Bearer", expires_in: 3600, refresh_token: "mock_refresh", scope: "read")
+  }
+
+  func authenticate(presenter: any GeoGarageAuthorizationPresenting) async throws -> AuthSuccessResponse {
+    lastPresenter = presenter
+    if let error = authErrorToThrow {
+      throw error
+    }
+    if shouldFailAuthenticate {
+      throw AuthError.invalidResponse
+    }
+    isGeoGarageAuthenticated = true
+    return AuthSuccessResponse(access_token: "mock_access", token_type: "Bearer", expires_in: 3600, refresh_token: "mock_refresh", scope: "write read")
+  }
+
+  func refreshTokens() async throws -> AuthSuccessResponse {
+    if let error = refreshErrorToThrow {
+      throw error
+    }
+    return AuthSuccessResponse(access_token: "mock_access_2", token_type: "Bearer", expires_in: 3600, refresh_token: "mock_refresh_2", scope: "write read")
   }
 
   func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse {

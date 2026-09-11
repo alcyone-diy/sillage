@@ -22,6 +22,11 @@ protocol GeoGarageAuthServiceProtocol: AnyObject {
   var accountManagementURL: URL? { get }
   func bootstrap() async
   func authenticate(username: String, password: String) async throws -> AuthSuccessResponse
+  /// Connexion authorization code + PKCE : ouvre la page GeoGarage via `presenter`, échange le
+  /// code sur /o/token/ et range les deux tokens dans le trousseau.
+  func authenticate(presenter: any GeoGarageAuthorizationPresenting) async throws -> AuthSuccessResponse
+  /// Renouvelle la paire de tokens avec le refresh token (rotation : il change à chaque appel).
+  func refreshTokens() async throws -> AuthSuccessResponse
   func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse
   func logout() async
 }
@@ -57,17 +62,27 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     URL(string: "https://accounts.geogarage.com/api/account/settings")
   }
 
+  private let session: URLSession
+  @ObservationIgnored private var refreshTask: Task<AuthSuccessResponse, Error>?
+
+  private var authorizeEndpoint: URL? {
+    URL(string: "\(AppConstants.GeoGarage.accountsBaseURLString)/o/authorize/")
+  }
+
   init(
     preferencesService: PreferencesServiceProtocol,
-    layerRepository: GeoGarageLayerRepositoryProtocol
+    layerRepository: GeoGarageLayerRepositoryProtocol,
+    session: URLSession = .shared
   ) {
     self.preferencesService = preferencesService
     self.layerRepository = layerRepository
+    self.session = session
   }
 
-  init(preferencesService: PreferencesServiceProtocol) {
+  init(preferencesService: PreferencesServiceProtocol, session: URLSession = .shared) {
     self.preferencesService = preferencesService
     self.layerRepository = GeoGarageLayerRepository()
+    self.session = session
   }
 
   func bootstrap() async {
@@ -117,7 +132,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
 
     let (data, response): (Data, URLResponse)
     do {
-      (data, response) = try await URLSession.shared.data(for: request)
+      (data, response) = try await session.data(for: request)
     } catch {
       throw AuthError.networkError(error)
     }
@@ -155,7 +170,195 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     }
   }
 
+  // MARK: - Authorization code + PKCE (11 sept. 2026)
+
+  func authenticate(presenter: any GeoGarageAuthorizationPresenting) async throws -> AuthSuccessResponse {
+    guard let authorizeEndpoint else {
+      throw AuthError.invalidResponse
+    }
+    let verifier = GeoGaragePKCE.makeCodeVerifier()
+    let state = GeoGaragePKCE.makeState()
+    let authorization = GeoGarageAuthorizationRequest(
+      authorizeEndpoint: authorizeEndpoint,
+      clientID: AppConfiguration.shared.geoGarageClientID,
+      redirectURI: AppConstants.GeoGarage.oauthRedirectURI,
+      scope: AppConstants.GeoGarage.oauthScope,
+      state: state,
+      codeChallenge: GeoGaragePKCE.codeChallenge(for: verifier)
+    )
+    guard let authorizeURL = authorization.url else {
+      throw AuthError.invalidResponse
+    }
+
+    let callbackURL: URL
+    do {
+      callbackURL = try await presenter.authorize(url: authorizeURL, callbackScheme: AppConstants.GeoGarage.oauthCallbackScheme)
+    } catch AuthError.cancelled {
+      // Fermeture volontaire : on ne touche pas à authError, l'écran reste tel quel.
+      throw AuthError.cancelled
+    } catch {
+      Logger.network.error("Authorization session failed: \(error.localizedDescription, privacy: .public)")
+      let failure = AuthError.authorizationFailed(description: error.localizedDescription)
+      self.authError = failure
+      throw failure
+    }
+
+    let code: String
+    do {
+      code = try GeoGarageAuthorizationRequest.authorizationCode(from: callbackURL, expectedState: state)
+    } catch AuthorizationCallbackError.accessDenied {
+      let failure = AuthError.accessDenied
+      self.authError = failure
+      throw failure
+    } catch AuthorizationCallbackError.serverError(let description) {
+      let failure = AuthError.authorizationFailed(description: description)
+      self.authError = failure
+      throw failure
+    } catch {
+      // stateMismatch, missingCode : réponse inexploitable ou forgée, jamais échangée.
+      Logger.network.error("Authorization callback rejected: \(String(describing: error), privacy: .public)")
+      let failure = AuthError.invalidResponse
+      self.authError = failure
+      throw failure
+    }
+
+    do {
+      let tokens = try await requestTokens(
+        [
+          "grant_type": "authorization_code",
+          "code": code,
+          "redirect_uri": AppConstants.GeoGarage.oauthRedirectURI,
+          "client_id": AppConfiguration.shared.geoGarageClientID,
+          "code_verifier": verifier,
+        ],
+        onInvalidGrant: .authorizationFailed(description: "invalid_grant")
+      )
+      await store(tokens)
+      self.authError = nil
+      self.isGeoGarageAuthenticated = true
+      return tokens
+    } catch let error as AuthError {
+      self.authError = error
+      throw error
+    }
+  }
+
+  func refreshTokens() async throws -> AuthSuccessResponse {
+    // Rotation côté portail : un refresh token ne sert qu'une fois. Deux appels concurrents
+    // (relance de l'app, silentlyFetchGeoGarageLayers, paquets…) partagent donc une seule requête ;
+    // sinon le second rejouerait un token déjà remplacé, recevrait invalid_grant et déconnecterait
+    // l'utilisateur (constaté en conception le 11 sept. 2026, test testConcurrentRefreshesShareASingleRequest).
+    if let running = refreshTask {
+      return try await running.value
+    }
+    let task = Task { @MainActor [weak self] () throws -> AuthSuccessResponse in
+      guard let self else { throw AuthError.unknown }
+      return try await self.performRefresh()
+    }
+    refreshTask = task
+    defer { refreshTask = nil }
+    return try await task.value
+  }
+
+  private func performRefresh() async throws -> AuthSuccessResponse {
+    guard let refreshToken = await KeychainManager.shared.retrieveToken(for: "geogarage_refresh_token"),
+          !refreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      let failure = AuthError.tokenExpired
+      self.authError = failure
+      throw failure
+    }
+    do {
+      let tokens = try await requestTokens(
+        [
+          "grant_type": "refresh_token",
+          "refresh_token": refreshToken,
+          "client_id": AppConfiguration.shared.geoGarageClientID,
+        ],
+        onInvalidGrant: .tokenExpired
+      )
+      await store(tokens)
+      self.authError = nil
+      self.isGeoGarageAuthenticated = true
+      Logger.network.info("GeoGarage tokens refreshed.")
+      return tokens
+    } catch AuthError.tokenExpired {
+      // Refresh token remplacé, révoqué (changement de mot de passe) ou purgé (deux ans sans usage) :
+      // il faut repasser par la page GeoGarage. Les tokens restent en place pour que l'écran montre
+      // « Authentication Error » plutôt qu'un compte déconnecté sans explication.
+      self.authError = AuthError.tokenExpired
+      throw AuthError.tokenExpired
+    }
+  }
+
+  /// POST /o/token/ (x-www-form-urlencoded). 400/401 avec `invalid_grant` → `onInvalidGrant`
+  /// (à l'échange : code périmé ou déjà consommé ; au refresh : token remplacé ou révoqué) ;
+  /// autre erreur OAuth2 → `apiError(description:)`.
+  private func requestTokens(_ parameters: [String: String], onInvalidGrant: AuthError) async throws -> AuthSuccessResponse {
+    guard let endpoint else {
+      throw AuthError.invalidResponse
+    }
+    var request = URLRequest(url: endpoint)
+    request.httpMethod = "POST"
+    request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+    request.timeoutInterval = 15.0 // Marine Context: Fail Fast
+    guard let bodyData = encodeParameters(parameters).data(using: .utf8) else {
+      throw AuthError.encodingError
+    }
+    request.httpBody = bodyData
+
+    let (data, response): (Data, URLResponse)
+    do {
+      (data, response) = try await session.data(for: request)
+    } catch {
+      throw AuthError.networkError(error)
+    }
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw AuthError.invalidResponse
+    }
+
+    switch httpResponse.statusCode {
+    case 200:
+      do {
+        return try JSONDecoder().decode(AuthSuccessResponse.self, from: data)
+      } catch {
+        Logger.network.error("Failed to decode AuthSuccessResponse: \(error, privacy: .public)")
+        throw AuthError.invalidResponse
+      }
+    case 400, 401:
+      let errorResponse = try? JSONDecoder().decode(AuthErrorResponse.self, from: data)
+      if errorResponse?.error == "invalid_grant" {
+        throw onInvalidGrant
+      }
+      if let description = errorResponse?.error_description, !description.isEmpty {
+        throw AuthError.apiError(description: description)
+      }
+      if let code = errorResponse?.error, !code.isEmpty {
+        throw AuthError.apiError(description: code)
+      }
+      throw AuthError.unknown
+    default:
+      throw AuthError.invalidResponse
+    }
+  }
+
+  private func store(_ tokens: AuthSuccessResponse) async {
+    await KeychainManager.shared.save(token: tokens.access_token, for: "geogarage_access_token")
+    await KeychainManager.shared.save(token: tokens.refresh_token, for: "geogarage_refresh_token")
+  }
+
   func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse {
+    do {
+      return try await performFetchAccountSettings(accessToken: accessToken)
+    } catch AuthError.tokenExpired {
+      // Access token de 24 h périmé. Depuis le passage en PKCE (11 sept. 2026) l'app n'a plus de mot
+      // de passe pour se reconnecter : on renouvelle en silence avec le refresh token et on rejoue une
+      // seule fois. Si le refresh échoue, tokenExpired remonte et l'écran demande de se reconnecter.
+      let refreshed = try await refreshTokens()
+      return try await performFetchAccountSettings(accessToken: refreshed.access_token)
+    }
+  }
+
+  private func performFetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse {
     guard let settingsEndpoint else {
       throw AuthError.invalidResponse
     }
@@ -167,7 +370,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
 
     let (data, response): (Data, URLResponse)
     do {
-      (data, response) = try await URLSession.shared.data(for: request)
+      (data, response) = try await session.data(for: request)
     } catch {
       let cached = layerRepository.layers
       if !cached.isEmpty {

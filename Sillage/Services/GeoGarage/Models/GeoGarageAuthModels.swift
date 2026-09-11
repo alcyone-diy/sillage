@@ -31,6 +31,12 @@ enum AuthError: Error, LocalizedError {
   case encodingError
   case fetchSettingsFailed(statusCode: Int)
   case tokenExpired
+  /// L'utilisateur a fermé la page GeoGarage : pas une erreur à afficher.
+  case cancelled
+  /// L'utilisateur a refusé le consentement sur accounts.geogarage.com.
+  case accessDenied
+  /// L'échange du code a échoué (code périmé après 60 s, déjà consommé, réponse du portail inattendue).
+  case authorizationFailed(description: String)
   case unknown
 
   var errorDescription: String? {
@@ -50,6 +56,12 @@ enum AuthError: Error, LocalizedError {
       return String(localized: "Failed to fetch account settings. Server returned code \(statusCode).")
     case .tokenExpired:
       return String(localized: "Your session has expired. Please log in again.")
+    case .cancelled:
+      return String(localized: "Sign-in was cancelled.")
+    case .accessDenied:
+      return String(localized: "GeoGarage sign-in was refused. Please try again and allow Sillage to access your account.")
+    case .authorizationFailed(let description):
+      return String(localized: "GeoGarage sign-in failed (\(description)). Please try again.")
     case .unknown:
       return fallback
     }
