@@ -52,15 +52,21 @@ final class AppEnvironment {
     let secondaryTelemetryViewModel: SecondaryTelemetryViewModel
   }
   
+  /// Session du service d'authentification GeoGarage. Injectable pour que les tests unitaires
+  /// n'appellent jamais le vrai portail (revue finale de la branche, 11 sept. 2026).
+  private let authSession: URLSession
+
   public init(
     metadata: AppMetadata? = nil,
-    partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil
+    partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil,
+    authSession: URLSession = .shared
   ) {
     self.metadata = metadata ?? AppMetadataProvider.resolve()
     self.bootDate = Date.now
     Self.setupMapLibreProtocol()
     self.offlineMapManager = OfflineMapManager()
     self.geoGaragePartnerSecretService = partnerSecretService ?? GeoGaragePartnerSecretService()
+    self.authSession = authSession
     setupMapLibreProgressObservation()
   }
   
@@ -136,7 +142,7 @@ final class AppEnvironment {
       }
       observeWaypointGoTo()
 
-      let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService)
+      let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService, session: authSession)
       await geoGarageAuthService.bootstrap()
 
       let geoGaragePersistenceActor = LocalFilePersistenceActor()
@@ -147,11 +153,6 @@ final class AppEnvironment {
       TileProxyProtocol.configure(
         offlineTileProvider: geoGarageOfflineTileProvider,
         tileProxyManager: TileProxyManager.shared
-      )
-
-      await restorePackageSecretIfMissing(
-        authService: geoGarageAuthService,
-        messageService: messageService
       )
 
       // Secret lu dans le trousseau, plus dans le binaire (voie B, 11 sept. 2026) : vide tant que
@@ -290,7 +291,24 @@ final class AppEnvironment {
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
       state = .ready(container)
-      
+
+      // Le rattrapage du secret parle au portail (/partners/me/ 15 s, puis éventuellement un
+      // refresh de 15 s et un nouvel essai de 15 s) : sur le chemin critique du démarrage il
+      // pouvait retenir l'écran de lancement jusqu'à 45 s, et le cas marin « connecté sans WAN »
+      // partait dans le vide pendant tout ce temps. Il tourne donc après l'affichage de la carte
+      // (revue finale de la branche, 11 sept. 2026, règle « Marine Context: Fail Fast »).
+      packageSecretRestoreTask?.cancel()
+      packageSecretRestoreTask = Task { @MainActor [weak self] in
+        guard let self else { return }
+        await self.restorePackageSecretIfMissing(
+          authService: geoGarageAuthService,
+          messageService: messageService,
+          downloadRepository: geoGarageDownloadRepository,
+          offlineTileProvider: geoGarageOfflineTileProvider,
+          preferencesService: preferencesService
+        )
+      }
+
     } catch {
       Logger.system.error("❌ AppEnvironment bootstrap failed: \(error.localizedDescription, privacy: .public)")
       state = .error(error)
@@ -298,6 +316,11 @@ final class AppEnvironment {
   }
 
   // MARK: - GeoGarage Package Secret Recovery
+
+  /// Rattrapage du secret lancé après `state = .ready` : exposé pour que les tests l'attendent
+  /// (revue finale de la branche, 11 sept. 2026).
+  @ObservationIgnored
+  private(set) var packageSecretRestoreTask: Task<Void, Never>?
 
   /// Rattrape en une fois le secret de déchiffrement absent du trousseau au démarrage.
   ///
@@ -307,7 +330,10 @@ final class AppEnvironment {
   /// l'utilisateur perdait ses cartes téléchargées sans le moindre indice.
   private func restorePackageSecretIfMissing(
     authService: GeoGarageAuthService,
-    messageService: MessageService
+    messageService: MessageService,
+    downloadRepository: GeoGarageDownloadRepository,
+    offlineTileProvider: GeoGarageOfflineTileProvider,
+    preferencesService: PreferencesService
   ) async {
     guard authService.isGeoGarageAuthenticated else { return }
     let storedSecret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount) ?? ""
@@ -316,8 +342,15 @@ final class AppEnvironment {
     guard !accessToken.isEmpty else { return }
 
     do {
-      _ = try await geoGaragePartnerSecretService.refresh(accessToken: accessToken)
+      let secrets = try await geoGaragePartnerSecretService.refresh(accessToken: accessToken)
       Logger.network.info("Partner package secret restored at startup.")
+      await openOfflineReaders(
+        with: secrets.packageSecret,
+        messageService: messageService,
+        downloadRepository: downloadRepository,
+        offlineTileProvider: offlineTileProvider,
+        preferencesService: preferencesService
+      )
       return
     } catch PartnerSecretError.unauthorized {
       // Jeton d'accès expiré depuis la dernière ouverture : un refresh, puis un seul nouvel essai.
@@ -337,8 +370,26 @@ final class AppEnvironment {
 
     do {
       let tokens = try await authService.refreshTokens()
-      _ = try await geoGaragePartnerSecretService.refresh(accessToken: tokens.access_token)
+      let secrets = try await geoGaragePartnerSecretService.refresh(accessToken: tokens.access_token)
       Logger.network.info("Partner package secret restored at startup after a token refresh.")
+      await openOfflineReaders(
+        with: secrets.packageSecret,
+        messageService: messageService,
+        downloadRepository: downloadRepository,
+        offlineTileProvider: offlineTileProvider,
+        preferencesService: preferencesService
+      )
+    } catch AuthError.tokenExpired {
+      // Refresh token remplacé, révoqué ou purgé : la vraie cause est « session expirée », déjà
+      // publiée dans authError et affichée par l'écran Réglages. Un second message annonçant un
+      // secret indisponible enverrait l'utilisateur sur une fausse piste
+      // (revue finale de la branche, 11 sept. 2026).
+      Logger.network.info("Partner package secret restore stopped, the GeoGarage session has expired.")
+    } catch AuthError.networkError(let error) {
+      // Hors couverture pendant le renouvellement : même politique que /partners/me/ hors ligne.
+      Logger.network.info("Partner package secret restore skipped, token refresh offline: \(error.localizedDescription, privacy: .public)")
+    } catch AuthError.cancelled {
+      Logger.network.info("Partner package secret restore cancelled during the token refresh.")
     } catch PartnerSecretError.networkError(let description) {
       Logger.network.info("Partner package secret restore skipped after token refresh, network unavailable: \(description, privacy: .public)")
     } catch PartnerSecretError.cancelled {
@@ -349,12 +400,37 @@ final class AppEnvironment {
     }
   }
 
+  /// Rouvre les lecteurs hors ligne avec le secret qui vient d'arriver.
+  ///
+  /// Le premier `reloadDownloads` du démarrage a eu lieu avec un trousseau vide et l'observation de
+  /// `downloads` / `geoGarageCustomerID` ne se déclenche pas d'elle-même (aucune des deux valeurs
+  /// n'a changé) : sans cet appel explicite, les cartes téléchargées restaient fermées jusqu'au
+  /// prochain lancement (revue finale de la branche, 11 sept. 2026).
+  private func openOfflineReaders(
+    with packageSecret: String,
+    messageService: MessageService,
+    downloadRepository: GeoGarageDownloadRepository,
+    offlineTileProvider: GeoGarageOfflineTileProvider,
+    preferencesService: PreferencesService
+  ) async {
+    messageService.clear(category: .offlineCharts)
+    let customerID = preferencesService.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
+    await offlineTileProvider.reloadDownloads(
+      downloadRepository.downloads,
+      sharedSecret: packageSecret,
+      customerID: customerID
+    )
+  }
+
   private func postPackageSecretWarning(on messageService: MessageService) {
     let appMessage = AppMessage(
       title: LocalizedStringResource("Offline charts unavailable"),
       detail: LocalizedStringResource("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
       severity: .warning,
-      category: .geoGarage,
+      // `.offlineCharts` et non `.geoGarage` : la lecture silencieuse des couches purge
+      // `.geoGarage` dès qu'elle aboutit et emportait cet avertissement avec elle
+      // (revue finale de la branche, 11 sept. 2026).
+      category: .offlineCharts,
       intent: .openSettings(target: .geoGarage)
     )
     messageService.post(appMessage)
@@ -533,6 +609,7 @@ final class AppEnvironment {
   deinit {
     geoGarageObservationTask?.cancel()
     mapLibreObservationTask?.cancel()
+    packageSecretRestoreTask?.cancel()
   }
 
 }

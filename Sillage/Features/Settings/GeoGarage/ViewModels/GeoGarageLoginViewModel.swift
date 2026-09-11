@@ -87,6 +87,9 @@ final class GeoGarageLoginViewModel {
     errorMessage = nil
     await authService.logout()
     messageService?.clear(category: .geoGarage)
+    // Déconnecté, l'utilisateur n'attend plus de secret de déchiffrement : l'avertissement
+    // « cartes hors ligne indisponibles » n'a plus de sens (revue finale de la branche, 11 sept. 2026).
+    messageService?.clear(category: .offlineCharts)
     chartViewModel.logoutGeoGarage()
 
     do {
@@ -116,9 +119,12 @@ final class GeoGarageLoginViewModel {
     messageService: MessageService?,
     presenter: any GeoGarageAuthorizationPresenting
   ) {
+    // `isLoading` était posé dans la tâche, qui ne démarre qu'à la première suspension : un double
+    // appui rapide ouvrait deux pages d'autorisation (revue finale de la branche, 11 sept. 2026).
+    guard !isLoading else { return }
     loginTask?.cancel()
+    isLoading = true
     loginTask = Task { [weak self] in
-      self?.isLoading = true
       // Nouvelle tentative : sans cela l'erreur de l'essai précédent restait affichée après la
       // fermeture de la feuille (revue de la Task 5a.3, 11 sept. 2026).
       self?.errorMessage = nil
@@ -133,6 +139,9 @@ final class GeoGarageLoginViewModel {
         var secretWarning: AppMessage?
         do {
           _ = try await self?.partnerSecretService.refresh(accessToken: response.access_token)
+          // Secret obtenu : l'avertissement laissé par une session précédente (démarrage ou
+          // connexion ratée) n'a plus lieu d'être (revue finale de la branche, 11 sept. 2026).
+          messageService?.clear(category: .offlineCharts)
         } catch PartnerSecretError.cancelled {
           // Feuille refermée (ou loginTask annulée) pendant /partners/me/ : ce n'est pas un secret
           // indisponible, la sortie silencieuse reprend la main (revue de la Task 5, 11 sept. 2026).
@@ -145,7 +154,10 @@ final class GeoGarageLoginViewModel {
             title: LocalizedStringResource("Offline charts unavailable"),
             detail: LocalizedStringResource("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
             severity: .warning,
-            category: .geoGarage
+            // Catégorie dédiée : la purge de `.geoGarage` ci-dessous (et celle de l'écran, au
+            // passage de `isAuthorizationReady`) effaçait l'avertissement à l'instant même où il
+            // était publié (revue finale de la branche, 11 sept. 2026).
+            category: .offlineCharts
           )
         }
 

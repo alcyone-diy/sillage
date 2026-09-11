@@ -18,11 +18,31 @@ final class AppEnvironmentTests: XCTestCase {
   /// Injecté pour que le rattrapage du secret au démarrage n'appelle jamais le vrai portail
   /// (revue de la Task 5, 11 sept. 2026).
   private var partnerSecretService: MockGeoGaragePartnerSecretService!
+  /// Le `ChartViewModel` construit par `bootstrap()` lit les couches GeoGarage dès qu'un jeton
+  /// traîne dans le trousseau : sans session simulée, ces tests interrogeaient le vrai portail
+  /// (revue finale de la branche, 11 sept. 2026).
+  private var authSession: URLSession!
+
+  /// Portail simulé. Par défaut 403 partout, comme accounts.geogarage.com devant un Bearer
+  /// invalide (vérifié au curl le 11 sept. 2026) ; `tokenStatus`/`tokenBody` pilotent /o/token/.
+  /// MockURLProtocol ne sert que le dernier handler posé : chaque appel remplace le précédent.
+  private func installPortalHandler(tokenStatus: Int = 403, tokenBody: String = "") {
+    MockURLProtocol.setHandler { request in
+      let url = request.url ?? URL(fileURLWithPath: "/")
+      let isTokenEndpoint = request.url?.path == "/o/token"  // URL.path retire le "/" final
+      let status = isTokenEndpoint ? tokenStatus : 403
+      let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil) ?? HTTPURLResponse()
+      return (response, isTokenEndpoint ? Data(tokenBody.utf8) : Data())
+    }
+  }
 
   override func setUp() async throws {
     try await super.setUp()
+    MockURLProtocol.reset()
+    installPortalHandler()
+    authSession = MockURLProtocol.makeMockSession()
     partnerSecretService = MockGeoGaragePartnerSecretService()
-    environment = AppEnvironment(partnerSecretService: partnerSecretService)
+    environment = AppEnvironment(partnerSecretService: partnerSecretService, authSession: authSession)
     let prefs = PreferencesService()
     prefs.pendingCAASDownloads = []
     prefs.geoGarageCustomerID = nil
@@ -38,8 +58,10 @@ final class AppEnvironmentTests: XCTestCase {
     await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
     await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    MockURLProtocol.reset()
     environment = nil
     partnerSecretService = nil
+    authSession = nil
     try await super.tearDown()
   }
 
@@ -155,6 +177,7 @@ final class AppEnvironmentTests: XCTestCase {
     await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
 
     await environment.bootstrap()
+    await environment.packageSecretRestoreTask?.value
 
     XCTAssertEqual(
       partnerSecretService.receivedAccessTokens,
@@ -163,11 +186,29 @@ final class AppEnvironmentTests: XCTestCase {
     )
   }
 
+  /// Le rattrapage parle au portail (15 s de délai, puis éventuellement un refresh et un nouvel
+  /// essai) : sur le chemin critique il retenait l'écran de lancement jusqu'à 45 s en mer,
+  /// connecté sans WAN (revue finale de la branche, 11 sept. 2026, « Marine Context: Fail Fast »).
+  func testBootstrapReachesReadyBeforeTheSecretRestoreCompletes() async {
+    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+
+    await environment.bootstrap()
+
+    guard case .ready = environment.state else {
+      XCTFail("l'app doit être prête sans attendre le portail")
+      return
+    }
+    let restoreTask = environment.packageSecretRestoreTask
+    XCTAssertNotNil(restoreTask, "le rattrapage doit tourner après l'affichage, dans sa propre tâche")
+    await restoreTask?.value
+  }
+
   func testBootstrapDoesNotFetchThePackageSecretWhenTheKeychainAlreadyHasOne() async {
     await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
     await KeychainManager.shared.save(token: "already-here", for: GeoGaragePartnerSecretService.keychainAccount)
 
     await environment.bootstrap()
+    await environment.packageSecretRestoreTask?.value
 
     XCTAssertTrue(partnerSecretService.receivedAccessTokens.isEmpty, "aucun appel réseau si le secret est déjà là")
   }
@@ -177,12 +218,13 @@ final class AppEnvironmentTests: XCTestCase {
     partnerSecretService.errorToThrow = .noProfile
 
     await environment.bootstrap()
+    await environment.packageSecretRestoreTask?.value
 
     guard case .ready(let container) = environment.state else {
       XCTFail("bootstrap doit aboutir même sans secret")
       return
     }
-    let warnings = container.messageService.messages.filter { $0.category == .geoGarage && $0.severity == .warning }
+    let warnings = container.messageService.messages.filter { $0.category == .offlineCharts && $0.severity == .warning }
     XCTAssertEqual(warnings.count, 1, "l'utilisateur doit savoir pourquoi ses cartes hors ligne ont disparu")
   }
 
@@ -191,14 +233,66 @@ final class AppEnvironmentTests: XCTestCase {
     partnerSecretService.errorToThrow = .networkError("offline")
 
     await environment.bootstrap()
+    await environment.packageSecretRestoreTask?.value
 
     guard case .ready(let container) = environment.state else {
       XCTFail("bootstrap doit aboutir même sans secret")
       return
     }
     XCTAssertFalse(
-      container.messageService.messages.contains { $0.category == .geoGarage && $0.severity == .warning },
+      container.messageService.messages.contains { $0.category == .offlineCharts },
       "hors couverture au lancement : la prochaine ouverture réessaiera, inutile d'alarmer"
     )
+  }
+
+  func testBootstrapRefreshesTokensWhenTheAccessTokenIsRejectedThenRetries() async {
+    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+    await KeychainManager.shared.save(token: "legacy_refresh_token", for: "geogarage_refresh_token")
+    installPortalHandler(
+      tokenStatus: 200,
+      tokenBody: #"{"access_token":"refreshed-access","token_type":"Bearer","expires_in":86400,"refresh_token":"refreshed-refresh","scope":"write read"}"#
+    )
+    partnerSecretService.results = [.failure(.unauthorized), .success(partnerSecretService.secrets)]
+
+    await environment.bootstrap()
+    await environment.packageSecretRestoreTask?.value
+
+    XCTAssertEqual(partnerSecretService.receivedAccessTokens.count, 2, "un seul nouvel essai après le renouvellement")
+    XCTAssertEqual(partnerSecretService.receivedAccessTokens.last, "refreshed-access", "le second essai doit porter le jeton renouvelé")
+    guard case .ready(let container) = environment.state else {
+      XCTFail("bootstrap doit aboutir")
+      return
+    }
+    XCTAssertFalse(
+      container.messageService.messages.contains { $0.category == .offlineCharts },
+      "le secret a fini par arriver : aucun avertissement"
+    )
+  }
+
+  /// Refresh token remplacé ou révoqué : l'écran Réglages affiche déjà « session expirée ».
+  /// L'avertissement « GeoGarage n'a pas fourni le secret » serait un second message trompeur
+  /// (revue finale de la branche, 11 sept. 2026).
+  func testBootstrapStaysSilentWhenTheRefreshTokenIsDead() async throws {
+    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+    await KeychainManager.shared.save(token: "dead_refresh_token", for: "geogarage_refresh_token")
+    installPortalHandler(tokenStatus: 400, tokenBody: #"{"error":"invalid_grant"}"#)
+    partnerSecretService.results = [.failure(.unauthorized)]
+
+    await environment.bootstrap()
+    await environment.packageSecretRestoreTask?.value
+
+    guard case .ready(let container) = environment.state else {
+      XCTFail("bootstrap doit aboutir")
+      return
+    }
+    XCTAssertFalse(
+      container.messageService.messages.contains { $0.category == .offlineCharts },
+      "la vraie cause est la session expirée, pas un secret indisponible"
+    )
+    let authError = try XCTUnwrap(container.geoGarageAuthService.authError as? AuthError)
+    guard case .tokenExpired = authError else {
+      XCTFail("la session expirée doit être publiée : \(authError)")
+      return
+    }
   }
 }

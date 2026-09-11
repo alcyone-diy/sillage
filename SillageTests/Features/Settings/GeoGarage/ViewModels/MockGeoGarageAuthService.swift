@@ -25,6 +25,23 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
   var shouldFailWithNetworkError = false
   var refreshErrorToThrow: AuthError?
   private(set) var lastPresenter: (any GeoGarageAuthorizationPresenting)?
+  /// Nombre d'ouvertures de la page d'autorisation : un double appui ne doit en produire qu'une
+  /// (revue finale de la branche, 11 sept. 2026).
+  private(set) var authenticateCallCount = 0
+  /// Retient `authenticate` jusqu'à `releaseAuthenticate()` pour laisser un second appel partir
+  /// pendant que le premier est encore en vol.
+  var holdsAuthenticate = false
+  private var authenticateReleased = false
+  private var authenticateWaiters: [CheckedContinuation<Void, Never>] = []
+
+  func releaseAuthenticate() {
+    authenticateReleased = true
+    let waiters = authenticateWaiters
+    authenticateWaiters = []
+    for waiter in waiters {
+      waiter.resume()
+    }
+  }
 
   func bootstrap() async {
     // Mock bootstrap
@@ -32,6 +49,12 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
 
   func authenticate(presenter: any GeoGarageAuthorizationPresenting) async throws -> AuthSuccessResponse {
     lastPresenter = presenter
+    authenticateCallCount += 1
+    if holdsAuthenticate, !authenticateReleased {
+      await withCheckedContinuation { continuation in
+        authenticateWaiters.append(continuation)
+      }
+    }
     if let error = authErrorToThrow {
       throw error
     }

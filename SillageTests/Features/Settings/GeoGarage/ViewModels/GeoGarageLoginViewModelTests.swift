@@ -217,8 +217,79 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     XCTAssertTrue(viewModel.isAuthorizationReady, "Le secret manquant ne bloque pas la connexion")
     XCTAssertNil(viewModel.errorMessage)
     XCTAssertEqual(messageService.messages.count, 1)
-    XCTAssertEqual(messageService.messages.first?.category, .geoGarage)
+    XCTAssertEqual(
+      messageService.messages.first?.category,
+      .offlineCharts,
+      "catégorie dédiée : les purges de .geoGarage à chaque succès d'authentification effaçaient l'avertissement avant que l'utilisateur le voie"
+    )
     XCTAssertEqual(messageService.messages.first?.severity, .warning)
+  }
+
+  /// L'écran de connexion appelle `clearGeoGarageMessages()` dès que `isAuthorizationReady` passe à
+  /// vrai, et la lecture silencieuse des couches fait de même à chaque succès : l'avertissement
+  /// « cartes hors ligne indisponibles » disparaissait aussitôt publié
+  /// (revue finale de la branche, 11 sept. 2026).
+  func testOfflineChartsWarningSurvivesAuthSuccessClear() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let secretService = MockGeoGaragePartnerSecretService()
+    secretService.errorToThrow = .noProfile
+    let messageService = MessageService()
+    let chartViewModel = makeChartViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: secretService)
+
+    viewModel.login(authService: mockAuthService, messageService: messageService, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+    XCTAssertEqual(messageService.messages.count, 1)
+
+    chartViewModel.clearGeoGarageMessages()
+
+    XCTAssertEqual(messageService.messages.count, 1, "l'avertissement hors ligne ne doit pas partir avec les messages d'authentification")
+    XCTAssertEqual(messageService.messages.first?.category, .offlineCharts)
+  }
+
+  func testLogoutClearsOfflineChartsWarning() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    messageService.post(AppMessage(
+      title: "Offline charts unavailable",
+      detail: "GeoGarage did not provide the decryption secret.",
+      severity: .warning,
+      category: .offlineCharts
+    ))
+    let chartViewModel = makeChartViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    await viewModel.performLogout(authService: mockAuthService, messageService: messageService, chartViewModel: chartViewModel)
+
+    XCTAssertTrue(
+      messageService.messages.isEmpty,
+      "déconnecté, l'utilisateur n'a plus de secret à attendre : l'avertissement hors ligne doit partir"
+    )
+  }
+
+  // MARK: - Double appui sur « Se connecter » (revue finale de la branche, 11 sept. 2026)
+
+  func testSecondLoginWhileLoadingIsIgnored() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.holdsAuthenticate = true
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: MockGeoGarageAuthorizationPresenter())
+    var spins = 0
+    while mockAuthService.authenticateCallCount == 0 && spins < 1000 {
+      await Task.yield()
+      spins += 1
+    }
+    XCTAssertEqual(mockAuthService.authenticateCallCount, 1, "la première connexion doit être en vol")
+    XCTAssertTrue(viewModel.isLoading, "isLoading doit être posé dès l'appel, pas dans la tâche")
+
+    // Second appui pendant que la page d'autorisation est encore ouverte.
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: MockGeoGarageAuthorizationPresenter())
+    mockAuthService.releaseAuthenticate()
+    await viewModel.loginTask?.value
+
+    XCTAssertEqual(mockAuthService.authenticateCallCount, 1, "un double appui ne doit ouvrir qu'une seule page d'autorisation")
+    XCTAssertFalse(viewModel.isLoading)
   }
 
   /// Feuille refermée pendant /partners/me/ : l'annulation ne doit pas devenir « erreur inconnue »

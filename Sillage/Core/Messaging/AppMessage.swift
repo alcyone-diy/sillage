@@ -19,6 +19,11 @@ public enum AppMessageCategory: String, Sendable, Equatable {
   case weather
   case anchor
   case geoGarage
+  /// Cartes hors ligne indisponibles faute de secret de déchiffrement. Catégorie distincte de
+  /// `.geoGarage` : chaque authentification réussie purge `.geoGarage` (écran de connexion,
+  /// lecture silencieuse des couches), ce qui effaçait l'avertissement avant que l'utilisateur
+  /// puisse le lire (revue finale de la branche, 11 sept. 2026).
+  case offlineCharts
 }
 
 /// Severity of the message
