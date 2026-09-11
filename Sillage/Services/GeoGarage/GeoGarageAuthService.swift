@@ -92,6 +92,12 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   }
 
   func logout() async {
+    // Un refresh encore en vol aboutirait après la déconnexion : il rangerait la nouvelle paire de
+    // tokens dans le trousseau et rallumerait isGeoGarageAuthenticated, laissant l'utilisateur
+    // « reconnecté » sans l'avoir demandé (revue finale de la branche, 11 sept. 2026).
+    // L'annulation fait sortir session.data en URLError.cancelled, donc en AuthError.cancelled.
+    refreshTask?.cancel()
+    refreshTask = nil
     await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
     // Le secret de déchiffrement appartient à la session : il part avec les tokens, sinon un autre
@@ -361,7 +367,13 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
         Logger.network.error("Failed to decode GeoGarageSettingsResponse: \(error, privacy: .public)")
         throw AuthError.invalidResponse
       }
-    } else if httpResponse.statusCode == 401 {
+    } else if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+      // Le portail répond **403** à un Bearer périmé ou invalide (contrat
+      // docs/partner-oauth2-authorization-code.md, vérifié au curl le 11 sept. 2026 sur
+      // /api/account/settings et /partners/me/). Sans ce cas, le refresh silencieux ne se
+      // déclenchait jamais : au bout de 24 h l'utilisateur voyait le bandeau « GeoGarage Auth
+      // Error » et devait se reconnecter chaque jour (revue finale de la branche). 401 est
+      // conservé par prudence, le portail pouvant revenir à la réponse standard.
       let error = AuthError.tokenExpired
       self.authError = error
       throw error

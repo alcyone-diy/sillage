@@ -88,7 +88,14 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   }
 
   /// Handler unique : /o/token/ répond des tokens, /api/account/settings exige "Bearer new-access".
-  private func installPortalHandler(tokenStatus: Int = 200, tokenBody: String? = nil, log: RequestLog) {
+  /// `rejectedStatus` est le code renvoyé à un Bearer périmé : le vrai portail répond **403**
+  /// (vérifié le 11 sept. 2026), 401 reste couvert par prudence (revue finale de la branche).
+  private func installPortalHandler(
+    tokenStatus: Int = 200,
+    tokenBody: String? = nil,
+    rejectedStatus: Int = 401,
+    log: RequestLog
+  ) {
     let tokenJSON = self.tokenJSON
     let settingsJSON = self.settingsJSON
     MockURLProtocol.setHandler { request in
@@ -100,7 +107,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
         if request.value(forHTTPHeaderField: "Authorization") == "Bearer new-access" {
           return (Self.response(request, status: 200), Data(settingsJSON.utf8))
         }
-        return (Self.response(request, status: 401), Data())
+        return (Self.response(request, status: rejectedStatus), Data())
       default:
         return (Self.response(request, status: 404), Data())
       }
@@ -340,7 +347,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     XCTAssertEqual(Self.formBody(of: second)["refresh_token"], "new-refresh", "le second refresh rejoue le token renvoyé par le premier (rotation)")
   }
 
-  // MARK: - fetchAccountSettings(accessToken:) et 401
+  // MARK: - fetchAccountSettings(accessToken:) et 401/403
 
   func testFetchAccountSettingsRefreshesOnceOn401ThenRetries() async throws {
     await KeychainManager.shared.save(token: "old-access", for: "geogarage_access_token")
@@ -375,7 +382,85 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     XCTAssertEqual(paths, ["/api/account/settings", "/o/token"], "un seul essai de refresh, pas de boucle")
   }
 
+  /// Le portail répond **403** (et non 401) à un Bearer périmé : sans ce cas le refresh silencieux
+  /// ne se déclenchait jamais et l'utilisateur devait se reconnecter chaque jour
+  /// (revue finale de la branche, vérifié au curl le 11 sept. 2026).
+  func testFetchAccountSettingsRefreshesOnceOn403ThenRetries() async throws {
+    await KeychainManager.shared.save(token: "old-access", for: "geogarage_access_token")
+    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    let log = RequestLog()
+    installPortalHandler(rejectedStatus: 403, log: log)
+
+    let settings = try await service.fetchAccountSettings(accessToken: "old-access")
+
+    XCTAssertEqual(settings.customerID, "cus_42")
+    XCTAssertEqual(settings.layers.map(\.layer), ["shom"])
+    let paths = log.requests.map { $0.url?.path ?? "" }
+    XCTAssertEqual(paths, ["/api/account/settings", "/o/token", "/api/account/settings"])
+    XCTAssertEqual(log.requests.last?.value(forHTTPHeaderField: "Authorization"), "Bearer new-access")
+    XCTAssertNil(service.authError)
+  }
+
+  func testFetchAccountSettingsThrowsTokenExpiredWhenRefreshFailsAfterA403() async {
+    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    let log = RequestLog()
+    installPortalHandler(tokenStatus: 400, tokenBody: #"{"error": "invalid_grant"}"#, rejectedStatus: 403, log: log)
+
+    do {
+      _ = try await service.fetchAccountSettings(accessToken: "old-access")
+      XCTFail("tokenExpired attendu")
+    } catch AuthError.tokenExpired {
+      // attendu
+    } catch {
+      XCTFail("erreur inattendue : \(error)")
+    }
+    let paths = log.requests.map { $0.url?.path ?? "" }
+    XCTAssertEqual(paths, ["/api/account/settings", "/o/token"], "un seul essai de refresh, pas de boucle")
+  }
+
   // MARK: - Déconnexion
+
+  /// Un refresh lancé juste avant « Se déconnecter » pouvait aboutir après elle, réécrire les
+  /// tokens dans le trousseau et rallumer `isGeoGarageAuthenticated`
+  /// (revue finale de la branche, 11 sept. 2026).
+  func testLogoutCancelsAnInFlightRefresh() async throws {
+    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    let log = RequestLog()
+    let tokenJSON = self.tokenJSON
+    // La réponse de /o/token/ n'arrive qu'après la déconnexion : le handler dort sur le fil de
+    // MockURLProtocol (jamais sur le MainActor), la requête est donc réellement en vol.
+    MockURLProtocol.setHandler { request in
+      log.append(request)
+      if request.url?.path == "/o/token" {
+        Thread.sleep(forTimeInterval: 1.0)
+        return (Self.response(request, status: 200), Data(tokenJSON.utf8))
+      }
+      return (Self.response(request, status: 404), Data())
+    }
+
+    let refresh = Task { try await self.service.refreshTokens() }
+    for _ in 0..<200 {
+      if log.requests.contains(where: { $0.url?.path == "/o/token" }) { break }
+      try? await Task.sleep(for: .milliseconds(10))
+    }
+    XCTAssertTrue(log.requests.contains { $0.url?.path == "/o/token" }, "le refresh doit être parti avant la déconnexion")
+
+    await service.logout()
+
+    do {
+      _ = try await refresh.value
+      XCTFail("cancelled attendu : le refresh est annulé par la déconnexion")
+    } catch AuthError.cancelled {
+      // attendu
+    } catch {
+      XCTFail("erreur inattendue : \(error)")
+    }
+    let access = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
+    let storedRefresh = await KeychainManager.shared.retrieveToken(for: "geogarage_refresh_token")
+    XCTAssertNil(access, "un refresh annulé ne doit pas réécrire les tokens après la déconnexion")
+    XCTAssertNil(storedRefresh)
+    XCTAssertFalse(service.isGeoGarageAuthenticated)
+  }
 
   func testLogoutRemovesPackageSecret() async {
     await KeychainManager.shared.save(token: "access", for: "geogarage_access_token")
