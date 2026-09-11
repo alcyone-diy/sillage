@@ -68,6 +68,13 @@ final class AppViewModel {
   }
 
   func handleIncomingURL(_ url: URL) {
+    // Retour OAuth2 (schéma privé, connexion PKCE du 11 sept. 2026) : ASWebAuthenticationSession
+    // l'intercepte lui-même ; s'il arrive quand même ici (lien ouvert à la main), ce n'est pas une
+    // carte à importer et il ne faut pas afficher d'erreur d'import.
+    guard url.scheme?.lowercased() != AppConstants.GeoGarage.oauthCallbackScheme else {
+      Logger.network.info("Ignoring OAuth callback URL delivered outside the authentication session.")
+      return
+    }
     do {
       try chartImportService.handleIncomingURL(url)
     } catch let error as ChartImportError {

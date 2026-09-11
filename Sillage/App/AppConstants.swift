@@ -49,8 +49,20 @@ public enum AppConstants {
   public struct Map {
     /// Throttling duration for high-frequency map region projection and telemetry updates (e.g. callout / overlay calculations).
     nonisolated public static let regionThrottleInterval: Duration = .milliseconds(100)
-    
+
     /// Minimum geographic movement required to trigger telemetric coordinate updates during map gestures.
     nonisolated public static let coordinateUpdateThreshold = Measurement(value: 1.0, unit: UnitLength.meters)
+  }
+
+  /// Connexion GeoGarage en OAuth2 authorization code + PKCE (voie B partenaires, 11 sept. 2026).
+  /// Le schéma privé est déclaré dans Info.plist (CFBundleURLTypes) et enregistré tel quel comme
+  /// callback de l'Application « sillage » sur accounts.geogarage.com : les trois valeurs doivent
+  /// rester alignées, le portail refuse toute redirect_uri différente de l'enregistrée.
+  public struct GeoGarage {
+    nonisolated public static let accountsBaseURLString = "https://accounts.geogarage.com"
+    nonisolated public static let oauthCallbackScheme = "com.alcyone-sillage.app"
+    nonisolated public static let oauthRedirectURI = "com.alcyone-sillage.app://oauth2/callback"
+    /// Ordre « write read » : c'est celui que le portail émet, un scope plus large redemanderait le consentement.
+    nonisolated public static let oauthScope = "write read"
   }
 }
