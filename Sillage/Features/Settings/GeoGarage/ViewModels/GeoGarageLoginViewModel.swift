@@ -29,9 +29,14 @@ final class GeoGarageLoginViewModel {
   var loginTask: Task<Void, Never>?
 
   private let offlineMapManager: OfflineMapManagerProtocol
+  private let partnerSecretService: GeoGaragePartnerSecretServiceProtocol
 
-  init(offlineMapManager: OfflineMapManagerProtocol) {
+  init(
+    offlineMapManager: OfflineMapManagerProtocol,
+    partnerSecretService: GeoGaragePartnerSecretServiceProtocol
+  ) {
     self.offlineMapManager = offlineMapManager
+    self.partnerSecretService = partnerSecretService
   }
 
   func currentError(authService: GeoGarageAuthServiceProtocol) -> String? {
@@ -114,10 +119,32 @@ final class GeoGarageLoginViewModel {
     loginTask?.cancel()
     loginTask = Task { [weak self] in
       self?.isLoading = true
+      // Nouvelle tentative : sans cela l'erreur de l'essai précédent restait affichée après la
+      // fermeture de la feuille (revue de la Task 5a.3, 11 sept. 2026).
+      self?.errorMessage = nil
       defer { self?.isLoading = false }
 
       do {
         let response = try await authService.authenticate(presenter: presenter)
+
+        // Le secret de déchiffrement est lu avant fetchAccountSettings : celui-ci réécrit
+        // geoGarageCustomerID, ce qui déclenche reloadDownloads côté AppEnvironment — le secret
+        // doit déjà être dans le trousseau (voie B, 11 sept. 2026).
+        var secretWarning: AppMessage?
+        do {
+          _ = try await self?.partnerSecretService.refresh(accessToken: response.access_token)
+        } catch {
+          // Connexion réussie mais secret indisponible : les cartes en ligne fonctionnent, pas le
+          // hors ligne. On prévient sans bloquer la connexion (spec 2026-09-10, plan Task 5).
+          Logger.network.error("Partner secret unavailable after sign-in: \(String(describing: error), privacy: .public)")
+          secretWarning = AppMessage(
+            title: LocalizedStringResource("Offline charts unavailable"),
+            detail: LocalizedStringResource("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
+            severity: .warning,
+            category: .geoGarage
+          )
+        }
+
         let settingsResponse = try await authService.fetchAccountSettings(accessToken: response.access_token)
 
         self?.availableLayers = settingsResponse.layers
@@ -128,6 +155,9 @@ final class GeoGarageLoginViewModel {
 
         self?.errorMessage = nil
         messageService?.clear(category: .geoGarage)
+        if let secretWarning {
+          messageService?.post(secretWarning)
+        }
       } catch AuthError.cancelled {
         // L'utilisateur a fermé la page GeoGarage : rien à afficher.
         Logger.network.info("GeoGarage sign-in cancelled by the user.")

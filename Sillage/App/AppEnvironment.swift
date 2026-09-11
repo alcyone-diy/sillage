@@ -21,6 +21,9 @@ final class AppEnvironment {
   public let metadata: AppMetadata
   public let bootDate: Date
   public let offlineMapManager: OfflineMapManager
+  /// Voie B (11 sept. 2026) : lit le secret de déchiffrement des paquets sur /partners/me/ après
+  /// connexion. Rien de secret dans le binaire, le secret vit dans le trousseau.
+  public let geoGaragePartnerSecretService: GeoGaragePartnerSecretService
   
   struct AppContainer {
     let messageService: MessageService
@@ -54,6 +57,7 @@ final class AppEnvironment {
     self.bootDate = Date.now
     Self.setupMapLibreProtocol()
     self.offlineMapManager = OfflineMapManager()
+    self.geoGaragePartnerSecretService = GeoGaragePartnerSecretService()
     setupMapLibreProgressObservation()
   }
   
@@ -142,7 +146,9 @@ final class AppEnvironment {
         tileProxyManager: TileProxyManager.shared
       )
 
-      let sharedSecret = AppConfiguration.shared.geoGarageSharedSecret
+      // Secret lu dans le trousseau, plus dans le binaire (voie B, 11 sept. 2026) : vide tant que
+      // l'utilisateur ne s'est pas connecté, reloadDownloads l'ignore alors avec un avertissement.
+      let sharedSecret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount) ?? ""
       let initialCustomerID = preferencesService.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
       await geoGarageOfflineTileProvider.reloadDownloads(
         geoGarageDownloadRepository.downloads,
@@ -157,7 +163,7 @@ final class AppEnvironment {
         } onChange: {
           Task { @MainActor [weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider, weak preferencesService] in
             guard let repo = geoGarageDownloadRepository, let provider = geoGarageOfflineTileProvider else { return }
-            let secret = AppConfiguration.shared.geoGarageSharedSecret
+            let secret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount) ?? ""
             let client = preferencesService?.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
             await provider.reloadDownloads(repo.downloads, sharedSecret: secret, customerID: client)
             observeGeoGarageDownloads()

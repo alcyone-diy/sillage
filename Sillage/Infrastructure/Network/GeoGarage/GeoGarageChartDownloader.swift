@@ -85,7 +85,7 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
     layerName: String,
     boundsWKT: String,
     zoomMax: Int,
-    apiKey: String,
+    accessToken: String,
     localID: UUID? = nil,
     progressHandler: (@Sendable (Int64, Int64) -> Void)? = nil
   ) async throws(CaasError) -> OfflineChartDownload {
@@ -165,7 +165,7 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
 
     // 3. Delete remote package from CAAS server to free server storage
     do {
-      try await packageService.deletePackage(packageID: packageID, apiKey: apiKey)
+      try await packageService.deletePackage(packageID: packageID, accessToken: accessToken)
       Logger.caas.info("Deleted remote package \(packageID.uuidString, privacy: .public) on CAAS server.")
     } catch {
       Logger.caas.warning("Failed to delete remote package on CAAS server (non-fatal): \(error.localizedDescription, privacy: .public)")

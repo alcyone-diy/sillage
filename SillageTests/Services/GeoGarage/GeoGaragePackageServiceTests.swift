@@ -28,6 +28,35 @@ final class GeoGaragePackageServiceTests: XCTestCase {
     super.tearDown()
   }
 
+  /// En-têtes qui porteraient encore une clé CaaS (voie A, avant le 11 sept. 2026).
+  private static func legacyKeyHeaders(of request: URLRequest) -> [String] {
+    (request.allHTTPHeaderFields ?? [:]).keys.filter { $0.lowercased().hasPrefix("api") }
+  }
+
+  /// Corps x-www-form-urlencoded d'une requête interceptée. URLSession ne transmet le corps à un
+  /// URLProtocol que sous forme de flux (`httpBodyStream`), jamais dans `httpBody`.
+  private static func formBody(of request: URLRequest) -> [String: String] {
+    var data = request.httpBody ?? Data()
+    if data.isEmpty, let stream = request.httpBodyStream {
+      stream.open()
+      defer { stream.close() }
+      var buffer = [UInt8](repeating: 0, count: 4096)
+      while stream.hasBytesAvailable {
+        let read = stream.read(&buffer, maxLength: buffer.count)
+        guard read > 0 else { break }
+        data.append(buffer, count: read)
+      }
+    }
+    guard let body = String(data: data, encoding: .utf8) else { return [:] }
+    var result: [String: String] = [:]
+    for pair in body.split(separator: "&") {
+      let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+      guard parts.count == 2 else { continue }
+      result[parts[0].removingPercentEncoding ?? parts[0]] = parts[1].removingPercentEncoding ?? parts[1]
+    }
+    return result
+  }
+
   // MARK: - POST /packages/request/
 
   func testRequestPackage_success() async throws {
@@ -35,7 +64,19 @@ final class GeoGaragePackageServiceTests: XCTestCase {
     MockURLProtocol.setHandler { request in
       XCTAssertEqual(request.httpMethod, "POST")
       XCTAssertEqual(request.url?.path, "/packages/request")
-      XCTAssertEqual(request.value(forHTTPHeaderField: "api_key"), "test_api_key")
+      // Voie B (11 sept. 2026) : jeton de l'utilisateur en en-tête, plus aucune clé ni identifiant
+      // client dans la requête.
+      XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test_access_token")
+      XCTAssertTrue(Self.legacyKeyHeaders(of: request).isEmpty, "plus d'en-tête de clé CaaS")
+      XCTAssertNil(request.url?.query)
+      let body = Self.formBody(of: request)
+      XCTAssertEqual(
+        Set(body.keys),
+        ["layer_id", "zone", "zoom_max", "format", "cipher"],
+        "ni clé CaaS ni identifiant client dans le corps"
+      )
+      XCTAssertEqual(body["layer_id"], "shom")
+      XCTAssertEqual(body["zoom_max"], "14")
 
       let json = """
       {
@@ -61,7 +102,7 @@ final class GeoGaragePackageServiceTests: XCTestCase {
       cipher: .v3
     )
 
-    let returnedUUID = try await service.requestPackage(request, apiKey: "test_api_key", userID: "cus_123")
+    let returnedUUID = try await service.requestPackage(request, accessToken: "test_access_token")
     XCTAssertEqual(returnedUUID, packageUUID)
   }
 
@@ -85,7 +126,7 @@ final class GeoGaragePackageServiceTests: XCTestCase {
     )
 
     do {
-      _ = try await service.requestPackage(request, apiKey: "test_api_key", userID: "cus_123")
+      _ = try await service.requestPackage(request, accessToken: "test_access_token")
       XCTFail("Should have thrown CaasError.requestFailed")
     } catch {
       guard case CaasError.requestFailed(let code) = error else {
@@ -103,6 +144,9 @@ final class GeoGaragePackageServiceTests: XCTestCase {
     MockURLProtocol.setHandler { request in
       XCTAssertEqual(request.httpMethod, "GET")
       XCTAssertEqual(request.url?.path, "/packages/\(packageUUID.uuidString.lowercased())")
+      XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test_access_token")
+      XCTAssertTrue(Self.legacyKeyHeaders(of: request).isEmpty, "plus d'en-tête de clé CaaS")
+      XCTAssertNil(request.url?.query, "plus de clé en query string")
 
       let json = """
       {
@@ -122,7 +166,7 @@ final class GeoGaragePackageServiceTests: XCTestCase {
       session: session
     )
 
-    let status = try await service.fetchStatus(packageID: packageUUID, apiKey: "test_api_key")
+    let status = try await service.fetchStatus(packageID: packageUUID, accessToken: "test_access_token")
     XCTAssertEqual(status.uuid, packageUUID)
     XCTAssertEqual(status.state, .progress)
     XCTAssertEqual(status.monitor, "500/1000")
@@ -136,6 +180,9 @@ final class GeoGaragePackageServiceTests: XCTestCase {
     MockURLProtocol.setHandler { request in
       XCTAssertEqual(request.httpMethod, "DELETE")
       XCTAssertEqual(request.url?.path, "/packages/\(packageUUID.uuidString.lowercased())")
+      XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test_access_token")
+      XCTAssertTrue(Self.legacyKeyHeaders(of: request).isEmpty, "plus d'en-tête de clé CaaS")
+      XCTAssertNil(request.url?.query, "plus de clé en query string")
 
       let response = HTTPURLResponse(url: request.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!
       return (response, nil)
@@ -146,7 +193,7 @@ final class GeoGaragePackageServiceTests: XCTestCase {
       session: session
     )
 
-    try await service.deletePackage(packageID: packageUUID, apiKey: "test_api_key")
+    try await service.deletePackage(packageID: packageUUID, accessToken: "test_access_token")
   }
 
   // MARK: - Polling Loop (pollUntilComplete)
@@ -189,7 +236,7 @@ final class GeoGaragePackageServiceTests: XCTestCase {
     var states: [PackageState] = []
     let stream = await service.pollUntilComplete(
       packageID: packageUUID,
-      apiKey: "test_api_key",
+      accessToken: "test_access_token",
       interval: .milliseconds(50),
       timeout: .seconds(5)
     )
@@ -223,7 +270,7 @@ final class GeoGaragePackageServiceTests: XCTestCase {
 
     let stream = await service.pollUntilComplete(
       packageID: packageUUID,
-      apiKey: "test_api_key",
+      accessToken: "test_access_token",
       interval: .milliseconds(50),
       timeout: .seconds(5)
     )
@@ -264,7 +311,7 @@ final class GeoGaragePackageServiceTests: XCTestCase {
 
     let stream = await service.pollUntilComplete(
       packageID: packageUUID,
-      apiKey: "test_api_key",
+      accessToken: "test_access_token",
       interval: .milliseconds(200),
       timeout: .seconds(10)
     )
@@ -324,7 +371,7 @@ final class GeoGaragePackageServiceTests: XCTestCase {
     var states: [PackageState] = []
     let stream = await service.pollUntilComplete(
       packageID: packageUUID,
-      apiKey: "test_api_key",
+      accessToken: "test_access_token",
       initialInterval: .milliseconds(20),
       maxInterval: .milliseconds(100),
       backoffMultiplier: 2.0,

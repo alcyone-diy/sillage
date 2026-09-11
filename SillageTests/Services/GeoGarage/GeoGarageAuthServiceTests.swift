@@ -42,11 +42,13 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     presenter = MockGeoGarageAuthorizationPresenter()
     await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
+    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
   }
 
   override func tearDown() async throws {
     await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
+    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
     MockURLProtocol.reset()
     service = nil
     session = nil
@@ -371,5 +373,19 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     }
     let paths = log.requests.map { $0.url?.path ?? "" }
     XCTAssertEqual(paths, ["/api/account/settings", "/o/token"], "un seul essai de refresh, pas de boucle")
+  }
+
+  // MARK: - Déconnexion
+
+  func testLogoutRemovesPackageSecret() async {
+    await KeychainManager.shared.save(token: "access", for: "geogarage_access_token")
+    await KeychainManager.shared.save(token: "s3cret", for: GeoGaragePartnerSecretService.keychainAccount)
+
+    await service.logout()
+
+    let secret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    XCTAssertNil(secret, "le secret de déchiffrement part avec la session")
+    let access = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
+    XCTAssertNil(access)
   }
 }

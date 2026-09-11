@@ -94,6 +94,9 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   func logout() async {
     await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
+    // Le secret de déchiffrement appartient à la session : il part avec les tokens, sinon un autre
+    // compte le réutiliserait sur les paquets déjà téléchargés (voie B, 11 sept. 2026).
+    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
     self.authError = nil
     // Installations venues de la version à mot de passe (avant le 11 sept. 2026) : le nom
     // d'utilisateur mémorisé n'a plus d'usage, on l'efface à la première déconnexion.

@@ -50,7 +50,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       layerName: String,
       boundsWKT: String,
       zoomMax: Int,
-      apiKey: String,
+      accessToken: String,
       localID: UUID? = nil,
       progressHandler: (@Sendable (Int64, Int64) -> Void)? = nil
     ) async throws(CaasError) -> OfflineChartDownload {
@@ -90,8 +90,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     func requestPackage(
       _ request: PackageRequest,
-      apiKey: String,
-      userID: String
+      accessToken: String
     ) async throws(CaasError) -> UUID {
       if let error = shouldThrowOnRequest {
         if let caas = error as? CaasError {
@@ -102,7 +101,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       return packageIDToReturn
     }
 
-    func fetchStatus(packageID: UUID, apiKey: String) async throws(CaasError) -> PackageStatusResponse {
+    func fetchStatus(packageID: UUID, accessToken: String) async throws(CaasError) -> PackageStatusResponse {
       PackageStatusResponse(
         uuid: packageID,
         state: .success,
@@ -117,11 +116,11 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       )
     }
 
-    func deletePackage(packageID: UUID, apiKey: String) async throws(CaasError) {}
+    func deletePackage(packageID: UUID, accessToken: String) async throws(CaasError) {}
 
     func pollUntilComplete(
       packageID: UUID,
-      apiKey: String,
+      accessToken: String,
       initialInterval: Duration,
       maxInterval: Duration,
       backoffMultiplier: Double,
@@ -338,7 +337,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let (sut, _, _, _, chartVM, _, _, _) = makeSUT(setupVisibleBounds: false)
     chartVM.currentVisibleBounds = nil
 
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     if case .failed(let error) = sut.downloadPhase {
       XCTAssertFalse(error.isEmpty)
@@ -367,8 +366,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     sut.selectedLayerID = ""
     chartVM.currentChartSource = nil
 
-    // Without chart source and without available layers, startDownload(apiKey:customerID:) must fail
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    // Without chart source and without available layers, startDownload(accessToken:customerID:) must fail
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     if case .failed(let error) = sut.downloadPhase {
       XCTAssertTrue(error.contains("No chart layer available"))
@@ -384,7 +383,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     let (sut, _, _, _, _, _, _, prefs) = makeSUT(networkMonitor: networkMonitor)
 
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     for _ in 0..<100 {
       if case .waitingForNetwork = sut.downloadPhase { break }
@@ -428,7 +427,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       networkMonitor: networkMonitor
     )
 
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     for _ in 0..<100 {
       if case .waitingForNetwork = sut.downloadPhase { break }
@@ -471,7 +470,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     let (sut, _, _, _, _, _, _, prefs) = makeSUT(downloader: downloader, packageService: packageService)
 
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     // Wait for the pipeline tasks to complete
     for _ in 0..<100 {
@@ -490,7 +489,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     let (sut, _, _, _, _, _, _, prefs) = makeSUT(packageService: packageService)
 
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     for _ in 0..<100 {
       if case .failed = sut.downloadPhase { break }
@@ -511,7 +510,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     let (sut, _, _, _, _, _, _, prefs) = makeSUT(packageService: packageService)
 
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     for _ in 0..<100 {
       if case .waitingForNetwork = sut.downloadPhase { break }
@@ -529,7 +528,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
   func testCancelDownload_cancelsTask_setsCancelledState_andClearsPendingState() {
     let (sut, _, _, _, _, _, _, prefs) = makeSUT()
 
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
     XCTAssertTrue(sut.isDownloading)
 
     sut.cancelDownload()
@@ -1118,9 +1117,9 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     )
 
     // Start 3 downloads in rapid succession
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     XCTAssertEqual(prefs.pendingCAASDownloads.count, 3)
     XCTAssertEqual(downloadService.activeDownloads.count, 3)
@@ -1150,9 +1149,9 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     )
 
     // Start 3 downloads
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     // Wait until all downloads complete through the queue
     for _ in 0..<200 {
@@ -1187,9 +1186,9 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       packageService: packageService
     )
 
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
-    sut.startDownload(apiKey: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     guard downloadService.activeDownloads.count == 3 else {
       XCTFail("Expected 3 downloads")

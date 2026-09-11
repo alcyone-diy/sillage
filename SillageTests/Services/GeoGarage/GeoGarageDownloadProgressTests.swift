@@ -21,14 +21,14 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     var pollResponses: [PackageStatusResponse] = []
     var shouldFailRequest = false
 
-    func requestPackage(_ request: PackageRequest, apiKey: String, userID: String) async throws(CaasError) -> UUID {
+    func requestPackage(_ request: PackageRequest, accessToken: String) async throws(CaasError) -> UUID {
       if shouldFailRequest {
         throw CaasError.requestFailed(statusCode: 500)
       }
       return packageIDToReturn
     }
 
-    func fetchStatus(packageID: UUID, apiKey: String) async throws(CaasError) -> PackageStatusResponse {
+    func fetchStatus(packageID: UUID, accessToken: String) async throws(CaasError) -> PackageStatusResponse {
       pollResponses.first ?? PackageStatusResponse(
         uuid: packageID,
         state: .success,
@@ -43,11 +43,11 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       )
     }
 
-    func deletePackage(packageID: UUID, apiKey: String) async throws(CaasError) {}
+    func deletePackage(packageID: UUID, accessToken: String) async throws(CaasError) {}
 
     func pollUntilComplete(
       packageID: UUID,
-      apiKey: String,
+      accessToken: String,
       initialInterval: Duration,
       maxInterval: Duration,
       backoffMultiplier: Double,
@@ -76,7 +76,7 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       layerName: String,
       boundsWKT: String,
       zoomMax: Int,
-      apiKey: String,
+      accessToken: String,
       localID: UUID?,
       progressHandler: (@Sendable (Int64, Int64) -> Void)?
     ) async throws(CaasError) -> OfflineChartDownload {
@@ -202,8 +202,8 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     XCTAssertNil(service.globalDownloadProgress)
 
     // Enqueue 2 downloads
-    service.startDownload(layerID: "layer_1", layerName: "Layer 1", zoneWKT: "POLYGON(())", zoomMax: 12, apiKey: "key", customerID: "cust")
-    service.startDownload(layerID: "layer_2", layerName: "Layer 2", zoneWKT: "POLYGON(())", zoomMax: 12, apiKey: "key", customerID: "cust")
+    service.startDownload(layerID: "layer_1", layerName: "Layer 1", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
+    service.startDownload(layerID: "layer_2", layerName: "Layer 2", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
 
     XCTAssertEqual(service.activeDownloads.count, 2)
     XCTAssertEqual(service.sessionTotalDownloadsCount, 2)
@@ -239,8 +239,8 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     )
 
     // Enqueue 2 downloads
-    service.startDownload(layerID: "chart_1", layerName: "Chart 1", zoneWKT: "POLYGON(())", zoomMax: 12, apiKey: "key", customerID: "cust")
-    service.startDownload(layerID: "chart_2", layerName: "Chart 2", zoneWKT: "POLYGON(())", zoomMax: 12, apiKey: "key", customerID: "cust")
+    service.startDownload(layerID: "chart_1", layerName: "Chart 1", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
+    service.startDownload(layerID: "chart_2", layerName: "Chart 2", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
 
     XCTAssertEqual(service.sessionTotalDownloadsCount, 2)
     let chart1ID = service.activeDownloads[0].id
@@ -279,7 +279,7 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       networkMonitor: networkMonitor
     )
 
-    service.startDownload(layerID: "chart_offline", layerName: "Chart Offline", zoneWKT: "POLYGON(())", zoomMax: 12, apiKey: "key", customerID: "cust")
+    service.startDownload(layerID: "chart_offline", layerName: "Chart Offline", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
 
     // Active downloads should exist
     XCTAssertEqual(service.activeDownloads.count, 1)
@@ -309,7 +309,7 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       networkMonitor: networkMonitor
     )
 
-    service.startDownload(layerID: "chart_cancel", layerName: "Chart Cancel", zoneWKT: "POLYGON(())", zoomMax: 12, apiKey: "key", customerID: "cust")
+    service.startDownload(layerID: "chart_cancel", layerName: "Chart Cancel", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
     XCTAssertTrue(service.isDownloading)
 
     service.cancelDownload()

@@ -25,8 +25,11 @@ struct GeoGarageLoginView: View {
 
   @State private var showLogoutConfirmation = false
 
-  init(offlineMapManager: OfflineMapManager) {
-    self._viewModel = State(initialValue: GeoGarageLoginViewModel(offlineMapManager: offlineMapManager))
+  init(offlineMapManager: OfflineMapManager, partnerSecretService: GeoGaragePartnerSecretServiceProtocol) {
+    self._viewModel = State(initialValue: GeoGarageLoginViewModel(
+      offlineMapManager: offlineMapManager,
+      partnerSecretService: partnerSecretService
+    ))
   }
 
   var body: some View {

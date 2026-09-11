@@ -40,14 +40,14 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
   ///   - layerName: Human-readable layer name.
   ///   - zoneWKT: Bounding box in WKT POLYGON format.
   ///   - zoomMax: Maximum zoom level to include in the MBTiles archive.
-  ///   - apiKey: Dedicated CAAS API key or OAuth token.
+  ///   - accessToken: Jeton OAuth2 de l'utilisateur connecté (`Authorization: Bearer`).
   ///   - customerID: User's GeoGarage customer identifier.
   func startDownload(
     layerID: String,
     layerName: String,
     zoneWKT: String,
     zoomMax: Int,
-    apiKey: String,
+    accessToken: String,
     customerID: String
   )
 
