@@ -196,6 +196,12 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     } catch AuthError.cancelled {
       // Fermeture volontaire : on ne touche pas à authError, l'écran reste tel quel.
       throw AuthError.cancelled
+    } catch is CancellationError {
+      // Annulation de la tâche de connexion (bouton Annuler de l'écran, écran refermé) : c'est une
+      // annulation, pas un échec d'autorisation — sans ce cas l'utilisateur voyait « GeoGarage
+      // sign-in failed (…) » après avoir lui-même annulé (revue de la Task 5a.2, 11 sept. 2026).
+      Logger.network.info("GeoGarage authorization cancelled by the caller.")
+      throw AuthError.cancelled
     } catch {
       Logger.network.error("Authorization session failed: \(error.localizedDescription, privacy: .public)")
       let failure = AuthError.authorizationFailed(description: error.localizedDescription)
@@ -237,6 +243,10 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
       self.authError = nil
       self.isGeoGarageAuthenticated = true
       return tokens
+    } catch AuthError.cancelled {
+      // Annulation pendant l'échange du code : silencieuse comme les autres annulations, l'écran
+      // Réglages ne doit pas afficher « Sign-in was cancelled » (revue de la Task 5a.2, 11 sept. 2026).
+      throw AuthError.cancelled
     } catch let error as AuthError {
       self.authError = error
       throw error
@@ -281,12 +291,24 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
       self.isGeoGarageAuthenticated = true
       Logger.network.info("GeoGarage tokens refreshed.")
       return tokens
-    } catch AuthError.tokenExpired {
-      // Refresh token remplacé, révoqué (changement de mot de passe) ou purgé (deux ans sans usage) :
-      // il faut repasser par la page GeoGarage. Les tokens restent en place pour que l'écran montre
-      // « Authentication Error » plutôt qu'un compte déconnecté sans explication.
-      self.authError = AuthError.tokenExpired
-      throw AuthError.tokenExpired
+    } catch let error as AuthError {
+      switch error {
+      case .networkError, .cancelled:
+        // Panne réseau passagère (hors couverture, tunnel) ou refresh annulé : la session reste
+        // valable, on ne la marque pas cassée — ChartViewModel ignore déjà networkError en silence
+        // (revue de la Task 5a.2, 11 sept. 2026).
+        throw error
+      default:
+        break
+      }
+      // tokenExpired : refresh token remplacé, révoqué (changement de mot de passe) ou purgé (deux
+      // ans sans usage) : il faut repasser par la page GeoGarage. Les tokens restent en place pour
+      // que l'écran montre « Authentication Error » plutôt qu'un compte déconnecté sans explication.
+      // Les autres échecs (invalid_client, 5xx, réponse illisible) sont publiés pour la même raison :
+      // sans cela l'écran Réglages annonçait une session saine pendant que la carte affichait un
+      // bandeau d'erreur (revue de la Task 5a.2, 11 sept. 2026).
+      self.authError = error
+      throw error
     }
   }
 
@@ -309,6 +331,13 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     let (data, response): (Data, URLResponse)
     do {
       (data, response) = try await session.data(for: request)
+    } catch is CancellationError {
+      // Tâche annulée pendant l'échange : ni une panne réseau ni un échec à afficher
+      // (revue de la Task 5a.2, 11 sept. 2026).
+      throw AuthError.cancelled
+    } catch let error as URLError where error.code == .cancelled {
+      // URLSession traduit l'annulation de la tâche Swift en URLError.cancelled : même sortie.
+      throw AuthError.cancelled
     } catch {
       throw AuthError.networkError(error)
     }

@@ -189,6 +189,24 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     XCTAssertFalse(service.isGeoGarageAuthenticated)
   }
 
+  func testAuthenticateTreatsTaskCancellationAsCancelled() async {
+    let log = RequestLog()
+    installPortalHandler(log: log)
+    presenter.behaviour = .throwError(CancellationError())
+
+    do {
+      _ = try await service.authenticate(presenter: presenter)
+      XCTFail("cancelled attendu")
+    } catch AuthError.cancelled {
+      // attendu : annuler la tâche de connexion n'est pas un échec d'autorisation
+    } catch {
+      XCTFail("erreur inattendue : \(error)")
+    }
+    XCTAssertNil(service.authError, "une annulation de tâche n'est pas une erreur à afficher")
+    XCTAssertTrue(log.requests.isEmpty, "rien à échanger après une annulation")
+    XCTAssertFalse(service.isGeoGarageAuthenticated)
+  }
+
   func testAuthenticateMapsInvalidGrantToAuthorizationFailed() async {
     let log = RequestLog()
     installPortalHandler(tokenStatus: 400, tokenBody: #"{"error": "invalid_grant"}"#, log: log)
@@ -244,6 +262,40 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     XCTAssertNotNil(service.authError)
   }
 
+  func testRefreshTokensPublishesAuthErrorForInvalidClient() async {
+    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    let log = RequestLog()
+    installPortalHandler(tokenStatus: 400, tokenBody: #"{"error": "invalid_client"}"#, log: log)
+
+    do {
+      _ = try await service.refreshTokens()
+      XCTFail("apiError attendu")
+    } catch AuthError.apiError(let description) {
+      XCTAssertEqual(description, "invalid_client")
+    } catch {
+      XCTFail("erreur inattendue : \(error)")
+    }
+    XCTAssertNotNil(service.authError, "un refresh en échec autre qu'invalid_grant doit aussi être publié")
+  }
+
+  func testRefreshTokensKeepsAuthErrorNilWhenOffline() async {
+    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    MockURLProtocol.setErrorHandler { request in
+      guard request.url?.path == "/o/token" else { return nil }
+      return URLError(.notConnectedToInternet)
+    }
+
+    do {
+      _ = try await service.refreshTokens()
+      XCTFail("networkError attendu")
+    } catch AuthError.networkError {
+      // attendu
+    } catch {
+      XCTFail("erreur inattendue : \(error)")
+    }
+    XCTAssertNil(service.authError, "une panne réseau passagère ne doit pas marquer la session cassée")
+  }
+
   func testRefreshTokensWithoutStoredRefreshTokenThrowsTokenExpired() async {
     let log = RequestLog()
     installPortalHandler(log: log)
@@ -270,6 +322,20 @@ final class GeoGarageAuthServiceTests: XCTestCase {
 
     XCTAssertEqual(a.refresh_token, b.refresh_token)
     XCTAssertEqual(log.requests.filter { $0.url?.path == "/o/token" }.count, 1, "la rotation interdit deux refreshs avec le même token")
+  }
+
+  func testSequentialRefreshesIssueTwoRequests() async throws {
+    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    let log = RequestLog()
+    installPortalHandler(log: log)
+
+    _ = try await service.refreshTokens()
+    _ = try await service.refreshTokens()
+
+    let tokenRequests = log.requests.filter { $0.url?.path == "/o/token" }
+    XCTAssertEqual(tokenRequests.count, 2, "refreshTask doit être libéré après chaque refresh")
+    let second = try XCTUnwrap(tokenRequests.dropFirst().first)
+    XCTAssertEqual(Self.formBody(of: second)["refresh_token"], "new-refresh", "le second refresh rejoue le token renvoyé par le premier (rotation)")
   }
 
   // MARK: - fetchAccountSettings(accessToken:) et 401

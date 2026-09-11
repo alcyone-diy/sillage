@@ -30,6 +30,11 @@ struct WebAuthenticationSessionPresenter: GeoGarageAuthorizationPresenting {
       )
     } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
       throw AuthError.cancelled
+    } catch is CancellationError {
+      // Tâche de connexion annulée par l'appelant (bouton Annuler, écran refermé) : même sortie
+      // silencieuse que la fermeture de la page par l'utilisateur (revue de la Task 5a.2,
+      // 11 sept. 2026).
+      throw AuthError.cancelled
     }
   }
 }
