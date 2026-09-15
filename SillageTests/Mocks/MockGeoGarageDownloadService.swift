@@ -92,7 +92,7 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     layerName: String,
     zoneWKT: String,
     zoomMax: Int,
-    apiKey: String,
+    accessToken: String,
     customerID: String
   ) {
     startDownloadCalled = true

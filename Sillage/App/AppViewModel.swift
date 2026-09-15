@@ -68,6 +68,12 @@ final class AppViewModel {
   }
 
   func handleIncomingURL(_ url: URL) {
+    // OAuth callback (private scheme): ASWebAuthenticationSession intercepts it itself. If it still
+    // lands here (link opened by hand), it is not a chart to import: no import error.
+    guard url.scheme?.lowercased() != AppConstants.GeoGarage.oauthCallbackScheme else {
+      Logger.network.info("Ignoring OAuth callback URL delivered outside the authentication session.")
+      return
+    }
     do {
       try chartImportService.handleIncomingURL(url)
     } catch let error as ChartImportError {

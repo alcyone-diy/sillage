@@ -19,6 +19,9 @@ public enum AppMessageCategory: String, Sendable, Equatable {
   case weather
   case anchor
   case geoGarage
+  /// Offline charts unavailable for lack of a decryption secret. Kept separate from `.geoGarage`,
+  /// which every successful authentication purges before the user can read the warning.
+  case offlineCharts
 }
 
 /// Severity of the message

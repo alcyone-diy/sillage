@@ -15,45 +15,44 @@ protocol GeoGaragePackageServiceProtocol: Sendable {
   /// Initiates an asynchronous package generation request (POST /packages/request/).
   /// - Parameters:
   ///   - request: Package configuration parameters (layer, zone WKT, zoomMax, format, cipher).
-  ///   - apiKey: Dedicated CAAS API key.
-  ///   - userID: Customer account identifier (`customer_id`).
+  ///   - accessToken: OAuth2 access token of the signed-in user (`Authorization: Bearer`); the
+  ///     server reads `client_id` and `customer_id` from it.
   /// - Returns: Generated package UUID.
   func requestPackage(
     _ request: PackageRequest,
-    apiKey: String,
-    userID: String
+    accessToken: String
   ) async throws(CaasError) -> UUID
 
   /// Fetches the current generation state and progress for a package (GET /packages/{pkg_id}).
   /// - Parameters:
   ///   - packageID: Unique package UUID.
-  ///   - apiKey: Dedicated CAAS API key.
+  ///   - accessToken: OAuth2 access token of the signed-in user.
   func fetchStatus(
     packageID: UUID,
-    apiKey: String
+    accessToken: String
   ) async throws(CaasError) -> PackageStatusResponse
 
   /// Deletes a completed or cancelled package on the CAAS server (DELETE /packages/{pkg_id}).
   /// - Parameters:
   ///   - packageID: Unique package UUID.
-  ///   - apiKey: Dedicated CAAS API key.
+  ///   - accessToken: OAuth2 access token of the signed-in user.
   func deletePackage(
     packageID: UUID,
-    apiKey: String
+    accessToken: String
   ) async throws(CaasError)
 
   /// Emits package status updates iteratively until `.success` or `.failure` state is reached.
   /// Handles cooperative task cancellation cleanly and applies an exponential backoff between poll requests.
   /// - Parameters:
   ///   - packageID: Unique package UUID.
-  ///   - apiKey: Dedicated CAAS API key.
+  ///   - accessToken: OAuth2 access token of the signed-in user.
   ///   - initialInterval: Initial polling delay (e.g. 2 seconds).
   ///   - maxInterval: Maximum polling delay ceiling (e.g. 15 seconds).
   ///   - backoffMultiplier: Multiplier applied to the delay after each iteration (e.g. 1.5).
   ///   - timeout: Maximum cumulative duration before throwing `CaasError.pollingTimeout` (defaults to 15 minutes).
   func pollUntilComplete(
     packageID: UUID,
-    apiKey: String,
+    accessToken: String,
     initialInterval: Duration,
     maxInterval: Duration,
     backoffMultiplier: Double,
@@ -65,7 +64,7 @@ extension GeoGaragePackageServiceProtocol {
   /// Convenience overload with default parameters for exponential backoff polling.
   func pollUntilComplete(
     packageID: UUID,
-    apiKey: String,
+    accessToken: String,
     initialInterval: Duration = .seconds(2),
     maxInterval: Duration = .seconds(15),
     backoffMultiplier: Double = 1.5,
@@ -73,7 +72,7 @@ extension GeoGaragePackageServiceProtocol {
   ) async -> AsyncThrowingStream<PackageStatusResponse, Error> {
     await pollUntilComplete(
       packageID: packageID,
-      apiKey: apiKey,
+      accessToken: accessToken,
       initialInterval: initialInterval,
       maxInterval: maxInterval,
       backoffMultiplier: backoffMultiplier,
@@ -84,13 +83,13 @@ extension GeoGaragePackageServiceProtocol {
   /// Backward compatibility overload for legacy callers specifying a single fixed interval.
   func pollUntilComplete(
     packageID: UUID,
-    apiKey: String,
+    accessToken: String,
     interval: Duration,
     timeout: Duration = .seconds(900)
   ) async -> AsyncThrowingStream<PackageStatusResponse, Error> {
     await pollUntilComplete(
       packageID: packageID,
-      apiKey: apiKey,
+      accessToken: accessToken,
       initialInterval: interval,
       maxInterval: interval,
       backoffMultiplier: 1.0,

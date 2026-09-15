@@ -38,8 +38,7 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
 
   func requestPackage(
     _ request: PackageRequest,
-    apiKey: String,
-    userID: String
+    accessToken: String
   ) async throws(CaasError) -> UUID {
     guard let endpoint = URL(string: "packages/request/", relativeTo: baseURL)?.absoluteURL else {
       throw CaasError.invalidDownloadURL(raw: "packages/request/")
@@ -48,17 +47,17 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
     var urlRequest = URLRequest(url: endpoint)
     urlRequest.httpMethod = "POST"
     urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-    urlRequest.setValue(apiKey, forHTTPHeaderField: "api_key")
+    // The package is requested on behalf of the signed-in user: the server reads `client_id` and
+    // `customer_id` from the token, so the app embeds no key.
+    urlRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
     urlRequest.timeoutInterval = 30.0
 
     let parameters: [String: String] = [
-      "api_key": apiKey,
       "layer_id": request.layerID,
       "zone": request.zoneWKT,
       "zoom_max": String(request.zoomMax),
       "format": request.format.rawValue,
-      "cipher": request.cipher.rawValue,
-      "userid": userID
+      "cipher": request.cipher.rawValue
     ]
 
     urlRequest.httpBody = encodeParameters(parameters)
@@ -104,25 +103,17 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
 
   func fetchStatus(
     packageID: UUID,
-    apiKey: String
+    accessToken: String
   ) async throws(CaasError) -> PackageStatusResponse {
     let lowerUUID = packageID.uuidString.lowercased()
-    guard let baseURLWithUUID = URL(string: "packages/\(lowerUUID)", relativeTo: baseURL)?.absoluteURL else {
-      throw CaasError.invalidDownloadURL(raw: "packages/\(lowerUUID)")
-    }
-    var components = URLComponents(
-      url: baseURLWithUUID,
-      resolvingAgainstBaseURL: true
-    )
-    components?.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
-
-    guard let endpoint = components?.url else {
+    guard let endpoint = URL(string: "packages/\(lowerUUID)", relativeTo: baseURL)?.absoluteURL else {
       throw CaasError.invalidDownloadURL(raw: "packages/\(lowerUUID)")
     }
 
     var urlRequest = URLRequest(url: endpoint)
     urlRequest.httpMethod = "GET"
-    urlRequest.setValue(apiKey, forHTTPHeaderField: "api_key")
+    // Token in a header, never in the query string: it would end up in access logs.
+    urlRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
     urlRequest.timeoutInterval = 15.0
 
     let (data, response): (Data, URLResponse)
@@ -155,25 +146,16 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
 
   func deletePackage(
     packageID: UUID,
-    apiKey: String
+    accessToken: String
   ) async throws(CaasError) {
     let lowerUUID = packageID.uuidString.lowercased()
-    guard let baseURLWithUUID = URL(string: "packages/\(lowerUUID)", relativeTo: baseURL)?.absoluteURL else {
-      throw CaasError.invalidDownloadURL(raw: "packages/\(lowerUUID)")
-    }
-    var components = URLComponents(
-      url: baseURLWithUUID,
-      resolvingAgainstBaseURL: true
-    )
-    components?.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
-
-    guard let endpoint = components?.url else {
+    guard let endpoint = URL(string: "packages/\(lowerUUID)", relativeTo: baseURL)?.absoluteURL else {
       throw CaasError.invalidDownloadURL(raw: "packages/\(lowerUUID)")
     }
 
     var urlRequest = URLRequest(url: endpoint)
     urlRequest.httpMethod = "DELETE"
-    urlRequest.setValue(apiKey, forHTTPHeaderField: "api_key")
+    urlRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
     urlRequest.timeoutInterval = 15.0
 
     let (data, response): (Data, URLResponse)
@@ -200,7 +182,7 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
 
   func pollUntilComplete(
     packageID: UUID,
-    apiKey: String,
+    accessToken: String,
     initialInterval: Duration,
     maxInterval: Duration,
     backoffMultiplier: Double,
@@ -219,7 +201,7 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
 
           let status: PackageStatusResponse
           do {
-            status = try await self.fetchStatus(packageID: packageID, apiKey: apiKey)
+            status = try await self.fetchStatus(packageID: packageID, accessToken: accessToken)
           } catch {
             continuation.finish(throwing: error)
             return
