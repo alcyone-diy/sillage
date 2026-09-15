@@ -113,7 +113,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
   private var networkObservationTask: Task<Void, Never>?
 
   @ObservationIgnored
-  private var cachedApiKey: String?
+  private var cachedAccessToken: String?
 
   @ObservationIgnored
   private var cachedCustomerID: String?
@@ -236,7 +236,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     layerName: String,
     zoneWKT: String,
     zoomMax: Int,
-    apiKey: String,
+    accessToken: String,
     customerID: String
   ) {
     lastTerminalPhase = nil
@@ -267,7 +267,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
     Logger.offline.info("Enqueued offline chart download for '\(layerID, privacy: .public)' (id: \(localID.uuidString, privacy: .public)). Total items in queue: \(self.activeDownloads.count, privacy: .public)")
 
-    processQueue(apiKey: apiKey, customerID: customerID)
+    processQueue(accessToken: accessToken, customerID: customerID)
   }
 
   func resumePendingDownloadIfNeeded() async {
@@ -371,8 +371,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
   // MARK: - Queue Processing & State Updates
 
-  private func processQueue(apiKey: String? = nil, customerID: String? = nil) {
-    if let apiKey { self.cachedApiKey = apiKey }
+  private func processQueue(accessToken: String? = nil, customerID: String? = nil) {
+    if let accessToken { self.cachedAccessToken = accessToken }
     if let customerID { self.cachedCustomerID = customerID }
 
     guard !activeDownloads.isEmpty else { return }
@@ -406,11 +406,12 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
           guard let self = self else { return }
 
           let resolvedCustomer = self.cachedCustomerID ?? self.preferencesService.geoGarageCustomerID ?? ""
-          let caasKey = AppConfiguration.shared.geoGarageCaasApiKey
+          // The Keychain is authoritative (a mid-session refresh stores a fresh token there); the
+          // token cached by `startDownload` is only a fallback, e.g. when the Keychain is empty in tests.
           let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token") ?? ""
-          let resolvedApiKey = self.cachedApiKey ?? ((!caasKey.isEmpty && caasKey != "test_caas_api_key") ? caasKey : token)
+          let resolvedAccessToken = token.isEmpty ? (self.cachedAccessToken ?? "") : token
 
-          guard !resolvedCustomer.isEmpty && !resolvedApiKey.isEmpty else {
+          guard !resolvedCustomer.isEmpty && !resolvedAccessToken.isEmpty else {
             Logger.offline.warning("Cannot start queued download \(targetID.uuidString, privacy: .public): missing credentials.")
             self.failDownload(id: targetID, errorMessage: String(localized: "User is not authenticated with GeoGarage. Please login first."))
             return
@@ -423,8 +424,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
           }
 
           await self.executeDownloadPipeline(
-            apiKey: resolvedApiKey,
-            customerID: resolvedCustomer,
+            accessToken: resolvedAccessToken,
             layerID: pending.layerID,
             layerName: pending.layerName,
             zoneWKT: pending.boundsWKT,
@@ -473,8 +473,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
   // MARK: - Pipeline Execution
 
   private func executeDownloadPipeline(
-    apiKey: String,
-    customerID: String,
+    accessToken: String,
     layerID: String,
     layerName: String,
     zoneWKT: String,
@@ -495,7 +494,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       return
     }
 
-    guard !apiKey.isEmpty else {
+    guard !accessToken.isEmpty else {
       updateDownloadPhase(id: localID, to: .failed(errorMessage: CaasError.authenticationRequired.localizedDescription))
       removeDownload(id: localID)
       sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
@@ -532,8 +531,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
         packageID = try await packageService.requestPackage(
           request,
-          apiKey: apiKey,
-          userID: customerID
+          accessToken: accessToken
         )
 
         try Task.checkCancellation()
@@ -545,7 +543,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       try await pollAndDownloadArchive(
         packageID: packageID,
         localID: localID,
-        apiKey: apiKey,
+        accessToken: accessToken,
         layerID: layerID,
         layerName: layerName,
         boundsWKT: zoneWKT,
@@ -584,7 +582,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
   private func pollAndDownloadArchive(
     packageID: UUID,
     localID: UUID,
-    apiKey: String,
+    accessToken: String,
     layerID: String,
     layerName: String,
     boundsWKT: String,
@@ -594,7 +592,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
     let statusStream = await packageService.pollUntilComplete(
       packageID: packageID,
-      apiKey: apiKey
+      accessToken: accessToken
     )
 
     for try await status in statusStream {
@@ -634,7 +632,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       layerName: layerName,
       boundsWKT: boundsWKT,
       zoomMax: zoomMax,
-      apiKey: apiKey,
+      accessToken: accessToken,
       localID: localID,
       progressHandler: { [weak self] received, total in
         Task { @MainActor [weak self] in

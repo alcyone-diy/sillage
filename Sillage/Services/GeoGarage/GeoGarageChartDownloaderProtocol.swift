@@ -22,7 +22,7 @@ protocol GeoGarageChartDownloaderProtocol: Sendable {
     layerName: String,
     boundsWKT: String,
     zoomMax: Int,
-    apiKey: String,
+    accessToken: String,
     localID: UUID?,
     progressHandler: (@Sendable (Int64, Int64) -> Void)?
   ) async throws(CaasError) -> OfflineChartDownload
@@ -40,7 +40,7 @@ extension GeoGarageChartDownloaderProtocol {
     layerName: String,
     boundsWKT: String,
     zoomMax: Int,
-    apiKey: String,
+    accessToken: String,
     localID: UUID? = nil
   ) async throws(CaasError) -> OfflineChartDownload {
     try await download(
@@ -51,7 +51,7 @@ extension GeoGarageChartDownloaderProtocol {
       layerName: layerName,
       boundsWKT: boundsWKT,
       zoomMax: zoomMax,
-      apiKey: apiKey,
+      accessToken: accessToken,
       localID: localID,
       progressHandler: nil
     )

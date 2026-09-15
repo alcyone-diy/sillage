@@ -293,30 +293,34 @@ final class OfflineSelectionViewModel {
     let selectedLayer = availableLayers.first(where: { $0.layer == layerToDownload })
     let layerName = selectedLayer?.brandName ?? layerToDownload.uppercased()
 
-    let caasKey = AppConfiguration.shared.geoGarageCaasApiKey
     let zoomMax = self.zoomMax
 
     Task { [weak self] in
       guard let self else { return }
+      // The package is requested with the user's token, not an embedded key: no token, no request.
       let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token") ?? ""
-      let apiKey = (!caasKey.isEmpty && caasKey != "test_caas_api_key") ? caasKey : token
+      guard !token.isEmpty else {
+        Logger.offline.warning("OfflineSelectionViewModel: startDownload called without a GeoGarage access token.")
+        self.downloadService.failDownload(with: String(localized: "User is not authenticated with GeoGarage. Please login first."))
+        return
+      }
 
       self.downloadService.startDownload(
         layerID: layerToDownload,
         layerName: layerName,
         zoneWKT: zoneWKT,
         zoomMax: zoomMax,
-        apiKey: apiKey,
+        accessToken: token,
         customerID: customerID
       )
     }
   }
 
-  /// Initiates an offline chart package generation with explicit API key and customer ID.
+  /// Initiates an offline chart package generation with explicit access token and customer ID.
   /// - Parameters:
-  ///   - apiKey: Dedicated CAAS API key (or OAuth token).
+  ///   - accessToken: OAuth2 access token of the signed-in user (`Authorization: Bearer`).
   ///   - customerID: User's GeoGarage customer identifier.
-  func startDownload(apiKey: String, customerID: String) {
+  func startDownload(accessToken: String, customerID: String) {
     guard let bounds = requireDownloadBounds() else { return }
     guard let layerToDownload = requireTargetLayerID() else { return }
 
@@ -335,7 +339,7 @@ final class OfflineSelectionViewModel {
       layerName: layerName,
       zoneWKT: zoneWKT,
       zoomMax: zoomMax,
-      apiKey: apiKey,
+      accessToken: accessToken,
       customerID: customerID
     )
   }

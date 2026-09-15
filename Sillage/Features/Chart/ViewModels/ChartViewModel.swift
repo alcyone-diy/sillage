@@ -393,7 +393,7 @@ final class ChartViewModel {
   }
   
   private func handleGoToWaypointChange(id: String?) {
-    // 1. Validation stricte
+    // 1. Strict validation
     guard let id = id,
           let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == id }) else {
       // 2. Safe fallback: Total reset if invalid or nil
@@ -537,6 +537,10 @@ final class ChartViewModel {
     
     if let authError = error as? AuthError, case .networkError = authError {
       return // Ignore offline / network issues silently
+    }
+    // `.cancelled`: the calling task was cancelled, not an authentication failure to display.
+    if let authError = error as? AuthError, case .cancelled = authError {
+      return
     }
     
     let appMessage = AppMessage(

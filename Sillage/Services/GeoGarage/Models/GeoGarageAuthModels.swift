@@ -24,20 +24,23 @@ struct AuthErrorResponse: Codable {
 }
 
 enum AuthError: Error, LocalizedError {
-  case invalidCredentials
   case apiError(description: String)
   case networkError(Error)
   case invalidResponse
   case encodingError
   case fetchSettingsFailed(statusCode: Int)
   case tokenExpired
+  /// The user closed the GeoGarage page: not an error to display.
+  case cancelled
+  /// The user declined consent on accounts.geogarage.com.
+  case accessDenied
+  /// The code exchange failed (code expired after 60 s, already consumed, unexpected portal response).
+  case authorizationFailed(description: String)
   case unknown
 
   var errorDescription: String? {
     let fallback = String(localized: "Authentication failed. Please check your network connection or credentials.")
     switch self {
-    case .invalidCredentials:
-      return String(localized: "Invalid username or password. Please verify your GeoGarage credentials.")
     case .apiError(let description):
       return description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? fallback : description
     case .networkError(let error):
@@ -50,6 +53,12 @@ enum AuthError: Error, LocalizedError {
       return String(localized: "Failed to fetch account settings. Server returned code \(statusCode).")
     case .tokenExpired:
       return String(localized: "Your session has expired. Please log in again.")
+    case .cancelled:
+      return String(localized: "Sign-in was cancelled.")
+    case .accessDenied:
+      return String(localized: "GeoGarage sign-in was refused. Please try again and allow Sillage to access your account.")
+    case .authorizationFailed(let description):
+      return String(localized: "GeoGarage sign-in failed (\(description)). Please try again.")
     case .unknown:
       return fallback
     }
