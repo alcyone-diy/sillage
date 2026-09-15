@@ -11,25 +11,34 @@
 import SwiftUI
 import OSLog
 
-enum GeoGarageViewState {
+/// State of the GeoGarage screen. No credential entry: with the authorization code flow the app
+/// never knows the user name nor the password.
+enum GeoGarageViewState: Equatable {
   case unauthenticated(error: String?)
-  case authenticated(username: String?)
-  case authenticationError(error: String, username: String?)
-  case reauthenticating(error: String, username: String?)
+  case authenticated
+  case authenticationError(error: String)
 }
 
 @MainActor
 @Observable
 final class GeoGarageLoginViewModel {
-  var username = ""
-  var password = ""
   var isLoading = false
   var availableLayers: [GeoGarageLayer] = []
   var isAuthorizationReady: Bool = false
-  var forceReauthentication: Bool = false
-
   var errorMessage: String?
-  
+  var loginTask: Task<Void, Never>?
+
+  private let offlineMapManager: OfflineMapManagerProtocol
+  private let partnerSecretService: GeoGaragePartnerSecretServiceProtocol
+
+  init(
+    offlineMapManager: OfflineMapManagerProtocol,
+    partnerSecretService: GeoGaragePartnerSecretServiceProtocol
+  ) {
+    self.offlineMapManager = offlineMapManager
+    self.partnerSecretService = partnerSecretService
+  }
+
   func currentError(authService: GeoGarageAuthServiceProtocol) -> String? {
     if let errorMessage {
       return errorMessage
@@ -40,14 +49,10 @@ final class GeoGarageLoginViewModel {
     return nil
   }
 
-  func savedUsername(authService: GeoGarageAuthServiceProtocol) -> String? {
-    authService.savedUsername
-  }
-  
   func discoverURL(authService: GeoGarageAuthServiceProtocol) -> URL? {
     authService.discoverURL
   }
-  
+
   func accountManagementURL(authService: GeoGarageAuthServiceProtocol) -> URL? {
     authService.accountManagementURL
   }
@@ -57,49 +62,35 @@ final class GeoGarageLoginViewModel {
   }
 
   func viewState(authService: GeoGarageAuthServiceProtocol) -> GeoGarageViewState {
-    let currentSavedUsername = savedUsername(authService: authService)
     let currentErrorMsg = currentError(authService: authService)
     if isAuthenticated {
-      if forceReauthentication {
-        return .reauthenticating(error: currentErrorMsg ?? String(localized: "Authentication required"), username: currentSavedUsername)
-      } else if let error = currentErrorMsg {
-        return .authenticationError(error: error, username: currentSavedUsername)
-      } else {
-        return .authenticated(username: currentSavedUsername)
+      if let error = currentErrorMsg {
+        return .authenticationError(error: error)
       }
-    } else {
-      return .unauthenticated(error: currentErrorMsg)
+      return .authenticated
     }
-  }
-
-  var loginTask: Task<Void, Never>?
-
-  private let offlineMapManager: OfflineMapManagerProtocol
-
-  init(offlineMapManager: OfflineMapManagerProtocol) {
-    self.offlineMapManager = offlineMapManager
+    return .unauthenticated(error: currentErrorMsg)
   }
 
   func requiresOfflineMapsWarning() -> Bool {
     return !offlineMapManager.downloadedRegions.isEmpty
   }
 
-  @MainActor
   func performLogout(
     authService: GeoGarageAuthServiceProtocol,
     messageService: MessageService?,
     chartViewModel: ChartViewModel
   ) async {
     loginTask?.cancel()
-    password = ""
     availableLayers = []
     isAuthorizationReady = false
     errorMessage = nil
-    forceReauthentication = false
     await authService.logout()
     messageService?.clear(category: .geoGarage)
+    // Signed out, the "offline charts unavailable" warning no longer makes sense.
+    messageService?.clear(category: .offlineCharts)
     chartViewModel.logoutGeoGarage()
-    
+
     do {
       try await offlineMapManager.deleteAllPacks()
     } catch {
@@ -112,55 +103,77 @@ final class GeoGarageLoginViewModel {
       )
       messageService?.post(appMessage)
     }
-    
+
     try? await offlineMapManager.clearAmbientCache()
-    
+
     if case .remoteGeoGarage = chartViewModel.currentChartSource {
       chartViewModel.switchChartSource(to: .openSeaMap)
     }
   }
 
-  func login(authService: GeoGarageAuthServiceProtocol, messageService: MessageService?) {
+  /// Starts the GeoGarage sign-in: authorization page in the system browser (PKCE), then fetches
+  /// the subscriptions. The service stores the tokens in the Keychain.
+  func login(
+    authService: GeoGarageAuthServiceProtocol,
+    messageService: MessageService?,
+    presenter: any GeoGarageAuthorizationPresenting
+  ) {
+    // Set `isLoading` synchronously: the task only starts at the first suspension point, so a quick
+    // double tap would open two authorization pages.
+    guard !isLoading else { return }
     loginTask?.cancel()
+    isLoading = true
     loginTask = Task { [weak self] in
-      self?.isLoading = true
-
-      defer {
-        self?.isLoading = false
-        self?.password = ""
-      }
-
-      guard let username = self?.username, let password = self?.password else { return }
-
-      if username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        self?.errorMessage = String(localized: "Please enter a valid username.")
-        return
-      }
+      // Otherwise the error of the previous attempt stays displayed after the sheet is dismissed.
+      self?.errorMessage = nil
+      defer { self?.isLoading = false }
 
       do {
-        let response = try await authService.authenticate(username: username, password: password)
+        let response = try await authService.authenticate(presenter: presenter)
 
-        // Save tokens securely
-        await KeychainManager.shared.save(token: response.access_token, for: "geogarage_access_token")
-        await KeychainManager.shared.save(token: response.refresh_token, for: "geogarage_refresh_token")
+        // Fetch the decryption secret before `fetchAccountSettings`: the latter rewrites
+        // `geoGarageCustomerID`, which triggers `reloadDownloads` in `AppEnvironment`, and the
+        // secret must already be in the Keychain by then.
+        var secretWarning: AppMessage?
+        do {
+          _ = try await self?.partnerSecretService.refresh(accessToken: response.access_token)
+          // Secret obtained: a warning left by a previous session (startup or failed sign-in) is
+          // now stale.
+          messageService?.clear(category: .offlineCharts)
+        } catch PartnerSecretError.cancelled {
+          // Sheet dismissed (or `loginTask` cancelled) during /partners/me/: not an unavailable
+          // secret, exit silently.
+          throw AuthError.cancelled
+        } catch {
+          // Signed in but no secret: online charts work, offline does not. Warn without blocking
+          // the sign-in.
+          Logger.network.error("Partner secret unavailable after sign-in: \(String(describing: error), privacy: .public)")
+          secretWarning = AppMessage(
+            title: LocalizedStringResource("Offline charts unavailable"),
+            detail: LocalizedStringResource("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
+            severity: .warning,
+            // Dedicated category: clearing `.geoGarage` below (and in the view when
+            // `isAuthorizationReady` flips) would erase the warning as soon as it is posted.
+            category: .offlineCharts
+          )
+        }
 
-        // Save username for display
-        authService.savedUsername = username
-
-        // Fetch account settings/layers
         let settingsResponse = try await authService.fetchAccountSettings(accessToken: response.access_token)
 
         self?.availableLayers = settingsResponse.layers
         self?.isAuthorizationReady = true
-        self?.forceReauthentication = false
 
-        // Log successful fetch
         let layerNames = settingsResponse.layers.map { $0.brandName }.joined(separator: ", ")
         Logger.network.info("Successfully fetched layers: \(layerNames, privacy: .public)")
-        
-        // Clear any previous authentication error messages
+
         self?.errorMessage = nil
         messageService?.clear(category: .geoGarage)
+        if let secretWarning {
+          messageService?.post(secretWarning)
+        }
+      } catch AuthError.cancelled {
+        // The user closed the GeoGarage page: nothing to display.
+        Logger.network.info("GeoGarage sign-in cancelled by the user.")
       } catch let error as AuthError {
         self?.errorMessage = error.localizedDescription
       } catch {

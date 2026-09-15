@@ -40,11 +40,11 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
   private final class MockPackageService: GeoGaragePackageServiceProtocol, @unchecked Sendable {
     var deletedPackageIDs: [UUID] = []
 
-    func requestPackage(_ request: PackageRequest, apiKey: String, userID: String) async throws(CaasError) -> UUID {
+    func requestPackage(_ request: PackageRequest, accessToken: String) async throws(CaasError) -> UUID {
       UUID()
     }
 
-    func fetchStatus(packageID: UUID, apiKey: String) async throws(CaasError) -> PackageStatusResponse {
+    func fetchStatus(packageID: UUID, accessToken: String) async throws(CaasError) -> PackageStatusResponse {
       PackageStatusResponse(
         uuid: packageID,
         state: .success,
@@ -59,13 +59,13 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
       )
     }
 
-    func deletePackage(packageID: UUID, apiKey: String) async throws(CaasError) {
+    func deletePackage(packageID: UUID, accessToken: String) async throws(CaasError) {
       deletedPackageIDs.append(packageID)
     }
 
     func pollUntilComplete(
       packageID: UUID,
-      apiKey: String,
+      accessToken: String,
       initialInterval: Duration,
       maxInterval: Duration,
       backoffMultiplier: Double,
@@ -108,7 +108,7 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
       layerName: "SHOM France",
       boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
       zoomMax: 14,
-      apiKey: "test_api_key"
+      accessToken: "test_access_token"
     )
 
     // 1. Verify returned record
@@ -163,7 +163,7 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
         layerName: "SHOM France",
         boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
         zoomMax: 14,
-        apiKey: "test_api_key"
+        accessToken: "test_access_token"
       )
       XCTFail("Should have thrown CaasError.md5Mismatch")
     } catch {

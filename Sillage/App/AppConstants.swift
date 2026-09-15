@@ -49,8 +49,19 @@ public enum AppConstants {
   public struct Map {
     /// Throttling duration for high-frequency map region projection and telemetry updates (e.g. callout / overlay calculations).
     nonisolated public static let regionThrottleInterval: Duration = .milliseconds(100)
-    
+
     /// Minimum geographic movement required to trigger telemetric coordinate updates during map gestures.
     nonisolated public static let coordinateUpdateThreshold = Measurement(value: 1.0, unit: UnitLength.meters)
+  }
+
+  /// GeoGarage sign-in over OAuth2 authorization code + PKCE. The private scheme is declared in
+  /// Info.plist (CFBundleURLTypes) and registered verbatim as the callback on accounts.geogarage.com:
+  /// the three values must stay aligned, the portal rejects any other redirect_uri.
+  public struct GeoGarage {
+    nonisolated public static let accountsBaseURLString = "https://accounts.geogarage.com"
+    nonisolated public static let oauthCallbackScheme = "com.alcyone-sillage.app"
+    nonisolated public static let oauthRedirectURI = "com.alcyone-sillage.app://oauth2/callback"
+    /// "write read" order: the one the portal issues; a broader scope would ask for consent again.
+    nonisolated public static let oauthScope = "write read"
   }
 }

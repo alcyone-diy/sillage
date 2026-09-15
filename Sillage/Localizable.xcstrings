@@ -227,9 +227,6 @@
     "Authentication failed. Please check your network connection or credentials." : {
 
     },
-    "Authentication required" : {
-
-    },
     "Authentication required. Please check your credentials or log in again." : {
 
     },
@@ -543,6 +540,9 @@
     "GeoGarage Auth Error" : {
 
     },
+    "GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in." : {
+
+    },
     "GeoGarage Login" : {
 
     },
@@ -550,6 +550,12 @@
 
     },
     "GeoGarage Required" : {
+
+    },
+    "GeoGarage sign-in failed (%@). Please try again." : {
+
+    },
+    "GeoGarage sign-in was refused. Please try again and allow Sillage to access your account." : {
 
     },
     "GeoGarage Terms of Use" : {
@@ -656,9 +662,6 @@
     "Invalid response from the server." : {
 
     },
-    "Invalid username or password. Please verify your GeoGarage credentials." : {
-
-    },
     "Legal & Licenses" : {
 
     },
@@ -675,9 +678,6 @@
 
     },
     "Location" : {
-
-    },
-    "Log In" : {
 
     },
     "Log Out" : {
@@ -699,6 +699,9 @@
 
     },
     "Manage GeoGarage Account" : {
+
+    },
+    "Manage your subscriptions on accounts.geogarage.com." : {
 
     },
     "Manual debug simulation" : {
@@ -788,6 +791,9 @@
     "Offline Charts" : {
 
     },
+    "Offline charts unavailable" : {
+
+    },
     "Offline Maps Error" : {
 
     },
@@ -818,13 +824,7 @@
     "Package request failed with HTTP status %lld." : {
 
     },
-    "Password" : {
-
-    },
     "Permission Required" : {
-
-    },
-    "Please enter a valid username." : {
 
     },
     "Points" : {
@@ -852,9 +852,6 @@
 
     },
     "Raw sensor: %@" : {
-
-    },
-    "Re-authenticate" : {
 
     },
     "Record Track" : {
@@ -940,6 +937,15 @@
 
     },
     "Show your Vessel" : {
+
+    },
+    "Sign in on accounts.geogarage.com to stream and download your GeoGarage charts. Sillage never sees your password." : {
+
+    },
+    "Sign in with GeoGarage" : {
+
+    },
+    "Sign-in was cancelled." : {
 
     },
     "SILENCE ALERT" : {
@@ -1078,9 +1084,6 @@
 
     },
     "User is not authenticated with GeoGarage. Please login first." : {
-
-    },
-    "Username" : {
 
     },
     "Version" : {

@@ -12,295 +12,308 @@ import XCTest
 import SwiftUI
 @testable import Sillage
 
-
 @MainActor
 final class GeoGarageLoginViewModelTests: XCTestCase {
 
-  func testAuthenticationFailureSetsErrorMessage() async {
-    // Arrange
-    let mockAuthService = MockGeoGarageAuthService()
-    mockAuthService.shouldFailAuthenticate = true
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
-
-    viewModel.username = "testuser"
-    viewModel.password = "testpass"
-
-    // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
-    
-    // Await the task cleanly instead of polling
-    await viewModel.loginTask?.value
-
-    // Assert
-    XCTAssertNotNil(viewModel.errorMessage, "An error message should be set on auth failure")
-    
-    _ = viewModel // Keep strong reference alive
-  }
-
-  func testSuccessfulLoginClearsGeoGarageMessages() async {
-    // Arrange
-    let mockAuthService = MockGeoGarageAuthService()
-    let messageService = MessageService()
-    let initialMessage = AppMessage(
-      title: "Auth Error",
-      detail: "Invalid credentials",
-      severity: .error,
-      category: .geoGarage
-    )
-    messageService.post(initialMessage)
-    XCTAssertEqual(messageService.messages.count, 1)
-
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
-    viewModel.username = "testuser"
-    viewModel.password = "testpass"
-
-    // Act
-    viewModel.login(authService: mockAuthService, messageService: messageService)
-
-    // Await the task cleanly instead of polling
-    await viewModel.loginTask?.value
-
-    // Assert
-    XCTAssertTrue(viewModel.isAuthorizationReady)
-    XCTAssertNil(viewModel.errorMessage)
-    XCTAssertEqual(messageService.messages.count, 0, "Successful login should clear .geoGarage messages in MessageService")
-
-    _ = viewModel
-  }
-
-  func testSuccessfulLoginClearsOnlyGeoGarageMessagesWhenMultipleCategoriesExist() async {
-    // Arrange
-    let mockAuthService = MockGeoGarageAuthService()
-    let messageService = MessageService()
-
-    let geoMsg1 = AppMessage(title: "Auth Error 1", detail: "Invalid password", severity: .error, category: .geoGarage)
-    let netMsg = AppMessage(title: "Network Offline", detail: "No Wi-Fi/Cellular", severity: .warning, category: .network)
-    let weatherMsg = AppMessage(title: "Weather Alert", detail: "Gale force 8", severity: .warning, category: .weather)
-    let geoMsg2 = AppMessage(title: "Auth Error 2", detail: "Account expired", severity: .error, category: .geoGarage)
-
-    messageService.post(geoMsg1)
-    messageService.post(netMsg)
-    messageService.post(weatherMsg)
-    messageService.post(geoMsg2)
-
-    XCTAssertEqual(messageService.messages.count, 4)
-
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
-    viewModel.username = "testuser"
-    viewModel.password = "testpass"
-
-    // Act
-    viewModel.login(authService: mockAuthService, messageService: messageService)
-
-    // Await the task cleanly
-    await viewModel.loginTask?.value
-
-    // Assert
-    XCTAssertTrue(viewModel.isAuthorizationReady)
-    XCTAssertNil(viewModel.errorMessage)
-    XCTAssertEqual(messageService.messages.count, 2, "Successful login should clear ONLY .geoGarage messages")
-
-    let remainingCategories = Set(messageService.messages.map { $0.category })
-    XCTAssertTrue(remainingCategories.contains(.network))
-    XCTAssertTrue(remainingCategories.contains(.weather))
-    XCTAssertFalse(remainingCategories.contains(.geoGarage), "No .geoGarage messages should remain after successful login")
-
-    _ = viewModel
-  }
-
-  func testSuccessfulLoginWithNilMessageServiceSucceedsWithoutCrash() async {
-    // Arrange
-    let mockAuthService = MockGeoGarageAuthService()
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
-    viewModel.username = "testuser"
-    viewModel.password = "testpass"
-
-    // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
-
-    // Await the task cleanly
-    await viewModel.loginTask?.value
-
-    // Assert
-    XCTAssertTrue(viewModel.isAuthorizationReady)
-    XCTAssertNil(viewModel.errorMessage)
-
-    _ = viewModel
-  }
-
-  func testLoginFailureWithNilMessageServiceSetsErrorWithoutCrash() async {
-    // Arrange
-    let mockAuthService = MockGeoGarageAuthService()
-    mockAuthService.shouldFailAuthenticate = true
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
-    viewModel.username = "testuser"
-    viewModel.password = "testpass"
-
-    // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
-
-    // Await the task cleanly
-    await viewModel.loginTask?.value
-
-    // Assert
-    XCTAssertFalse(viewModel.isAuthorizationReady)
-    XCTAssertNotNil(viewModel.errorMessage)
-
-    _ = viewModel
-  }
-
-  func testLoginWithEmptyUsernameDoesNotAttemptAuthOrCrash() async {
-    // Arrange
-    let mockAuthService = MockGeoGarageAuthService()
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
-    viewModel.username = "   "
-    viewModel.password = "testpass"
-
-    // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
-
-    // Await task
-    await viewModel.loginTask?.value
-
-    // Assert
-    XCTAssertFalse(viewModel.isAuthorizationReady)
-    XCTAssertEqual(viewModel.errorMessage, String(localized: "Please enter a valid username."))
-
-    _ = viewModel
-  }
-
-  func testLogoutClearsGeoGarageMessagesAndDelegatesToChartViewModel() async {
-    // Arrange
-    let mockAuthService = MockGeoGarageAuthService()
-    let messageService = MessageService()
-    let initialMessage = AppMessage(
-      title: "Auth Error",
-      detail: "Invalid credentials",
-      severity: .error,
-      category: .geoGarage
-    )
-    messageService.post(initialMessage)
-    XCTAssertEqual(messageService.messages.count, 1)
-
+  private func makeChartViewModel(authService: MockGeoGarageAuthService, messageService: MessageService) -> ChartViewModel {
     let positioningService = MockPositioningService()
     let preferencesService = PreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
-
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
-    let chartViewModel = ChartViewModel(
+    return ChartViewModel(
       positioningService: positioningService,
       instrumentDampingService: instrumentDampingService,
       preferencesService: preferencesService,
-      authService: mockAuthService,
+      authService: authService,
       anchorService: anchorService,
       anchorViewModel: anchorViewModel,
       waypointService: nil,
       messageService: messageService
     )
+  }
 
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
+  func testAuthenticationFailureSetsErrorMessage() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.shouldFailAuthenticate = true
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+
+    XCTAssertNotNil(viewModel.errorMessage, "An error message should be set on auth failure")
+    XCTAssertFalse(viewModel.isAuthorizationReady)
+    XCTAssertFalse(viewModel.isLoading)
+  }
+
+  func testLoginHandsThePresenterToTheAuthService() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let presenter = MockGeoGarageAuthorizationPresenter()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: presenter)
+    await viewModel.loginTask?.value
+
+    XCTAssertTrue((mockAuthService.lastPresenter as? MockGeoGarageAuthorizationPresenter) === presenter)
+    XCTAssertTrue(viewModel.isAuthorizationReady)
+  }
+
+  func testSuccessfulLoginClearsGeoGarageMessages() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    messageService.post(AppMessage(title: "Auth Error", detail: "Invalid credentials", severity: .error, category: .geoGarage))
+    XCTAssertEqual(messageService.messages.count, 1)
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    viewModel.login(authService: mockAuthService, messageService: messageService, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+
+    XCTAssertTrue(viewModel.isAuthorizationReady)
+    XCTAssertNil(viewModel.errorMessage)
+    XCTAssertEqual(messageService.messages.count, 0, "Successful login should clear .geoGarage messages in MessageService")
+  }
+
+  func testSuccessfulLoginClearsOnlyGeoGarageMessagesWhenMultipleCategoriesExist() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    messageService.post(AppMessage(title: "Auth Error 1", detail: "Invalid password", severity: .error, category: .geoGarage))
+    messageService.post(AppMessage(title: "Network Offline", detail: "No Wi-Fi/Cellular", severity: .warning, category: .network))
+    messageService.post(AppMessage(title: "Weather Alert", detail: "Gale force 8", severity: .warning, category: .weather))
+    messageService.post(AppMessage(title: "Auth Error 2", detail: "Account expired", severity: .error, category: .geoGarage))
+    XCTAssertEqual(messageService.messages.count, 4)
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    viewModel.login(authService: mockAuthService, messageService: messageService, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+
+    XCTAssertTrue(viewModel.isAuthorizationReady)
+    XCTAssertEqual(messageService.messages.count, 2, "Successful login should clear ONLY .geoGarage messages")
+    let remainingCategories = Set(messageService.messages.map { $0.category })
+    XCTAssertTrue(remainingCategories.contains(.network))
+    XCTAssertTrue(remainingCategories.contains(.weather))
+    XCTAssertFalse(remainingCategories.contains(.geoGarage))
+  }
+
+  func testSuccessfulLoginWithNilMessageServiceSucceedsWithoutCrash() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+
+    XCTAssertTrue(viewModel.isAuthorizationReady)
+    XCTAssertNil(viewModel.errorMessage)
+  }
+
+  func testCancelledSignInLeavesNoErrorAndIsNotReady() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.authErrorToThrow = .cancelled
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+
+    XCTAssertNil(viewModel.errorMessage, "Closing the GeoGarage page is not an error")
+    XCTAssertFalse(viewModel.isAuthorizationReady)
+    XCTAssertFalse(viewModel.isLoading)
+  }
+
+  func testAccessDeniedSetsSpecificErrorMessage() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.authErrorToThrow = .accessDenied
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+
+    XCTAssertFalse(viewModel.isAuthorizationReady)
+    XCTAssertEqual(viewModel.errorMessage, AuthError.accessDenied.localizedDescription)
+  }
+
+  func testSettingsFailureAfterSignInSetsErrorMessage() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.shouldFailFetchAccountSettings = true
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+
+    XCTAssertFalse(viewModel.isAuthorizationReady)
+    XCTAssertEqual(viewModel.errorMessage, AuthError.tokenExpired.localizedDescription)
+  }
+
+  func testViewStateReflectsAuthenticationAndErrors() {
+    let mockAuthService = MockGeoGarageAuthService()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+    KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token")
+    addTeardownBlock {
+      await MainActor.run { KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token") }
+    }
+
+    XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .unauthenticated(error: nil))
+
+    viewModel.errorMessage = "boom"
+    XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .unauthenticated(error: "boom"))
+
+    viewModel.errorMessage = nil
+    KeychainManager.shared.saveSync(token: "tok", for: "geogarage_access_token")
+    XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .authenticated)
+
+    mockAuthService.authError = AuthError.tokenExpired
+    XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .authenticationError(error: AuthError.tokenExpired.localizedDescription))
+  }
+
+  func testLogoutClearsGeoGarageMessagesAndDelegatesToChartViewModel() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    messageService.post(AppMessage(title: "Auth Error", detail: "Invalid credentials", severity: .error, category: .geoGarage))
+    let chartViewModel = makeChartViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
     viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brandName: "Brand", versionDate: "2026-01-01", validUntil: "2030-01-01")]
     viewModel.isAuthorizationReady = true
     mockAuthService.availableLayers = viewModel.availableLayers
     chartViewModel.clearGeoGarageMessages()
 
-    // Act
     await viewModel.performLogout(authService: mockAuthService, messageService: messageService, chartViewModel: chartViewModel)
 
-    // Assert
     XCTAssertTrue(viewModel.availableLayers.isEmpty)
     XCTAssertFalse(viewModel.isAuthorizationReady)
     XCTAssertTrue(chartViewModel.availableGeoGarageLayers.isEmpty)
-    XCTAssertEqual(messageService.messages.count, 0, "Logout should clear .geoGarage messages in MessageService and reset layers in ChartViewModel")
-
-    _ = viewModel
+    XCTAssertEqual(messageService.messages.count, 0)
     _ = chartViewModel
   }
 
   func testLogoutClearsGeoGarageMessagesAndAuthServiceState() async {
-    // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let messageService = MessageService()
-    let initialMessage = AppMessage(
-      title: "Auth Error",
-      detail: "Invalid credentials",
-      severity: .error,
-      category: .geoGarage
-    )
-    messageService.post(initialMessage)
-    XCTAssertEqual(messageService.messages.count, 1)
-
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
+    messageService.post(AppMessage(title: "Auth Error", detail: "Invalid credentials", severity: .error, category: .geoGarage))
+    let chartViewModel = makeChartViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
     viewModel.availableLayers = [GeoGarageLayer(layer: "l1", brandName: "Brand", versionDate: "2026-01-01", validUntil: "2030-01-01")]
     viewModel.isAuthorizationReady = true
 
-    let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
-    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
-    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
-    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
-    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
-    let chartViewModel = ChartViewModel(
-      positioningService: positioningService,
-      instrumentDampingService: instrumentDampingService,
-      preferencesService: preferencesService,
-      authService: mockAuthService,
-      anchorService: anchorService,
-      anchorViewModel: anchorViewModel,
-      waypointService: nil,
-      messageService: messageService
-    )
-
-    // Act
     await viewModel.performLogout(authService: mockAuthService, messageService: messageService, chartViewModel: chartViewModel)
 
-    // Assert
     XCTAssertTrue(viewModel.availableLayers.isEmpty)
     XCTAssertFalse(viewModel.isAuthorizationReady)
-    XCTAssertEqual(messageService.messages.count, 0, "Logout should clear .geoGarage messages in MessageService")
-
-    _ = viewModel
+    XCTAssertFalse(mockAuthService.isGeoGarageAuthenticated)
+    XCTAssertEqual(messageService.messages.count, 0)
   }
 
-  func testPasswordWipedFromMemoryAfterLoginAttempt() async {
-    // Arrange
-    let mockAuthService = MockGeoGarageAuthService()
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
-    viewModel.username = "testuser"
-    viewModel.password = "secret_password_123"
+  // MARK: - Package decryption secret
 
-    // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
+  func testSecretFailureAfterSignInPostsWarningButStaysReady() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let secretService = MockGeoGaragePartnerSecretService()
+    secretService.errorToThrow = .noProfile
+    let messageService = MessageService()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: secretService)
+
+    viewModel.login(authService: mockAuthService, messageService: messageService, presenter: MockGeoGarageAuthorizationPresenter())
     await viewModel.loginTask?.value
 
-    // Assert
-    XCTAssertEqual(viewModel.password, "", "Password must be wiped from memory immediately after login completion")
-
-    _ = viewModel
+    XCTAssertTrue(viewModel.isAuthorizationReady, "a missing secret does not block the sign-in")
+    XCTAssertNil(viewModel.errorMessage)
+    XCTAssertEqual(messageService.messages.count, 1)
+    XCTAssertEqual(
+      messageService.messages.first?.category,
+      .offlineCharts,
+      "dedicated category: clearing .geoGarage on every auth success would erase the warning before the user sees it"
+    )
+    XCTAssertEqual(messageService.messages.first?.severity, .warning)
   }
 
-  func testInvalidCredentialsSetsSpecificErrorMessage() async {
-    // Arrange
+  /// The login screen calls `clearGeoGarageMessages()` as soon as `isAuthorizationReady` flips, and
+  /// the silent layer fetch does the same on every success: the offline warning must survive both.
+  func testOfflineChartsWarningSurvivesAuthSuccessClear() async {
     let mockAuthService = MockGeoGarageAuthService()
-    mockAuthService.authErrorToThrow = AuthError.invalidCredentials
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager())
-    viewModel.username = "baduser"
-    viewModel.password = "wrongpass"
+    let secretService = MockGeoGaragePartnerSecretService()
+    secretService.errorToThrow = .noProfile
+    let messageService = MessageService()
+    let chartViewModel = makeChartViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: secretService)
 
-    // Act
-    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?)
+    viewModel.login(authService: mockAuthService, messageService: messageService, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+    XCTAssertEqual(messageService.messages.count, 1)
+
+    chartViewModel.clearGeoGarageMessages()
+
+    XCTAssertEqual(messageService.messages.count, 1, "the offline warning must not go away with the authentication messages")
+    XCTAssertEqual(messageService.messages.first?.category, .offlineCharts)
+  }
+
+  func testLogoutClearsOfflineChartsWarning() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    messageService.post(AppMessage(
+      title: "Offline charts unavailable",
+      detail: "GeoGarage did not provide the decryption secret.",
+      severity: .warning,
+      category: .offlineCharts
+    ))
+    let chartViewModel = makeChartViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    await viewModel.performLogout(authService: mockAuthService, messageService: messageService, chartViewModel: chartViewModel)
+
+    XCTAssertTrue(
+      messageService.messages.isEmpty,
+      "signed out, no secret is expected anymore: the offline warning must go away"
+    )
+  }
+
+  // MARK: - Double tap on "Sign in"
+
+  func testSecondLoginWhileLoadingIsIgnored() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.holdsAuthenticate = true
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: MockGeoGarageAuthorizationPresenter())
+    var spins = 0
+    while mockAuthService.authenticateCallCount == 0 && spins < 1000 {
+      await Task.yield()
+      spins += 1
+    }
+    XCTAssertEqual(mockAuthService.authenticateCallCount, 1, "the first sign-in must be in flight")
+    XCTAssertTrue(viewModel.isLoading, "isLoading must be set synchronously, not inside the task")
+
+    // Second tap while the authorization page is still open.
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: MockGeoGarageAuthorizationPresenter())
+    mockAuthService.releaseAuthenticate()
     await viewModel.loginTask?.value
 
-    // Assert
+    XCTAssertEqual(mockAuthService.authenticateCallCount, 1, "a double tap must open a single authorization page")
+    XCTAssertFalse(viewModel.isLoading)
+  }
+
+  /// Sheet dismissed during /partners/me/: the cancellation must not become an "unknown error".
+  func testSecretCancellationDuringSignInStaysSilent() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let secretService = MockGeoGaragePartnerSecretService()
+    secretService.errorToThrow = .cancelled
+    let messageService = MessageService()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: secretService)
+
+    viewModel.login(authService: mockAuthService, messageService: messageService, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+
+    XCTAssertNil(viewModel.errorMessage, "a cancellation is not an error to display")
     XCTAssertFalse(viewModel.isAuthorizationReady)
-    XCTAssertEqual(viewModel.errorMessage, AuthError.invalidCredentials.localizedDescription)
-    XCTAssertEqual(viewModel.password, "", "Password must be wiped even when authentication fails")
+    XCTAssertTrue(messageService.messages.isEmpty)
+  }
 
-    _ = viewModel
+  func testSecretIsRefreshedWithTheFreshAccessToken() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let secretService = MockGeoGaragePartnerSecretService()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: secretService)
+
+    viewModel.login(authService: mockAuthService, messageService: nil as MessageService?, presenter: MockGeoGarageAuthorizationPresenter())
+    await viewModel.loginTask?.value
+
+    XCTAssertEqual(secretService.receivedAccessTokens, ["mock_access"])
   }
 }
-
