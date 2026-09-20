@@ -45,6 +45,10 @@ struct ActiveTrackViewModelTests {
       return stream
     }
 
+    var subscriberCount: Int {
+      locationContinuations.count
+    }
+
     var isSubscribed: Bool {
       !locationContinuations.isEmpty
     }
@@ -153,7 +157,7 @@ struct ActiveTrackViewModelTests {
     let positioningService = MockPositioningService()
     let preferencesService = MockPreferencesService()
     let messageService = MessageService()
-    let notificationService = LocalNotificationService()
+    let notificationService = MockNotificationService()
     let permissionService = PermissionService(
       positioningService: positioningService,
       notificationService: notificationService
@@ -199,11 +203,14 @@ struct ActiveTrackViewModelTests {
     #expect(chartViewModel.displayedTrackSessionID == nil)
     #expect(chartViewModel.savedTrackVisualState == nil)
 
+    try await waitUntil { positioningService.subscriberCount >= 1 }
+    let initialSubscribers = positioningService.subscriberCount
+
     // 1. Start recording
     activeTrackViewModel.toggleRecording()
 
     try await waitUntil {
-      trackRecordingService.state == .waitingForFix && positioningService.isSubscribed
+      trackRecordingService.state == .waitingForFix && positioningService.subscriberCount > initialSubscribers
     }
 
     // 2. Feed GPS fixes

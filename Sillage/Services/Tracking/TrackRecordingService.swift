@@ -197,7 +197,7 @@ public final class TrackRecordingService {
     
     NotificationCenter.default.post(
       name: .trackRecordingDidFinalize,
-      object: nil,
+      object: self,
       userInfo: ["sessionID": sessionID]
     )
     

@@ -429,10 +429,14 @@ final class ChartViewModel {
   /// Automatically loads and renders newly saved tracks onto the chart in a decoupled, data-driven manner.
   private func setupTrackRecordingService() {
     finalizedTrackSessionsTask?.cancel()
-    let task = Task { @MainActor [weak self] in
+    self.finalizedTrackSessionsTask = TaskCancellable(Task { @MainActor [weak self] in
       for await notification in NotificationCenter.default.notifications(named: .trackRecordingDidFinalize) {
-        guard !Task.isCancelled, let self = self,
-              let sessionID = notification.userInfo?["sessionID"] as? String else { continue }
+        guard !Task.isCancelled, let self else { break }
+        if let sender = notification.object as? AnyObject,
+           sender !== (self.trackRecordingService as AnyObject) {
+          continue
+        }
+        guard let sessionID = notification.userInfo?["sessionID"] as? String else { continue }
         do {
           try await self.loadAndDisplaySavedTrack(
             sessionID: sessionID,
@@ -443,8 +447,7 @@ final class ChartViewModel {
           Logger.chart.error("Failed to auto-display saved track \(sessionID, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
       }
-    }
-    finalizedTrackSessionsTask = TaskCancellable(task)
+    })
   }
   
   private func handleGoToWaypointChange(id: String?) {

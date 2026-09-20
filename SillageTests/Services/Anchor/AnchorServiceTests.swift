@@ -183,26 +183,6 @@ final class MockPreferencesService: PreferencesServiceProtocol {
 }
 
 @MainActor
-final class MockNotificationService: NotificationService {
-  var sentNotifications: [(title: String, body: String, identifier: String)] = []
-  
-  func sendNotification(title: String, body: String, identifier: String, delay: TimeInterval? = nil) async throws {
-    sentNotifications.append((title, body, identifier))
-  }
-  
-  func sendCriticalNotification(title: String, body: String, identifier: String, delay: TimeInterval? = nil) async {
-    sentNotifications.append((title, body, identifier))
-  }
-
-  
-  func clearAllNotifications() {}
-  
-  func cancelNotification(identifier: String) {}
-  func checkIn(identifier: String, title: String, body: String, timeout: TimeInterval) async {}
-  func cancelWatchdog(identifier: String) async {}
-}
-
-@MainActor
 final class MockBackgroundMonitoringToken: BackgroundMonitoringToken {
   var isInvalidated = false
   func invalidate() { isInvalidated = true }
