@@ -90,7 +90,7 @@ struct DebugView: View {
         }
       }
       
-      Section(header: Text("Course Over Ground (COG)")) {
+      Section(header: Text("Kinematics & Telemetry (COG / SOG)")) {
         HStack {
           Text("COG")
             .marineFont(.body)
@@ -109,6 +109,98 @@ struct DebugView: View {
             .foregroundColor(cogStateColor)
         }
         .marineListCell()
+
+        HStack {
+          Text("SOG")
+            .marineFont(.body)
+          Spacer()
+          Text(sogText)
+            .marineFont(.body)
+        }
+        .marineListCell()
+
+        if case .ready(let container) = appEnvironment.state {
+          Picker(
+            selection: Binding(
+              get: { container.developerSettingsService.cogSogCalculationSource },
+              set: { viewModel.setCOGSOGSource($0, appEnvironment: appEnvironment) }
+            ),
+            label: Text("COG / SOG Source")
+              .marineFont(.body)
+          ) {
+            ForEach(COGSOGCalculationSource.allCases, id: \.self) { source in
+              Text(source.displayName).tag(source)
+            }
+          }
+          .pickerStyle(.menu)
+          .marineListCell()
+
+          if container.developerSettingsService.cogSogCalculationSource == .sillage {
+            HStack {
+              Text("Noise Multiplier")
+                .marineFont(.body)
+              Spacer()
+              Text(String(format: "%.1f×", container.developerSettingsService.noiseMultiplier))
+                .marineFont(.body)
+                .foregroundColor(.secondary)
+              Stepper(
+                "",
+                value: Binding(
+                  get: { container.developerSettingsService.noiseMultiplier },
+                  set: { viewModel.setNoiseMultiplier($0, appEnvironment: appEnvironment) }
+                ),
+                in: 0.1...5.0,
+                step: 0.1
+              )
+              .labelsHidden()
+            }
+            .marineListCell()
+
+            HStack {
+              Text("Window Duration")
+                .marineFont(.body)
+              Spacer()
+              Text(String(format: "%.1f s", container.developerSettingsService.velocityWindowDuration))
+                .marineFont(.body)
+                .foregroundColor(.secondary)
+              Stepper(
+                "",
+                value: Binding(
+                  get: { container.developerSettingsService.velocityWindowDuration },
+                  set: { viewModel.setVelocityWindowDuration($0, appEnvironment: appEnvironment) }
+                ),
+                in: 1.0...10.0,
+                step: 0.5
+              )
+              .labelsHidden()
+            }
+            .marineListCell()
+          }
+
+          HStack {
+            Text("COG Damping")
+              .marineFont(.body)
+            Spacer()
+            Text(
+              container.developerSettingsService.cogDampingDuration <= 0
+                ? "Off (Raw)"
+                : String(format: "%.1f s", container.developerSettingsService.cogDampingDuration)
+            )
+            .marineFont(.body)
+            .foregroundColor(.secondary)
+            Stepper(
+              "",
+              value: Binding(
+                get: { container.developerSettingsService.cogDampingDuration },
+                set: { viewModel.setCOGDampingDuration($0, appEnvironment: appEnvironment) }
+              ),
+              in: 0.0...10.0,
+              step: 0.5
+            )
+            .labelsHidden()
+          }
+          .marineListCell()
+        }
       }
       
       Section(header: Text("Map Cache")) {
@@ -206,6 +298,22 @@ struct DebugView: View {
             .marineFont(.body)
         }
         .marineListCell()
+      }
+
+      if case .ready = appEnvironment.state {
+        Section(header: Text("Developer Environment")) {
+          Button(role: .destructive) {
+            viewModel.resetDeveloperSettings(appEnvironment: appEnvironment)
+          } label: {
+            HStack {
+              Text("Reset Debug Settings to Defaults")
+                .marineFont(.body)
+              Spacer()
+              Image(systemName: "arrow.counterclockwise")
+            }
+          }
+          .marineListCell()
+        }
       }
 
     }
@@ -317,5 +425,18 @@ extension DebugView {
     case .stopped: return .orange
     case .invalid: return .red
     }
+  }
+
+  private var sogText: String {
+    if let sog = chartViewModel.smoothedSOG {
+      return sog.converted(to: .knots).formatted(
+        .measurement(
+          width: .narrow,
+          usage: .asProvided,
+          numberFormatStyle: .number.precision(.fractionLength(1))
+        )
+      )
+    }
+    return "--"
   }
 }

@@ -99,6 +99,33 @@ final class DebugViewModel {
     appEnvironment.updateGPSAccuracy(to: mode)
   }
 
+  // MARK: - Developer Settings (Debug)
+
+  func setCOGSOGSource(_ source: COGSOGCalculationSource, appEnvironment: AppEnvironment) {
+    guard case .ready(let container) = appEnvironment.state else { return }
+    container.developerSettingsService.cogSogCalculationSource = source
+  }
+
+  func setNoiseMultiplier(_ multiplier: Double, appEnvironment: AppEnvironment) {
+    guard case .ready(let container) = appEnvironment.state else { return }
+    container.developerSettingsService.noiseMultiplier = multiplier
+  }
+
+  func setVelocityWindowDuration(_ duration: TimeInterval, appEnvironment: AppEnvironment) {
+    guard case .ready(let container) = appEnvironment.state else { return }
+    container.developerSettingsService.velocityWindowDuration = duration
+  }
+
+  func setCOGDampingDuration(_ duration: TimeInterval, appEnvironment: AppEnvironment) {
+    guard case .ready(let container) = appEnvironment.state else { return }
+    container.developerSettingsService.cogDampingDuration = duration
+  }
+
+  func resetDeveloperSettings(appEnvironment: AppEnvironment) {
+    guard case .ready(let container) = appEnvironment.state else { return }
+    container.developerSettingsService.resetAllToDefaults()
+  }
+
 
 
 }

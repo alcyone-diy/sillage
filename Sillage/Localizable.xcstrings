@@ -305,6 +305,12 @@
     "COG" : {
 
     },
+    "COG / SOG Source" : {
+
+    },
+    "COG Damping" : {
+
+    },
     "COG State" : {
 
     },
@@ -333,9 +339,6 @@
 
     },
     "Could not create the Charts directory." : {
-
-    },
-    "Course Over Ground (COG)" : {
 
     },
     "Create Waypoint…" : {
@@ -393,6 +396,9 @@
 
     },
     "Details" : {
+
+    },
+    "Developer Environment" : {
 
     },
     "DIR" : {
@@ -665,6 +671,9 @@
     "Invalid username or password. Please verify your GeoGarage credentials." : {
 
     },
+    "Kinematics & Telemetry (COG / SOG)" : {
+
+    },
     "Legal & Licenses" : {
 
     },
@@ -785,6 +794,9 @@
     "No visible map viewport found. Pan or zoom the chart first." : {
 
     },
+    "Noise Multiplier" : {
+
+    },
     "North-East Bound" : {
 
     },
@@ -894,6 +906,9 @@
 
     },
     "Requesting package…" : {
+
+    },
+    "Reset Debug Settings to Defaults" : {
 
     },
     "Retry" : {
@@ -1166,6 +1181,9 @@
 
     },
     "WIND" : {
+
+    },
+    "Window Duration" : {
 
     },
     "xctest-dynamic-overlay" : {

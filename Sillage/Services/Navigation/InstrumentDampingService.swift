@@ -39,6 +39,7 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   @ObservationIgnored private var continuations = [UUID: AsyncStream<InstrumentState>.Continuation]()
   
   private let positioningService: PositioningService
+  public var cogDampingDuration: TimeInterval = 4.0
   private let clock: C
   private let dateProvider: @Sendable () -> Date
   
@@ -151,31 +152,37 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
     
     // 2. Course Over Ground (COG) Smoothing via Vector Circular Average
     if courseState == .active {
-      let now = clock.now
-      
-      courseOverGroundBuffer.removeAll { $0.timestamp.duration(to: now) > .seconds(4.0) }
-      
-      if let course = fix.courseOverGround {
-        let radians = course.converted(to: .radians).value
-        courseOverGroundBuffer.append((timestamp: now, cosX: cos(radians), sinY: sin(radians)))
-      }
-      
-      if courseOverGroundBuffer.isEmpty {
-        finalCourseOverGround = lastSmoothedCourseOverGround
+      if cogDampingDuration <= 0 {
+        // Damping bypassed: pass raw fix COG directly
+        courseOverGroundBuffer.removeAll()
+        finalCourseOverGround = fix.courseOverGround
+        lastSmoothedCourseOverGround = finalCourseOverGround
       } else {
-        var sumX = 0.0
-        var sumY = 0.0
-        for item in courseOverGroundBuffer {
-          sumX += item.cosX
-          sumY += item.sinY
+        let now = clock.now
+        courseOverGroundBuffer.removeAll { $0.timestamp.duration(to: now) > .seconds(cogDampingDuration) }
+        
+        if let course = fix.courseOverGround {
+          let radians = course.converted(to: .radians).value
+          courseOverGroundBuffer.append((timestamp: now, cosX: cos(radians), sinY: sin(radians)))
         }
         
-        let count = Double(courseOverGroundBuffer.count)
-        var smoothedAngle = atan2(sumY / count, sumX / count)
-        if smoothedAngle < 0 { smoothedAngle += .pi * 2 }
-        
-        finalCourseOverGround = Measurement(value: smoothedAngle, unit: .radians)
-        lastSmoothedCourseOverGround = finalCourseOverGround
+        if courseOverGroundBuffer.isEmpty {
+          finalCourseOverGround = lastSmoothedCourseOverGround
+        } else {
+          var sumX = 0.0
+          var sumY = 0.0
+          for item in courseOverGroundBuffer {
+            sumX += item.cosX
+            sumY += item.sinY
+          }
+          
+          let count = Double(courseOverGroundBuffer.count)
+          var smoothedAngle = atan2(sumY / count, sumX / count)
+          if smoothedAngle < 0 { smoothedAngle += .pi * 2 }
+          
+          finalCourseOverGround = Measurement(value: smoothedAngle, unit: .radians)
+          lastSmoothedCourseOverGround = finalCourseOverGround
+        }
       }
     }
     
@@ -292,6 +299,9 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
 
 extension InstrumentDampingService where C == ContinuousClock {
   convenience init(positioningService: PositioningService) {
-    self.init(positioningService: positioningService, clock: ContinuousClock())
+    self.init(
+      positioningService: positioningService,
+      clock: ContinuousClock()
+    )
   }
 }

@@ -36,6 +36,8 @@ final class AppEnvironment {
     let geoGarageDownloadService: GeoGarageDownloadService
     let geoGarageOfflineTileProvider: GeoGarageOfflineTileProvider
     let anchorService: AnchorService
+    let developerSettingsService: DeveloperSettingsService
+    let kinematicsService: VesselKinematicsService
     
     let appViewModel: AppViewModel
     let chartViewModel: ChartViewModel
@@ -77,11 +79,33 @@ final class AppEnvironment {
       let messageService = MessageService()
       
       let preferencesService = PreferencesService()
+      let developerSettingsService = DeveloperSettingsService()
       
       let positioningService = CoreLocationPositioningService(initialAccuracyMode: preferencesService.gpsAccuracyMode)
       
-      let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+      let kinematicsService = VesselKinematicsService(
+        positioningService: positioningService,
+        developerSettingsService: developerSettingsService
+      )
+      
+      let instrumentDampingService = InstrumentDampingService(
+        positioningService: kinematicsService
+      )
+      instrumentDampingService.cogDampingDuration = developerSettingsService.cogDampingDuration
       instrumentDampingService.start()
+
+      func observeCOGDampingDuration() {
+        withObservationTracking {
+          _ = developerSettingsService.cogDampingDuration
+        } onChange: {
+          Task { @MainActor [weak instrumentDampingService, weak developerSettingsService] in
+            guard let instrument = instrumentDampingService, let settings = developerSettingsService else { return }
+            instrument.cogDampingDuration = settings.cogDampingDuration
+            observeCOGDampingDuration()
+          }
+        }
+      }
+      observeCOGDampingDuration()
       
       let barometricHistoryStore = BarometricHistoryStore(databaseManager: databaseManager)
       
@@ -103,7 +127,7 @@ final class AppEnvironment {
       }
       
       let trackRecordingService = TrackRecordingService(
-        positioningService: positioningService,
+        positioningService: kinematicsService,
         databaseManager: databaseManager,
         preferencesService: preferencesService,
         messageService: messageService
@@ -264,6 +288,8 @@ final class AppEnvironment {
         geoGarageDownloadService: geoGarageDownloadService,
         geoGarageOfflineTileProvider: geoGarageOfflineTileProvider,
         anchorService: anchorService,
+        developerSettingsService: developerSettingsService,
+        kinematicsService: kinematicsService,
         appViewModel: appViewModel,
         chartViewModel: chartViewModel,
         activeTrackViewModel: activeTrackViewModel,

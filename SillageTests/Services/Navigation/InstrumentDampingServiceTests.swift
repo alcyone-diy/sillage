@@ -486,4 +486,55 @@ struct InstrumentDampingServiceTests {
     service.stop()
     #expect(mockPositioning.locationUpdateTokenInvalidatedCount == 1)
   }
+
+  @Test("COG Damping Duration configuration and zero-bypass")
+  @MainActor
+  func testCOGDampingDurationConfiguration() async throws {
+    let mockPositioning = MockPositioningService()
+    let mockClock = MockClock()
+    let service = InstrumentDampingService(positioningService: mockPositioning, clock: mockClock)
+    service.cogDampingDuration = 0.0
+    service.start()
+
+    let baseLoc = CLLocationCoordinate2D(latitude: 45, longitude: 45)
+    let fix1 = NavigationFix(
+      coordinate: baseLoc,
+      horizontalAccuracy: Measurement(value: 5, unit: .meters),
+      courseOverGround: Measurement(value: 90.0, unit: .degrees),
+      courseOverGroundAccuracy: nil,
+      speedOverGround: Measurement(value: 5.0, unit: .knots),
+      speedOverGroundAccuracy: nil,
+      timestamp: Date.now
+    )
+    mockPositioning.continuation.yield(.active(fix1))
+
+    try await waitFor { service.state?.courseState == .active }
+    let rawCog1 = try #require(service.state?.smoothedCOG?.converted(to: .degrees).value)
+    #expect(abs(rawCog1 - 90.0) < 0.1)
+
+    // With cogDampingDuration = 0.0, a sudden turn to 180° immediately updates to 180° without circular averaging
+    mockClock.advance(by: .seconds(1.1))
+    let fix2 = NavigationFix(
+      coordinate: baseLoc,
+      horizontalAccuracy: Measurement(value: 5, unit: .meters),
+      courseOverGround: Measurement(value: 180.0, unit: .degrees),
+      courseOverGroundAccuracy: nil,
+      speedOverGround: Measurement(value: 5.0, unit: .knots),
+      speedOverGroundAccuracy: nil,
+      timestamp: Date.now.addingTimeInterval(1.1)
+    )
+    mockPositioning.continuation.yield(.active(fix2))
+
+    try await waitFor {
+      if let cog = service.state?.smoothedCOG?.converted(to: .degrees).value {
+        return abs(cog - 180.0) < 0.1
+      }
+      return false
+    }
+
+    let rawCog2 = try #require(service.state?.smoothedCOG?.converted(to: .degrees).value)
+    #expect(abs(rawCog2 - 180.0) < 0.1)
+
+    service.stop()
+  }
 }
