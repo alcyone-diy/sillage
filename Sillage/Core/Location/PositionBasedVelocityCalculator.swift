@@ -171,7 +171,7 @@ public actor PositionBasedVelocityCalculator {
       }
     }
 
-    guard let baseline = selectedBaseline else {
+    guard selectedBaseline != nil else {
       // All prior fixes in the window show displacement below the dynamic noise threshold.
       // Vessel is stationary or indeterminate.
       let oldest = history.first ?? currentEntry

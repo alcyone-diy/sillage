@@ -38,7 +38,7 @@ struct ActiveTrackViewModelTests {
       let id = UUID()
       locationContinuations[id] = continuation
       continuation.onTermination = { @Sendable [weak self] _ in
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
           self?.locationContinuations.removeValue(forKey: id)
         }
       }
