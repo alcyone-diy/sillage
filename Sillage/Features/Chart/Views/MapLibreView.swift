@@ -348,6 +348,13 @@ struct MapLibreView: UIViewRepresentable {
     var lastTrackingMode: ChartTrackingMode = .free
     var lastCalloutTargetWaypointID: String?
     
+    /// Technical Design Choice: Vessel Centering Gesture Tolerance Margin
+    /// Tracks the initial anchor coordinate and screen point at the start of a manual drag gesture,
+    /// allowing accidental touches, slips, and small vibrations to be tolerated without immediately breaking tracking mode.
+    var initialPanCenterCoordinate: CLLocationCoordinate2D?
+    var initialPanScreenPoint: CGPoint?
+    var hasExceededTrackingMargin: Bool = false
+    
     init(_ parent: MapLibreView) {
       self.parent = parent
       super.init()
@@ -664,6 +671,24 @@ struct MapLibreView: UIViewRepresentable {
         projection: { mapView.convert($0, toPointTo: mapView) },
         bounds: mapView.bounds
       )
+      
+      // Technical Design Choice: Dynamic Tracking Break Evaluation
+      // During active manual panning in tracking mode (.northUp or .courseUp), measure the physical screen displacement
+      // of the initial anchor coordinate. As soon as displacement exceeds the threshold (scaled for Glove Mode),
+      // transition immediately to .free mode so the user experiences smooth, uninterrupted chart panning.
+      if parent.viewModel.trackingMode != .free,
+         !parent.viewModel.anchorViewModel.isAdjustingAnchor,
+         !hasExceededTrackingMargin,
+         let initialCoord = initialPanCenterCoordinate,
+         let initialPoint = initialPanScreenPoint {
+        let currentPoint = mapView.convert(initialCoord, toPointTo: mapView)
+        let displacement = hypot(currentPoint.x - initialPoint.x, currentPoint.y - initialPoint.y)
+        let threshold = parent.marineTheme.isGloveMode ? AppConstants.Map.trackingBreakGloveThreshold : AppConstants.Map.trackingBreakThreshold
+        if displacement >= threshold {
+          hasExceededTrackingMargin = true
+          parent.viewModel.chartInteractedByUser()
+        }
+      }
     }
     
     func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
@@ -803,11 +828,22 @@ struct MapLibreView: UIViewRepresentable {
     func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       if !reason.contains(.programmatic) {
         self.parent.viewModel.isMapMoving = true
-      }
-      if shouldBreakTracking(for: reason) {
-        Task { @MainActor [weak self] in
-          guard let self else { return }
-          self.parent.viewModel.chartInteractedByUser()
+        
+        if self.parent.viewModel.trackingMode != .free && !self.parent.viewModel.anchorViewModel.isAdjustingAnchor {
+          if shouldBreakTracking(for: reason) {
+            // Technical Design Choice: Delayed Tracking Break on Pan Gesture
+            // Instead of instantly dropping tracking mode at the first sub-pixel camera movement,
+            // we snapshot the current anchor coordinate and screen projection. The tracking mode will only
+            // break if the user drags further than the tolerance threshold (AppConstants.Map.trackingBreakThreshold).
+            self.initialPanCenterCoordinate = mapView.centerCoordinate
+            self.initialPanScreenPoint = mapView.convert(mapView.centerCoordinate, toPointTo: mapView)
+            self.hasExceededTrackingMargin = false
+          } else {
+            // Pinch-to-zoom or non-breaking gestures explicitly preserve automated vessel tracking.
+            self.initialPanCenterCoordinate = nil
+            self.initialPanScreenPoint = nil
+            self.hasExceededTrackingMargin = false
+          }
         }
       }
     }
@@ -856,8 +892,7 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
     
-    // Capture user's chart movements to break tracking ONLY when the movement stops, as requested
-    // Also sync the final camera state back to the ViewModel so it knows where the chart is.
+    // Capture user's chart movements to sync the final camera state and evaluate tracking mode persistence.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       self.parent.viewModel.isMapMoving = false
       Task { @MainActor [weak self] in
@@ -885,10 +920,26 @@ struct MapLibreView: UIViewRepresentable {
           bounds: mapView.bounds
         )
         
-        // If it was a manual interaction, break tracking
-        if self.shouldBreakTracking(for: reason) {
-          self.parent.viewModel.chartInteractedByUser()
+        // Technical Design Choice: Centering Restoration vs Tracking Break
+        // If the user was in an automated tracking mode:
+        // - If movement exceeded the threshold: tracking mode was broken during the gesture (or broken now).
+        // - If movement remained within the tolerance margin: restore camera lock on vessel smoothly,
+        //   EXCEPT when manual anchor position adjustment is active (`anchorViewModel.isAdjustingAnchor == false`),
+        //   preventing the crosshair aiming position from being pulled away (rubber-band bug) during micro-drags.
+        if self.parent.viewModel.trackingMode != .free {
+          if self.hasExceededTrackingMargin {
+            self.parent.viewModel.chartInteractedByUser()
+          } else if self.shouldBreakTracking(for: reason) {
+            if !self.parent.viewModel.anchorViewModel.isAdjustingAnchor {
+              Logger.chart.info("Manual drag remained within tolerance margin; recentering on vessel.")
+              self.parent.viewModel.centerOnUserLocation()
+            }
+          }
         }
+        
+        self.initialPanCenterCoordinate = nil
+        self.initialPanScreenPoint = nil
+        self.hasExceededTrackingMargin = false
       }
     }
     

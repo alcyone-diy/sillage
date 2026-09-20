@@ -1134,6 +1134,151 @@ final class ChartViewModelTests: XCTestCase {
     // Assert
     XCTAssertEqual(viewModel.currentChartSource, .openSeaMap, "Initial login must preserve chart when active navigation (goTo) is in progress")
   }
+
+  // MARK: - Tracking Tolerance & Camera Centering Tests
+
+  func testTrackingBreakThresholdConstants_AreDefinedCorrectly() {
+    XCTAssertEqual(AppConstants.Map.trackingBreakThreshold, 40.0, "Standard tracking break margin must be 40 points")
+    XCTAssertEqual(AppConstants.Map.trackingBreakGloveThreshold, 60.0, "Glove Mode tracking break margin must be 60 points")
+  }
+
+  func testChartInteractedByUser_SwitchesToFreeModeAndSavesPreviousMode() {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    viewModel.trackingMode = .courseUp
+    viewModel.chartInteractedByUser()
+
+    XCTAssertEqual(viewModel.trackingMode, .free, "chartInteractedByUser must switch tracking mode to .free")
+    XCTAssertEqual(preferencesService.savedTrackingMode, .courseUp, "chartInteractedByUser must persist previous tracking mode in preferences")
+  }
+
+  func testAutoCenteringOnGPS_SuspendedWhileMapIsMoving() async throws {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    viewModel.trackingMode = .northUp
+    viewModel.isMapMoving = true
+
+    let fix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 47.0, longitude: -2.0),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters),
+      courseOverGround: Measurement(value: 90.0, unit: .degrees),
+      courseOverGroundAccuracy: nil,
+      speedOverGround: Measurement(value: 6.0, unit: .knots),
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+
+    let stream = viewModel.cameraMoveStream
+    let task = Task<CameraMoveEvent?, Never> {
+      await withTaskGroup(of: CameraMoveEvent?.self) { group in
+        group.addTask {
+          var iterator = stream.makeAsyncIterator()
+          return await iterator.next()
+        }
+        group.addTask {
+          try? await Task.sleep(for: .milliseconds(200))
+          return nil
+        }
+        let firstResult = await group.next()
+        group.cancelAll()
+        return firstResult.flatMap { $0 }
+      }
+    }
+
+    await Task.yield()
+
+    positioningService.locationContinuation?.yield(.active(fix))
+
+    let receivedEvent = await task.value
+    XCTAssertNil(receivedEvent, "Auto-centering must be suspended while isMapMoving is true to avoid fighting active user drag gestures")
+  }
+
+  func testAutoCenteringOnGPS_SuspendedWhileAnchorAdjustmentIsActive() async throws {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    viewModel.trackingMode = .northUp
+    viewModel.isMapMoving = false
+    anchorViewModel.isAdjustingAnchor = true
+
+    let fix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 47.0, longitude: -2.0),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters),
+      courseOverGround: Measurement(value: 90.0, unit: .degrees),
+      courseOverGroundAccuracy: nil,
+      speedOverGround: Measurement(value: 6.0, unit: .knots),
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+
+    let stream = viewModel.cameraMoveStream
+    let task = Task<CameraMoveEvent?, Never> {
+      await withTaskGroup(of: CameraMoveEvent?.self) { group in
+        group.addTask {
+          var iterator = stream.makeAsyncIterator()
+          return await iterator.next()
+        }
+        group.addTask {
+          try? await Task.sleep(for: .milliseconds(200))
+          return nil
+        }
+        let firstResult = await group.next()
+        group.cancelAll()
+        return firstResult.flatMap { $0 }
+      }
+    }
+
+    await Task.yield()
+
+    positioningService.locationContinuation?.yield(.active(fix))
+
+    let receivedEvent = await task.value
+    XCTAssertNil(receivedEvent, "Auto-centering must be suspended while isAdjustingAnchor is true to prevent rubber-banding crosshair aiming")
+  }
 }
 
 

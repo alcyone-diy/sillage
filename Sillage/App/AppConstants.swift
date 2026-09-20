@@ -52,5 +52,15 @@ public enum AppConstants {
     
     /// Minimum geographic movement required to trigger telemetric coordinate updates during map gestures.
     nonisolated public static let coordinateUpdateThreshold = Measurement(value: 1.0, unit: UnitLength.meters)
+    
+    /// Technical Design Choice: Vessel Centering Tolerance Margins
+    /// In marine environments, vessel motions, wet fingers, or vibrations frequently cause accidental micro-drags
+    /// when tapping or touching the display. These thresholds specify the minimum pan displacement (in screen points)
+    /// required before breaking automated vessel tracking (.northUp / .courseUp) to switch to manual .free mode.
+    nonisolated public static let trackingBreakThreshold: CGFloat = 40.0
+    
+    /// Touch threshold scaled for Glove Mode (aligned with Fitts's Law 66pt minimum touch target size).
+    nonisolated public static let trackingBreakGloveThreshold: CGFloat = 60.0
   }
 }
+
