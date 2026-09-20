@@ -17,6 +17,18 @@ public protocol BackgroundLocationToken: AnyObject {
   func invalidate()
 }
 
+/// Hardware positioning service bridging Apple CoreLocation with the Sillage positioning domain.
+///
+/// Architecture & Design Decisions:
+/// - **Modern Swift Concurrency (`CLLocationUpdate.liveUpdates`)**: Receives location fixes through a
+///   native `AsyncSequence` configured with `.otherNavigation`, decoupling ingestion from legacy delegate buffers.
+/// - **Hardware-Level Power & Throttling (`CLLocationManager`)**: Keeps an internal `CLLocationManager`
+///   instance exclusively to configure underlying hardware filters (`distanceFilter`, `desiredAccuracy`).
+///   This ensures `locationd` throttles updates in hardware rather than waking the CPU at 1 Hz.
+/// - **System Authorization Lifecycle**: Conforms to `NSObject` and `CLLocationManagerDelegate`
+///   specifically to intercept `locationManagerDidChangeAuthorization` and bridge status changes to `authContinuations`.
+/// - **Marine Safety**: Unconditionally disables `pausesLocationUpdatesAutomatically` to ensure GPS fixes
+///   never cease while drifting, sailing slowly, or standing an anchor watch.
 @MainActor
 class CoreLocationPositioningService: NSObject, PositioningService, CLLocationManagerDelegate {
   
@@ -84,48 +96,36 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     return stream
   }
   
-  private let rawLocationContinuation: AsyncStream<[CLLocation]>.Continuation
-  
-  private final class TaskCancellable: @unchecked Sendable {
-    var task: Task<Void, Never>?
-    deinit { task?.cancel() }
-  }
-  private let locationFunnelTask = TaskCancellable()
-  
+  private var updateTask: Task<Void, Never>?
+  private var serviceSession: CLServiceSession?
   private var requestedFilters: [String: Double] = [:]
-  
 
   init(initialAccuracyMode: GPSAccuracyMode) {
-    let (stream, continuation) = AsyncStream.makeStream(of: [CLLocation].self)
-    self.rawLocationContinuation = continuation
-
     self.locationManager = CLLocationManager()
     super.init()
 
-    self.locationFunnelTask.task = Task { @MainActor [weak self] in
-      for await locations in stream {
-        guard let self = self else { break }
-        for location in locations {
-          self.processLocation(location)
-        }
-      }
-    }
-
+    // Delegate is retained strictly for authorization and hardware error callbacks.
     self.locationManager.delegate = self
 
-    // Prioritize accuracy over battery for a marine environment.
+    // Hardware Accuracy: Configured at the locationManager level so locationd applies it upstream.
     self.locationManager.desiredAccuracy = PositioningConfig.clAccuracy(for: initialAccuracyMode)
     Logger.telemetry.info("CoreLocationPositioningService initialised with accuracy: \(initialAccuracyMode.displayName, privacy: .public)")
+    
+    // Hardware Throttling: Managed in meters by locationd to prevent unnecessary CPU wakeups (Rule 10).
     self.locationManager.distanceFilter = PositioningConfig.defaultDistanceFilter
 
-    // Marine Activity Type: Crucial to prevent iOS from aggressively snapping
-    // coordinates to the nearest coastal road (automotive algorithm).
+    // Marine Activity Type: Informs locationd of marine navigation, preventing coastal road snapping.
     self.locationManager.activityType = .otherNavigation
 
-    // Auto-Pause and Background Execution are managed dynamically based on active tokens.
-    self.locationManager.pausesLocationUpdatesAutomatically = true
-    self.locationManager.allowsBackgroundLocationUpdates = false
-    self.locationManager.showsBackgroundLocationIndicator = false
+    // Marine Safety: A vessel is never paused. Unconditionally set to false to prevent
+    // iOS from silently suspending GPS updates during slow drifting or anchor watch.
+    self.locationManager.pausesLocationUpdatesAutomatically = false
+  }
+
+  deinit {
+    updateTask?.cancel()
+    backgroundActivitySession?.invalidate()
+    serviceSession?.invalidate()
   }
 
   // MARK: - Desired Accuracy (Debug)
@@ -243,10 +243,10 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   
   private func updateBackgroundLocationStatus() {
     let needsBackground = !activeBackgroundSessions.isEmpty
-    locationManager.pausesLocationUpdatesAutomatically = !needsBackground
-    locationManager.allowsBackgroundLocationUpdates = needsBackground
-    locationManager.showsBackgroundLocationIndicator = needsBackground
     
+    // Modern iOS 17/18 background management:
+    // CLBackgroundActivitySession manages background privileges and the system indicator
+    // declaratively, avoiding conflicting legacy flags (allowsBackgroundLocationUpdates).
     if needsBackground && backgroundActivitySession == nil {
       backgroundActivitySession = CLBackgroundActivitySession()
     } else if !needsBackground {
@@ -288,39 +288,54 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   }
   
   func requestAuthorization() {
+    // Explicit imperative call required to trigger the initial system dialog for notDetermined state.
     locationManager.requestWhenInUseAuthorization()
   }
   
   private func startUpdatingLocation() {
+    guard updateTask == nil else { return }
+
+    // iOS 18 Declarative Authorization:
+    // Retains an active CLServiceSession while streaming to ensure in-use privileges persist.
+    if serviceSession == nil {
+      serviceSession = CLServiceSession(authorization: .whenInUse)
+    }
+
+    // Starts hardware tracking in locationd so distanceFilter and background updates remain active.
     locationManager.startUpdatingLocation()
-  }
-  
-  private func stopUpdatingLocation() {
-    locationManager.stopUpdatingLocation()
-  }
-  
-  // MARK: - CLLocationManagerDelegate
-  
-  nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-    Task { @MainActor in
-      for continuation in authContinuations.values {
-        continuation.yield(manager.authorizationStatus)
-      }
-      
-      switch manager.authorizationStatus {
-      case .authorizedWhenInUse, .authorizedAlways:
-        if !activeUpdateTokens.isEmpty {
-          startUpdatingLocation()
+
+    Logger.telemetry.info("Starting CLLocationUpdate.liveUpdates(.otherNavigation)")
+    updateTask = Task { [weak self] in
+      do {
+        // Apple's CLLocationUpdate.Updates iterator is throwing (mutating func next() async throws -> CLLocationUpdate?).
+        // Therefore, 'for try await' and do-catch are mandatory in Swift to catch system errors (e.g., location disabled).
+        let updates = CLLocationUpdate.liveUpdates(.otherNavigation)
+        for try await update in updates {
+          guard !Task.isCancelled else { break }
+          guard let self = self else { break }
+
+          if let location = update.location {
+            self.processLocation(location)
+          }
         }
-      default:
-        stopUpdatingLocation()
+      } catch {
+        guard !Task.isCancelled else { return }
+        guard let self = self else { return }
+        Logger.telemetry.error("CLLocationUpdate stream failed with error: \(error.localizedDescription, privacy: .public)")
+        for continuation in self.locationContinuations.values {
+          continuation.yield(.lost(error))
+        }
       }
     }
   }
   
-  nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-    // Funnel through an AsyncStream to guarantee sequential, deterministic processing on the MainActor
-    rawLocationContinuation.yield(locations)
+  private func stopUpdatingLocation() {
+    Logger.telemetry.info("Stopping CLLocationUpdate.liveUpdates")
+    updateTask?.cancel()
+    updateTask = nil
+    locationManager.stopUpdatingLocation()
+    serviceSession?.invalidate()
+    serviceSession = nil
   }
   
   private func processLocation(_ latestLocation: CLLocation) {
@@ -369,9 +384,27 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
       continuation.yield(state)
     }
   }
-  
+
+  // MARK: - CLLocationManagerDelegate
+
+  nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+    Task { @MainActor in
+      for continuation in authContinuations.values {
+        continuation.yield(manager.authorizationStatus)
+      }
+      
+      switch manager.authorizationStatus {
+      case .authorizedWhenInUse, .authorizedAlways:
+        if !activeUpdateTokens.isEmpty {
+          startUpdatingLocation()
+        }
+      default:
+        stopUpdatingLocation()
+      }
+    }
+  }
+
   nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-    // OSLog is natively thread-safe. No actor hop required.
     Logger.telemetry.error("CoreLocationPositioningService failed with error: \(error.localizedDescription, privacy: .public)")
     Task { @MainActor in
       for continuation in locationContinuations.values {
