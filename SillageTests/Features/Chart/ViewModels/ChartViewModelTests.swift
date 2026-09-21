@@ -12,6 +12,7 @@ import XCTest
 import SwiftUI
 @testable import Sillage
 import CoreLocation
+import GRDB
 
 
 
@@ -1278,6 +1279,172 @@ final class ChartViewModelTests: XCTestCase {
 
     let receivedEvent = await task.value
     XCTAssertNil(receivedEvent, "Auto-centering must be suspended while isAdjustingAnchor is true to prevent rubber-banding crosshair aiming")
+  }
+
+  func testDeletingDisplayedTrackClearsFromChart() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let trackService = TrackService(databaseManager: dbManager)
+    let positioningService = MockPositioningService()
+    let preferencesService = MockPreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let messageService = MessageService()
+    let trackRecordingService = TrackRecordingService(
+      positioningService: positioningService,
+      databaseManager: dbManager,
+      preferencesService: preferencesService,
+      messageService: messageService
+    )
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      trackService: trackService,
+      trackRecordingService: trackRecordingService,
+      waypointService: nil,
+      messageService: messageService
+    )
+
+    let sessionID = "session-to-delete-and-clear"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date())
+    let point1 = TrackPointRecord(
+      id: nil,
+      sessionID: sessionID,
+      timestamp: Date(),
+      segmentIndex: 0,
+      coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+    )
+    let point2 = TrackPointRecord(
+      id: nil,
+      sessionID: sessionID,
+      timestamp: Date().addingTimeInterval(10),
+      segmentIndex: 0,
+      coordinate: CLLocationCoordinate2D(latitude: 45.1, longitude: -1.1),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+    )
+
+    try await dbManager.write { db in
+      try session.insert(db)
+      try point1.insert(db)
+      try point2.insert(db)
+    }
+
+    try await viewModel.loadAndDisplaySavedTrack(sessionID: sessionID, centerOnTrack: false)
+
+    XCTAssertNotNil(viewModel.savedTrackVisualState, "Saved track visual state should be populated")
+    XCTAssertEqual(viewModel.displayedTrackSessionID, sessionID)
+
+    try await trackService.deleteSession(id: sessionID)
+
+    // Wait for the reactive observation to clear the track
+    let deadline = Date().addingTimeInterval(2.0)
+    while viewModel.savedTrackVisualState != nil && Date() < deadline {
+      try await Task.sleep(for: .milliseconds(50))
+    }
+
+    XCTAssertNil(viewModel.savedTrackVisualState, "Saved track visual state must be cleared after session deletion")
+    XCTAssertNil(viewModel.displayedTrackSessionID, "Displayed track session ID must be nil after deletion")
+  }
+
+  func testDeletingNonDisplayedTrackDoesNotClearCurrentTrack() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let trackService = TrackService(databaseManager: dbManager)
+    let positioningService = MockPositioningService()
+    let preferencesService = MockPreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let messageService = MessageService()
+    let trackRecordingService = TrackRecordingService(
+      positioningService: positioningService,
+      databaseManager: dbManager,
+      preferencesService: preferencesService,
+      messageService: messageService
+    )
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      trackService: trackService,
+      trackRecordingService: trackRecordingService,
+      waypointService: nil,
+      messageService: messageService
+    )
+
+    let session1ID = "session-1"
+    let session2ID = "session-2"
+    let session1 = TrackSessionRecord(id: session1ID, startTime: Date())
+    let session2 = TrackSessionRecord(id: session2ID, startTime: Date())
+
+    let s1p1 = TrackPointRecord(
+      id: nil,
+      sessionID: session1ID,
+      timestamp: Date(),
+      segmentIndex: 0,
+      coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+    )
+    let s1p2 = TrackPointRecord(
+      id: nil,
+      sessionID: session1ID,
+      timestamp: Date().addingTimeInterval(10),
+      segmentIndex: 0,
+      coordinate: CLLocationCoordinate2D(latitude: 45.1, longitude: -1.1),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+    )
+
+    let s2p1 = TrackPointRecord(
+      id: nil,
+      sessionID: session2ID,
+      timestamp: Date(),
+      segmentIndex: 0,
+      coordinate: CLLocationCoordinate2D(latitude: 46.0, longitude: -2.0),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+    )
+    let s2p2 = TrackPointRecord(
+      id: nil,
+      sessionID: session2ID,
+      timestamp: Date().addingTimeInterval(10),
+      segmentIndex: 0,
+      coordinate: CLLocationCoordinate2D(latitude: 46.1, longitude: -2.1),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+    )
+
+    try await dbManager.write { db in
+      try session1.insert(db)
+      try session2.insert(db)
+      try s1p1.insert(db)
+      try s1p2.insert(db)
+      try s2p1.insert(db)
+      try s2p2.insert(db)
+    }
+
+    try await viewModel.loadAndDisplaySavedTrack(sessionID: session1ID, centerOnTrack: false)
+    XCTAssertNotNil(viewModel.savedTrackVisualState)
+    XCTAssertEqual(viewModel.displayedTrackSessionID, session1ID)
+
+    try await trackService.deleteSession(id: session2ID)
+
+    try await Task.sleep(for: .milliseconds(200))
+
+    XCTAssertNotNil(viewModel.savedTrackVisualState, "Current track should still be displayed")
+    XCTAssertEqual(viewModel.displayedTrackSessionID, session1ID, "Current track session ID should remain unchanged")
   }
 }
 

@@ -191,6 +191,7 @@ final class ChartViewModel {
   private var pendingScaleAndZoom: (metersPerPoint: Double, zoomLevel: Double)?
   
   private var maskCalculationTask: TaskCancellable?
+  private var displayedTrackObservationTask: TaskCancellable?
   var silentFetchTask: TaskCancellable?
   
   // MARK: - Throttled Camera Updates
@@ -1169,16 +1170,23 @@ final class ChartViewModel {
     }
     
     let points = try await trackService.fetchTrackPoints(for: sessionID)
-    guard !points.isEmpty else { return }
+    guard !points.isEmpty else {
+      clearSavedTrack()
+      return
+    }
     
     let (visualState, bounds) = await Task.detached(priority: .userInitiated) {
       return await Self.processTrackData(points)
     }.value
     
-    guard let visualState = visualState else { return }
+    guard let visualState = visualState else {
+      clearSavedTrack()
+      return
+    }
     
     self.savedTrackVisualState = visualState
     self.displayedTrackSessionID = sessionID
+    setupDisplayedTrackObservation(sessionID: sessionID)
     
     if centerOnTrack {
       if let bounds = bounds {
@@ -1196,7 +1204,24 @@ final class ChartViewModel {
     }
   }
   
+  private func setupDisplayedTrackObservation(sessionID: String) {
+    displayedTrackObservationTask?.cancel()
+    displayedTrackObservationTask = TaskCancellable(Task { @MainActor [weak self] in
+      guard let self else { return }
+      for await session in self.trackService.observeTrackSession(id: sessionID) {
+        guard !Task.isCancelled else { break }
+        if session == nil {
+          Logger.chart.info("Displayed track \(sessionID, privacy: .public) was deleted, clearing from chart")
+          self.clearSavedTrack()
+          break
+        }
+      }
+    })
+  }
+
   func clearSavedTrack() {
+    displayedTrackObservationTask?.cancel()
+    displayedTrackObservationTask = nil
     self.savedTrackVisualState = nil
     self.displayedTrackSessionID = nil
   }
