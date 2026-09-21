@@ -40,35 +40,37 @@ struct TrackControlView: View {
       .marineListCell()
       .marineFont(.body)
       
-      HStack {
-        Text("Duration")
-        Spacer()
-        durationValueView
-      }
-      .marineListCell()
-      .marineFont(.body)
-      
-      // Telemetry: Distance
-      HStack {
-        Text("Distance")
-        Spacer()
-        
-        if let distance = activeTrackViewModel.sessionTotalDistanceOverGround {
-          Text(distance.converted(to: .nauticalMiles).formatted(
-            .measurement(width: .abbreviated,
-                         usage: .asProvided,
-                         numberFormatStyle: .number.precision(.fractionLength(2)))
-          ))
-          .monospacedDigit()
-          .foregroundStyle(.secondary)
-        } else {
-          Text("--")
+      if activeTrackViewModel.isRecording {
+        Group {
+          HStack {
+            Text("Duration")
+            Spacer()
+            durationValueView
+          }
+          .marineListCell()
+          
+          // Telemetry: Distance
+          HStack {
+            Text("Distance")
+            Spacer()
+            
+            let zeroDistance = Measurement<UnitLength>(value: 0, unit: .nauticalMiles)
+            let displayDistance = activeTrackViewModel.sessionTotalDistanceOverGround ?? zeroDistance
+            
+            Text(displayDistance.converted(to: .nauticalMiles).formatted(
+              .measurement(width: .abbreviated,
+                           usage: .asProvided,
+                           numberFormatStyle: .number.precision(.fractionLength(2)))
+            ))
             .monospacedDigit()
             .foregroundStyle(.secondary)
+            .redacted(reason: activeTrackViewModel.sessionTotalDistanceOverGround == nil ? .placeholder : [])
+          }
+          .marineListCell()
         }
+        .marineFont(.body)
+        .transition(.move(edge: .top).combined(with: .opacity))
       }
-      .marineListCell()
-      .marineFont(.body)
     }
     .alert(
       "Track Recording",
@@ -90,6 +92,7 @@ struct TrackControlView: View {
     .onChange(of: activeTrackViewModel.isRecording) { _, _ in
       optimisticRecordingState = nil
     }
+    .animation(.snappy, value: activeTrackViewModel.isRecording)
   }
   
   @ViewBuilder
