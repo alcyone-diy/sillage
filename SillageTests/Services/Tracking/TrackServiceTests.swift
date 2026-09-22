@@ -390,8 +390,8 @@ struct TrackServiceTests {
       // Expected
     }
 
-    // Allow background task cleanup to complete
-    try await Task.sleep(for: .milliseconds(50))
+    // Wait for background task cleanup to complete
+    try await waitUntil { !FileManager.default.fileExists(atPath: tempURL.path) }
 
     // Verify temporary file was deleted
     #expect(!FileManager.default.fileExists(atPath: tempURL.path))

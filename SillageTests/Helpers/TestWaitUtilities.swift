@@ -19,7 +19,7 @@ struct TimeoutError: Error, CustomStringConvertible, Sendable {
 @MainActor
 func waitUntil(
   _ condition: @escaping @MainActor () -> Bool,
-  timeout: Duration = .seconds(5),
+  timeout: Duration = .seconds(2),
   pollInterval: Duration = .milliseconds(20)
 ) async throws {
   let start = ContinuousClock.now

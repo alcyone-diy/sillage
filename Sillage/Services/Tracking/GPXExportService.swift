@@ -147,6 +147,7 @@ public struct GPXExportService: Sendable {
       return count
     } catch {
       // Prevent leaving truncated/corrupt files on the user's storage in case of writing failure or cancellation.
+      try? fileHandle.close()
       try? FileManager.default.removeItem(at: fileURL)
       throw error
     }
