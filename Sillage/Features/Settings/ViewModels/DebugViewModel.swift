@@ -99,6 +99,15 @@ final class DebugViewModel {
     appEnvironment.updateGPSAccuracy(to: mode)
   }
 
+  func setPausesLocationUpdatesAutomatically(_ pauses: Bool, appEnvironment: AppEnvironment) {
+    appEnvironment.updatePausesLocationUpdatesAutomatically(to: pauses)
+  }
+
+  func getPausesLocationUpdatesAutomatically(in appEnvironment: AppEnvironment) -> Bool {
+    guard case .ready(let container) = appEnvironment.state else { return false }
+    return container.developerSettingsService.pausesLocationUpdatesAutomatically
+  }
+
   // MARK: - Developer Settings (Debug)
 
   func setCOGSOGSource(_ source: COGSOGCalculationSource, appEnvironment: AppEnvironment) {
@@ -124,6 +133,7 @@ final class DebugViewModel {
   func resetDeveloperSettings(appEnvironment: AppEnvironment) {
     guard case .ready(let container) = appEnvironment.state else { return }
     container.developerSettingsService.resetAllToDefaults()
+    container.positioningService.setPausesLocationUpdatesAutomatically(false)
   }
 
 

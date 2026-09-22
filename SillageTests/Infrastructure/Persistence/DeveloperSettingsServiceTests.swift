@@ -31,6 +31,7 @@ struct DeveloperSettingsServiceTests {
     #expect(service.noiseMultiplier == 0.35)
     #expect(service.velocityWindowDuration == 4.0)
     #expect(service.cogDampingDuration == 4.0)
+    #expect(service.pausesLocationUpdatesAutomatically == false)
   }
 
   @Test("Persisting values updates UserDefaults")
@@ -42,11 +43,13 @@ struct DeveloperSettingsServiceTests {
     service.noiseMultiplier = 2.5
     service.velocityWindowDuration = 2.5
     service.cogDampingDuration = 0.0
+    service.pausesLocationUpdatesAutomatically = true
 
     #expect(service.cogSogCalculationSource == .iOS)
     #expect(service.noiseMultiplier == 2.5)
     #expect(service.velocityWindowDuration == 2.5)
     #expect(service.cogDampingDuration == 0.0)
+    #expect(service.pausesLocationUpdatesAutomatically == true)
 
     // Re-instantiate from same defaults
     let reloaded = DeveloperSettingsService(defaults: defaults)
@@ -54,6 +57,7 @@ struct DeveloperSettingsServiceTests {
     #expect(reloaded.noiseMultiplier == 2.5)
     #expect(reloaded.velocityWindowDuration == 2.5)
     #expect(reloaded.cogDampingDuration == 0.0)
+    #expect(reloaded.pausesLocationUpdatesAutomatically == true)
   }
 
   @Test("Reset restores default settings")
@@ -65,6 +69,7 @@ struct DeveloperSettingsServiceTests {
     service.noiseMultiplier = 3.0
     service.velocityWindowDuration = 8.0
     service.cogDampingDuration = 1.0
+    service.pausesLocationUpdatesAutomatically = true
 
     service.resetAllToDefaults()
 
@@ -72,5 +77,6 @@ struct DeveloperSettingsServiceTests {
     #expect(service.noiseMultiplier == 0.35)
     #expect(service.velocityWindowDuration == 4.0)
     #expect(service.cogDampingDuration == 4.0)
+    #expect(service.pausesLocationUpdatesAutomatically == false)
   }
 }

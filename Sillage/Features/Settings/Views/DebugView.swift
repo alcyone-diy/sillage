@@ -87,6 +87,17 @@ struct DebugView: View {
           }
           .pickerStyle(.menu)
           .marineListCell()
+
+          Toggle(
+            isOn: Binding(
+              get: { viewModel.getPausesLocationUpdatesAutomatically(in: appEnvironment) },
+              set: { viewModel.setPausesLocationUpdatesAutomatically($0, appEnvironment: appEnvironment) }
+            )
+          ) {
+            Text("Pause Updates Automatically")
+              .marineFont(.body)
+          }
+          .marineListCell()
         }
       }
       

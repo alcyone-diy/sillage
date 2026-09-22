@@ -100,7 +100,15 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   private var serviceSession: CLServiceSession?
   private var requestedFilters: [String: Double] = [:]
 
-  init(initialAccuracyMode: GPSAccuracyMode) {
+  // MARK: - Pauses Location Updates Automatically (Debug)
+
+  private(set) var pausesLocationUpdatesAutomatically: Bool
+
+  init(
+    initialAccuracyMode: GPSAccuracyMode,
+    initialPausesLocationUpdatesAutomatically: Bool = false
+  ) {
+    self.pausesLocationUpdatesAutomatically = initialPausesLocationUpdatesAutomatically
     self.locationManager = CLLocationManager()
     super.init()
 
@@ -117,9 +125,10 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     // Marine Activity Type: Informs locationd of marine navigation, preventing coastal road snapping.
     self.locationManager.activityType = .otherNavigation
 
-    // Marine Safety: A vessel is never paused. Unconditionally set to false to prevent
+    // Marine Safety: A vessel is never paused. Defaults to false to prevent
     // iOS from silently suspending GPS updates during slow drifting or anchor watch.
-    self.locationManager.pausesLocationUpdatesAutomatically = false
+    // Can be toggled at runtime via developer settings for debugging.
+    self.locationManager.pausesLocationUpdatesAutomatically = initialPausesLocationUpdatesAutomatically
   }
 
   deinit {
@@ -136,6 +145,16 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     let accuracy = PositioningConfig.clAccuracy(for: mode)
     locationManager.desiredAccuracy = accuracy
     Logger.telemetry.info("GPS desiredAccuracy changed to \(mode.displayName, privacy: .public) (\(accuracy, privacy: .public))")
+  }
+
+  // MARK: - Pauses Location Updates Automatically (Debug)
+
+  /// Configures pausesLocationUpdatesAutomatically on the underlying CLLocationManager at runtime.
+  /// Must be called exclusively through AppEnvironment.updatePausesLocationUpdatesAutomatically(to:).
+  func setPausesLocationUpdatesAutomatically(_ pauses: Bool) {
+    self.pausesLocationUpdatesAutomatically = pauses
+    locationManager.pausesLocationUpdatesAutomatically = pauses
+    Logger.telemetry.info("GPS pausesLocationUpdatesAutomatically changed to \(pauses, privacy: .public)")
   }
   
   // MARK: - Foreground Update Tracking

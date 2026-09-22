@@ -81,7 +81,10 @@ final class AppEnvironment {
       let preferencesService = PreferencesService()
       let developerSettingsService = DeveloperSettingsService()
       
-      let positioningService = CoreLocationPositioningService(initialAccuracyMode: preferencesService.gpsAccuracyMode)
+      let positioningService = CoreLocationPositioningService(
+        initialAccuracyMode: preferencesService.gpsAccuracyMode,
+        initialPausesLocationUpdatesAutomatically: developerSettingsService.pausesLocationUpdatesAutomatically
+      )
       
       let kinematicsService = VesselKinematicsService(
         positioningService: positioningService,
@@ -419,6 +422,16 @@ final class AppEnvironment {
     guard case .ready(let container) = state else { return }
     container.preferencesService.gpsAccuracyMode = mode
     container.positioningService.setDesiredAccuracy(mode)
+  }
+
+  // MARK: - Pauses Location Updates Automatically (Debug)
+
+  /// Single entry point for changing pausesLocationUpdatesAutomatically at runtime.
+  /// Keeps DeveloperSettingsService and CoreLocationPositioningService in sync.
+  func updatePausesLocationUpdatesAutomatically(to pauses: Bool) {
+    guard case .ready(let container) = state else { return }
+    container.developerSettingsService.pausesLocationUpdatesAutomatically = pauses
+    container.positioningService.setPausesLocationUpdatesAutomatically(pauses)
   }
   
   nonisolated private func setupFileSystem() throws {
