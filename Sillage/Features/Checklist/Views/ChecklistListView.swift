@@ -60,8 +60,10 @@ struct ChecklistListView: View {
         ForEach(viewModel.groupedTemplates, id: \.category) { section in
           Section {
             ForEach(section.templates) { template in
-              ChecklistTemplateRowView(template: template)
-                .marineListCell()
+              NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistDetail(templateId: template.id)) {
+                ChecklistTemplateRowView(template: template)
+              }
+              .marineListCell()
             }
           } header: {
             HStack(spacing: MarineTheme.Spacing.small) {
@@ -107,8 +109,10 @@ struct ChecklistListView: View {
     .task {
       await viewModel.loadTemplates()
     }
-    .refreshable {
-      await viewModel.loadTemplates()
+    .onAppear {
+      Task {
+        await viewModel.loadTemplates()
+      }
     }
     .alert(
       "Error",

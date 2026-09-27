@@ -271,6 +271,10 @@ struct CommandPanelView: View {
       if let service = checklistService ?? appEnvironment.checklistService {
         ChecklistListView(checklistService: service)
       }
+    case .checklistDetail(let templateId):
+      if let service = checklistService ?? appEnvironment.checklistService {
+        ChecklistDetailView(templateId: templateId, checklistService: service)
+      }
     }
   }
 }
