@@ -66,21 +66,19 @@ struct ChecklistListView: View {
                 ChecklistTemplateRowView(template: template)
               }
               .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                if !template.isSystem {
-                  Button(role: .destructive) {
-                    templateToDelete = template
-                  } label: {
-                    Label("Delete", systemImage: MarineIcon.delete.rawValue)
-                  }
-                  .tint(.red)
-
-                  Button {
-                    templateToEdit = template
-                  } label: {
-                    Label("Edit", systemImage: "pencil")
-                  }
-                  .tint(marineTheme.colors.accent)
+                Button(role: .destructive) {
+                  templateToDelete = template
+                } label: {
+                  Label("Delete", systemImage: MarineIcon.delete.rawValue)
                 }
+                .tint(.red)
+
+                Button {
+                  templateToEdit = template
+                } label: {
+                  Label("Edit", systemImage: "pencil")
+                }
+                .tint(marineTheme.colors.accent)
               }
               .marineListCell()
             }

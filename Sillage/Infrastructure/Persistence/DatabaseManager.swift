@@ -223,7 +223,6 @@ public final class DatabaseManager: Sendable {
         t.column("title", .text).notNull()
         t.column("description", .text)
         t.column("category", .text).notNull()
-        t.column("is_system", .boolean).notNull().defaults(to: false)
         t.column("sort_order", .integer).notNull().defaults(to: 0)
         t.column("created_at", .datetime).notNull()
         t.column("updated_at", .datetime).notNull()

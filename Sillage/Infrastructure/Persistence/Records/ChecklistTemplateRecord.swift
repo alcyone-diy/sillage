@@ -19,7 +19,6 @@ public struct ChecklistTemplateRecord: Codable, FetchableRecord, PersistableReco
   public var title: String
   public var description: String?
   public var category: String
-  public var is_system: Bool
   public var sort_order: Int
   public var created_at: Date
   public var updated_at: Date
@@ -29,7 +28,6 @@ public struct ChecklistTemplateRecord: Codable, FetchableRecord, PersistableReco
     title: String,
     description: String? = nil,
     category: String,
-    is_system: Bool = false,
     sort_order: Int = 0,
     created_at: Date,
     updated_at: Date
@@ -38,7 +36,6 @@ public struct ChecklistTemplateRecord: Codable, FetchableRecord, PersistableReco
     self.title = title
     self.description = description
     self.category = category
-    self.is_system = is_system
     self.sort_order = sort_order
     self.created_at = created_at
     self.updated_at = updated_at
@@ -49,7 +46,6 @@ public struct ChecklistTemplateRecord: Codable, FetchableRecord, PersistableReco
     case title
     case description
     case category
-    case is_system
     case sort_order
     case created_at
     case updated_at

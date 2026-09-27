@@ -80,7 +80,6 @@ final class ChecklistDetailViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isCompleted)
     XCTAssertFalse(viewModel.canComplete)
     XCTAssertFalse(viewModel.canReset)
-    XCTAssertTrue(viewModel.canDeleteTemplate)
   }
 
   // MARK: - Reactive Stream Observation Tests
@@ -264,7 +263,6 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
   func testDeleteCustomTemplateWithExecutionHistoryFails() async {
     await viewModel.load()
-    XCTAssertTrue(viewModel.canDeleteTemplate)
 
     // Since load() started an in_progress execution session, deleting this template must fail
     let success = await viewModel.deleteTemplate()

@@ -129,7 +129,6 @@ public final class ChecklistService: ChecklistServiceProtocol {
           title: tRecord.title,
           description: tRecord.description,
           category: category,
-          isSystem: tRecord.is_system,
           sortOrder: tRecord.sort_order,
           createdAt: tRecord.created_at,
           updatedAt: tRecord.updated_at,
@@ -169,7 +168,6 @@ public final class ChecklistService: ChecklistServiceProtocol {
         title: tRecord.title,
         description: tRecord.description,
         category: category,
-        isSystem: tRecord.is_system,
         sortOrder: tRecord.sort_order,
         createdAt: tRecord.created_at,
         updatedAt: tRecord.updated_at,
@@ -178,7 +176,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
     }
   }
 
-  public func createCustomTemplate(
+  public func createTemplate(
     title: String,
     description: String? = nil,
     category: ChecklistCategory,
@@ -193,7 +191,6 @@ public final class ChecklistService: ChecklistServiceProtocol {
         title: title,
         description: description,
         category: category.rawValue,
-        is_system: false,
         sort_order: 0,
         created_at: now,
         updated_at: now
@@ -226,7 +223,6 @@ public final class ChecklistService: ChecklistServiceProtocol {
         title: title,
         description: description,
         category: category,
-        isSystem: false,
         sortOrder: 0,
         createdAt: now,
         updatedAt: now,
@@ -235,7 +231,16 @@ public final class ChecklistService: ChecklistServiceProtocol {
     }
   }
 
-  public func updateCustomTemplate(
+  public func createCustomTemplate(
+    title: String,
+    description: String? = nil,
+    category: ChecklistCategory,
+    items: [(title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate {
+    try await createTemplate(title: title, description: description, category: category, items: items)
+  }
+
+  public func updateTemplate(
     id: UUID,
     title: String,
     description: String? = nil,
@@ -245,9 +250,6 @@ public final class ChecklistService: ChecklistServiceProtocol {
     try await databaseManager.write { db in
       guard let templateRecord = try ChecklistTemplateRecord.fetchOne(db, key: id.uuidString) else {
         throw ChecklistExecutionError.templateNotFound(id)
-      }
-      guard !templateRecord.is_system else {
-        throw ChecklistExecutionError.databaseInconsistency("Cannot edit built-in system template.")
       }
 
       let now = Date()
@@ -294,14 +296,13 @@ public final class ChecklistService: ChecklistServiceProtocol {
         try updatedExecution.update(db)
       }
 
-      Logger.checklist.info("Successfully updated custom template '\(id.uuidString, privacy: .public)'")
+      Logger.checklist.info("Successfully updated template '\(id.uuidString, privacy: .public)'")
 
       return ChecklistTemplate(
         id: id,
         title: title,
         description: description,
         category: category,
-        isSystem: false,
         sortOrder: templateRecord.sort_order,
         createdAt: templateRecord.created_at,
         updatedAt: now,
@@ -310,13 +311,20 @@ public final class ChecklistService: ChecklistServiceProtocol {
     }
   }
 
-  public func deleteCustomTemplate(id: UUID) async throws {
+  public func updateCustomTemplate(
+    id: UUID,
+    title: String,
+    description: String? = nil,
+    category: ChecklistCategory,
+    items: [(id: UUID?, title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate {
+    try await updateTemplate(id: id, title: title, description: description, category: category, items: items)
+  }
+
+  public func deleteTemplate(id: UUID) async throws {
     try await databaseManager.write { db in
       guard let template = try ChecklistTemplateRecord.fetchOne(db, key: id.uuidString) else {
         throw ChecklistExecutionError.templateNotFound(id)
-      }
-      guard !template.is_system else {
-        throw ChecklistExecutionError.databaseInconsistency("Cannot delete built-in system template.")
       }
 
       let executionsCount = try ChecklistExecutionRecord
@@ -328,8 +336,12 @@ public final class ChecklistService: ChecklistServiceProtocol {
       }
 
       try template.delete(db)
-      Logger.checklist.info("Successfully deleted custom template '\(id.uuidString, privacy: .public)'")
+      Logger.checklist.info("Successfully deleted template '\(id.uuidString, privacy: .public)'")
     }
+  }
+
+  public func deleteCustomTemplate(id: UUID) async throws {
+    try await deleteTemplate(id: id)
   }
 
   // MARK: - Execution Lifecycle (Get-or-Create)

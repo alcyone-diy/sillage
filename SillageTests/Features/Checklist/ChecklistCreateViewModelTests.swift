@@ -207,7 +207,6 @@ final class ChecklistCreateViewModelTests: XCTestCase {
     XCTAssertEqual(template.title, "Engine Check")
     XCTAssertEqual(template.description, "Pre-start inspection")
     XCTAssertEqual(template.category, .engineTechnical)
-    XCTAssertFalse(template.isSystem)
     XCTAssertEqual(template.items.count, 2)
     XCTAssertEqual(template.items[0].title, "Check oil level")
     XCTAssertEqual(template.items[0].detail, "Must be between MIN and MAX marks")

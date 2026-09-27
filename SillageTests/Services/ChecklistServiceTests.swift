@@ -41,9 +41,6 @@ final class ChecklistServiceTests: XCTestCase {
     let templates = try await checklistService.fetchTemplates()
     XCTAssertEqual(templates.count, 4)
 
-    let systemTemplates = templates.filter(\.isSystem)
-    XCTAssertEqual(systemTemplates.count, 4)
-
     // Second call should be a no-op
     try await checklistService.seedDefaultTemplatesIfNeeded()
     let templatesAfterSecondSeed = try await checklistService.fetchTemplates()
@@ -67,7 +64,6 @@ final class ChecklistServiceTests: XCTestCase {
 
     XCTAssertEqual(created.title, "Night Sailing Prep")
     XCTAssertEqual(created.category, .routine)
-    XCTAssertFalse(created.isSystem)
     XCTAssertEqual(created.items.count, 2)
     XCTAssertEqual(created.items[0].title, "Check fuel tank")
 
@@ -90,82 +86,77 @@ final class ChecklistServiceTests: XCTestCase {
     XCTAssertNil(fetched)
   }
 
-  func testCannotDeleteSystemTemplate() async throws {
+  func testCanDeleteSystemTemplateWithoutHistory() async throws {
     try await checklistService.seedDefaultTemplatesIfNeeded()
     let templates = try await checklistService.fetchTemplates()
-    guard let systemTemplate = templates.first(where: \.isSystem) else {
-      XCTFail("No system template found")
+    guard let template = templates.first else {
+      XCTFail("No template found")
       return
     }
 
+    try await checklistService.deleteTemplate(id: template.id)
+    let fetched = try await checklistService.fetchTemplate(id: template.id)
+    XCTAssertNil(fetched)
+  }
+
+  func testCannotDeleteTemplateWithHistory() async throws {
+    try await checklistService.seedDefaultTemplatesIfNeeded()
+    let templates = try await checklistService.fetchTemplates()
+    guard let template = templates.first else {
+      XCTFail("No template found")
+      return
+    }
+
+    // Start an execution to create history
+    _ = try await checklistService.startExecution(templateId: template.id)
+
     do {
-      try await checklistService.deleteCustomTemplate(id: systemTemplate.id)
-      XCTFail("Expected error when deleting system template")
-    } catch {
-      // Expected failure
+      try await checklistService.deleteTemplate(id: template.id)
+      XCTFail("Expected error when deleting template with execution history")
+    } catch ChecklistExecutionError.templateHasExistingExecutions {
+      // Expected
     }
   }
 
-  func testUpdateCustomTemplateSuccess() async throws {
-    let created = try await checklistService.createCustomTemplate(
-      title: "Original Title",
-      description: "Original Description",
+  func testCanUpdateDefaultTemplate() async throws {
+    try await checklistService.seedDefaultTemplatesIfNeeded()
+    let templates = try await checklistService.fetchTemplates()
+    guard let template = templates.first else {
+      XCTFail("No template found")
+      return
+    }
+
+    let updated = try await checklistService.updateTemplate(
+      id: template.id,
+      title: "Modified Checklist",
+      description: "User customized",
       category: .routine,
-      items: [
-        ("Step 1", "Detail 1"),
-        ("Step 2", "Detail 2")
-      ]
+      items: [(id: nil, title: "Custom Step 1", detail: "Custom Detail")]
     )
 
-    let updated = try await checklistService.updateCustomTemplate(
-      id: created.id,
-      title: "Updated Title",
-      description: "Updated Description",
-      category: .navigationManeuver,
-      items: [
-        (id: created.items[1].id, title: "Step 2 Renamed", detail: "New Detail"),
-        (id: nil, title: "Step 3 Added", detail: nil)
-      ]
-    )
+    XCTAssertEqual(updated.title, "Modified Checklist")
+    XCTAssertEqual(updated.items.count, 1)
 
-    XCTAssertEqual(updated.id, created.id)
-    XCTAssertEqual(updated.title, "Updated Title")
-    XCTAssertEqual(updated.description, "Updated Description")
-    XCTAssertEqual(updated.category, .navigationManeuver)
-    XCTAssertEqual(updated.items.count, 2)
-    XCTAssertEqual(updated.items[0].id, created.items[1].id)
-    XCTAssertEqual(updated.items[0].title, "Step 2 Renamed")
-    XCTAssertEqual(updated.items[0].sortOrder, 0)
-    XCTAssertEqual(updated.items[1].title, "Step 3 Added")
-    XCTAssertEqual(updated.items[1].sortOrder, 1)
-
-    // Verify fetched from database
-    let fetched = try await checklistService.fetchTemplate(id: created.id)
-    XCTAssertNotNil(fetched)
-    XCTAssertEqual(fetched?.title, "Updated Title")
-    XCTAssertEqual(fetched?.items.count, 2)
+    let fetched = try await checklistService.fetchTemplate(id: template.id)
+    XCTAssertEqual(fetched?.title, "Modified Checklist")
   }
 
-  func testCannotUpdateSystemTemplate() async throws {
+  func testDeletedTemplatesDoNotReseedOnRestart() async throws {
     try await checklistService.seedDefaultTemplatesIfNeeded()
     let templates = try await checklistService.fetchTemplates()
-    guard let systemTemplate = templates.first(where: \.isSystem) else {
-      XCTFail("No system template found")
-      return
-    }
+    XCTAssertEqual(templates.count, 4)
 
-    do {
-      _ = try await checklistService.updateCustomTemplate(
-        id: systemTemplate.id,
-        title: "Malicious Edit",
-        description: nil,
-        category: .safetyEmergency,
-        items: [("Hacked", nil)]
-      )
-      XCTFail("Expected error when updating system template")
-    } catch {
-      // Expected failure
+    // Delete all templates
+    for template in templates {
+      try await checklistService.deleteTemplate(id: template.id)
     }
+    let afterDelete = try await checklistService.fetchTemplates()
+    XCTAssertEqual(afterDelete.count, 0)
+
+    // Calling seedDefaultTemplatesIfNeeded again must not recreate deleted templates
+    try await checklistService.seedDefaultTemplatesIfNeeded()
+    let afterReseedAttempt = try await checklistService.fetchTemplates()
+    XCTAssertEqual(afterReseedAttempt.count, 0)
   }
 
   func testUpdateTemplateNotFound() async throws {

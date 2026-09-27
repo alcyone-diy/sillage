@@ -15,11 +15,18 @@ import OSLog
 /// Seeds essential built-in maritime checklist templates into the database.
 public struct ChecklistSeeder: Sendable {
   nonisolated public static func seedDefaultTemplatesIfNeeded(in db: Database) throws {
-    let existingSystemCount = try ChecklistTemplateRecord
-      .filter(ChecklistTemplateRecord.Columns.is_system == true)
-      .fetchCount(db)
+    try db.create(table: "checklist_seeding_state", ifNotExists: true) { t in
+      t.column("id", .text).primaryKey()
+      t.column("seeded_at", .datetime).notNull()
+    }
 
-    guard existingSystemCount == 0 else {
+    let alreadySeeded = try Row.fetchOne(
+      db,
+      sql: "SELECT 1 FROM checklist_seeding_state WHERE id = ?",
+      arguments: ["default_templates"]
+    ) != nil
+
+    guard !alreadySeeded else {
       return
     }
 
@@ -33,7 +40,6 @@ public struct ChecklistSeeder: Sendable {
       title: "Pre-Departure Checklist",
       description: "Essential vessel and crew safety checks before leaving the berth or mooring.",
       category: ChecklistCategory.routine.rawValue,
-      is_system: true,
       sort_order: 0,
       created_at: now,
       updated_at: now
@@ -68,7 +74,6 @@ public struct ChecklistSeeder: Sendable {
       title: "Anchoring Checklist",
       description: "Standard anchoring procedure and safety radius verification.",
       category: ChecklistCategory.navigationManeuver.rawValue,
-      is_system: true,
       sort_order: 1,
       created_at: now,
       updated_at: now
@@ -101,7 +106,6 @@ public struct ChecklistSeeder: Sendable {
       title: "Man Overboard (MOB)",
       description: "Critical emergency procedure for crew recovery at sea.",
       category: ChecklistCategory.safetyEmergency.rawValue,
-      is_system: true,
       sort_order: 2,
       created_at: now,
       updated_at: now
@@ -134,7 +138,6 @@ public struct ChecklistSeeder: Sendable {
       title: "Heavy Weather & Reefing",
       description: "Safety measures and sail plan reduction for rising sea state and squalls.",
       category: ChecklistCategory.navigationManeuver.rawValue,
-      is_system: true,
       sort_order: 3,
       created_at: now,
       updated_at: now
@@ -158,6 +161,11 @@ public struct ChecklistSeeder: Sendable {
       )
       try itemRecord.insert(db)
     }
+
+    try db.execute(
+      sql: "INSERT OR IGNORE INTO checklist_seeding_state (id, seeded_at) VALUES (?, ?)",
+      arguments: ["default_templates", now]
+    )
 
     Logger.checklist.info("Seeding completed: 4 built-in maritime checklists created.")
   }

@@ -39,7 +39,6 @@ public struct ChecklistTemplate: Identifiable, Equatable, Sendable {
   public let title: String
   public let description: String?
   public let category: ChecklistCategory
-  public let isSystem: Bool
   public let sortOrder: Int
   public let createdAt: Date
   public let updatedAt: Date
@@ -50,7 +49,6 @@ public struct ChecklistTemplate: Identifiable, Equatable, Sendable {
     title: String,
     description: String? = nil,
     category: ChecklistCategory,
-    isSystem: Bool = false,
     sortOrder: Int = 0,
     createdAt: Date = Date(),
     updatedAt: Date = Date(),
@@ -60,7 +58,6 @@ public struct ChecklistTemplate: Identifiable, Equatable, Sendable {
     self.title = title
     self.description = description
     self.category = category
-    self.isSystem = isSystem
     self.sortOrder = sortOrder
     self.createdAt = createdAt
     self.updatedAt = updatedAt

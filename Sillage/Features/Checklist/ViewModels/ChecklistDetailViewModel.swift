@@ -86,16 +86,6 @@ final class ChecklistDetailViewModel {
     return execution.completedCount > 0
   }
 
-  var canDeleteTemplate: Bool {
-    guard let template else { return false }
-    return !template.isSystem
-  }
-
-  var canEditTemplate: Bool {
-    guard let template else { return false }
-    return !template.isSystem
-  }
-
   func load() async {
     guard !isLoading else { return }
     isLoading = true
@@ -203,12 +193,12 @@ final class ChecklistDetailViewModel {
   }
 
   func deleteTemplate() async -> Bool {
-    guard canDeleteTemplate, !isPerformingAction else { return false }
+    guard template != nil, !isPerformingAction else { return false }
     isPerformingAction = true
     defer { isPerformingAction = false }
 
     do {
-      try await checklistService.deleteCustomTemplate(id: templateId)
+      try await checklistService.deleteTemplate(id: templateId)
       return true
     } catch {
       Logger.checklist.error("Failed to delete template '\(self.templateId, privacy: .public)': \(error.localizedDescription, privacy: .public)")

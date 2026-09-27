@@ -21,6 +21,26 @@ public protocol ChecklistServiceProtocol: Sendable {
   /// Fetches a specific template by its identifier.
   func fetchTemplate(id: UUID) async throws -> ChecklistTemplate?
 
+  /// Creates a checklist template.
+  func createTemplate(
+    title: String,
+    description: String?,
+    category: ChecklistCategory,
+    items: [(title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate
+
+  /// Updates an existing checklist template and its items.
+  func updateTemplate(
+    id: UUID,
+    title: String,
+    description: String?,
+    category: ChecklistCategory,
+    items: [(id: UUID?, title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate
+
+  /// Deletes a template if no execution records are attached.
+  func deleteTemplate(id: UUID) async throws
+
   /// Creates a custom user-defined checklist template.
   func createCustomTemplate(
     title: String,

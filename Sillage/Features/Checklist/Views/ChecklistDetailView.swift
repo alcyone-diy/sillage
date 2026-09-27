@@ -49,7 +49,7 @@ struct ChecklistDetailView: View {
     .navigationTitle(viewModel.title.isEmpty ? String(localized: "Checklist") : viewModel.title)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
-      if viewModel.canEditTemplate {
+      if viewModel.template != nil {
         ToolbarItem(placement: .primaryAction) {
           Button {
             isShowingEditSheet = true
@@ -257,7 +257,7 @@ struct ChecklistDetailView: View {
         .marineListCell()
       }
 
-      if viewModel.canEditTemplate {
+      if viewModel.template != nil {
         Button {
           isShowingEditSheet = true
         } label: {
@@ -269,9 +269,7 @@ struct ChecklistDetailView: View {
         .buttonStyle(MarineButtonStyle(.secondary))
         .disabled(viewModel.isPerformingAction)
         .marineListCell()
-      }
 
-      if viewModel.canDeleteTemplate {
         Button(role: .destructive) {
           viewModel.showDeleteConfirmation = true
         } label: {
