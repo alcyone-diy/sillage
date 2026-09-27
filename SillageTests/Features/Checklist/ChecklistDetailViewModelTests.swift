@@ -296,4 +296,37 @@ final class ChecklistDetailViewModelTests: XCTestCase {
     let fetched = try await checklistService.fetchTemplate(id: freshTemplate.id)
     XCTAssertNil(fetched)
   }
+
+  // MARK: - Template Refresh Tests
+
+  func testRefreshTemplateRefreshesReorderedExecutionItems() async throws {
+    await viewModel.load()
+    XCTAssertEqual(viewModel.items.count, 3)
+    XCTAssertEqual(viewModel.items[0].title, "Check oil level")
+    XCTAssertEqual(viewModel.items[1].title, "Check raw water strainer")
+    XCTAssertEqual(viewModel.items[2].title, "Visual belt check")
+
+    // Reorder template items: item 2 first, then item 0, then item 1
+    let reorderedItems = [
+      (id: Optional(template.items[2].id), title: "Visual belt check", detail: template.items[2].detail),
+      (id: Optional(template.items[0].id), title: "Check oil level", detail: template.items[0].detail),
+      (id: Optional(template.items[1].id), title: "Check raw water strainer", detail: template.items[1].detail)
+    ]
+
+    _ = try await checklistService.updateTemplate(
+      id: template.id,
+      title: template.title,
+      description: template.description,
+      category: template.category,
+      items: reorderedItems
+    )
+
+    await viewModel.refreshTemplate()
+
+    XCTAssertEqual(viewModel.items.count, 3)
+    XCTAssertEqual(viewModel.items[0].title, "Visual belt check")
+    XCTAssertEqual(viewModel.items[1].title, "Check oil level")
+    XCTAssertEqual(viewModel.items[2].title, "Check raw water strainer")
+  }
 }
+

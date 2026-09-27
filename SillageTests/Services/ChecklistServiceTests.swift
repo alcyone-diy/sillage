@@ -198,6 +198,66 @@ final class ChecklistServiceTests: XCTestCase {
     XCTAssertEqual(activeExecution?.templateTitleSnapshot, "Pre-Sail Rigging Check")
   }
 
+  func testUpdateCustomTemplateReordersActiveExecutionItemsAndPreservesCheckedState() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "Pre-Sail",
+      description: nil,
+      category: .routine,
+      items: [
+        ("Check bilges", nil),
+        ("Check engine oil", nil),
+        ("Turn on VHF", nil)
+      ]
+    )
+
+    let execution = try await checklistService.startExecution(templateId: template.id)
+    XCTAssertEqual(execution.items.count, 3)
+    XCTAssertEqual(execution.items[0].title, "Check bilges")
+    XCTAssertEqual(execution.items[1].title, "Check engine oil")
+    XCTAssertEqual(execution.items[2].title, "Turn on VHF")
+
+    // Check the first item ("Check bilges")
+    let firstItemId = execution.items[0].id
+    _ = try await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: firstItemId,
+      isChecked: true,
+      coordinate: nil
+    )
+
+    // Reorder items: Step 3 first, then Step 1 (checked), then Step 2
+    let reorderedItems = [
+      (id: Optional(template.items[2].id), title: "Turn on VHF", detail: Optional<String>.none),
+      (id: Optional(template.items[0].id), title: "Check bilges", detail: Optional<String>.none),
+      (id: Optional(template.items[1].id), title: "Check engine oil", detail: Optional<String>.none)
+    ]
+
+    _ = try await checklistService.updateTemplate(
+      id: template.id,
+      title: "Pre-Sail Reordered",
+      description: nil,
+      category: .routine,
+      items: reorderedItems
+    )
+
+    let activeExecution = try await checklistService.fetchActiveExecution(for: template.id)
+    XCTAssertNotNil(activeExecution)
+    guard let activeExecution else { return }
+
+    XCTAssertEqual(activeExecution.items.count, 3)
+    XCTAssertEqual(activeExecution.items[0].title, "Turn on VHF")
+    XCTAssertFalse(activeExecution.items[0].isChecked)
+    XCTAssertEqual(activeExecution.items[0].sortOrder, 0)
+
+    XCTAssertEqual(activeExecution.items[1].title, "Check bilges")
+    XCTAssertTrue(activeExecution.items[1].isChecked)
+    XCTAssertEqual(activeExecution.items[1].sortOrder, 1)
+
+    XCTAssertEqual(activeExecution.items[2].title, "Check engine oil")
+    XCTAssertFalse(activeExecution.items[2].isChecked)
+    XCTAssertEqual(activeExecution.items[2].sortOrder, 2)
+  }
+
   // MARK: - Execution Lifecycle & Get-or-Create Tests
 
   func testStartExecutionAndGetOrCreate() async throws {

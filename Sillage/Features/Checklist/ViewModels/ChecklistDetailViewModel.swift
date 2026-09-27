@@ -106,6 +106,9 @@ final class ChecklistDetailViewModel {
       if let updated = try await checklistService.fetchTemplate(id: templateId) {
         self.template = updated
       }
+      if let active = try await checklistService.fetchActiveExecution(for: templateId) {
+        self.execution = active
+      }
     } catch {
       Logger.checklist.error("Failed to reload template: \(error.localizedDescription, privacy: .public)")
     }

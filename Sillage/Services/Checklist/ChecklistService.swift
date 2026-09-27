@@ -286,7 +286,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         ))
       }
 
-      // Update active execution snapshot if in progress
+      // Update active execution snapshot and items if in progress
       if let activeExecution = try ChecklistExecutionRecord
         .filter(ChecklistExecutionRecord.Columns.template_id == id.uuidString)
         .filter(ChecklistExecutionRecord.Columns.status == ChecklistExecutionStatus.inProgress.rawValue)
@@ -294,6 +294,41 @@ public final class ChecklistService: ChecklistServiceProtocol {
         var updatedExecution = activeExecution
         updatedExecution.template_title_snapshot = title
         try updatedExecution.update(db)
+
+        let existingExecutionItems = try ChecklistExecutionItemRecord
+          .filter(ChecklistExecutionItemRecord.Columns.execution_id == activeExecution.id)
+          .fetchAll(db)
+
+        var existingBySourceId: [String: ChecklistExecutionItemRecord] = [:]
+        var existingByTitle: [String: ChecklistExecutionItemRecord] = [:]
+        for item in existingExecutionItems {
+          if let src = item.source_template_item_id {
+            existingBySourceId[src] = item
+          }
+          existingByTitle[item.title] = item
+        }
+
+        try ChecklistExecutionItemRecord
+          .filter(ChecklistExecutionItemRecord.Columns.execution_id == activeExecution.id)
+          .deleteAll(db)
+
+        for (index, domainItem) in domainItems.enumerated() {
+          let sourceId = domainItem.id.uuidString
+          let prior = existingBySourceId[sourceId] ?? existingByTitle[domainItem.title]
+          let execRecord = ChecklistExecutionItemRecord(
+            id: prior?.id ?? UUID().uuidString,
+            execution_id: activeExecution.id,
+            source_template_item_id: sourceId,
+            sort_order: index,
+            title: domainItem.title,
+            detail: domainItem.detail,
+            is_checked: prior?.is_checked ?? false,
+            checked_at: prior?.checked_at,
+            latitude_deg: prior?.latitude_deg,
+            longitude_deg: prior?.longitude_deg
+          )
+          try execRecord.insert(db)
+        }
       }
 
       Logger.checklist.info("Successfully updated template '\(id.uuidString, privacy: .public)'")
