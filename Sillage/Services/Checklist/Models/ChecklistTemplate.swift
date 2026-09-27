@@ -1,0 +1,72 @@
+//
+//  ChecklistTemplate.swift
+//  Alcyone Sillage
+//
+//  Created by Alcyone on 2026-09-27.
+//  Copyright © 2026 Alcyone.
+//  This file is released under the MIT License.
+//  See LICENSE file in the project root for full license information.
+//
+
+import Foundation
+
+/// Represents a single reusable step within a checklist template.
+public struct ChecklistTemplateItem: Identifiable, Equatable, Sendable {
+  public let id: UUID
+  public let templateId: UUID
+  public let sortOrder: Int
+  public let title: String
+  public let detail: String?
+  public let isMandatory: Bool
+
+  nonisolated public init(
+    id: UUID = UUID(),
+    templateId: UUID,
+    sortOrder: Int,
+    title: String,
+    detail: String? = nil,
+    isMandatory: Bool = false
+  ) {
+    self.id = id
+    self.templateId = templateId
+    self.sortOrder = sortOrder
+    self.title = title
+    self.detail = detail
+    self.isMandatory = isMandatory
+  }
+}
+
+/// Represents a reusable maritime checklist template definition.
+public struct ChecklistTemplate: Identifiable, Equatable, Sendable {
+  public let id: UUID
+  public let title: String
+  public let description: String?
+  public let category: ChecklistCategory
+  public let isSystem: Bool
+  public let sortOrder: Int
+  public let createdAt: Date
+  public let updatedAt: Date
+  public let items: [ChecklistTemplateItem]
+
+  nonisolated public init(
+    id: UUID = UUID(),
+    title: String,
+    description: String? = nil,
+    category: ChecklistCategory,
+    isSystem: Bool = false,
+    sortOrder: Int = 0,
+    createdAt: Date = Date(),
+    updatedAt: Date = Date(),
+    items: [ChecklistTemplateItem] = []
+  ) {
+    self.id = id
+    self.title = title
+    self.description = description
+    self.category = category
+    self.isSystem = isSystem
+    self.sortOrder = sortOrder
+    self.createdAt = createdAt
+    self.updatedAt = updatedAt
+    self.items = items
+  }
+}

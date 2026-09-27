@@ -183,10 +183,7 @@ public final class DatabaseManager: Sendable {
       // 5. Create indexes for the waypoint table
       try db.create(index: "idx_waypoint_name", on: "waypoint", columns: ["name"])
       try db.create(index: "idx_waypoint_timestamp_unix", on: "waypoint", columns: ["timestamp_unix"])
-    }
-    
-    migrator.registerMigration("v2") { db in
-      // Create the barometric reading table for weather telemetry history
+      // 6. Create the barometric reading table for weather telemetry history
       try db.create(table: BarometricReadingRecord.databaseTableName) { t in
         t.autoIncrementedPrimaryKey("id")
         t.column("timestamp_unix", .double).notNull()
@@ -198,6 +195,90 @@ public final class DatabaseManager: Sendable {
         index: "idx_barometric_reading_timestamp_unix",
         on: BarometricReadingRecord.databaseTableName,
         columns: ["timestamp_unix"]
+      )
+
+      // 7. Checklist Templates
+      try db.create(table: ChecklistTemplateRecord.databaseTableName) { t in
+        t.column("id", .text).primaryKey()
+        t.column("title", .text).notNull()
+        t.column("description", .text)
+        t.column("category", .text).notNull()
+        t.column("is_system", .boolean).notNull().defaults(to: false)
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+      try db.create(index: "idx_checklist_template_category", on: ChecklistTemplateRecord.databaseTableName, columns: ["category"])
+      try db.create(index: "idx_checklist_template_sort_order", on: ChecklistTemplateRecord.databaseTableName, columns: ["sort_order"])
+
+      // 8. Checklist Template Items
+      try db.create(table: ChecklistTemplateItemRecord.databaseTableName) { t in
+        t.column("id", .text).primaryKey()
+        t.column("template_id", .text)
+          .notNull()
+          .references(ChecklistTemplateRecord.databaseTableName, column: "id", onDelete: .cascade)
+        t.column("sort_order", .integer).notNull()
+        t.column("title", .text).notNull()
+        t.column("detail", .text)
+        t.column("is_mandatory", .boolean).notNull().defaults(to: false)
+      }
+      try db.create(
+        index: "idx_checklist_template_item_template_order",
+        on: ChecklistTemplateItemRecord.databaseTableName,
+        columns: ["template_id", "sort_order"]
+      )
+
+      // 9. Checklist Executions (RESTRICT deletion if template has history)
+      try db.create(table: ChecklistExecutionRecord.databaseTableName) { t in
+        t.column("id", .text).primaryKey()
+        t.column("template_id", .text)
+          .notNull()
+          .references(ChecklistTemplateRecord.databaseTableName, column: "id", onDelete: .restrict)
+        t.column("template_title_snapshot", .text).notNull()
+        t.column("status", .text).notNull()
+        t.column("started_at", .datetime).notNull()
+        t.column("completed_at", .datetime)
+        t.column("notes", .text)
+
+        t.check(sql: "status IN ('in_progress', 'completed', 'abandoned')")
+      }
+      try db.create(index: "idx_checklist_execution_status", on: ChecklistExecutionRecord.databaseTableName, columns: ["status"])
+      try db.create(index: "idx_checklist_execution_started_at", on: ChecklistExecutionRecord.databaseTableName, columns: ["started_at"])
+
+      // Partial unique index guaranteeing only one in-progress execution per template
+      try db.create(
+        index: "idx_unique_active_execution",
+        on: ChecklistExecutionRecord.databaseTableName,
+        columns: ["template_id"],
+        unique: true,
+        condition: SQL("status = 'in_progress'")
+      )
+
+      // 10. Checklist Execution Items
+      try db.create(table: ChecklistExecutionItemRecord.databaseTableName) { t in
+        t.column("id", .text).primaryKey()
+        t.column("execution_id", .text)
+          .notNull()
+          .references(ChecklistExecutionRecord.databaseTableName, column: "id", onDelete: .cascade)
+        t.column("source_template_item_id", .text)
+        t.column("sort_order", .integer).notNull()
+        t.column("title", .text).notNull()
+        t.column("detail", .text)
+        t.column("is_mandatory", .boolean).notNull()
+        t.column("is_checked", .boolean).notNull().defaults(to: false)
+        t.column("checked_at", .datetime)
+        t.column("latitude_deg", .double)
+        t.column("longitude_deg", .double)
+
+        // Enforce spatial atomicity: either both coordinates are present or neither
+        t.check(sql: "(latitude_deg IS NULL) = (longitude_deg IS NULL)")
+        t.check(sql: "latitude_deg IS NULL OR (latitude_deg BETWEEN -90 AND 90)")
+        t.check(sql: "longitude_deg IS NULL OR (longitude_deg BETWEEN -180 AND 180)")
+      }
+      try db.create(
+        index: "idx_checklist_execution_item_execution_order",
+        on: ChecklistExecutionItemRecord.databaseTableName,
+        columns: ["execution_id", "sort_order"]
       )
     }
     

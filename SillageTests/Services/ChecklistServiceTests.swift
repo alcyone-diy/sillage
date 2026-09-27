@@ -1,0 +1,363 @@
+//
+//  ChecklistServiceTests.swift
+//  Alcyone Sillage
+//
+//  Created by Alcyone on 2026-09-27.
+//  Copyright © 2026 Alcyone.
+//  This file is released under the MIT License.
+//  See LICENSE file in the project root for full license information.
+//
+
+import XCTest
+import CoreLocation
+import GRDB
+@testable import Sillage
+
+final class ChecklistServiceTests: XCTestCase {
+  private var databaseManager: DatabaseManager!
+  private var checklistService: ChecklistService!
+
+  override func setUp() async throws {
+    try await super.setUp()
+    databaseManager = try DatabaseManager.inMemory()
+    checklistService = ChecklistService(
+      databaseManager: databaseManager,
+      throttler: ChecklistThrottler(window: .zero)
+    )
+  }
+
+  override func tearDown() async throws {
+    checklistService = nil
+    databaseManager = nil
+    try await super.tearDown()
+  }
+
+  // MARK: - Migration & Seeding Tests
+
+  func testDefaultSeeding() async throws {
+    try await checklistService.seedDefaultTemplatesIfNeeded()
+
+    let templates = try await checklistService.fetchTemplates()
+    XCTAssertEqual(templates.count, 4)
+
+    let systemTemplates = templates.filter(\.isSystem)
+    XCTAssertEqual(systemTemplates.count, 4)
+
+    // Second call should be a no-op
+    try await checklistService.seedDefaultTemplatesIfNeeded()
+    let templatesAfterSecondSeed = try await checklistService.fetchTemplates()
+    XCTAssertEqual(templatesAfterSecondSeed.count, 4)
+  }
+
+  // MARK: - Template Operations Tests
+
+  func testCreateAndFetchCustomTemplate() async throws {
+    let items = [
+      ("Check fuel tank", "Minimum 50% capacity", true),
+      ("Stow fenders", Optional<String>.none, false)
+    ]
+
+    let created = try await checklistService.createCustomTemplate(
+      title: "Night Sailing Prep",
+      description: "Night passage checklist",
+      category: .routine,
+      items: items
+    )
+
+    XCTAssertEqual(created.title, "Night Sailing Prep")
+    XCTAssertEqual(created.category, .routine)
+    XCTAssertFalse(created.isSystem)
+    XCTAssertEqual(created.items.count, 2)
+    XCTAssertEqual(created.items[0].title, "Check fuel tank")
+    XCTAssertTrue(created.items[0].isMandatory)
+    XCTAssertFalse(created.items[1].isMandatory)
+
+    let fetched = try await checklistService.fetchTemplate(id: created.id)
+    XCTAssertNotNil(fetched)
+    XCTAssertEqual(fetched?.id, created.id)
+    XCTAssertEqual(fetched?.items.count, 2)
+  }
+
+  func testDeleteCustomTemplateWithoutHistory() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "Temporary Checklist",
+      description: nil,
+      category: .engineTechnical,
+      items: [("Check belt", nil, false)]
+    )
+
+    try await checklistService.deleteCustomTemplate(id: template.id)
+    let fetched = try await checklistService.fetchTemplate(id: template.id)
+    XCTAssertNil(fetched)
+  }
+
+  func testCannotDeleteSystemTemplate() async throws {
+    try await checklistService.seedDefaultTemplatesIfNeeded()
+    let templates = try await checklistService.fetchTemplates()
+    guard let systemTemplate = templates.first(where: \.isSystem) else {
+      XCTFail("No system template found")
+      return
+    }
+
+    do {
+      try await checklistService.deleteCustomTemplate(id: systemTemplate.id)
+      XCTFail("Expected error when deleting system template")
+    } catch {
+      // Expected failure
+    }
+  }
+
+  // MARK: - Execution Lifecycle & Get-or-Create Tests
+
+  func testStartExecutionAndGetOrCreate() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "Engine Start",
+      description: nil,
+      category: .engineTechnical,
+      items: [
+        ("Open seacock", nil, true),
+        ("Check oil", nil, true)
+      ]
+    )
+
+    // 1. Initial start
+    let execution1 = try await checklistService.startExecution(templateId: template.id)
+    XCTAssertEqual(execution1.templateId, template.id)
+    XCTAssertEqual(execution1.status, .inProgress)
+    XCTAssertEqual(execution1.items.count, 2)
+    XCTAssertEqual(execution1.completedCount, 0)
+    XCTAssertEqual(execution1.progressRatio, 0.0)
+
+    // 2. Second start on same template -> Transparent resume (Get-or-Create)
+    let execution2 = try await checklistService.startExecution(templateId: template.id)
+    XCTAssertEqual(execution1.id, execution2.id)
+  }
+
+  func testSetItemCheckedIdempotencyAndCoordinate() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "Anchor Procedure",
+      description: nil,
+      category: .navigationManeuver,
+      items: [
+        ("Drop anchor", "Record coordinates", true),
+        ("Set snubber", nil, true)
+      ]
+    )
+
+    let execution = try await checklistService.startExecution(templateId: template.id)
+    let itemToToggle = execution.items[0]
+
+    let coordinate = CLLocationCoordinate2D(latitude: 46.159, longitude: -1.152)
+
+    // Check item with coordinate
+    let updated1 = try await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: itemToToggle.id,
+      isChecked: true,
+      coordinate: coordinate
+    )
+
+    let checkedItem = updated1.items.first { $0.id == itemToToggle.id }
+    XCTAssertNotNil(checkedItem)
+    XCTAssertTrue(checkedItem?.isChecked == true)
+    XCTAssertNotNil(checkedItem?.checkedAt)
+    XCTAssertEqual(checkedItem?.coordinate?.latitude, 46.159)
+    XCTAssertEqual(checkedItem?.coordinate?.longitude, -1.152)
+    XCTAssertEqual(updated1.completedCount, 1)
+
+    // Second check with isChecked: true -> Idempotent, no change
+    let updated2 = try await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: itemToToggle.id,
+      isChecked: true,
+      coordinate: coordinate
+    )
+    XCTAssertEqual(updated1.items.first?.checkedAt, updated2.items.first?.checkedAt)
+
+    // Uncheck item
+    let updated3 = try await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: itemToToggle.id,
+      isChecked: false,
+      coordinate: nil
+    )
+    let uncheckedItem = updated3.items.first { $0.id == itemToToggle.id }
+    XCTAssertFalse(uncheckedItem?.isChecked == true)
+    XCTAssertNil(uncheckedItem?.checkedAt)
+    XCTAssertNil(uncheckedItem?.coordinate)
+  }
+
+  func testResetExecution() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "Reset Test",
+      description: nil,
+      category: .routine,
+      items: [
+        ("Step 1", nil, true),
+        ("Step 2", nil, false)
+      ]
+    )
+
+    let execution = try await checklistService.startExecution(templateId: template.id)
+    _ = try await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: execution.items[0].id,
+      isChecked: true,
+      coordinate: nil
+    )
+
+    let resetExecution = try await checklistService.resetExecution(executionId: execution.id)
+    XCTAssertEqual(resetExecution.completedCount, 0)
+    XCTAssertTrue(resetExecution.items.allSatisfy { !$0.isChecked && $0.checkedAt == nil })
+  }
+
+  func testCompleteExecutionRequiresMandatoryItems() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "Mandatory Test",
+      description: nil,
+      category: .safetyEmergency,
+      items: [
+        ("Mandatory step", nil, true),
+        ("Optional step", nil, false)
+      ]
+    )
+
+    let execution = try await checklistService.startExecution(templateId: template.id)
+
+    // Attempting completion without checking mandatory item should fail
+    do {
+      _ = try await checklistService.completeExecution(executionId: execution.id, notes: nil)
+      XCTFail("Expected mandatoryItemsRemaining error")
+    } catch ChecklistExecutionError.mandatoryItemsRemaining(let count) {
+      XCTAssertEqual(count, 1)
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+
+    // Checking only the optional item still fails
+    _ = try await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: execution.items[1].id,
+      isChecked: true,
+      coordinate: nil
+    )
+    do {
+      _ = try await checklistService.completeExecution(executionId: execution.id, notes: nil)
+      XCTFail("Expected mandatoryItemsRemaining error")
+    } catch ChecklistExecutionError.mandatoryItemsRemaining {
+      // Expected
+    }
+
+    // Checking the mandatory item allows completion
+    _ = try await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: execution.items[0].id,
+      isChecked: true,
+      coordinate: nil
+    )
+
+    let completed = try await checklistService.completeExecution(
+      executionId: execution.id,
+      notes: "Executed in 2 minutes"
+    )
+    XCTAssertEqual(completed.status, .completed)
+    XCTAssertNotNil(completed.completedAt)
+    XCTAssertEqual(completed.notes, "Executed in 2 minutes")
+  }
+
+  func testAbandonExecution() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "Abandon Test",
+      description: nil,
+      category: .routine,
+      items: [("Task 1", nil, false)]
+    )
+
+    let execution = try await checklistService.startExecution(templateId: template.id)
+    let abandoned = try await checklistService.abandonExecution(executionId: execution.id)
+
+    XCTAssertEqual(abandoned.status, .abandoned)
+    XCTAssertNotNil(abandoned.completedAt)
+
+    // Modifying an abandoned execution should fail
+    do {
+      _ = try await checklistService.setItemChecked(
+        executionId: execution.id,
+        itemId: execution.items[0].id,
+        isChecked: true,
+        coordinate: nil
+      )
+      XCTFail("Expected executionAlreadyFinished error")
+    } catch ChecklistExecutionError.executionAlreadyFinished {
+      // Expected
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+  }
+
+  func testCannotDeleteTemplateWithExecutions() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "History Protected",
+      description: nil,
+      category: .routine,
+      items: [("Item", nil, true)]
+    )
+
+    let execution = try await checklistService.startExecution(templateId: template.id)
+    _ = try await checklistService.abandonExecution(executionId: execution.id)
+
+    do {
+      try await checklistService.deleteCustomTemplate(id: template.id)
+      XCTFail("Expected templateHasExistingExecutions error")
+    } catch ChecklistExecutionError.templateHasExistingExecutions(let id) {
+      XCTAssertEqual(id, template.id)
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+  }
+
+  func testReactiveActiveExecutionsObservation() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "Observation Test",
+      description: nil,
+      category: .routine,
+      items: [("Step", nil, false)]
+    )
+
+    let stream = checklistService.observeActiveExecutions()
+    var iterator = stream.makeAsyncIterator()
+
+    // 1. Initial emission: empty array
+    let initial = try await iterator.next()
+    XCTAssertEqual(initial?.count, 0)
+
+    // 2. Start execution
+    let execution = try await checklistService.startExecution(templateId: template.id)
+    let afterStart = try await iterator.next()
+    XCTAssertEqual(afterStart?.count, 1)
+    XCTAssertEqual(afterStart?.first?.id, execution.id)
+
+    // 3. Complete execution
+    _ = try await checklistService.completeExecution(executionId: execution.id, notes: nil)
+    let afterComplete = try await iterator.next()
+    XCTAssertEqual(afterComplete?.count, 0)
+  }
+
+  func testThrottlerDebouncesRapidTaps() async throws {
+    let throttler = ChecklistThrottler(window: .milliseconds(300))
+    let itemId = UUID()
+
+    // First action should pass
+    let first = await throttler.shouldProcessAction(for: itemId)
+    XCTAssertTrue(first)
+
+    // Immediate second action should be debounced
+    let second = await throttler.shouldProcessAction(for: itemId)
+    XCTAssertFalse(second)
+
+    // After waiting 350ms, next action should pass
+    try await Task.sleep(for: .milliseconds(350))
+    let third = await throttler.shouldProcessAction(for: itemId)
+    XCTAssertTrue(third)
+  }
+}

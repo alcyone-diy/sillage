@@ -49,6 +49,7 @@ final class AppEnvironment {
     let networkMonitorService: NetworkMonitorService
     let notificationService: NotificationService
     let secondaryTelemetryViewModel: SecondaryTelemetryViewModel
+    let checklistService: ChecklistServiceProtocol
   }
   
   public init(metadata: AppMetadata? = nil) {
@@ -155,6 +156,9 @@ final class AppEnvironment {
         }
       }
       observeWaypointGoTo()
+
+      let checklistService = ChecklistService(databaseManager: databaseManager)
+      try await checklistService.seedDefaultTemplatesIfNeeded()
 
       let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService)
       await geoGarageAuthService.bootstrap()
@@ -302,7 +306,8 @@ final class AppEnvironment {
         offlineSelectionViewModel: offlineSelectionViewModel,
         networkMonitorService: networkMonitorService,
         notificationService: notificationService,
-        secondaryTelemetryViewModel: secondaryTelemetryViewModel
+        secondaryTelemetryViewModel: secondaryTelemetryViewModel,
+        checklistService: checklistService
       )
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
@@ -349,6 +354,11 @@ final class AppEnvironment {
   var offlineSelectionViewModel: OfflineSelectionViewModel? {
     guard case .ready(let container) = state else { return nil }
     return container.offlineSelectionViewModel
+  }
+
+  var checklistService: ChecklistServiceProtocol? {
+    guard case .ready(let container) = state else { return nil }
+    return container.checklistService
   }
 
   // MARK: - Global Offline Charts Download Status

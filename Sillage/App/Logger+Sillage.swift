@@ -32,5 +32,6 @@ extension Logger {
   nonisolated static let navigation = Logger(subsystem: subsystem, category: "Navigation")
   nonisolated static let mapStyle = Logger(subsystem: subsystem, category: "MapStyle")
   nonisolated static let caas = Logger(subsystem: subsystem, category: "CAAS")
+  nonisolated static let checklist = Logger(subsystem: subsystem, category: "Checklist")
 }
 
