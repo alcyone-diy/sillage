@@ -18,10 +18,15 @@ struct ChecklistDetailView: View {
 
   @State private var viewModel: ChecklistDetailViewModel
 
-  init(templateId: UUID, checklistService: any ChecklistServiceProtocol) {
+  init(
+    templateId: UUID,
+    checklistService: any ChecklistServiceProtocol,
+    locationProvider: (@MainActor () -> NavigationFix?)? = nil
+  ) {
     _viewModel = State(initialValue: ChecklistDetailViewModel(
       templateId: templateId,
-      checklistService: checklistService
+      checklistService: checklistService,
+      locationProvider: locationProvider
     ))
   }
 
@@ -42,6 +47,9 @@ struct ChecklistDetailView: View {
     .navigationBarTitleDisplayMode(.inline)
     .task {
       await viewModel.load()
+    }
+    .task {
+      await viewModel.observe()
     }
     .alert(
       "Reset Checklist?",
@@ -152,8 +160,10 @@ struct ChecklistDetailView: View {
   private var itemsSection: some View {
     Section("Items") {
       ForEach(viewModel.items) { item in
+        let isCurrent = (item.id == viewModel.currentItemId)
         ChecklistExecutionItemRowView(
           item: item,
+          isCurrentItem: isCurrent,
           isPerformingAction: viewModel.isPerformingAction,
           onToggle: {
             Task {
@@ -245,68 +255,69 @@ struct ChecklistDetailView: View {
   }
 }
 
-/// Interactive item row in a checklist execution.
+/// Interactive item row in a checklist execution adhering strictly to Glove Mode.
 @MainActor
 private struct ChecklistExecutionItemRowView: View {
   @Environment(\.marineTheme) private var marineTheme
   let item: ChecklistExecutionItem
+  let isCurrentItem: Bool
   let isPerformingAction: Bool
   let onToggle: @MainActor () -> Void
 
   var body: some View {
-    HStack(spacing: MarineTheme.Spacing.medium) {
-      Button {
-        onToggle()
-      } label: {
+    Button {
+      onToggle()
+    } label: {
+      HStack(spacing: MarineTheme.Spacing.medium) {
         Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
           .font(.title2)
-          .foregroundStyle(item.isChecked ? marineTheme.colors.accent : marineTheme.colors.textSecondary)
-          .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
-      .disabled(isPerformingAction)
-      .accessibilityLabel(item.isChecked ? String(localized: "Checked") : String(localized: "Unchecked"))
+          .foregroundStyle(
+            item.isChecked
+              ? marineTheme.colors.accent
+              : (isCurrentItem ? marineTheme.colors.accent : marineTheme.colors.textSecondary)
+          )
 
-      VStack(alignment: .leading, spacing: 4) {
-        HStack(spacing: MarineTheme.Spacing.small) {
-          Text(item.title)
-            .marineFont(.body)
-            .foregroundStyle(item.isChecked ? marineTheme.colors.textSecondary : marineTheme.colors.textPrimary)
-            .strikethrough(item.isChecked, color: marineTheme.colors.textSecondary)
+        VStack(alignment: .leading, spacing: 4) {
+          HStack(spacing: MarineTheme.Spacing.small) {
+            Text(item.title)
+              .marineFont(isCurrentItem ? .headline : .body)
+              .fontWeight(isCurrentItem ? .bold : .regular)
+              .foregroundStyle(item.isChecked ? marineTheme.colors.textSecondary : marineTheme.colors.textPrimary)
+              .strikethrough(item.isChecked, color: marineTheme.colors.textSecondary)
 
-          if item.isMandatory {
-            Text("Required")
+            if item.isMandatory {
+              Text("Required")
+                .marineFont(.caption)
+                .foregroundStyle(item.isChecked ? marineTheme.colors.textSecondary : marineTheme.colors.warning)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                  Capsule()
+                    .fill(item.isChecked ? marineTheme.colors.secondaryActionBackground : marineTheme.colors.warning.opacity(0.15))
+                )
+            }
+          }
+
+          if let detail = item.detail, !detail.isEmpty {
+            Text(detail)
               .marineFont(.caption)
-              .foregroundStyle(item.isChecked ? marineTheme.colors.textSecondary : marineTheme.colors.warning)
-              .padding(.horizontal, 6)
-              .padding(.vertical, 2)
-              .background(
-                Capsule()
-                  .fill(item.isChecked ? marineTheme.colors.secondaryActionBackground : marineTheme.colors.warning.opacity(0.15))
-              )
+              .foregroundStyle(marineTheme.colors.textSecondary)
+          }
+
+          if let checkedAt = item.checkedAt, item.isChecked {
+            Text(checkedAt.formatted(date: .omitted, time: .shortened))
+              .marineFont(.caption)
+              .foregroundStyle(marineTheme.colors.textSecondary.opacity(0.7))
           }
         }
 
-        if let detail = item.detail, !detail.isEmpty {
-          Text(detail)
-            .marineFont(.caption)
-            .foregroundStyle(marineTheme.colors.textSecondary)
-        }
-
-        if let checkedAt = item.checkedAt, item.isChecked {
-          Text(checkedAt.formatted(date: .omitted, time: .shortened))
-            .marineFont(.caption)
-            .foregroundStyle(marineTheme.colors.textSecondary.opacity(0.7))
-        }
+        Spacer()
       }
+      .frame(minHeight: marineTheme.minTouchTarget)
       .contentShape(Rectangle())
-      .onTapGesture {
-        onToggle()
-      }
-
-      Spacer()
     }
-    .padding(.vertical, 4)
+    .buttonStyle(.plain)
+    .disabled(isPerformingAction)
+    .accessibilityLabel("\(item.title), \(item.isChecked ? String(localized: "Checked") : String(localized: "Unchecked"))")
   }
 }

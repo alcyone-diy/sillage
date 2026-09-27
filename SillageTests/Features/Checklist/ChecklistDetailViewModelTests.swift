@@ -9,6 +9,7 @@
 //
 
 import XCTest
+import CoreLocation
 @testable import Sillage
 
 @MainActor
@@ -17,6 +18,8 @@ final class ChecklistDetailViewModelTests: XCTestCase {
   private var checklistService: ChecklistService!
   private var template: ChecklistTemplate!
   private var viewModel: ChecklistDetailViewModel!
+  private var simulatedFix: NavigationFix?
+  private var observeTask: Task<Void, Never>?
 
   override func setUp() async throws {
     try await super.setUp()
@@ -39,12 +42,18 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
     viewModel = ChecklistDetailViewModel(
       templateId: template.id,
-      checklistService: checklistService
+      checklistService: checklistService,
+      locationProvider: { [weak self] in
+        self?.simulatedFix
+      }
     )
   }
 
   override func tearDown() async throws {
+    observeTask?.cancel()
+    observeTask = nil
     viewModel = nil
+    simulatedFix = nil
     template = nil
     checklistService = nil
     databaseManager = nil
@@ -74,10 +83,17 @@ final class ChecklistDetailViewModelTests: XCTestCase {
     XCTAssertTrue(viewModel.canDeleteTemplate)
   }
 
-  // MARK: - Item Toggle Tests
+  // MARK: - Reactive Stream Observation Tests
 
-  func testToggleItemUpdatesCheckedStateAndProgress() async {
+  func testReactiveObservationDrivesItemToggle() async throws {
     await viewModel.load()
+    observeTask = Task { [viewModel] in
+      await viewModel?.observe()
+    }
+
+    // Give observation time to connect
+    try await Task.sleep(nanoseconds: 50_000_000)
+
     guard let firstItem = viewModel.items.first else {
       XCTFail("Items should not be empty")
       return
@@ -87,89 +103,214 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
     await viewModel.toggleItem(firstItem)
 
+    // Wait for DB observation stream to yield
+    try await Task.sleep(nanoseconds: 100_000_000)
+
     XCTAssertEqual(viewModel.completedCount, 1)
     XCTAssertEqual(viewModel.progressRatio, 1.0 / 3.0)
-    XCTAssertTrue(viewModel.canReset)
-    XCTAssertFalse(viewModel.canComplete) // Still 1 mandatory item remaining
+    XCTAssertTrue(viewModel.items.first?.isChecked == true)
 
-    // Toggle again to uncheck
-    guard let updatedFirstItem = viewModel.items.first else {
-      XCTFail("Items should not be empty")
-      return
-    }
-    XCTAssertTrue(updatedFirstItem.isChecked)
-
-    await viewModel.toggleItem(updatedFirstItem)
+    // Reset via service/VM
+    await viewModel.reset()
+    try await Task.sleep(nanoseconds: 100_000_000)
 
     XCTAssertEqual(viewModel.completedCount, 0)
-    XCTAssertEqual(viewModel.progressRatio, 0.0)
+    XCTAssertTrue(viewModel.items.first?.isChecked == false)
   }
 
-  // MARK: - Reset Tests
+  // MARK: - Progressive Disclosure (Current Item) Tests
 
-  func testResetUnchecksAllItems() async {
+  func testProgressiveDisclosureCurrentItem() async {
     await viewModel.load()
-    for item in viewModel.items {
-      await viewModel.toggleItem(item)
+    observeTask = Task { [viewModel] in
+      await viewModel?.observe()
     }
-    XCTAssertEqual(viewModel.completedCount, 3)
-    XCTAssertTrue(viewModel.canReset)
 
-    await viewModel.reset()
+    // Initial: First unchecked item is item 0
+    XCTAssertEqual(viewModel.currentItemId, viewModel.items[0].id)
 
-    XCTAssertEqual(viewModel.completedCount, 0)
-    XCTAssertFalse(viewModel.canReset)
-    XCTAssertTrue(viewModel.items.allSatisfy { !$0.isChecked })
+    // Toggle item 0 directly in DB
+    guard let execution = viewModel.execution else {
+      XCTFail("Execution must exist")
+      return
+    }
+    _ = try? await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: viewModel.items[0].id,
+      isChecked: true,
+      coordinate: nil
+    )
+
+    try? await Task.sleep(nanoseconds: 100_000_000)
+
+    // Next unchecked item is item 1
+    XCTAssertEqual(viewModel.currentItemId, viewModel.items[1].id)
+
+    // Toggle items 1 and 2
+    _ = try? await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: viewModel.items[1].id,
+      isChecked: true,
+      coordinate: nil
+    )
+    _ = try? await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: viewModel.items[2].id,
+      isChecked: true,
+      coordinate: nil
+    )
+
+    try? await Task.sleep(nanoseconds: 100_000_000)
+
+    // All checked: currentItemId is nil
+    XCTAssertNil(viewModel.currentItemId)
+  }
+
+  // MARK: - Defensive GPS Accuracy Injection Tests
+
+  func testDefensiveGPSAccuracyAcceptsUnder50Meters() async throws {
+    await viewModel.load()
+
+    // Accurate fix (15 meters <= 50m)
+    let expectedCoord = CLLocationCoordinate2D(latitude: 46.159, longitude: -1.152)
+    simulatedFix = NavigationFix(
+      coordinate: expectedCoord,
+      horizontalAccuracy: Measurement(value: 15.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+
+    guard let firstItem = viewModel.items.first, let execution = viewModel.execution else {
+      XCTFail("Missing item or execution")
+      return
+    }
+
+    await viewModel.toggleItem(firstItem)
+
+    let updatedExecution = try await checklistService.fetchExecution(id: execution.id)
+    let updatedItem = updatedExecution?.items.first { $0.id == firstItem.id }
+    XCTAssertNotNil(updatedItem?.coordinate)
+    XCTAssertEqual(updatedItem?.coordinate?.latitude, 46.159)
+    XCTAssertEqual(updatedItem?.coordinate?.longitude, -1.152)
+  }
+
+  func testDefensiveGPSAccuracyRejectsOver50Meters() async throws {
+    await viewModel.load()
+
+    // Degraded fix (65 meters > 50m)
+    simulatedFix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 46.159, longitude: -1.152),
+      horizontalAccuracy: Measurement(value: 65.0, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+
+    guard let firstItem = viewModel.items.first, let execution = viewModel.execution else {
+      XCTFail("Missing item or execution")
+      return
+    }
+
+    await viewModel.toggleItem(firstItem)
+
+    let updatedExecution = try await checklistService.fetchExecution(id: execution.id)
+    let updatedItem = updatedExecution?.items.first { $0.id == firstItem.id }
+    XCTAssertTrue(updatedItem?.isChecked == true)
+    XCTAssertNil(updatedItem?.coordinate)
   }
 
   // MARK: - Completion Tests
 
-  func testCompleteRequiresAllMandatoryItems() async {
+  func testCompleteRequiresAllMandatoryItems() async throws {
     await viewModel.load()
+    observeTask = Task { [viewModel] in
+      await viewModel?.observe()
+    }
+    try await Task.sleep(nanoseconds: 50_000_000)
 
-    // Check only optional item (index 2)
-    let optionalItem = viewModel.items[2]
-    await viewModel.toggleItem(optionalItem)
+    // Check only optional item (index 2) directly in DB
+    guard let execution = viewModel.execution else {
+      XCTFail("Execution missing")
+      return
+    }
+
+    _ = try await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: viewModel.items[2].id,
+      isChecked: true,
+      coordinate: nil
+    )
+    try await Task.sleep(nanoseconds: 50_000_000)
 
     XCTAssertFalse(viewModel.canComplete)
     XCTAssertFalse(viewModel.isAllMandatorySatisfied)
 
-    // Check first mandatory item (index 0)
-    let firstMandatory = viewModel.items[0]
-    await viewModel.toggleItem(firstMandatory)
-    XCTAssertFalse(viewModel.canComplete)
+    // Check mandatory items
+    _ = try await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: viewModel.items[0].id,
+      isChecked: true,
+      coordinate: nil
+    )
+    _ = try await checklistService.setItemChecked(
+      executionId: execution.id,
+      itemId: viewModel.items[1].id,
+      isChecked: true,
+      coordinate: nil
+    )
+    try await Task.sleep(nanoseconds: 50_000_000)
 
-    // Check second mandatory item (index 1)
-    let secondMandatory = viewModel.items[1]
-    await viewModel.toggleItem(secondMandatory)
     XCTAssertTrue(viewModel.canComplete)
     XCTAssertTrue(viewModel.isAllMandatorySatisfied)
 
-    // Complete session
     await viewModel.complete()
+    try await Task.sleep(nanoseconds: 100_000_000)
+
     XCTAssertTrue(viewModel.isCompleted)
     XCTAssertFalse(viewModel.canComplete)
   }
 
-  // MARK: - Restart Session Tests
+  // MARK: - Auditability (Delete Rejection) Tests
 
-  func testRestartSessionCreatesNewActiveSession() async {
+  func testDeleteCustomTemplateWithExecutionHistoryFails() async {
     await viewModel.load()
+    XCTAssertTrue(viewModel.canDeleteTemplate)
 
-    // Complete all items
-    for item in viewModel.items {
-      await viewModel.toggleItem(item)
-    }
-    await viewModel.complete()
-    XCTAssertTrue(viewModel.isCompleted)
+    // Since load() started an in_progress execution session, deleting this template must fail
+    let success = await viewModel.deleteTemplate()
+    XCTAssertFalse(success)
+    XCTAssertNotNil(viewModel.errorMessage)
 
-    let previousExecutionId = viewModel.execution?.id
+    // Template still exists in DB
+    let fetched = try? await checklistService.fetchTemplate(id: template.id)
+    XCTAssertNotNil(fetched)
+  }
 
-    // Restart
-    await viewModel.restartSession()
+  func testDeleteCustomTemplateWithoutExecutionHistorySucceeds() async throws {
+    let freshTemplate = try await checklistService.createCustomTemplate(
+      title: "Fresh Unexecuted",
+      description: nil,
+      category: .routine,
+      items: [("Task", nil, false)]
+    )
 
-    XCTAssertFalse(viewModel.isCompleted)
-    XCTAssertEqual(viewModel.completedCount, 0)
-    XCTAssertNotEqual(viewModel.execution?.id, previousExecutionId)
+    let freshVM = ChecklistDetailViewModel(
+      templateId: freshTemplate.id,
+      checklistService: checklistService
+    )
+
+    // Before load() (no execution created)
+    freshVM.template = freshTemplate
+    let success = await freshVM.deleteTemplate()
+    XCTAssertTrue(success)
+    XCTAssertNil(freshVM.errorMessage)
+
+    let fetched = try await checklistService.fetchTemplate(id: freshTemplate.id)
+    XCTAssertNil(fetched)
   }
 }

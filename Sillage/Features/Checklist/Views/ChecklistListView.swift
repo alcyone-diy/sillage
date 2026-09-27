@@ -17,6 +17,7 @@ struct ChecklistListView: View {
   private let checklistService: any ChecklistServiceProtocol
   @State private var viewModel: ChecklistListViewModel
   @State private var isShowingCreateSheet = false
+  @State private var templateToDelete: ChecklistTemplate?
 
   init(checklistService: any ChecklistServiceProtocol) {
     self.checklistService = checklistService
@@ -62,6 +63,16 @@ struct ChecklistListView: View {
             ForEach(section.templates) { template in
               NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistDetail(templateId: template.id)) {
                 ChecklistTemplateRowView(template: template)
+              }
+              .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                if !template.isSystem {
+                  Button(role: .destructive) {
+                    templateToDelete = template
+                  } label: {
+                    Label("Delete", systemImage: MarineIcon.delete.rawValue)
+                  }
+                  .tint(.red)
+                }
               }
               .marineListCell()
             }
@@ -113,6 +124,31 @@ struct ChecklistListView: View {
       Task {
         await viewModel.loadTemplates()
       }
+    }
+    .alert(
+      "Delete Checklist?",
+      isPresented: Binding(
+        get: { templateToDelete != nil },
+        set: { if !$0 { templateToDelete = nil } }
+      ),
+      presenting: templateToDelete
+    ) { template in
+      Button("Delete", role: .destructive) {
+        Task {
+          do {
+            try await checklistService.deleteCustomTemplate(id: template.id)
+            await viewModel.loadTemplates()
+          } catch {
+            viewModel.errorMessage = error.localizedDescription
+          }
+          templateToDelete = nil
+        }
+      }
+      Button("Cancel", role: .cancel) {
+        templateToDelete = nil
+      }
+    } message: { template in
+      Text("Are you sure you want to delete \"\(template.title)\"? This action cannot be undone.")
     }
     .alert(
       "Error",

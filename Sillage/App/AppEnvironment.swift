@@ -361,6 +361,11 @@ final class AppEnvironment {
     return container.checklistService
   }
 
+  var lastKnownLocation: NavigationFix? {
+    guard case .ready(let container) = state else { return nil }
+    return container.positioningService.lastKnownLocation
+  }
+
   // MARK: - Global Offline Charts Download Status
 
   @ObservationIgnored
