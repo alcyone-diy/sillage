@@ -76,13 +76,9 @@ final class ChecklistDetailViewModel {
     execution?.status == .completed
   }
 
-  var isAllMandatorySatisfied: Bool {
-    execution?.isAllMandatorySatisfied ?? false
-  }
-
   var canComplete: Bool {
     guard let execution else { return false }
-    return execution.status == .inProgress && execution.isAllMandatorySatisfied
+    return execution.status == .inProgress && execution.isFullyCompleted
   }
 
   var canReset: Bool {

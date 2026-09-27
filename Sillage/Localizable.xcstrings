@@ -793,9 +793,6 @@
     "Manage GeoGarage Account" : {
 
     },
-    "Mandatory step" : {
-
-    },
     "Manual debug simulation" : {
 
     },
@@ -1000,9 +997,6 @@
     "Requesting package…" : {
 
     },
-    "Required" : {
-
-    },
     "Reset" : {
 
     },
@@ -1139,7 +1133,7 @@
     "swift-concurrency-extras" : {
 
     },
-    "Swipe to delete. Mark critical steps as mandatory." : {
+    "Swipe to delete." : {
 
     },
     "System" : {

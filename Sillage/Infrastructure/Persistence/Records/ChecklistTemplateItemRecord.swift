@@ -20,22 +20,19 @@ public struct ChecklistTemplateItemRecord: Codable, FetchableRecord, Persistable
   public var sort_order: Int
   public var title: String
   public var detail: String?
-  public var is_mandatory: Bool
 
   public init(
     id: String,
     template_id: String,
     sort_order: Int,
     title: String,
-    detail: String? = nil,
-    is_mandatory: Bool = false
+    detail: String? = nil
   ) {
     self.id = id
     self.template_id = template_id
     self.sort_order = sort_order
     self.title = title
     self.detail = detail
-    self.is_mandatory = is_mandatory
   }
 
   public enum Columns: String, ColumnExpression {
@@ -44,7 +41,6 @@ public struct ChecklistTemplateItemRecord: Codable, FetchableRecord, Persistable
     case sort_order
     case title
     case detail
-    case is_mandatory
   }
 
   public static let template = belongsTo(ChecklistTemplateRecord.self)

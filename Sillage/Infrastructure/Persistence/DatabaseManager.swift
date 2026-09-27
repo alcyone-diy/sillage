@@ -186,6 +186,7 @@ public final class DatabaseManager: Sendable {
     }
 
     migrator.registerMigration("v2") { db in
+      guard try !db.tableExists(BarometricReadingRecord.databaseTableName) else { return }
       // Create the barometric reading table for weather telemetry history
       try db.create(table: BarometricReadingRecord.databaseTableName) { t in
         t.autoIncrementedPrimaryKey("id")
@@ -202,6 +203,20 @@ public final class DatabaseManager: Sendable {
     }
 
     migrator.registerMigration("v3") { db in
+      // Ensure clean state if tables existed from unversioned migration in development
+      if try db.tableExists(ChecklistExecutionItemRecord.databaseTableName) {
+        try db.drop(table: ChecklistExecutionItemRecord.databaseTableName)
+      }
+      if try db.tableExists(ChecklistExecutionRecord.databaseTableName) {
+        try db.drop(table: ChecklistExecutionRecord.databaseTableName)
+      }
+      if try db.tableExists(ChecklistTemplateItemRecord.databaseTableName) {
+        try db.drop(table: ChecklistTemplateItemRecord.databaseTableName)
+      }
+      if try db.tableExists(ChecklistTemplateRecord.databaseTableName) {
+        try db.drop(table: ChecklistTemplateRecord.databaseTableName)
+      }
+
       // 1. Checklist Templates
       try db.create(table: ChecklistTemplateRecord.databaseTableName) { t in
         t.column("id", .text).primaryKey()
@@ -225,7 +240,6 @@ public final class DatabaseManager: Sendable {
         t.column("sort_order", .integer).notNull()
         t.column("title", .text).notNull()
         t.column("detail", .text)
-        t.column("is_mandatory", .boolean).notNull().defaults(to: false)
       }
       try db.create(
         index: "idx_checklist_template_item_template_order",
@@ -269,7 +283,6 @@ public final class DatabaseManager: Sendable {
         t.column("sort_order", .integer).notNull()
         t.column("title", .text).notNull()
         t.column("detail", .text)
-        t.column("is_mandatory", .boolean).notNull()
         t.column("is_checked", .boolean).notNull().defaults(to: false)
         t.column("checked_at", .datetime)
         t.column("latitude_deg", .double)

@@ -18,18 +18,15 @@ public struct ChecklistItemDraft: Identifiable, Equatable, Sendable {
   public let id: UUID
   public var title: String
   public var detail: String
-  public var isMandatory: Bool
 
   public init(
     id: UUID = UUID(),
     title: String = "",
-    detail: String = "",
-    isMandatory: Bool = false
+    detail: String = ""
   ) {
     self.id = id
     self.title = title
     self.detail = detail
-    self.isMandatory = isMandatory
   }
 }
 
@@ -67,13 +64,11 @@ public final class ChecklistCreateViewModel {
   /// Appends a new draft step to the checklist.
   public func addItem(
     title: String = "",
-    detail: String = "",
-    isMandatory: Bool = false
+    detail: String = ""
   ) {
     items.append(ChecklistItemDraft(
       title: title,
-      detail: detail,
-      isMandatory: isMandatory
+      detail: detail
     ))
   }
 
@@ -106,8 +101,7 @@ public final class ChecklistCreateViewModel {
       let itemDetail = item.detail.trimmingCharacters(in: .whitespacesAndNewlines)
       return (
         title: itemTitle,
-        detail: itemDetail.isEmpty ? nil : itemDetail,
-        isMandatory: item.isMandatory
+        detail: itemDetail.isEmpty ? nil : itemDetail
       )
     }
 

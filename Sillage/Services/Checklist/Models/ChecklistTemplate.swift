@@ -17,22 +17,19 @@ public struct ChecklistTemplateItem: Identifiable, Equatable, Sendable {
   public let sortOrder: Int
   public let title: String
   public let detail: String?
-  public let isMandatory: Bool
 
   nonisolated public init(
     id: UUID = UUID(),
     templateId: UUID,
     sortOrder: Int,
     title: String,
-    detail: String? = nil,
-    isMandatory: Bool = false
+    detail: String? = nil
   ) {
     self.id = id
     self.templateId = templateId
     self.sortOrder = sortOrder
     self.title = title
     self.detail = detail
-    self.isMandatory = isMandatory
   }
 }
 

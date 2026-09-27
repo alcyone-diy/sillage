@@ -143,21 +143,6 @@ struct ChecklistCreateView: View {
               .marineFont(.subheadline)
               .foregroundStyle(marineTheme.colors.textSecondary)
               .padding(.leading, 30)
-
-            Toggle(isOn: $item.isMandatory) {
-              HStack(spacing: 4) {
-                if item.isMandatory {
-                  Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(marineTheme.colors.warning)
-                    .font(.caption)
-                }
-                Text("Mandatory step")
-                  .marineFont(.caption)
-                  .foregroundStyle(item.isMandatory ? marineTheme.colors.warning : marineTheme.colors.textSecondary)
-              }
-            }
-            .padding(.leading, 30)
-            .tint(marineTheme.colors.accent)
           }
           .padding(.vertical, 6)
           .marineListCell()
@@ -186,7 +171,7 @@ struct ChecklistCreateView: View {
       }
       .marineFont(.caption)
     } footer: {
-      Text("Swipe to delete. Mark critical steps as mandatory.")
+      Text("Swipe to delete.")
         .marineFont(.caption)
         .foregroundStyle(marineTheme.colors.textSecondary)
     }

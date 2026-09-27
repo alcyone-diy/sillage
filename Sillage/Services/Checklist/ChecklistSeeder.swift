@@ -40,15 +40,15 @@ public struct ChecklistSeeder: Sendable {
     )
     try departureTemplate.insert(db)
 
-    let departureItems: [(String, String?, Bool)] = [
-      ("Weather & Tides", "Review coastal forecast, gale warnings, and tidal stream times.", true),
-      ("Hull & Seacocks", "Inspect bilge levels, verify through-hull valves and seacocks.", true),
-      ("Engine & Fluid Levels", "Check engine oil, coolant levels, and alternator belt tension.", true),
-      ("Engine Raw Water Intake", "Verify seawater cooling intake valve is open.", true),
-      ("Electrical & Battery Banks", "Check house and engine start battery voltages (> 12.4V).", true),
-      ("Navigation Lights & Electronics", "Test masthead, steaming, and port/starboard navigation lights.", true),
-      ("Safety Equipment & Lifejackets", "Verify PFDs/harnesses, flares, and VHF channel 16 radio.", true),
-      ("LPG & Galley Gas Shutoff", "Confirm galley gas isolation solenoid or valve is shut.", true)
+    let departureItems: [(String, String?)] = [
+      ("Weather & Tides", "Review coastal forecast, gale warnings, and tidal stream times."),
+      ("Hull & Seacocks", "Inspect bilge levels, verify through-hull valves and seacocks."),
+      ("Engine & Fluid Levels", "Check engine oil, coolant levels, and alternator belt tension."),
+      ("Engine Raw Water Intake", "Verify seawater cooling intake valve is open."),
+      ("Electrical & Battery Banks", "Check house and engine start battery voltages (> 12.4V)."),
+      ("Navigation Lights & Electronics", "Test masthead, steaming, and port/starboard navigation lights."),
+      ("Safety Equipment & Lifejackets", "Verify PFDs/harnesses, flares, and VHF channel 16 radio."),
+      ("LPG & Galley Gas Shutoff", "Confirm galley gas isolation solenoid or valve is shut.")
     ]
     for (index, item) in departureItems.enumerated() {
       let itemRecord = ChecklistTemplateItemRecord(
@@ -56,8 +56,7 @@ public struct ChecklistSeeder: Sendable {
         template_id: departureId.uuidString,
         sort_order: index,
         title: item.0,
-        detail: item.1,
-        is_mandatory: item.2
+        detail: item.1
       )
       try itemRecord.insert(db)
     }
@@ -76,13 +75,13 @@ public struct ChecklistSeeder: Sendable {
     )
     try anchorTemplate.insert(db)
 
-    let anchorItems: [(String, String?, Bool)] = [
-      ("Seabed & Chart Survey", "Confirm holding ground nature (sand, mud) and charted hazards.", true),
-      ("Swinging Room & Depth", "Calculate swing radius including high/low water tidal variance.", true),
-      ("Rode Scope Determination", "Pay out minimum 4:1 chain scope (5:1 in windy conditions).", true),
-      ("Windlass Pre-check", "Test electric windlass controls and engage clutch securely.", false),
-      ("Snubber / Chain Hook", "Attach chain snubber to take load off the windlass gypsy.", true),
-      ("Drop Point & Anchor Alarm", "Record anchor drop coordinate and activate Sillage anchor watch.", true)
+    let anchorItems: [(String, String?)] = [
+      ("Seabed & Chart Survey", "Confirm holding ground nature (sand, mud) and charted hazards."),
+      ("Swinging Room & Depth", "Calculate swing radius including high/low water tidal variance."),
+      ("Rode Scope Determination", "Pay out minimum 4:1 chain scope (5:1 in windy conditions)."),
+      ("Windlass Pre-check", "Test electric windlass controls and engage clutch securely."),
+      ("Snubber / Chain Hook", "Attach chain snubber to take load off the windlass gypsy."),
+      ("Drop Point & Anchor Alarm", "Record anchor drop coordinate and activate Sillage anchor watch.")
     ]
     for (index, item) in anchorItems.enumerated() {
       let itemRecord = ChecklistTemplateItemRecord(
@@ -90,8 +89,7 @@ public struct ChecklistSeeder: Sendable {
         template_id: anchorId.uuidString,
         sort_order: index,
         title: item.0,
-        detail: item.1,
-        is_mandatory: item.2
+        detail: item.1
       )
       try itemRecord.insert(db)
     }
@@ -110,13 +108,13 @@ public struct ChecklistSeeder: Sendable {
     )
     try mobTemplate.insert(db)
 
-    let mobItems: [(String, String?, Bool)] = [
-      ("Raise Vocal Alarm", "Shout 'Man Overboard!' and appoint a dedicated visual spotter.", true),
-      ("Deploy Flotation Gear", "Throw horseshoe buoy, Danbuoy, and strobe light immediately.", true),
-      ("Press MOB Button", "Trigger MOB waypoint on GPS/plotter to record recovery datum.", true),
-      ("Propeller Safety & Engine", "Start engine; confirm trailing lines are clear of propeller.", true),
-      ("Initiate Recovery Maneuver", "Begin Williamson Turn or Quick-Stop maneuver back to casualty.", true),
-      ("Broadcast Distress Call", "Transmit VHF DSC Alert and Mayday call on Channel 16.", true)
+    let mobItems: [(String, String?)] = [
+      ("Raise Vocal Alarm", "Shout 'Man Overboard!' and appoint a dedicated visual spotter."),
+      ("Deploy Flotation Gear", "Throw horseshoe buoy, Danbuoy, and strobe light immediately."),
+      ("Press MOB Button", "Trigger MOB waypoint on GPS/plotter to record recovery datum."),
+      ("Propeller Safety & Engine", "Start engine; confirm trailing lines are clear of propeller."),
+      ("Initiate Recovery Maneuver", "Begin Williamson Turn or Quick-Stop maneuver back to casualty."),
+      ("Broadcast Distress Call", "Transmit VHF DSC Alert and Mayday call on Channel 16.")
     ]
     for (index, item) in mobItems.enumerated() {
       let itemRecord = ChecklistTemplateItemRecord(
@@ -124,8 +122,7 @@ public struct ChecklistSeeder: Sendable {
         template_id: mobId.uuidString,
         sort_order: index,
         title: item.0,
-        detail: item.1,
-        is_mandatory: item.2
+        detail: item.1
       )
       try itemRecord.insert(db)
     }
@@ -144,12 +141,12 @@ public struct ChecklistSeeder: Sendable {
     )
     try weatherTemplate.insert(db)
 
-    let weatherItems: [(String, String?, Bool)] = [
-      ("Crew Harnesses & Jackstays", "Crew wear PFDs, tether to deck jacklines; clip-on safety lines.", true),
-      ("Hatches & Companionway", "Close and latch all foredeck hatches and companionway washboards.", true),
-      ("Secure Deck & Below", "Lash down dinghy, stow loose gear, and secure galley equipment.", true),
-      ("Reef Sail Plan", "Tuck in reef 1 or 2 before boat becomes over-canvassed.", true),
-      ("Check Bilge & Pumping", "Test manual and electric bilge pumps for immediate readiness.", true)
+    let weatherItems: [(String, String?)] = [
+      ("Crew Harnesses & Jackstays", "Crew wear PFDs, tether to deck jacklines; clip-on safety lines."),
+      ("Hatches & Companionway", "Close and latch all foredeck hatches and companionway washboards."),
+      ("Secure Deck & Below", "Lash down dinghy, stow loose gear, and secure galley equipment."),
+      ("Reef Sail Plan", "Tuck in reef 1 or 2 before boat becomes over-canvassed."),
+      ("Check Bilge & Pumping", "Test manual and electric bilge pumps for immediate readiness.")
     ]
     for (index, item) in weatherItems.enumerated() {
       let itemRecord = ChecklistTemplateItemRecord(
@@ -157,8 +154,7 @@ public struct ChecklistSeeder: Sendable {
         template_id: weatherId.uuidString,
         sort_order: index,
         title: item.0,
-        detail: item.1,
-        is_mandatory: item.2
+        detail: item.1
       )
       try itemRecord.insert(db)
     }

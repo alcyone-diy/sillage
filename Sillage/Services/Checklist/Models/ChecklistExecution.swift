@@ -26,7 +26,6 @@ public struct ChecklistExecutionItem: Identifiable, Equatable, Sendable {
   public let sortOrder: Int
   public let title: String
   public let detail: String?
-  public let isMandatory: Bool
   public let isChecked: Bool
   public let checkedAt: Date?
   public let coordinate: CLLocationCoordinate2D?
@@ -38,7 +37,6 @@ public struct ChecklistExecutionItem: Identifiable, Equatable, Sendable {
     sortOrder: Int,
     title: String,
     detail: String? = nil,
-    isMandatory: Bool = false,
     isChecked: Bool = false,
     checkedAt: Date? = nil,
     coordinate: CLLocationCoordinate2D? = nil
@@ -49,7 +47,6 @@ public struct ChecklistExecutionItem: Identifiable, Equatable, Sendable {
     self.sortOrder = sortOrder
     self.title = title
     self.detail = detail
-    self.isMandatory = isMandatory
     self.isChecked = isChecked
     self.checkedAt = checkedAt
     self.coordinate = coordinate
@@ -96,10 +93,6 @@ public struct ChecklistExecution: Identifiable, Equatable, Sendable {
   public var progressRatio: Double {
     guard !items.isEmpty else { return 0.0 }
     return Double(completedCount) / Double(totalCount)
-  }
-
-  public var isAllMandatorySatisfied: Bool {
-    items.filter(\.isMandatory).allSatisfy(\.isChecked)
   }
 
   public var isFullyCompleted: Bool {

@@ -76,7 +76,7 @@ final class ChecklistCreateViewModelTests: XCTestCase {
 
   func testAddRemoveAndMoveItems() {
     viewModel.items[0].title = "Step 1"
-    viewModel.addItem(title: "Step 2", detail: "Step 2 detail", isMandatory: true)
+    viewModel.addItem(title: "Step 2", detail: "Step 2 detail")
     viewModel.addItem(title: "Step 3")
     XCTAssertEqual(viewModel.items.count, 3)
 
@@ -106,9 +106,8 @@ final class ChecklistCreateViewModelTests: XCTestCase {
     viewModel.category = .engineTechnical
     viewModel.items[0].title = "Check oil level"
     viewModel.items[0].detail = "Must be between MIN and MAX marks"
-    viewModel.items[0].isMandatory = true
 
-    viewModel.addItem(title: "Check coolant", detail: "Visual inspection", isMandatory: false)
+    viewModel.addItem(title: "Check coolant", detail: "Visual inspection")
     // Add a trailing empty item that should be safely filtered out
     viewModel.addItem(title: "   ")
 
@@ -125,9 +124,7 @@ final class ChecklistCreateViewModelTests: XCTestCase {
     XCTAssertEqual(template.items.count, 2)
     XCTAssertEqual(template.items[0].title, "Check oil level")
     XCTAssertEqual(template.items[0].detail, "Must be between MIN and MAX marks")
-    XCTAssertTrue(template.items[0].isMandatory)
     XCTAssertEqual(template.items[1].title, "Check coolant")
-    XCTAssertFalse(template.items[1].isMandatory)
 
     // Verify persisted in database
     let allTemplates = try await checklistService.fetchTemplates()

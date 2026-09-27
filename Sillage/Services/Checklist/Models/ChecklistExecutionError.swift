@@ -16,7 +16,6 @@ public enum ChecklistExecutionError: Error, Sendable, LocalizedError {
   case executionNotFound(UUID)
   case executionAlreadyFinished(UUID)
   case itemNotFound(UUID)
-  case mandatoryItemsRemaining(remainingCount: Int)
   case templateHasExistingExecutions(UUID)
   case databaseInconsistency(String)
   case databaseFailure(String)
@@ -31,8 +30,6 @@ public enum ChecklistExecutionError: Error, Sendable, LocalizedError {
       return "Checklist execution '\(id)' is already finished or archived."
     case .itemNotFound(let id):
       return "Checklist item '\(id)' not found in execution."
-    case .mandatoryItemsRemaining(let count):
-      return "\(count) mandatory checklist item(s) must be checked before completing."
     case .templateHasExistingExecutions(let id):
       return "Cannot delete template '\(id)' because it has associated historical executions."
     case .databaseInconsistency(let reason):

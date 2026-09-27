@@ -34,9 +34,9 @@ final class ChecklistDetailViewModelTests: XCTestCase {
       description: "Pre-departure engine inspection",
       category: .engineTechnical,
       items: [
-        (title: "Check oil level", detail: "Dipstick between MIN and MAX", isMandatory: true),
-        (title: "Check raw water strainer", detail: "Free of weed and debris", isMandatory: true),
-        (title: "Visual belt check", detail: "Check tension and wear", isMandatory: false)
+        (title: "Check oil level", detail: "Dipstick between MIN and MAX"),
+        (title: "Check raw water strainer", detail: "Free of weed and debris"),
+        (title: "Visual belt check", detail: "Check tension and wear")
       ]
     )
 
@@ -226,47 +226,32 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
   // MARK: - Completion Tests
 
-  func testCompleteRequiresAllMandatoryItems() async throws {
+  func testCompleteExecution() async throws {
     await viewModel.load()
     observeTask = Task { [viewModel] in
       await viewModel?.observe()
     }
     try await Task.sleep(nanoseconds: 50_000_000)
 
-    // Check only optional item (index 2) directly in DB
     guard let execution = viewModel.execution else {
       XCTFail("Execution missing")
       return
     }
 
-    _ = try await checklistService.setItemChecked(
-      executionId: execution.id,
-      itemId: viewModel.items[2].id,
-      isChecked: true,
-      coordinate: nil
-    )
-    try await Task.sleep(nanoseconds: 50_000_000)
-
     XCTAssertFalse(viewModel.canComplete)
-    XCTAssertFalse(viewModel.isAllMandatorySatisfied)
+    XCTAssertFalse(viewModel.isCompleted)
 
-    // Check mandatory items
-    _ = try await checklistService.setItemChecked(
-      executionId: execution.id,
-      itemId: viewModel.items[0].id,
-      isChecked: true,
-      coordinate: nil
-    )
-    _ = try await checklistService.setItemChecked(
-      executionId: execution.id,
-      itemId: viewModel.items[1].id,
-      isChecked: true,
-      coordinate: nil
-    )
+    for item in viewModel.items {
+      _ = try await checklistService.setItemChecked(
+        executionId: execution.id,
+        itemId: item.id,
+        isChecked: true,
+        coordinate: nil
+      )
+    }
     try await Task.sleep(nanoseconds: 50_000_000)
 
     XCTAssertTrue(viewModel.canComplete)
-    XCTAssertTrue(viewModel.isAllMandatorySatisfied)
 
     await viewModel.complete()
     try await Task.sleep(nanoseconds: 100_000_000)
@@ -296,7 +281,7 @@ final class ChecklistDetailViewModelTests: XCTestCase {
       title: "Fresh Unexecuted",
       description: nil,
       category: .routine,
-      items: [("Task", nil, false)]
+      items: [("Task", nil)]
     )
 
     let freshVM = ChecklistDetailViewModel(

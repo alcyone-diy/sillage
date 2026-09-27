@@ -26,7 +26,7 @@ public protocol ChecklistServiceProtocol: Sendable {
     title: String,
     description: String?,
     category: ChecklistCategory,
-    items: [(title: String, detail: String?, isMandatory: Bool)]
+    items: [(title: String, detail: String?)]
   ) async throws -> ChecklistTemplate
 
   /// Deletes a custom template if no execution records are attached.
@@ -57,7 +57,7 @@ public protocol ChecklistServiceProtocol: Sendable {
   /// Resets an active execution, clearing checked states and coordinates.
   func resetExecution(executionId: UUID) async throws(ChecklistExecutionError) -> ChecklistExecution
 
-  /// Marks an in-progress execution as completed, ensuring all mandatory items are satisfied.
+  /// Marks an in-progress execution as completed.
   func completeExecution(executionId: UUID, notes: String?) async throws(ChecklistExecutionError) -> ChecklistExecution
 
   /// Abandons an in-progress execution without marking it completed.

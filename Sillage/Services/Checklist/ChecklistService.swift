@@ -78,7 +78,6 @@ public final class ChecklistService: ChecklistServiceProtocol {
         sortOrder: itemRecord.sort_order,
         title: itemRecord.title,
         detail: itemRecord.detail,
-        isMandatory: itemRecord.is_mandatory,
         isChecked: itemRecord.is_checked,
         checkedAt: itemRecord.checked_at,
         coordinate: coordinate
@@ -121,8 +120,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
             templateId: try Self.parseUUID(iRecord.template_id, fieldName: "template_item.template_id"),
             sortOrder: iRecord.sort_order,
             title: iRecord.title,
-            detail: iRecord.detail,
-            isMandatory: iRecord.is_mandatory
+            detail: iRecord.detail
           )
         }
 
@@ -162,8 +160,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
           templateId: try Self.parseUUID(iRecord.template_id, fieldName: "template_item.template_id"),
           sortOrder: iRecord.sort_order,
           title: iRecord.title,
-          detail: iRecord.detail,
-          isMandatory: iRecord.is_mandatory
+          detail: iRecord.detail
         )
       }
 
@@ -185,7 +182,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
     title: String,
     description: String? = nil,
     category: ChecklistCategory,
-    items: [(title: String, detail: String?, isMandatory: Bool)]
+    items: [(title: String, detail: String?)]
   ) async throws -> ChecklistTemplate {
     try await databaseManager.write { db in
       let templateId = UUID()
@@ -211,8 +208,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
           template_id: templateId.uuidString,
           sort_order: index,
           title: itemData.title,
-          detail: itemData.detail,
-          is_mandatory: itemData.isMandatory
+          detail: itemData.detail
         )
         try itemRecord.insert(db)
 
@@ -221,8 +217,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
           templateId: templateId,
           sortOrder: index,
           title: itemData.title,
-          detail: itemData.detail,
-          isMandatory: itemData.isMandatory
+          detail: itemData.detail
         ))
       }
 
@@ -317,7 +312,6 @@ public final class ChecklistService: ChecklistServiceProtocol {
             sort_order: item.sort_order,
             title: item.title,
             detail: item.detail,
-            is_mandatory: item.is_mandatory,
             is_checked: false,
             checked_at: nil,
             latitude_deg: nil,
@@ -417,11 +411,6 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .filter(ChecklistExecutionItemRecord.Columns.execution_id == executionId.uuidString)
           .order(ChecklistExecutionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
-
-        let unfulfilledMandatory = allItems.filter { $0.is_mandatory && !$0.is_checked }
-        guard unfulfilledMandatory.isEmpty else {
-          throw ChecklistExecutionError.mandatoryItemsRemaining(remainingCount: unfulfilledMandatory.count)
-        }
 
         executionRecord.status = ChecklistExecutionStatus.completed.rawValue
         executionRecord.completed_at = Date()

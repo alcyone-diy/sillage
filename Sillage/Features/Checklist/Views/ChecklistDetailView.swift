@@ -278,25 +278,11 @@ private struct ChecklistExecutionItemRowView: View {
           )
 
         VStack(alignment: .leading, spacing: 4) {
-          HStack(spacing: MarineTheme.Spacing.small) {
-            Text(item.title)
-              .marineFont(isCurrentItem ? .headline : .body)
-              .fontWeight(isCurrentItem ? .bold : .regular)
-              .foregroundStyle(item.isChecked ? marineTheme.colors.textSecondary : marineTheme.colors.textPrimary)
-              .strikethrough(item.isChecked, color: marineTheme.colors.textSecondary)
-
-            if item.isMandatory {
-              Text("Required")
-                .marineFont(.caption)
-                .foregroundStyle(item.isChecked ? marineTheme.colors.textSecondary : marineTheme.colors.warning)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(
-                  Capsule()
-                    .fill(item.isChecked ? marineTheme.colors.secondaryActionBackground : marineTheme.colors.warning.opacity(0.15))
-                )
-            }
-          }
+          Text(item.title)
+            .marineFont(isCurrentItem ? .headline : .body)
+            .fontWeight(isCurrentItem ? .bold : .regular)
+            .foregroundStyle(item.isChecked ? marineTheme.colors.textSecondary : marineTheme.colors.textPrimary)
+            .strikethrough(item.isChecked, color: marineTheme.colors.textSecondary)
 
           if let detail = item.detail, !detail.isEmpty {
             Text(detail)

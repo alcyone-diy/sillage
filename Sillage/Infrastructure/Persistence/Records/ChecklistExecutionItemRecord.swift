@@ -21,7 +21,6 @@ public struct ChecklistExecutionItemRecord: Codable, FetchableRecord, Persistabl
   public var sort_order: Int
   public var title: String
   public var detail: String?
-  public var is_mandatory: Bool
   public var is_checked: Bool
   public var checked_at: Date?
   public var latitude_deg: Double?
@@ -34,7 +33,6 @@ public struct ChecklistExecutionItemRecord: Codable, FetchableRecord, Persistabl
     sort_order: Int,
     title: String,
     detail: String? = nil,
-    is_mandatory: Bool = false,
     is_checked: Bool = false,
     checked_at: Date? = nil,
     latitude_deg: Double? = nil,
@@ -46,7 +44,6 @@ public struct ChecklistExecutionItemRecord: Codable, FetchableRecord, Persistabl
     self.sort_order = sort_order
     self.title = title
     self.detail = detail
-    self.is_mandatory = is_mandatory
     self.is_checked = is_checked
     self.checked_at = checked_at
     self.latitude_deg = latitude_deg
@@ -60,7 +57,6 @@ public struct ChecklistExecutionItemRecord: Codable, FetchableRecord, Persistabl
     case sort_order
     case title
     case detail
-    case is_mandatory
     case is_checked
     case checked_at
     case latitude_deg
