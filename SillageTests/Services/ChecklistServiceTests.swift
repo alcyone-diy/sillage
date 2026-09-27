@@ -13,6 +13,7 @@ import CoreLocation
 import GRDB
 @testable import Sillage
 
+@MainActor
 final class ChecklistServiceTests: XCTestCase {
   private var databaseManager: DatabaseManager!
   private var checklistService: ChecklistService!

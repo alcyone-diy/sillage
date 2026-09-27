@@ -62,6 +62,16 @@
     "%@ requires permission to send notifications to warn you of severe weather changes." : {
 
     },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
     "%@/3h" : {
       "comment" : "Format for 3-hour barometric trend suffix"
     },
