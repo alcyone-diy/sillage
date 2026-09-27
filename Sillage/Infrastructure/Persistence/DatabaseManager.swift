@@ -183,7 +183,10 @@ public final class DatabaseManager: Sendable {
       // 5. Create indexes for the waypoint table
       try db.create(index: "idx_waypoint_name", on: "waypoint", columns: ["name"])
       try db.create(index: "idx_waypoint_timestamp_unix", on: "waypoint", columns: ["timestamp_unix"])
-      // 6. Create the barometric reading table for weather telemetry history
+    }
+
+    migrator.registerMigration("v2") { db in
+      // Create the barometric reading table for weather telemetry history
       try db.create(table: BarometricReadingRecord.databaseTableName) { t in
         t.autoIncrementedPrimaryKey("id")
         t.column("timestamp_unix", .double).notNull()
@@ -196,8 +199,10 @@ public final class DatabaseManager: Sendable {
         on: BarometricReadingRecord.databaseTableName,
         columns: ["timestamp_unix"]
       )
+    }
 
-      // 7. Checklist Templates
+    migrator.registerMigration("v3") { db in
+      // 1. Checklist Templates
       try db.create(table: ChecklistTemplateRecord.databaseTableName) { t in
         t.column("id", .text).primaryKey()
         t.column("title", .text).notNull()
@@ -211,7 +216,7 @@ public final class DatabaseManager: Sendable {
       try db.create(index: "idx_checklist_template_category", on: ChecklistTemplateRecord.databaseTableName, columns: ["category"])
       try db.create(index: "idx_checklist_template_sort_order", on: ChecklistTemplateRecord.databaseTableName, columns: ["sort_order"])
 
-      // 8. Checklist Template Items
+      // 2. Checklist Template Items
       try db.create(table: ChecklistTemplateItemRecord.databaseTableName) { t in
         t.column("id", .text).primaryKey()
         t.column("template_id", .text)
@@ -228,7 +233,7 @@ public final class DatabaseManager: Sendable {
         columns: ["template_id", "sort_order"]
       )
 
-      // 9. Checklist Executions (RESTRICT deletion if template has history)
+      // 3. Checklist Executions (RESTRICT deletion if template has history)
       try db.create(table: ChecklistExecutionRecord.databaseTableName) { t in
         t.column("id", .text).primaryKey()
         t.column("template_id", .text)
@@ -254,7 +259,7 @@ public final class DatabaseManager: Sendable {
         condition: SQL("status = 'in_progress'")
       )
 
-      // 10. Checklist Execution Items
+      // 4. Checklist Execution Items
       try db.create(table: ChecklistExecutionItemRecord.databaseTableName) { t in
         t.column("id", .text).primaryKey()
         t.column("execution_id", .text)
