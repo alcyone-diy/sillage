@@ -82,6 +82,30 @@ public final class ChecklistCreateViewModel {
     items.move(fromOffsets: source, toOffset: destination)
   }
 
+  /// Moves an item at the given index up by one position if possible.
+  public func moveItemUp(at index: Int) {
+    guard index > 0, index < items.count else { return }
+    items.swapAt(index, index - 1)
+  }
+
+  /// Moves an item at the given index down by one position if possible.
+  public func moveItemDown(at index: Int) {
+    guard index >= 0, index < items.count - 1 else { return }
+    items.swapAt(index, index + 1)
+  }
+
+  /// Moves the item with the given ID up by one position if possible.
+  public func moveItemUp(id: UUID) {
+    guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+    moveItemUp(at: index)
+  }
+
+  /// Moves the item with the given ID down by one position if possible.
+  public func moveItemDown(id: UUID) {
+    guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+    moveItemDown(at: index)
+  }
+
   /// Persists the new checklist template to the database.
   /// - Returns: The newly created `ChecklistTemplate` if successful, or `nil` on failure.
   public func save() async -> ChecklistTemplate? {

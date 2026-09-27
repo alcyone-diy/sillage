@@ -17,6 +17,7 @@ struct ChecklistCreateView: View {
   @Environment(\.marineTheme) private var marineTheme
 
   @State private var viewModel: ChecklistCreateViewModel
+  @State private var editMode: EditMode = .inactive
   var onTemplateCreated: (@MainActor (ChecklistTemplate) -> Void)?
 
   init(
@@ -37,6 +38,12 @@ struct ChecklistCreateView: View {
       stepsSection
     }
     .marineListBackground()
+    .environment(\.editMode, $editMode)
+    .onChange(of: viewModel.items.count) { _, newCount in
+      if newCount <= 1 && editMode == .active {
+        editMode = .inactive
+      }
+    }
     .interactiveDismissDisabled(viewModel.isSaving)
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .navigationTitle("New Checklist")
@@ -126,17 +133,53 @@ struct ChecklistCreateView: View {
           .marineListCell()
       } else {
         ForEach($viewModel.items) { $item in
+          let index = viewModel.items.firstIndex(where: { $0.id == item.id }) ?? 0
+          let isFirst = index == 0
+          let isLast = index == viewModel.items.count - 1
+
           VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
             HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
-              if let index = viewModel.items.firstIndex(where: { $0.id == item.id }) {
-                Text("\(index + 1).")
-                  .marineFont(.subheadline)
-                  .foregroundStyle(marineTheme.colors.textSecondary)
-                  .frame(minWidth: 22, alignment: .leading)
-              }
+              Text("\(index + 1).")
+                .marineFont(.subheadline)
+                .foregroundStyle(marineTheme.colors.textSecondary)
+                .frame(minWidth: 22, alignment: .leading)
 
               TextField("Step title", text: $item.title)
                 .marineFont(.body)
+
+              if editMode == .active {
+                HStack(spacing: MarineTheme.Spacing.tiny) {
+                  Button {
+                    withAnimation {
+                      viewModel.moveItemUp(id: item.id)
+                    }
+                  } label: {
+                    Image(systemName: "chevron.up")
+                      .font(.body.weight(.semibold))
+                      .foregroundStyle(isFirst ? marineTheme.colors.inactive.opacity(0.3) : marineTheme.colors.accent)
+                      .frame(minWidth: 32, minHeight: 32)
+                      .contentShape(Rectangle())
+                  }
+                  .buttonStyle(.plain)
+                  .disabled(isFirst)
+                  .accessibilityLabel(Text("Move up"))
+
+                  Button {
+                    withAnimation {
+                      viewModel.moveItemDown(id: item.id)
+                    }
+                  } label: {
+                    Image(systemName: "chevron.down")
+                      .font(.body.weight(.semibold))
+                      .foregroundStyle(isLast ? marineTheme.colors.inactive.opacity(0.3) : marineTheme.colors.accent)
+                      .frame(minWidth: 32, minHeight: 32)
+                      .contentShape(Rectangle())
+                  }
+                  .buttonStyle(.plain)
+                  .disabled(isLast)
+                  .accessibilityLabel(Text("Move down"))
+                }
+              }
             }
 
             TextField("Detail / instructions (Optional)", text: $item.detail)
@@ -166,14 +209,47 @@ struct ChecklistCreateView: View {
       HStack {
         Text("Steps")
         Spacer()
+        if viewModel.items.count > 1 {
+          Button {
+            withAnimation {
+              editMode = editMode == .active ? .inactive : .active
+            }
+          } label: {
+            HStack(spacing: 4) {
+              Image(systemName: editMode == .active ? "checkmark" : "arrow.up.arrow.down")
+                .font(.caption2)
+              Text(editMode == .active ? "Done" : "Reorder")
+                .marineFont(.caption)
+            }
+            .foregroundStyle(marineTheme.colors.accent)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(
+              Capsule()
+                .fill(marineTheme.colors.secondaryActionBackground)
+            )
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel(Text(editMode == .active ? "Done" : "Reorder"))
+        }
         Text("\(viewModel.items.count)")
           .foregroundStyle(marineTheme.colors.textSecondary)
       }
       .marineFont(.caption)
     } footer: {
-      Text("Swipe to delete.")
-        .marineFont(.caption)
-        .foregroundStyle(marineTheme.colors.textSecondary)
+      if editMode == .active {
+        Text("Drag handles or tap arrows to change step order.")
+          .marineFont(.caption)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+      } else if viewModel.items.count > 1 {
+        Text("Swipe to delete. Tap Reorder to change step order.")
+          .marineFont(.caption)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+      } else {
+        Text("Swipe to delete.")
+          .marineFont(.caption)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+      }
     }
   }
 }

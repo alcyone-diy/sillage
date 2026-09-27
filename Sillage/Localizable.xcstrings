@@ -490,6 +490,9 @@
     "Done" : {
 
     },
+    "Drag handles or tap arrows to change step order." : {
+
+    },
     "Download" : {
 
     },
@@ -832,6 +835,12 @@
     "Min" : {
 
     },
+    "Move down" : {
+
+    },
+    "Move up" : {
+
+    },
     "My Account" : {
 
     },
@@ -997,6 +1006,9 @@
     "Requesting package…" : {
 
     },
+    "Reorder" : {
+
+    },
     "Reset" : {
 
     },
@@ -1134,6 +1146,9 @@
 
     },
     "Swipe to delete." : {
+
+    },
+    "Swipe to delete. Tap Reorder to change step order." : {
 
     },
     "System" : {

@@ -93,6 +93,52 @@ final class ChecklistCreateViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.items[1].title, "Step 1")
   }
 
+  func testMoveItemUpAndDownByIndex() {
+    viewModel.items[0].title = "A"
+    viewModel.addItem(title: "B")
+    viewModel.addItem(title: "C")
+
+    // Move middle item up
+    viewModel.moveItemUp(at: 1)
+    XCTAssertEqual(viewModel.items.map(\.title), ["B", "A", "C"])
+
+    // Move first item up (noop)
+    viewModel.moveItemUp(at: 0)
+    XCTAssertEqual(viewModel.items.map(\.title), ["B", "A", "C"])
+
+    // Move middle item down
+    viewModel.moveItemDown(at: 1)
+    XCTAssertEqual(viewModel.items.map(\.title), ["B", "C", "A"])
+
+    // Move last item down (noop)
+    viewModel.moveItemDown(at: 2)
+    XCTAssertEqual(viewModel.items.map(\.title), ["B", "C", "A"])
+
+    // Out of bounds guards
+    viewModel.moveItemUp(at: -1)
+    viewModel.moveItemDown(at: 10)
+    XCTAssertEqual(viewModel.items.map(\.title), ["B", "C", "A"])
+  }
+
+  func testMoveItemUpAndDownById() {
+    viewModel.items[0].title = "First"
+    viewModel.addItem(title: "Second")
+    let secondId = viewModel.items[1].id
+
+    // Move second item up by ID
+    viewModel.moveItemUp(id: secondId)
+    XCTAssertEqual(viewModel.items.map(\.title), ["Second", "First"])
+
+    // Move it down again by ID
+    viewModel.moveItemDown(id: secondId)
+    XCTAssertEqual(viewModel.items.map(\.title), ["First", "Second"])
+
+    // Nonexistent ID (noop)
+    viewModel.moveItemUp(id: UUID())
+    viewModel.moveItemDown(id: UUID())
+    XCTAssertEqual(viewModel.items.map(\.title), ["First", "Second"])
+  }
+
   // MARK: - Save Tests
 
   func testSaveFailsWhenInvalid() async {
