@@ -39,8 +39,8 @@ struct CommandPanelView: View {
 
         List {
           quickActionsSection
-          safetySection
           navigationSection
+          safetySection
           systemSection
         }
         .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
@@ -141,14 +141,6 @@ struct CommandPanelView: View {
   }
 
   @ViewBuilder
-  private var safetySection: some View {
-    Section(header: Text("Safety")) {
-      AnchorCommandRowView(permissionGateType: $permissionGateType)
-      BarometerCommandRowView(permissionGateType: $permissionGateType)
-    }
-  }
-
-  @ViewBuilder
   private var navigationSection: some View {
     Section(header: Text("Navigation")) {
       NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
@@ -194,6 +186,14 @@ struct CommandPanelView: View {
       }
       .animation(.default, value: appEnvironment.offlineChartsDownloadProgress != nil)
       .marineListCell()
+    }
+  }
+
+  @ViewBuilder
+  private var safetySection: some View {
+    Section(header: Text("Safety")) {
+      AnchorCommandRowView(permissionGateType: $permissionGateType)
+      BarometerCommandRowView(permissionGateType: $permissionGateType)
     }
   }
 
