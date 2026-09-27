@@ -29,6 +29,15 @@ public protocol ChecklistServiceProtocol: Sendable {
     items: [(title: String, detail: String?)]
   ) async throws -> ChecklistTemplate
 
+  /// Updates an existing custom checklist template and its items.
+  func updateCustomTemplate(
+    id: UUID,
+    title: String,
+    description: String?,
+    category: ChecklistCategory,
+    items: [(id: UUID?, title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate
+
   /// Deletes a custom template if no execution records are attached.
   func deleteCustomTemplate(id: UUID) async throws
 
@@ -71,3 +80,23 @@ public protocol ChecklistServiceProtocol: Sendable {
   /// Observes all currently active in-progress checklist sessions in real-time.
   func observeActiveExecutions() -> AsyncThrowingStream<[ChecklistExecution], any Error>
 }
+
+extension ChecklistServiceProtocol {
+  /// Updates an existing custom checklist template with simple item tuples.
+  public func updateCustomTemplate(
+    id: UUID,
+    title: String,
+    description: String?,
+    category: ChecklistCategory,
+    items: [(title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate {
+    try await updateCustomTemplate(
+      id: id,
+      title: title,
+      description: description,
+      category: category,
+      items: items.map { (id: nil, title: $0.title, detail: $0.detail) }
+    )
+  }
+}
+

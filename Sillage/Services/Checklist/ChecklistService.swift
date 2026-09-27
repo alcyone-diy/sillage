@@ -235,6 +235,81 @@ public final class ChecklistService: ChecklistServiceProtocol {
     }
   }
 
+  public func updateCustomTemplate(
+    id: UUID,
+    title: String,
+    description: String? = nil,
+    category: ChecklistCategory,
+    items: [(id: UUID?, title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate {
+    try await databaseManager.write { db in
+      guard let templateRecord = try ChecklistTemplateRecord.fetchOne(db, key: id.uuidString) else {
+        throw ChecklistExecutionError.templateNotFound(id)
+      }
+      guard !templateRecord.is_system else {
+        throw ChecklistExecutionError.databaseInconsistency("Cannot edit built-in system template.")
+      }
+
+      let now = Date()
+      var updatedTemplateRecord = templateRecord
+      updatedTemplateRecord.title = title
+      updatedTemplateRecord.description = description
+      updatedTemplateRecord.category = category.rawValue
+      updatedTemplateRecord.updated_at = now
+      try updatedTemplateRecord.update(db)
+
+      // Replace template items for this template
+      try ChecklistTemplateItemRecord
+        .filter(ChecklistTemplateItemRecord.Columns.template_id == id.uuidString)
+        .deleteAll(db)
+
+      var domainItems: [ChecklistTemplateItem] = []
+      for (index, itemData) in items.enumerated() {
+        let itemId = itemData.id ?? UUID()
+        let itemRecord = ChecklistTemplateItemRecord(
+          id: itemId.uuidString,
+          template_id: id.uuidString,
+          sort_order: index,
+          title: itemData.title,
+          detail: itemData.detail
+        )
+        try itemRecord.insert(db)
+
+        domainItems.append(ChecklistTemplateItem(
+          id: itemId,
+          templateId: id,
+          sortOrder: index,
+          title: itemData.title,
+          detail: itemData.detail
+        ))
+      }
+
+      // Update active execution snapshot if in progress
+      if let activeExecution = try ChecklistExecutionRecord
+        .filter(ChecklistExecutionRecord.Columns.template_id == id.uuidString)
+        .filter(ChecklistExecutionRecord.Columns.status == ChecklistExecutionStatus.inProgress.rawValue)
+        .fetchOne(db) {
+        var updatedExecution = activeExecution
+        updatedExecution.template_title_snapshot = title
+        try updatedExecution.update(db)
+      }
+
+      Logger.checklist.info("Successfully updated custom template '\(id.uuidString, privacy: .public)'")
+
+      return ChecklistTemplate(
+        id: id,
+        title: title,
+        description: description,
+        category: category,
+        isSystem: false,
+        sortOrder: templateRecord.sort_order,
+        createdAt: templateRecord.created_at,
+        updatedAt: now,
+        items: domainItems
+      )
+    }
+  }
+
   public func deleteCustomTemplate(id: UUID) async throws {
     try await databaseManager.write { db in
       guard let template = try ChecklistTemplateRecord.fetchOne(db, key: id.uuidString) else {

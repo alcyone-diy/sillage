@@ -16,13 +16,16 @@ struct ChecklistDetailView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.dismiss) private var dismiss
 
+  private let checklistService: any ChecklistServiceProtocol
   @State private var viewModel: ChecklistDetailViewModel
+  @State private var isShowingEditSheet = false
 
   init(
     templateId: UUID,
     checklistService: any ChecklistServiceProtocol,
     locationProvider: (@MainActor () -> NavigationFix?)? = nil
   ) {
+    self.checklistService = checklistService
     _viewModel = State(initialValue: ChecklistDetailViewModel(
       templateId: templateId,
       checklistService: checklistService,
@@ -45,6 +48,37 @@ struct ChecklistDetailView: View {
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .navigationTitle(viewModel.title.isEmpty ? String(localized: "Checklist") : viewModel.title)
     .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      if viewModel.canEditTemplate {
+        ToolbarItem(placement: .primaryAction) {
+          Button {
+            isShowingEditSheet = true
+          } label: {
+            Text("Edit")
+              .marineFont(.body)
+              .foregroundStyle(marineTheme.colors.accent)
+          }
+          .accessibilityLabel(String(localized: "Edit Checklist"))
+        }
+      }
+    }
+    .sheet(isPresented: $isShowingEditSheet) {
+      if let template = viewModel.template {
+        NavigationStack {
+          ChecklistEditView(
+            template: template,
+            checklistService: checklistService,
+            onTemplateUpdated: { _ in
+              Task {
+                await viewModel.refreshTemplate()
+              }
+            }
+          )
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+      }
+    }
     .task {
       await viewModel.load()
     }
@@ -219,6 +253,20 @@ struct ChecklistDetailView: View {
           }
         }
         .buttonStyle(MarineButtonStyle(.primary))
+        .disabled(viewModel.isPerformingAction)
+        .marineListCell()
+      }
+
+      if viewModel.canEditTemplate {
+        Button {
+          isShowingEditSheet = true
+        } label: {
+          HStack(spacing: MarineTheme.Spacing.small) {
+            Image(systemName: "pencil")
+            Text("Edit Template")
+          }
+        }
+        .buttonStyle(MarineButtonStyle(.secondary))
         .disabled(viewModel.isPerformingAction)
         .marineListCell()
       }

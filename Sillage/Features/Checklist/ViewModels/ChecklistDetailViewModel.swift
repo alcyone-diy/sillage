@@ -91,6 +91,11 @@ final class ChecklistDetailViewModel {
     return !template.isSystem
   }
 
+  var canEditTemplate: Bool {
+    guard let template else { return false }
+    return !template.isSystem
+  }
+
   func load() async {
     guard !isLoading else { return }
     isLoading = true
@@ -102,6 +107,17 @@ final class ChecklistDetailViewModel {
     } catch {
       Logger.checklist.error("Failed to load checklist detail: \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
+    }
+  }
+
+  /// Reloads the template metadata and items after an edit.
+  func refreshTemplate() async {
+    do {
+      if let updated = try await checklistService.fetchTemplate(id: templateId) {
+        self.template = updated
+      }
+    } catch {
+      Logger.checklist.error("Failed to reload template: \(error.localizedDescription, privacy: .public)")
     }
   }
 

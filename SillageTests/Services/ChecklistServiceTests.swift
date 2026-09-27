@@ -106,6 +106,107 @@ final class ChecklistServiceTests: XCTestCase {
     }
   }
 
+  func testUpdateCustomTemplateSuccess() async throws {
+    let created = try await checklistService.createCustomTemplate(
+      title: "Original Title",
+      description: "Original Description",
+      category: .routine,
+      items: [
+        ("Step 1", "Detail 1"),
+        ("Step 2", "Detail 2")
+      ]
+    )
+
+    let updated = try await checklistService.updateCustomTemplate(
+      id: created.id,
+      title: "Updated Title",
+      description: "Updated Description",
+      category: .navigationManeuver,
+      items: [
+        (id: created.items[1].id, title: "Step 2 Renamed", detail: "New Detail"),
+        (id: nil, title: "Step 3 Added", detail: nil)
+      ]
+    )
+
+    XCTAssertEqual(updated.id, created.id)
+    XCTAssertEqual(updated.title, "Updated Title")
+    XCTAssertEqual(updated.description, "Updated Description")
+    XCTAssertEqual(updated.category, .navigationManeuver)
+    XCTAssertEqual(updated.items.count, 2)
+    XCTAssertEqual(updated.items[0].id, created.items[1].id)
+    XCTAssertEqual(updated.items[0].title, "Step 2 Renamed")
+    XCTAssertEqual(updated.items[0].sortOrder, 0)
+    XCTAssertEqual(updated.items[1].title, "Step 3 Added")
+    XCTAssertEqual(updated.items[1].sortOrder, 1)
+
+    // Verify fetched from database
+    let fetched = try await checklistService.fetchTemplate(id: created.id)
+    XCTAssertNotNil(fetched)
+    XCTAssertEqual(fetched?.title, "Updated Title")
+    XCTAssertEqual(fetched?.items.count, 2)
+  }
+
+  func testCannotUpdateSystemTemplate() async throws {
+    try await checklistService.seedDefaultTemplatesIfNeeded()
+    let templates = try await checklistService.fetchTemplates()
+    guard let systemTemplate = templates.first(where: \.isSystem) else {
+      XCTFail("No system template found")
+      return
+    }
+
+    do {
+      _ = try await checklistService.updateCustomTemplate(
+        id: systemTemplate.id,
+        title: "Malicious Edit",
+        description: nil,
+        category: .safetyEmergency,
+        items: [("Hacked", nil)]
+      )
+      XCTFail("Expected error when updating system template")
+    } catch {
+      // Expected failure
+    }
+  }
+
+  func testUpdateTemplateNotFound() async throws {
+    do {
+      _ = try await checklistService.updateCustomTemplate(
+        id: UUID(),
+        title: "Ghost",
+        description: nil,
+        category: .routine,
+        items: [("Ghost step", nil)]
+      )
+      XCTFail("Expected error when updating non-existent template")
+    } catch ChecklistExecutionError.templateNotFound {
+      // Expected
+    }
+  }
+
+  func testUpdateCustomTemplateUpdatesActiveExecutionSnapshot() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "Pre-Sail",
+      description: nil,
+      category: .routine,
+      items: [("Check rigging", nil)]
+    )
+
+    let execution = try await checklistService.startExecution(templateId: template.id)
+    XCTAssertEqual(execution.templateTitleSnapshot, "Pre-Sail")
+
+    _ = try await checklistService.updateCustomTemplate(
+      id: template.id,
+      title: "Pre-Sail Rigging Check",
+      description: nil,
+      category: .routine,
+      items: [("Check rigging thoroughly", nil)]
+    )
+
+    let activeExecution = try await checklistService.fetchActiveExecution(for: template.id)
+    XCTAssertNotNil(activeExecution)
+    XCTAssertEqual(activeExecution?.templateTitleSnapshot, "Pre-Sail Rigging Check")
+  }
+
   // MARK: - Execution Lifecycle & Get-or-Create Tests
 
   func testStartExecutionAndGetOrCreate() async throws {

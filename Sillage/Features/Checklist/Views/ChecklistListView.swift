@@ -18,6 +18,7 @@ struct ChecklistListView: View {
   @State private var viewModel: ChecklistListViewModel
   @State private var isShowingCreateSheet = false
   @State private var templateToDelete: ChecklistTemplate?
+  @State private var templateToEdit: ChecklistTemplate?
 
   init(checklistService: any ChecklistServiceProtocol) {
     self.checklistService = checklistService
@@ -64,7 +65,7 @@ struct ChecklistListView: View {
               NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistDetail(templateId: template.id)) {
                 ChecklistTemplateRowView(template: template)
               }
-              .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+              .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 if !template.isSystem {
                   Button(role: .destructive) {
                     templateToDelete = template
@@ -72,6 +73,13 @@ struct ChecklistListView: View {
                     Label("Delete", systemImage: MarineIcon.delete.rawValue)
                   }
                   .tint(.red)
+
+                  Button {
+                    templateToEdit = template
+                  } label: {
+                    Label("Edit", systemImage: "pencil")
+                  }
+                  .tint(marineTheme.colors.accent)
                 }
               }
               .marineListCell()
@@ -108,6 +116,21 @@ struct ChecklistListView: View {
         ChecklistCreateView(
           checklistService: checklistService,
           onTemplateCreated: { _ in
+            Task {
+              await viewModel.loadTemplates()
+            }
+          }
+        )
+      }
+      .presentationDetents([.large])
+      .presentationDragIndicator(.visible)
+    }
+    .sheet(item: $templateToEdit) { template in
+      NavigationStack {
+        ChecklistEditView(
+          template: template,
+          checklistService: checklistService,
+          onTemplateUpdated: { _ in
             Task {
               await viewModel.loadTemplates()
             }
