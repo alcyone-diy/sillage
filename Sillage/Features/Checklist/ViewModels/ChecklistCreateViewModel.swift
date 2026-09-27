@@ -41,15 +41,30 @@ public final class ChecklistCreateViewModel {
   public var category: ChecklistCategory = .routine
   public var items: [ChecklistItemDraft] = []
   public private(set) var isSaving: Bool = false
+  public var alertTitle: String = "Error"
   public var errorMessage: String?
 
   /// Returns true if the template has a valid non-empty title and at least one step with a non-empty title.
   public var isValid: Bool {
-    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedTitle.isEmpty else { return false }
+    validationErrorMessage == nil
+  }
 
+  /// Explains why the checklist template cannot be saved, or returns nil if valid.
+  public var validationErrorMessage: String? {
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     let validItems = items.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    return !validItems.isEmpty
+
+    let isTitleEmpty = trimmedTitle.isEmpty
+    let isStepsEmpty = validItems.isEmpty
+
+    if isTitleEmpty && isStepsEmpty {
+      return String(localized: "Please provide a title and at least one step for your checklist.")
+    } else if isTitleEmpty {
+      return String(localized: "Please provide a title for your checklist.")
+    } else if isStepsEmpty {
+      return String(localized: "Please add at least one step with a title to your checklist.")
+    }
+    return nil
   }
 
   public init(
@@ -109,7 +124,13 @@ public final class ChecklistCreateViewModel {
   /// Persists the new checklist template to the database.
   /// - Returns: The newly created `ChecklistTemplate` if successful, or `nil` on failure.
   public func save() async -> ChecklistTemplate? {
-    guard isValid, !isSaving else { return nil }
+    guard isValid, !isSaving else {
+      if let validation = validationErrorMessage {
+        alertTitle = String(localized: "Incomplete Checklist")
+        errorMessage = validation
+      }
+      return nil
+    }
     isSaving = true
     defer { isSaving = false }
     errorMessage = nil

@@ -139,11 +139,52 @@ final class ChecklistCreateViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.items.map(\.title), ["First", "Second"])
   }
 
-  // MARK: - Save Tests
+  // MARK: - Validation & Save Tests
 
-  func testSaveFailsWhenInvalid() async {
+  func testValidationErrorMessageExplanations() {
+    // 1. Both title and steps empty
+    viewModel.title = "   "
+    viewModel.items[0].title = ""
+    XCTAssertFalse(viewModel.isValid)
+    XCTAssertEqual(
+      viewModel.validationErrorMessage,
+      String(localized: "Please provide a title and at least one step for your checklist.")
+    )
+
+    // 2. Title empty, but step provided
+    viewModel.items[0].title = "Check seacocks"
+    XCTAssertFalse(viewModel.isValid)
+    XCTAssertEqual(
+      viewModel.validationErrorMessage,
+      String(localized: "Please provide a title for your checklist.")
+    )
+
+    // 3. Title provided, but steps empty
+    viewModel.title = "Departure Prep"
+    viewModel.items[0].title = "   "
+    XCTAssertFalse(viewModel.isValid)
+    XCTAssertEqual(
+      viewModel.validationErrorMessage,
+      String(localized: "Please add at least one step with a title to your checklist.")
+    )
+
+    // 4. Valid title and step
+    viewModel.items[0].title = "Check seacocks"
+    XCTAssertTrue(viewModel.isValid)
+    XCTAssertNil(viewModel.validationErrorMessage)
+  }
+
+  func testSaveFailsWhenInvalidSetsErrorAndAlertTitle() async {
+    viewModel.title = ""
+    viewModel.items[0].title = ""
+
     let result = await viewModel.save()
     XCTAssertNil(result)
+    XCTAssertEqual(viewModel.alertTitle, String(localized: "Incomplete Checklist"))
+    XCTAssertEqual(
+      viewModel.errorMessage,
+      String(localized: "Please provide a title and at least one step for your checklist.")
+    )
   }
 
   func testSaveSuccessPersistsTemplateAndItems() async throws {

@@ -64,6 +64,12 @@ struct ChecklistCreateView: View {
 
       ToolbarItem(placement: .confirmationAction) {
         Button {
+          guard viewModel.isValid else {
+            viewModel.alertTitle = String(localized: "Incomplete Checklist")
+            viewModel.errorMessage = viewModel.validationErrorMessage
+            return
+          }
+
           Task {
             if let template = await viewModel.save() {
               onTemplateCreated?(template)
@@ -76,17 +82,17 @@ struct ChecklistCreateView: View {
               .tint(marineTheme.colors.accent)
           } else {
             Image(marineIcon: .save)
-              .foregroundStyle(viewModel.isValid ? marineTheme.colors.accent : marineTheme.colors.inactive)
+              .foregroundStyle(marineTheme.colors.accent)
               .padding(8)
               .contentShape(Rectangle())
           }
         }
-        .disabled(!viewModel.isValid || viewModel.isSaving)
+        .disabled(viewModel.isSaving)
         .accessibilityLabel(String(localized: "Save"))
       }
     }
     .alert(
-      "Error",
+      viewModel.alertTitle,
       isPresented: Binding(
         get: { viewModel.errorMessage != nil },
         set: { if !$0 { viewModel.errorMessage = nil } }

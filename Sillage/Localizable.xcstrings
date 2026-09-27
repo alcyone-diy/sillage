@@ -711,6 +711,9 @@
     "In progress" : {
 
     },
+    "Incomplete Checklist" : {
+
+    },
     "Information" : {
 
     },
@@ -955,7 +958,16 @@
     "Pin B" : {
 
     },
+    "Please add at least one step with a title to your checklist." : {
+
+    },
     "Please enter a valid username." : {
+
+    },
+    "Please provide a title and at least one step for your checklist." : {
+
+    },
+    "Please provide a title for your checklist." : {
 
     },
     "Points" : {
