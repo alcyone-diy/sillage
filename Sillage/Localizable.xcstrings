@@ -65,7 +65,16 @@
     "%@/3h" : {
       "comment" : "Format for 3-hour barometric trend suffix"
     },
+    "%lld" : {
+
+    },
+    "%lld items" : {
+
+    },
     "%lld offline charts" : {
+
+    },
+    "%lld." : {
 
     },
     "%lld%%" : {
@@ -141,6 +150,9 @@
 
     },
     "Active Track" : {
+
+    },
+    "Add Step" : {
 
     },
     "Adjust Position" : {
@@ -275,6 +287,9 @@
     "Cannot delete a track while it is actively recording." : {
 
     },
+    "Category" : {
+
+    },
     "Center Coordinates" : {
 
     },
@@ -291,6 +306,9 @@
 
     },
     "Checking…" : {
+
+    },
+    "Checklists" : {
 
     },
     "Clear Cache" : {
@@ -339,6 +357,9 @@
 
     },
     "Could not create the Charts directory." : {
+
+    },
+    "Create Checklist" : {
 
     },
     "Create Waypoint…" : {
@@ -393,6 +414,9 @@
 
     },
     "Desired Accuracy" : {
+
+    },
+    "Detail / instructions (Optional)" : {
 
     },
     "Details" : {
@@ -637,6 +661,9 @@
     "In progress" : {
 
     },
+    "Information" : {
+
+    },
     "Initialization Failed" : {
 
     },
@@ -716,6 +743,9 @@
     "Manage GeoGarage Account" : {
 
     },
+    "Mandatory step" : {
+
+    },
     "Manual debug simulation" : {
 
     },
@@ -773,10 +803,16 @@
     "Network error: %@." : {
 
     },
+    "New Checklist" : {
+
+    },
     "No active recording to stop." : {
 
     },
     "No chart layer available for download. Please select a valid layer." : {
+
+    },
+    "No checklists available" : {
 
     },
     "No data recorded for this time period" : {
@@ -789,6 +825,9 @@
 
     },
     "No saved waypoints yet" : {
+
+    },
+    "No steps added yet" : {
 
     },
     "No visible map viewport found. Pan or zoom the chart first." : {
@@ -1011,6 +1050,12 @@
     "Startup Time" : {
 
     },
+    "Step title" : {
+
+    },
+    "Steps" : {
+
+    },
     "Stop" : {
 
     },
@@ -1027,6 +1072,9 @@
 
     },
     "swift-concurrency-extras" : {
+
+    },
+    "Swipe to delete. Mark critical steps as mandatory." : {
 
     },
     "System" : {
@@ -1063,6 +1111,9 @@
 
     },
     "Time Horizon" : {
+
+    },
+    "Title" : {
 
     },
     "To alert you if your vessel drags anchor, %@ needs continuous background GPS access." : {

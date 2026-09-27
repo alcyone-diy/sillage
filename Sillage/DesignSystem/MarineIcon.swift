@@ -19,6 +19,7 @@ enum MarineIcon: String {
     case crosshair = "scope"
     case settings = "gearshape.fill"
     case offlineChart = "square.and.arrow.down.on.square"
+    case checklist = "checklist"
     
     // Actions
     case add = "plus"

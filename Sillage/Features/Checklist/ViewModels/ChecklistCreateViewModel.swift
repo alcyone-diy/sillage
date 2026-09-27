@@ -1,0 +1,129 @@
+//
+//  ChecklistCreateViewModel.swift
+//  Alcyone Sillage
+//
+//  Created by Alcyone on 2026-09-27.
+//  Copyright © 2026 Alcyone.
+//  This file is released under the MIT License.
+//  See LICENSE file in the project root for full license information.
+//
+
+import Foundation
+import SwiftUI
+import Observation
+import OSLog
+
+/// A draft model representing an item being authored within a new checklist template.
+public struct ChecklistItemDraft: Identifiable, Equatable, Sendable {
+  public let id: UUID
+  public var title: String
+  public var detail: String
+  public var isMandatory: Bool
+
+  public init(
+    id: UUID = UUID(),
+    title: String = "",
+    detail: String = "",
+    isMandatory: Bool = false
+  ) {
+    self.id = id
+    self.title = title
+    self.detail = detail
+    self.isMandatory = isMandatory
+  }
+}
+
+/// A view model managing the creation and validation of a new maritime checklist template.
+@MainActor
+@Observable
+public final class ChecklistCreateViewModel {
+  private let checklistService: any ChecklistServiceProtocol
+
+  public var title: String = ""
+  public var descriptionText: String = ""
+  public var category: ChecklistCategory = .routine
+  public var items: [ChecklistItemDraft] = []
+  public private(set) var isSaving: Bool = false
+  public var errorMessage: String?
+
+  /// Returns true if the template has a valid non-empty title and at least one step with a non-empty title.
+  public var isValid: Bool {
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedTitle.isEmpty else { return false }
+
+    let validItems = items.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    return !validItems.isEmpty
+  }
+
+  public init(
+    checklistService: any ChecklistServiceProtocol,
+    initialCategory: ChecklistCategory = .routine
+  ) {
+    self.checklistService = checklistService
+    self.category = initialCategory
+    self.items = [ChecklistItemDraft()]
+  }
+
+  /// Appends a new draft step to the checklist.
+  public func addItem(
+    title: String = "",
+    detail: String = "",
+    isMandatory: Bool = false
+  ) {
+    items.append(ChecklistItemDraft(
+      title: title,
+      detail: detail,
+      isMandatory: isMandatory
+    ))
+  }
+
+  /// Removes steps at the specified offsets.
+  public func removeItems(atOffsets offsets: IndexSet) {
+    items.remove(atOffsets: offsets)
+  }
+
+  /// Moves steps from source offsets to destination index.
+  public func moveItems(fromOffsets source: IndexSet, toOffset destination: Int) {
+    items.move(fromOffsets: source, toOffset: destination)
+  }
+
+  /// Persists the new checklist template to the database.
+  /// - Returns: The newly created `ChecklistTemplate` if successful, or `nil` on failure.
+  public func save() async -> ChecklistTemplate? {
+    guard isValid, !isSaving else { return nil }
+    isSaving = true
+    defer { isSaving = false }
+    errorMessage = nil
+
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedDescription = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let desc = trimmedDescription.isEmpty ? nil : trimmedDescription
+
+    // Filter out completely blank steps
+    let validItems = items.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    let serviceItems = validItems.map { item in
+      let itemTitle = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+      let itemDetail = item.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+      return (
+        title: itemTitle,
+        detail: itemDetail.isEmpty ? nil : itemDetail,
+        isMandatory: item.isMandatory
+      )
+    }
+
+    do {
+      let createdTemplate = try await checklistService.createCustomTemplate(
+        title: trimmedTitle,
+        description: desc,
+        category: category,
+        items: serviceItems
+      )
+      Logger.checklist.info("Successfully created custom checklist template: \(createdTemplate.id.uuidString, privacy: .public)")
+      return createdTemplate
+    } catch {
+      Logger.checklist.error("Failed to create custom checklist template: \(error.localizedDescription, privacy: .public)")
+      errorMessage = error.localizedDescription
+      return nil
+    }
+  }
+}

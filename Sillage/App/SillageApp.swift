@@ -46,6 +46,7 @@ struct SillageApp: App {
             .environment(container.trackRecordingService)
             .environment(\.trackService, container.trackService)
             .environment(\.waypointService, container.waypointService)
+            .environment(\.checklistService, container.checklistService)
             .environment(container.preferencesService)
             .environment(container.permissionService)
             .environment(container.offlineSelectionViewModel)

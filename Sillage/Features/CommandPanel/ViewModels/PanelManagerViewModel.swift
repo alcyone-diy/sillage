@@ -40,6 +40,7 @@ public final class PanelManagerViewModel {
     case offlineCharts
     case offlineChartDetail(id: UUID)
     case chartPreferences
+    case checklists
   }
 
   /// The currently active panel visible to the user.

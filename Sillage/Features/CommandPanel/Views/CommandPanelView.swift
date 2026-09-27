@@ -20,6 +20,7 @@ struct CommandPanelView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.trackService) private var trackService
   @Environment(\.waypointService) private var waypointService
+  @Environment(\.checklistService) private var checklistService
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(BarometerViewModel.self) private var barometerViewModel
   @Environment(PermissionService.self) private var permissionService
@@ -66,13 +67,15 @@ struct CommandPanelView: View {
         Text(error.errorDescription ?? "")
       }
       .toolbar {
-        ToolbarItem(placement: .navigationBarTrailing) {
-          Button(action: {
-            bindableViewModel.closePanel()
-          }) {
-            Image(marineIcon: .cancelAction)
-              .foregroundStyle(.tertiary)
-              .font(.title2)
+        if bindableViewModel.commandPath.isEmpty {
+          ToolbarItem(placement: .navigationBarTrailing) {
+            Button(action: {
+              bindableViewModel.closePanel()
+            }) {
+              Image(marineIcon: .cancelAction)
+                .foregroundStyle(.tertiary)
+                .font(.title2)
+            }
           }
         }
       }
@@ -194,6 +197,15 @@ struct CommandPanelView: View {
     Section(header: Text("Safety")) {
       AnchorCommandRowView(permissionGateType: $permissionGateType)
       BarometerCommandRowView(permissionGateType: $permissionGateType)
+      NavigationLink(value: PanelManagerViewModel.CommandDestination.checklists) {
+        Label {
+          Text("Checklists").foregroundStyle(.primary)
+        } icon: {
+          Image(marineIcon: .checklist).foregroundStyle(marineTheme.colors.accent)
+        }
+        .marineFont(.body)
+      }
+      .marineListCell()
     }
   }
 
@@ -255,6 +267,10 @@ struct CommandPanelView: View {
       }
     case .chartPreferences:
       ChartPreferencesView()
+    case .checklists:
+      if let service = checklistService ?? appEnvironment.checklistService {
+        ChecklistListView(checklistService: service)
+      }
     }
   }
 }
