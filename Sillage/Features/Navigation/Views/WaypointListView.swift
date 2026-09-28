@@ -59,7 +59,7 @@ struct WaypointListView: View {
                 }
               }
               .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button {
+                Button(role: .destructive) {
                   waypointToDelete = waypoint
                 } label: {
                   Label("Delete", systemImage: MarineIcon.delete.rawValue)

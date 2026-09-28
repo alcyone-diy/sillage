@@ -100,7 +100,7 @@ struct OfflineRegionsManagerView: View {
                     .disabled(!isEnabled)
                   }
                   .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button {
+                    Button(role: .destructive) {
                       itemToDelete = item
                     } label: {
                       Label("Delete", systemImage: MarineIcon.delete.rawValue)

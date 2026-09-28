@@ -70,7 +70,7 @@ struct TrackListView: View {
           }
           .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             if !trackRecordingService.isSessionActive(session.id) {
-              Button {
+              Button(role: .destructive) {
                 sessionToDelete = session
               } label: {
                 Label("Delete", systemImage: MarineIcon.delete.rawValue)

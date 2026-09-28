@@ -65,20 +65,21 @@ struct ChecklistListView: View {
               NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistDetail(templateId: template.id)) {
                 ChecklistTemplateRowView(template: template)
               }
-              .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+              .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                Button {
+                  templateToEdit = template
+                } label: {
+                  Label("Edit", systemImage: MarineIcon.edit.rawValue)
+                }
+                .tint(marineTheme.colors.accent)
+              }
+              .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 Button(role: .destructive) {
                   templateToDelete = template
                 } label: {
                   Label("Delete", systemImage: MarineIcon.delete.rawValue)
                 }
                 .tint(.red)
-
-                Button {
-                  templateToEdit = template
-                } label: {
-                  Label("Edit", systemImage: "pencil")
-                }
-                .tint(marineTheme.colors.accent)
               }
               .marineListCell()
             }
@@ -218,7 +219,7 @@ private struct ChecklistTemplateRowView: View {
           Text(description)
             .marineFont(.caption)
             .foregroundStyle(marineTheme.colors.textSecondary)
-            .lineLimit(2)
+            .lineLimit(1)
         }
       }
 
@@ -228,12 +229,11 @@ private struct ChecklistTemplateRowView: View {
         .marineFont(.caption)
         .foregroundStyle(marineTheme.colors.textSecondary)
         .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
         .background(
           Capsule()
             .fill(marineTheme.colors.secondaryActionBackground)
         )
     }
-    .padding(.vertical, 4)
   }
 }
