@@ -30,6 +30,11 @@ public struct ChecklistSessionItem: Identifiable, Equatable, Sendable {
   public let checkedAt: Date?
   public let coordinate: CLLocationCoordinate2D?
 
+  /// Stable identity across template preview and active session states.
+  public var stableId: UUID {
+    sourceTemplateItemId ?? id
+  }
+
   nonisolated public init(
     id: UUID = UUID(),
     sessionId: UUID,

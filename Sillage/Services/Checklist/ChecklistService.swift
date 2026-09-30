@@ -488,18 +488,32 @@ public final class ChecklistService: ChecklistServiceProtocol {
           return try Self.mapSession(record: sessionRecord, itemRecords: allItems)
         }
 
+        // Count previously checked items before updating this item
+        let previouslyCheckedCount = try ChecklistSessionItemRecord
+          .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.is_checked == true)
+          .fetchCount(db)
+
         itemRecord.is_checked = isChecked
         itemRecord.checked_at = isChecked ? Date() : nil
         itemRecord.latitude_deg = isChecked ? coordinate?.latitude : nil
         itemRecord.longitude_deg = isChecked ? coordinate?.longitude : nil
         try itemRecord.update(db)
 
+        // When checking the first item, update started_at to now
+        var updatedSessionRecord = sessionRecord
+        if isChecked && previouslyCheckedCount == 0 {
+          let now = Date()
+          updatedSessionRecord.started_at = now
+          try updatedSessionRecord.update(db)
+        }
+
         let allItems = try ChecklistSessionItemRecord
           .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
-        return try Self.mapSession(record: sessionRecord, itemRecords: allItems)
+        return try Self.mapSession(record: updatedSessionRecord, itemRecords: allItems)
       }
     } catch let error as ChecklistSessionError {
       throw error

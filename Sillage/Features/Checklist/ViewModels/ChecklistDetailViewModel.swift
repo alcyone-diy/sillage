@@ -21,13 +21,20 @@ final class ChecklistDetailViewModel {
   private let checklistService: any ChecklistServiceProtocol
   private let locationProvider: (@MainActor () -> NavigationFix?)?
 
-  var template: ChecklistTemplate?
+  var template: ChecklistTemplate? {
+    didSet {
+      updateCachedTemplateItems(from: template)
+    }
+  }
   var session: ChecklistSession?
   var isLoading = false
   var isPerformingAction = false
   var errorMessage: String?
   var showResetConfirmation = false
   var showDeleteConfirmation = false
+
+  private var templateItems: [ChecklistSessionItem] = []
+  private static let previewSessionId = UUID(uuidString: "00000000-0000-0000-0000-000000000000") ?? UUID()
 
   init(
     templateId: UUID,
@@ -52,12 +59,12 @@ final class ChecklistDetailViewModel {
   }
 
   var items: [ChecklistSessionItem] {
-    session?.items ?? []
+    session?.items ?? templateItems
   }
 
   /// Identifies the first unchecked item in the list for progressive disclosure styling.
   var currentItemId: UUID? {
-    items.first(where: { !$0.isChecked })?.id
+    items.first(where: { !$0.isChecked })?.stableId
   }
 
   var totalCount: Int {
@@ -92,8 +99,8 @@ final class ChecklistDetailViewModel {
     defer { isLoading = false }
 
     do {
-      template = try await checklistService.fetchTemplate(id: templateId)
-      session = try await checklistService.startSession(templateId: templateId)
+      self.template = try await checklistService.fetchTemplate(id: templateId)
+      self.session = try await checklistService.fetchActiveSession(for: templateId)
     } catch {
       Logger.checklist.error("Failed to load checklist detail: \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
@@ -111,6 +118,26 @@ final class ChecklistDetailViewModel {
       }
     } catch {
       Logger.checklist.error("Failed to reload template: \(error.localizedDescription, privacy: .public)")
+    }
+  }
+
+  private func updateCachedTemplateItems(from template: ChecklistTemplate?) {
+    guard let template else {
+      self.templateItems = []
+      return
+    }
+    self.templateItems = template.items.map { tItem in
+      ChecklistSessionItem(
+        id: tItem.id,
+        sessionId: Self.previewSessionId,
+        sourceTemplateItemId: tItem.id,
+        sortOrder: tItem.sortOrder,
+        title: tItem.title,
+        detail: tItem.detail,
+        isChecked: false,
+        checkedAt: nil,
+        coordinate: nil
+      )
     }
   }
 
@@ -135,18 +162,35 @@ final class ChecklistDetailViewModel {
   }
 
   func toggleItem(_ item: ChecklistSessionItem) async {
-    guard let session, !isPerformingAction else { return }
+    // UI-level guard: strictly drop simultaneous parasitic touches (rebound, double-tap, sea spray)
+    guard !isPerformingAction else { return }
     isPerformingAction = true
     defer { isPerformingAction = false }
 
     do {
       let coordinate = resolveAuditableCoordinate()
-      _ = try await checklistService.setItemChecked(
-        sessionId: session.id,
-        itemId: item.id,
+
+      let activeSession: ChecklistSession
+      if let existing = session {
+        activeSession = existing
+      } else {
+        activeSession = try await checklistService.startSession(templateId: templateId)
+        self.session = activeSession
+      }
+
+      // Determine matching item in the active session using stableId
+      guard let match = activeSession.items.first(where: { $0.stableId == item.stableId }) else {
+        Logger.checklist.error("Item '\(item.stableId, privacy: .public)' not found in active session")
+        return
+      }
+
+      let updated = try await checklistService.setItemChecked(
+        sessionId: activeSession.id,
+        itemId: match.id,
         isChecked: !item.isChecked,
         coordinate: coordinate
       )
+      self.session = updated
     } catch {
       Logger.checklist.error("Failed to toggle checklist item '\(item.id, privacy: .public)': \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
@@ -187,12 +231,9 @@ final class ChecklistDetailViewModel {
     isPerformingAction = true
     defer { isPerformingAction = false }
 
-    do {
-      _ = try await checklistService.startSession(templateId: templateId)
-    } catch {
-      Logger.checklist.error("Failed to restart checklist session: \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
-    }
+    // Lazy: clear the completed session so the UI returns to a clean, unchecked template state.
+    // The next checked item will start a fresh session with started_at = Date().
+    self.session = nil
   }
 
   func deleteTemplate() async -> Bool {

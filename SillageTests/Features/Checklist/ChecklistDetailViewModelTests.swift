@@ -60,16 +60,17 @@ final class ChecklistDetailViewModelTests: XCTestCase {
     try await super.tearDown()
   }
 
-  // MARK: - Load & Get-or-Create Tests
+  // MARK: - Load & Lazy Session Initialization Tests
 
-  func testLoadStartsSessionAndLoadsTemplate() async {
+  func testLoadLoadsTemplateWithoutImmediateSession() async {
     XCTAssertNil(viewModel.template)
     XCTAssertNil(viewModel.session)
 
     await viewModel.load()
 
     XCTAssertNotNil(viewModel.template)
-    XCTAssertNotNil(viewModel.session)
+    // Lazy: session is NOT created in DB until the user checks the first item
+    XCTAssertNil(viewModel.session)
     XCTAssertEqual(viewModel.title, "Engine Check")
     XCTAssertEqual(viewModel.description, "Pre-departure engine inspection")
     XCTAssertEqual(viewModel.category, .engineTechnical)
@@ -80,13 +81,25 @@ final class ChecklistDetailViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isCompleted)
     XCTAssertFalse(viewModel.canComplete)
     XCTAssertFalse(viewModel.canReset)
+
+    // Checking the first item creates the session on demand with startedAt
+    guard let firstItem = viewModel.items.first else {
+      XCTFail("Items should not be empty")
+      return
+    }
+
+    await viewModel.toggleItem(firstItem)
+
+    XCTAssertNotNil(viewModel.session)
+    XCTAssertEqual(viewModel.completedCount, 1)
+    XCTAssertNotNil(viewModel.session?.startedAt)
   }
 
   // MARK: - Reactive Stream Observation Tests
 
   func testReactiveObservationDrivesItemToggle() async throws {
     await viewModel.load()
-    observeTask = Task { [viewModel] in
+    observeTask = Task { [weak viewModel] in
       await viewModel?.observe()
     }
 
@@ -121,40 +134,35 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
   func testProgressiveDisclosureCurrentItem() async {
     await viewModel.load()
-    observeTask = Task { [viewModel] in
+    observeTask = Task { [weak viewModel] in
       await viewModel?.observe()
     }
 
     // Initial: First unchecked item is item 0
-    XCTAssertEqual(viewModel.currentItemId, viewModel.items[0].id)
+    XCTAssertEqual(viewModel.currentItemId, viewModel.items[0].stableId)
 
-    // Toggle item 0 directly in DB
-    guard let session = viewModel.session else {
-      XCTFail("Session must exist")
-      return
-    }
-    _ = try? await checklistService.setItemChecked(
-      sessionId: session.id,
-      itemId: viewModel.items[0].id,
-      isChecked: true,
-      coordinate: nil
-    )
-
+    // Toggle item 0 via viewModel (lazily instantiates session)
+    await viewModel.toggleItem(viewModel.items[0])
     try? await Task.sleep(nanoseconds: 100_000_000)
 
+    guard let session = viewModel.session else {
+      XCTFail("Session must exist after toggle")
+      return
+    }
+
     // Next unchecked item is item 1
-    XCTAssertEqual(viewModel.currentItemId, viewModel.items[1].id)
+    XCTAssertEqual(viewModel.currentItemId, session.items[1].stableId)
 
     // Toggle items 1 and 2
     _ = try? await checklistService.setItemChecked(
       sessionId: session.id,
-      itemId: viewModel.items[1].id,
+      itemId: session.items[1].id,
       isChecked: true,
       coordinate: nil
     )
     _ = try? await checklistService.setItemChecked(
       sessionId: session.id,
-      itemId: viewModel.items[2].id,
+      itemId: session.items[2].id,
       isChecked: true,
       coordinate: nil
     )
@@ -182,15 +190,20 @@ final class ChecklistDetailViewModelTests: XCTestCase {
       timestamp: Date()
     )
 
-    guard let firstItem = viewModel.items.first, let session = viewModel.session else {
-      XCTFail("Missing item or session")
+    guard let firstItem = viewModel.items.first else {
+      XCTFail("Missing item")
       return
     }
 
     await viewModel.toggleItem(firstItem)
 
+    guard let session = viewModel.session else {
+      XCTFail("Missing session after toggle")
+      return
+    }
+
     let updatedSession = try await checklistService.fetchSession(id: session.id)
-    let updatedItem = updatedSession?.items.first { $0.id == firstItem.id }
+    let updatedItem = updatedSession?.items.first { $0.id == firstItem.id || $0.sourceTemplateItemId == firstItem.id }
     XCTAssertNotNil(updatedItem?.coordinate)
     XCTAssertEqual(updatedItem?.coordinate?.latitude, 46.159)
     XCTAssertEqual(updatedItem?.coordinate?.longitude, -1.152)
@@ -210,15 +223,20 @@ final class ChecklistDetailViewModelTests: XCTestCase {
       timestamp: Date()
     )
 
-    guard let firstItem = viewModel.items.first, let session = viewModel.session else {
-      XCTFail("Missing item or session")
+    guard let firstItem = viewModel.items.first else {
+      XCTFail("Missing item")
       return
     }
 
     await viewModel.toggleItem(firstItem)
 
+    guard let session = viewModel.session else {
+      XCTFail("Missing session after toggle")
+      return
+    }
+
     let updatedSession = try await checklistService.fetchSession(id: session.id)
-    let updatedItem = updatedSession?.items.first { $0.id == firstItem.id }
+    let updatedItem = updatedSession?.items.first { $0.id == firstItem.id || $0.sourceTemplateItemId == firstItem.id }
     XCTAssertTrue(updatedItem?.isChecked == true)
     XCTAssertNil(updatedItem?.coordinate)
   }
@@ -227,20 +245,27 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
   func testCompleteSession() async throws {
     await viewModel.load()
-    observeTask = Task { [viewModel] in
+    observeTask = Task { [weak viewModel] in
       await viewModel?.observe()
     }
     try await Task.sleep(nanoseconds: 50_000_000)
 
-    guard let session = viewModel.session else {
-      XCTFail("Session missing")
-      return
-    }
-
     XCTAssertFalse(viewModel.canComplete)
     XCTAssertFalse(viewModel.isCompleted)
 
-    for item in viewModel.items {
+    guard let firstItem = viewModel.items.first else {
+      XCTFail("Missing first item")
+      return
+    }
+    await viewModel.toggleItem(firstItem)
+    try await Task.sleep(nanoseconds: 50_000_000)
+
+    guard let session = viewModel.session else {
+      XCTFail("Session missing after toggle")
+      return
+    }
+
+    for item in session.items where !item.isChecked {
       _ = try await checklistService.setItemChecked(
         sessionId: session.id,
         itemId: item.id,
@@ -257,6 +282,44 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
     XCTAssertTrue(viewModel.isCompleted)
     XCTAssertFalse(viewModel.canComplete)
+  }
+
+  func testStartedAtRecordedAtFirstCheckAndReset() async throws {
+    await viewModel.load()
+    XCTAssertNil(viewModel.session)
+
+    let beforeFirstCheck = Date()
+    guard let firstItem = viewModel.items.first else {
+      XCTFail("Missing first item")
+      return
+    }
+
+    await viewModel.toggleItem(firstItem)
+    guard let session = viewModel.session else {
+      XCTFail("Session should be created on first check")
+      return
+    }
+
+    XCTAssertGreaterThanOrEqual(session.startedAt, beforeFirstCheck)
+
+    // Reset session
+    await viewModel.reset()
+    XCTAssertEqual(viewModel.completedCount, 0)
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+    let beforeSecondCheck = Date()
+
+    guard let itemAfterReset = viewModel.items.first else {
+      XCTFail("Missing item after reset")
+      return
+    }
+    await viewModel.toggleItem(itemAfterReset)
+
+    guard let sessionAfterReset = viewModel.session else {
+      XCTFail("Session should exist")
+      return
+    }
+    XCTAssertGreaterThanOrEqual(sessionAfterReset.startedAt, beforeSecondCheck)
   }
 
   // MARK: - Cascade Deletion Tests

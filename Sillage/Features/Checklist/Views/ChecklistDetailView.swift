@@ -35,7 +35,7 @@ struct ChecklistDetailView: View {
 
   var body: some View {
     List {
-      if viewModel.isLoading && viewModel.session == nil {
+      if viewModel.isLoading && viewModel.template == nil && viewModel.session == nil {
         loadingSection
       } else {
         headerSection
@@ -193,8 +193,8 @@ struct ChecklistDetailView: View {
   @ViewBuilder
   private var itemsSection: some View {
     Section("Items") {
-      ForEach(viewModel.items) { item in
-        let isCurrent = (item.id == viewModel.currentItemId)
+      ForEach(viewModel.items, id: \.stableId) { item in
+        let isCurrent = (item.stableId == viewModel.currentItemId)
         ChecklistSessionItemRowView(
           item: item,
           isCurrentItem: isCurrent,
