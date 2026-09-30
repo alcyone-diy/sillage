@@ -99,6 +99,9 @@ public protocol ChecklistServiceProtocol: Sendable {
 
   /// Observes all currently active in-progress checklist sessions in real-time.
   func observeActiveSessions() -> AsyncThrowingStream<[ChecklistSession], any Error>
+
+  /// Observes the latest completion date for each checklist template in real-time.
+  func observeCompletedSessions() -> AsyncThrowingStream<[UUID: Date], any Error>
 }
 
 extension ChecklistServiceProtocol {

@@ -64,7 +64,8 @@ struct ChecklistListView: View {
             ForEach(section.templates) { template in
               ChecklistTemplateRowView(
                 template: template,
-                activeSession: viewModel.activeSession(for: template.id)
+                activeSession: viewModel.activeSession(for: template.id),
+                latestCompletionDate: viewModel.latestCompletionDate(for: template.id)
               )
               .contentShape(Rectangle())
               .onTapGesture {
@@ -139,6 +140,9 @@ struct ChecklistListView: View {
     .task {
       await viewModel.observeActiveSessions()
     }
+    .task {
+      await viewModel.observeCompletedSessions()
+    }
     .alert(
       "Delete Checklist?",
       isPresented: Binding(
@@ -200,30 +204,27 @@ private struct ChecklistTemplateRowView: View {
   @Environment(\.marineTheme) private var marineTheme
   let template: ChecklistTemplate
   var activeSession: ChecklistSession? = nil
+  var latestCompletionDate: Date? = nil
 
   var body: some View {
     HStack(alignment: .center, spacing: MarineTheme.Spacing.medium) {
       VStack(alignment: .leading, spacing: 4) {
-        HStack(spacing: MarineTheme.Spacing.small) {
-          Text(template.title)
-            .marineFont(.body)
-            .foregroundStyle(marineTheme.colors.textPrimary)
+        Text(template.title)
+          .marineFont(.body)
+          .foregroundStyle(marineTheme.colors.textPrimary)
 
-          if let activeSession {
-            Text("\(activeSession.completedCount)/\(activeSession.totalCount)")
-              .marineFont(.caption)
-              .foregroundStyle(marineTheme.colors.accent)
-              .padding(.horizontal, 6)
-              .padding(.vertical, 2)
-              .background(
-                Capsule()
-                  .fill(marineTheme.colors.accent.opacity(0.15))
-              )
-          }
-        }
-
-        if let description = template.description, !description.isEmpty {
-          Text(description)
+        if let activeSession {
+          Text("Started \(activeSession.startedAt.formatted(date: .abbreviated, time: .shortened)) • \(activeSession.completedCount)/\(activeSession.totalCount) checked")
+            .marineFont(.caption)
+            .foregroundStyle(marineTheme.colors.textSecondary)
+            .lineLimit(1)
+        } else if let latestCompletionDate {
+          Text("Completed \(latestCompletionDate.formatted(date: .abbreviated, time: .shortened))")
+            .marineFont(.caption)
+            .foregroundStyle(marineTheme.colors.textSecondary)
+            .lineLimit(1)
+        } else {
+          Text("Never used")
             .marineFont(.caption)
             .foregroundStyle(marineTheme.colors.textSecondary)
             .lineLimit(1)
@@ -231,16 +232,6 @@ private struct ChecklistTemplateRowView: View {
       }
 
       Spacer()
-
-      Text("\(template.items.count) items")
-        .marineFont(.caption)
-        .foregroundStyle(marineTheme.colors.textSecondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 2)
-        .background(
-          Capsule()
-            .fill(marineTheme.colors.secondaryActionBackground)
-        )
     }
   }
 }

@@ -78,9 +78,6 @@
     "%lld" : {
 
     },
-    "%lld items" : {
-
-    },
     "%lld of %lld completed" : {
       "localizations" : {
         "en" : {
@@ -96,16 +93,6 @@
     },
     "%lld." : {
 
-    },
-    "%lld/%lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld/%2$lld"
-          }
-        }
-      }
     },
     "%lld%%" : {
 
@@ -387,6 +374,9 @@
 
     },
     "Completed" : {
+
+    },
+    "Completed %@" : {
 
     },
     "Configuration" : {
@@ -881,6 +871,9 @@
     "Network error: %@." : {
 
     },
+    "Never used" : {
+
+    },
     "New Checklist" : {
 
     },
@@ -1151,6 +1144,16 @@
     },
     "Start Time" : {
 
+    },
+    "Started %@ • %lld/%lld checked" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Started %1$@ • %2$lld/%3$lld checked"
+          }
+        }
+      }
     },
     "Startup Time" : {
 

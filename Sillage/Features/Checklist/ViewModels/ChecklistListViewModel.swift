@@ -20,6 +20,7 @@ public final class ChecklistListViewModel {
 
   public private(set) var templates: [ChecklistTemplate] = []
   public private(set) var activeSessions: [ChecklistSession] = []
+  public private(set) var latestCompletionDates: [UUID: Date] = [:]
   public private(set) var isLoading: Bool = false
   public var errorMessage: String?
 
@@ -80,5 +81,24 @@ public final class ChecklistListViewModel {
       $0.status == .inProgress &&
       $0.completedCount > 0
     }
+  }
+
+  /// Observes latest completion dates for checklist templates.
+  public func observeCompletedSessions() async {
+    do {
+      for try await dates in checklistService.observeCompletedSessions() {
+        if Task.isCancelled { break }
+        self.latestCompletionDates = dates
+      }
+    } catch {
+      if !Task.isCancelled {
+        Logger.checklist.error("Error observing completed sessions: \(error.localizedDescription, privacy: .public)")
+      }
+    }
+  }
+
+  /// Returns the latest completion date for a template, if any exists.
+  public func latestCompletionDate(for templateId: UUID) -> Date? {
+    latestCompletionDates[templateId]
   }
 }

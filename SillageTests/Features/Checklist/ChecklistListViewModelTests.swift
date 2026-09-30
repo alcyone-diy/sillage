@@ -134,4 +134,51 @@ final class ChecklistListViewModelTests: XCTestCase {
 
     observeTask.cancel()
   }
+
+  // MARK: - Completed Sessions Observation Tests
+
+  func testCompletedSessionsTracking() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let vm = try XCTUnwrap(viewModel)
+
+    let template = try await service.createCustomTemplate(
+      title: "Departure Checklist",
+      description: nil,
+      category: .routine,
+      items: [("Check bilge", nil), ("Stow gear", nil)]
+    )
+
+    XCTAssertNil(vm.latestCompletionDate(for: template.id))
+
+    let observeTask = Task { [weak viewModel] in
+      await viewModel?.observeCompletedSessions()
+    }
+
+    try await Task.sleep(nanoseconds: 50_000_000)
+    XCTAssertNil(vm.latestCompletionDate(for: template.id))
+
+    // Start session and complete all items
+    let session = try await service.startSession(templateId: template.id)
+    for item in session.items {
+      _ = try await service.setItemChecked(
+        sessionId: session.id,
+        itemId: item.id,
+        isChecked: true,
+        coordinate: nil
+      )
+    }
+
+    // Complete the session
+    let completed = try await service.completeSession(sessionId: session.id, notes: nil)
+    try await Task.sleep(nanoseconds: 50_000_000)
+
+    let latestDate = vm.latestCompletionDate(for: template.id)
+    XCTAssertNotNil(latestDate)
+    if let latestDate, let completedAt = completed.completedAt {
+      XCTAssertEqual(latestDate.timeIntervalSince1970, completedAt.timeIntervalSince1970, accuracy: 0.01)
+    }
+    XCTAssertFalse(vm.hasActiveSession(for: template.id))
+
+    observeTask.cancel()
+  }
 }

@@ -708,4 +708,49 @@ public final class ChecklistService: ChecklistServiceProtocol {
       }
     }
   }
+
+  public func observeCompletedSessions() -> AsyncThrowingStream<[UUID: Date], any Error> {
+    let observation = ValueObservation.tracking { db in
+      let rows = try Row.fetchAll(
+        db,
+        sql: """
+        SELECT template_id, MAX(completed_at) AS latest_completed_at
+        FROM \(ChecklistSessionRecord.databaseTableName)
+        WHERE status = ? AND completed_at IS NOT NULL
+        GROUP BY template_id
+        """,
+        arguments: [ChecklistSessionStatus.completed.rawValue]
+      )
+
+      var result: [UUID: Date] = [:]
+      result.reserveCapacity(rows.count)
+
+      for row in rows {
+        guard let templateIdString: String = row["template_id"],
+              let templateId = UUID(uuidString: templateIdString),
+              let completedAt: Date = row["latest_completed_at"] else {
+          continue
+        }
+        result[templateId] = completedAt
+      }
+
+      return result
+    }
+
+    return AsyncThrowingStream { continuation in
+      let cancellable = observation.start(
+        in: databaseManager.reader,
+        onError: { error in
+          continuation.finish(throwing: error)
+        },
+        onChange: { dates in
+          continuation.yield(dates)
+        }
+      )
+
+      continuation.onTermination = { @Sendable _ in
+        cancellable.cancel()
+      }
+    }
+  }
 }
