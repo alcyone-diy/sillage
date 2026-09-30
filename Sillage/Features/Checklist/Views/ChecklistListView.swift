@@ -14,6 +14,7 @@ import SwiftUI
 @MainActor
 struct ChecklistListView: View {
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(PanelManagerViewModel.self) private var panelManager: PanelManagerViewModel?
   private let checklistService: any ChecklistServiceProtocol
   @State private var viewModel: ChecklistListViewModel
   @State private var isShowingCreateSheet = false
@@ -62,24 +63,40 @@ struct ChecklistListView: View {
         ForEach(viewModel.groupedTemplates, id: \.category) { section in
           Section {
             ForEach(section.templates) { template in
-              NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistDetail(templateId: template.id)) {
-                ChecklistTemplateRowView(template: template)
+              ChecklistTemplateRowView(
+                template: template,
+                activeSession: viewModel.activeSession(for: template.id)
+              )
+              .contentShape(Rectangle())
+              .onTapGesture {
+                // TODO: Ouvrir la checklist en mode readonly (sera fait dans un deuxième temps)
               }
               .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                let hasActive = viewModel.hasActiveSession(for: template.id)
                 Button {
-                  templateToEdit = template
+                  panelManager?.commandPath.append(.checklistDetail(templateId: template.id))
                 } label: {
-                  Label("Edit", systemImage: MarineIcon.edit.rawValue)
+                  Label(
+                    hasActive ? "Continue" : "Start",
+                    systemImage: hasActive ? "play.circle.fill" : "play.fill"
+                  )
                 }
                 .tint(marineTheme.colors.accent)
               }
-              .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+              .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button(role: .destructive) {
                   templateToDelete = template
                 } label: {
                   Label("Delete", systemImage: MarineIcon.delete.rawValue)
                 }
                 .tint(.red)
+
+                Button {
+                  templateToEdit = template
+                } label: {
+                  Label("Edit", systemImage: MarineIcon.edit.rawValue)
+                }
+                .tint(marineTheme.colors.accent)
               }
               .marineListCell()
             }
@@ -142,10 +159,8 @@ struct ChecklistListView: View {
     .task {
       await viewModel.loadTemplates()
     }
-    .onAppear {
-      Task {
-        await viewModel.loadTemplates()
-      }
+    .task {
+      await viewModel.observeActiveSessions()
     }
     .alert(
       "Delete Checklist?",
@@ -207,13 +222,28 @@ struct ChecklistListView: View {
 private struct ChecklistTemplateRowView: View {
   @Environment(\.marineTheme) private var marineTheme
   let template: ChecklistTemplate
+  var activeSession: ChecklistSession? = nil
 
   var body: some View {
     HStack(alignment: .center, spacing: MarineTheme.Spacing.medium) {
       VStack(alignment: .leading, spacing: 4) {
-        Text(template.title)
-          .marineFont(.body)
-          .foregroundStyle(marineTheme.colors.textPrimary)
+        HStack(spacing: MarineTheme.Spacing.small) {
+          Text(template.title)
+            .marineFont(.body)
+            .foregroundStyle(marineTheme.colors.textPrimary)
+
+          if let activeSession {
+            Text("\(activeSession.completedCount)/\(activeSession.totalCount)")
+              .marineFont(.caption)
+              .foregroundStyle(marineTheme.colors.accent)
+              .padding(.horizontal, 6)
+              .padding(.vertical, 2)
+              .background(
+                Capsule()
+                  .fill(marineTheme.colors.accent.opacity(0.15))
+              )
+          }
+        }
 
         if let description = template.description, !description.isEmpty {
           Text(description)

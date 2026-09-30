@@ -97,6 +97,16 @@
     "%lld." : {
 
     },
+    "%lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "%lld%%" : {
 
     },
@@ -388,6 +398,9 @@
     "Confirm Anchor Drop" : {
 
     },
+    "Continue" : {
+
+    },
     "Corrupt GeoGarage Token" : {
 
     },
@@ -490,9 +503,6 @@
     "Done" : {
 
     },
-    "Drag handles or tap arrows to change step order." : {
-
-    },
     "Download" : {
 
     },
@@ -509,6 +519,9 @@
 
     },
     "Downloading…" : {
+
+    },
+    "Drag handles or tap arrows to change step order." : {
 
     },
     "Drag map to adjust anchor position" : {
@@ -1018,13 +1031,13 @@
     "Recording Status" : {
 
     },
+    "Reorder" : {
+
+    },
     "Requesting" : {
 
     },
     "Requesting package…" : {
-
-    },
-    "Reorder" : {
 
     },
     "Reset" : {
@@ -1129,6 +1142,9 @@
     },
     "Squall Imminent" : {
       "comment" : "Weather alarm"
+    },
+    "Start" : {
+
     },
     "Start New Session" : {
 

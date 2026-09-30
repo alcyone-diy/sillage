@@ -19,6 +19,7 @@ public final class ChecklistListViewModel {
   private let checklistService: any ChecklistServiceProtocol
 
   public private(set) var templates: [ChecklistTemplate] = []
+  public private(set) var activeSessions: [ChecklistSession] = []
   public private(set) var isLoading: Bool = false
   public var errorMessage: String?
 
@@ -46,6 +47,38 @@ public final class ChecklistListViewModel {
     } catch {
       Logger.checklist.error("Failed to load checklist templates: \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
+    }
+  }
+
+  /// Observes active in-progress checklist sessions.
+  public func observeActiveSessions() async {
+    do {
+      for try await sessions in checklistService.observeActiveSessions() {
+        if Task.isCancelled { break }
+        self.activeSessions = sessions
+      }
+    } catch {
+      if !Task.isCancelled {
+        Logger.checklist.error("Error observing active sessions: \(error.localizedDescription, privacy: .public)")
+      }
+    }
+  }
+
+  /// Returns whether a template has an active in-progress session with progress.
+  public func hasActiveSession(for templateId: UUID) -> Bool {
+    activeSessions.contains {
+      $0.templateId == templateId &&
+      $0.status == .inProgress &&
+      $0.completedCount > 0
+    }
+  }
+
+  /// Returns the active session for a template if one exists with progress.
+  public func activeSession(for templateId: UUID) -> ChecklistSession? {
+    activeSessions.first {
+      $0.templateId == templateId &&
+      $0.status == .inProgress &&
+      $0.completedCount > 0
     }
   }
 }
