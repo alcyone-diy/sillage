@@ -1,5 +1,5 @@
 //
-//  ChecklistExecution.swift
+//  ChecklistSession.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-09-27.
@@ -11,17 +11,17 @@
 import Foundation
 import CoreLocation
 
-/// Represents the execution state of an active or past checklist session.
-public enum ChecklistExecutionStatus: String, Codable, Sendable {
+/// Represents the status of an active or past checklist session.
+public enum ChecklistSessionStatus: String, Codable, Sendable {
   case inProgress = "in_progress"
   case completed = "completed"
   case abandoned = "abandoned"
 }
 
-/// Represents an item snapshot within a specific checklist execution session.
-public struct ChecklistExecutionItem: Identifiable, Equatable, Sendable {
+/// Represents an item snapshot within a specific checklist session.
+public struct ChecklistSessionItem: Identifiable, Equatable, Sendable {
   public let id: UUID
-  public let executionId: UUID
+  public let sessionId: UUID
   public let sourceTemplateItemId: UUID?
   public let sortOrder: Int
   public let title: String
@@ -32,7 +32,7 @@ public struct ChecklistExecutionItem: Identifiable, Equatable, Sendable {
 
   nonisolated public init(
     id: UUID = UUID(),
-    executionId: UUID,
+    sessionId: UUID,
     sourceTemplateItemId: UUID?,
     sortOrder: Int,
     title: String,
@@ -42,7 +42,7 @@ public struct ChecklistExecutionItem: Identifiable, Equatable, Sendable {
     coordinate: CLLocationCoordinate2D? = nil
   ) {
     self.id = id
-    self.executionId = executionId
+    self.sessionId = sessionId
     self.sourceTemplateItemId = sourceTemplateItemId
     self.sortOrder = sortOrder
     self.title = title
@@ -53,26 +53,26 @@ public struct ChecklistExecutionItem: Identifiable, Equatable, Sendable {
   }
 }
 
-/// Represents an active or completed checklist execution session.
-public struct ChecklistExecution: Identifiable, Equatable, Sendable {
+/// Represents an active or completed checklist session.
+public struct ChecklistSession: Identifiable, Equatable, Sendable {
   public let id: UUID
   public let templateId: UUID
   public let templateTitleSnapshot: String
-  public let status: ChecklistExecutionStatus
+  public let status: ChecklistSessionStatus
   public let startedAt: Date
   public let completedAt: Date?
   public let notes: String?
-  public let items: [ChecklistExecutionItem]
+  public let items: [ChecklistSessionItem]
 
   nonisolated public init(
     id: UUID = UUID(),
     templateId: UUID,
     templateTitleSnapshot: String,
-    status: ChecklistExecutionStatus = .inProgress,
+    status: ChecklistSessionStatus = .inProgress,
     startedAt: Date = Date(),
     completedAt: Date? = nil,
     notes: String? = nil,
-    items: [ChecklistExecutionItem] = []
+    items: [ChecklistSessionItem] = []
   ) {
     self.id = id
     self.templateId = templateId

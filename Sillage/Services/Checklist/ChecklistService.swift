@@ -13,7 +13,7 @@ import GRDB
 import OSLog
 import CoreLocation
 
-/// Thread-safe service managing nautical checklist templates and execution lifecycles.
+/// Thread-safe service managing nautical checklist templates and session lifecycles.
 public final class ChecklistService: ChecklistServiceProtocol {
   private let databaseManager: DatabaseManager
   private let throttler: ChecklistThrottler
@@ -25,29 +25,29 @@ public final class ChecklistService: ChecklistServiceProtocol {
 
   // MARK: - Static Pure Mappings (Zero Self-Capture, Zero Dummy Values)
 
-  nonisolated private static func parseUUID(_ string: String, fieldName: String) throws(ChecklistExecutionError) -> UUID {
+  nonisolated private static func parseUUID(_ string: String, fieldName: String) throws(ChecklistSessionError) -> UUID {
     guard let uuid = UUID(uuidString: string) else {
-      throw ChecklistExecutionError.databaseInconsistency("Invalid UUID for field '\(fieldName)': '\(string)'")
+      throw ChecklistSessionError.databaseInconsistency("Invalid UUID for field '\(fieldName)': '\(string)'")
     }
     return uuid
   }
 
-  nonisolated private static func parseStatus(_ rawValue: String) throws(ChecklistExecutionError) -> ChecklistExecutionStatus {
-    guard let status = ChecklistExecutionStatus(rawValue: rawValue) else {
-      throw ChecklistExecutionError.databaseInconsistency("Unknown execution status: '\(rawValue)'")
+  nonisolated private static func parseStatus(_ rawValue: String) throws(ChecklistSessionError) -> ChecklistSessionStatus {
+    guard let status = ChecklistSessionStatus(rawValue: rawValue) else {
+      throw ChecklistSessionError.databaseInconsistency("Unknown session status: '\(rawValue)'")
     }
     return status
   }
 
-  nonisolated public static func mapExecution(
+  nonisolated public static func mapSession(
     record: ChecklistSessionRecord,
     itemRecords: [ChecklistSessionItemRecord]
-  ) throws(ChecklistExecutionError) -> ChecklistExecution {
-    let executionId = try parseUUID(record.id, fieldName: "execution.id")
-    let templateId = try parseUUID(record.template_id, fieldName: "execution.template_id")
+  ) throws(ChecklistSessionError) -> ChecklistSession {
+    let sessionId = try parseUUID(record.id, fieldName: "session.id")
+    let templateId = try parseUUID(record.template_id, fieldName: "session.template_id")
     let status = try parseStatus(record.status)
 
-    var domainItems: [ChecklistExecutionItem] = []
+    var domainItems: [ChecklistSessionItem] = []
     domainItems.reserveCapacity(itemRecords.count)
 
     for itemRecord in itemRecords {
@@ -66,14 +66,14 @@ public final class ChecklistService: ChecklistServiceProtocol {
       case (nil, nil):
         coordinate = nil
       default:
-        throw ChecklistExecutionError.databaseInconsistency(
+        throw ChecklistSessionError.databaseInconsistency(
           "Spatial atomicity violated on checklist item '\(itemRecord.id)'"
         )
       }
 
-      domainItems.append(ChecklistExecutionItem(
+      domainItems.append(ChecklistSessionItem(
         id: itemId,
-        executionId: executionId,
+        sessionId: sessionId,
         sourceTemplateItemId: sourceTemplateItemId,
         sortOrder: itemRecord.sort_order,
         title: itemRecord.title,
@@ -84,8 +84,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
       ))
     }
 
-    return ChecklistExecution(
-      id: executionId,
+    return ChecklistSession(
+      id: sessionId,
       templateId: templateId,
       templateTitleSnapshot: record.template_title_snapshot,
       status: status,
@@ -111,7 +111,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .fetchAll(db)
 
         guard let category = ChecklistCategory(rawValue: tRecord.category) else {
-          throw ChecklistExecutionError.databaseInconsistency("Unknown checklist category: \(tRecord.category)")
+          throw ChecklistSessionError.databaseInconsistency("Unknown checklist category: \(tRecord.category)")
         }
 
         let domainItems = try items.map { iRecord in
@@ -150,7 +150,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         .fetchAll(db)
 
       guard let category = ChecklistCategory(rawValue: tRecord.category) else {
-        throw ChecklistExecutionError.databaseInconsistency("Unknown checklist category: \(tRecord.category)")
+        throw ChecklistSessionError.databaseInconsistency("Unknown checklist category: \(tRecord.category)")
       }
 
       let domainItems = try items.map { iRecord in
@@ -249,7 +249,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
   ) async throws -> ChecklistTemplate {
     try await databaseManager.write { db in
       guard let templateRecord = try ChecklistTemplateRecord.fetchOne(db, key: id.uuidString) else {
-        throw ChecklistExecutionError.templateNotFound(id)
+        throw ChecklistSessionError.templateNotFound(id)
       }
 
       let now = Date()
@@ -286,22 +286,22 @@ public final class ChecklistService: ChecklistServiceProtocol {
         ))
       }
 
-      // Update active execution snapshot and items if in progress
-      if let activeExecution = try ChecklistSessionRecord
+      // Update active session snapshot and items if in progress
+      if let activeSession = try ChecklistSessionRecord
         .filter(ChecklistSessionRecord.Columns.template_id == id.uuidString)
-        .filter(ChecklistSessionRecord.Columns.status == ChecklistExecutionStatus.inProgress.rawValue)
+        .filter(ChecklistSessionRecord.Columns.status == ChecklistSessionStatus.inProgress.rawValue)
         .fetchOne(db) {
-        var updatedExecution = activeExecution
-        updatedExecution.template_title_snapshot = title
-        try updatedExecution.update(db)
+        var updatedSession = activeSession
+        updatedSession.template_title_snapshot = title
+        try updatedSession.update(db)
 
-        let existingExecutionItems = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == activeExecution.id)
+        let existingSessionItems = try ChecklistSessionItemRecord
+          .filter(ChecklistSessionItemRecord.Columns.execution_id == activeSession.id)
           .fetchAll(db)
 
         var existingBySourceId: [String: ChecklistSessionItemRecord] = [:]
         var existingByTitle: [String: ChecklistSessionItemRecord] = [:]
-        for item in existingExecutionItems {
+        for item in existingSessionItems {
           if let src = item.source_template_item_id {
             existingBySourceId[src] = item
           }
@@ -309,15 +309,15 @@ public final class ChecklistService: ChecklistServiceProtocol {
         }
 
         try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == activeExecution.id)
+          .filter(ChecklistSessionItemRecord.Columns.execution_id == activeSession.id)
           .deleteAll(db)
 
         for (index, domainItem) in domainItems.enumerated() {
           let sourceId = domainItem.id.uuidString
           let prior = existingBySourceId[sourceId] ?? existingByTitle[domainItem.title]
-          let execRecord = ChecklistSessionItemRecord(
+          let sessionItemRecord = ChecklistSessionItemRecord(
             id: prior?.id ?? UUID().uuidString,
-            execution_id: activeExecution.id,
+            execution_id: activeSession.id,
             source_template_item_id: sourceId,
             sort_order: index,
             title: domainItem.title,
@@ -327,7 +327,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
             latitude_deg: prior?.latitude_deg,
             longitude_deg: prior?.longitude_deg
           )
-          try execRecord.insert(db)
+          try sessionItemRecord.insert(db)
         }
       }
 
@@ -359,22 +359,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
   public func deleteTemplate(id: UUID) async throws {
     try await databaseManager.write { db in
       guard let template = try ChecklistTemplateRecord.fetchOne(db, key: id.uuidString) else {
-        throw ChecklistExecutionError.templateNotFound(id)
+        throw ChecklistSessionError.templateNotFound(id)
       }
-
-      let sessions = try ChecklistSessionRecord
-        .filter(ChecklistSessionRecord.Columns.template_id == id.uuidString)
-        .fetchAll(db)
-      for session in sessions {
-        try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == session.id)
-          .deleteAll(db)
-        try session.delete(db)
-      }
-
-      try ChecklistTemplateItemRecord
-        .filter(ChecklistTemplateItemRecord.Columns.template_id == id.uuidString)
-        .deleteAll(db)
 
       try template.delete(db)
       Logger.checklist.info("Successfully deleted template '\(id.uuidString, privacy: .public)'")
@@ -385,15 +371,15 @@ public final class ChecklistService: ChecklistServiceProtocol {
     try await deleteTemplate(id: id)
   }
 
-  // MARK: - Execution Lifecycle (Get-or-Create)
+  // MARK: - Session Lifecycle (Get-or-Create)
 
-  public func startExecution(templateId: UUID) async throws(ChecklistExecutionError) -> ChecklistExecution {
+  public func startSession(templateId: UUID) async throws(ChecklistSessionError) -> ChecklistSession {
     do {
       return try await databaseManager.write { db in
-        // 1. Transparent Get-or-Create: Resume existing in-progress execution if present
+        // 1. Transparent Get-or-Create: Resume existing in-progress session if present
         let activeRecord = try ChecklistSessionRecord
           .filter(ChecklistSessionRecord.Columns.template_id == templateId.uuidString)
-          .filter(ChecklistSessionRecord.Columns.status == ChecklistExecutionStatus.inProgress.rawValue)
+          .filter(ChecklistSessionRecord.Columns.status == ChecklistSessionStatus.inProgress.rawValue)
           .fetchOne(db)
 
         if let existingRecord = activeRecord {
@@ -404,12 +390,12 @@ public final class ChecklistService: ChecklistServiceProtocol {
             .filter(ChecklistSessionItemRecord.Columns.execution_id == existingRecord.id)
             .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
             .fetchAll(db)
-          return try Self.mapExecution(record: existingRecord, itemRecords: existingItems)
+          return try Self.mapSession(record: existingRecord, itemRecords: existingItems)
         }
 
-        // 2. Normal path: Instantiate new execution from template snapshot
+        // 2. Normal path: Instantiate new session from template snapshot
         guard let templateRecord = try ChecklistTemplateRecord.fetchOne(db, key: templateId.uuidString) else {
-          throw ChecklistExecutionError.templateNotFound(templateId)
+          throw ChecklistSessionError.templateNotFound(templateId)
         }
 
         let templateItems = try ChecklistTemplateItemRecord
@@ -417,25 +403,25 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .order(ChecklistTemplateItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
-        let executionId = UUID()
+        let sessionId = UUID()
         let now = Date()
 
-        let executionRecord = ChecklistSessionRecord(
-          id: executionId.uuidString,
+        let sessionRecord = ChecklistSessionRecord(
+          id: sessionId.uuidString,
           template_id: templateId.uuidString,
           template_title_snapshot: templateRecord.title,
-          status: ChecklistExecutionStatus.inProgress.rawValue,
+          status: ChecklistSessionStatus.inProgress.rawValue,
           started_at: now,
           completed_at: nil,
           notes: nil
         )
-        try executionRecord.insert(db)
+        try sessionRecord.insert(db)
 
         var itemRecords: [ChecklistSessionItemRecord] = []
         for item in templateItems {
           let itemRecord = ChecklistSessionItemRecord(
             id: UUID().uuidString,
-            execution_id: executionId.uuidString,
+            execution_id: sessionId.uuidString,
             source_template_item_id: item.id,
             sort_order: item.sort_order,
             title: item.title,
@@ -449,57 +435,57 @@ public final class ChecklistService: ChecklistServiceProtocol {
           itemRecords.append(itemRecord)
         }
 
-        Logger.checklist.info("Started new checklist execution '\(executionId.uuidString, privacy: .public)'")
-        return try Self.mapExecution(record: executionRecord, itemRecords: itemRecords)
+        Logger.checklist.info("Started new checklist session '\(sessionId.uuidString, privacy: .public)'")
+        return try Self.mapSession(record: sessionRecord, itemRecords: itemRecords)
       }
-    } catch let error as ChecklistExecutionError {
+    } catch let error as ChecklistSessionError {
       throw error
     } catch {
-      Logger.checklist.error("Failed to start checklist execution: \(error, privacy: .public)")
-      throw ChecklistExecutionError.databaseFailure(error.localizedDescription)
+      Logger.checklist.error("Failed to start checklist session: \(error, privacy: .public)")
+      throw ChecklistSessionError.databaseFailure(error.localizedDescription)
     }
   }
 
   public func setItemChecked(
-    executionId: UUID,
+    sessionId: UUID,
     itemId: UUID,
     isChecked: Bool,
     coordinate: CLLocationCoordinate2D? = nil
-  ) async throws(ChecklistExecutionError) -> ChecklistExecution {
+  ) async throws(ChecklistSessionError) -> ChecklistSession {
     // 1. Debounce rapid vibrations / wet touch screen taps
     guard await throttler.shouldProcessAction(for: itemId) else {
       Logger.checklist.debug("Debouncing action on item '\(itemId, privacy: .public)'")
       do {
-        guard let current = try await fetchExecution(id: executionId) else {
-          throw ChecklistExecutionError.executionNotFound(executionId)
+        guard let current = try await fetchSession(id: sessionId) else {
+          throw ChecklistSessionError.sessionNotFound(sessionId)
         }
         return current
-      } catch let error as ChecklistExecutionError {
+      } catch let error as ChecklistSessionError {
         throw error
       } catch {
-        throw ChecklistExecutionError.databaseFailure(error.localizedDescription)
+        throw ChecklistSessionError.databaseFailure(error.localizedDescription)
       }
     }
 
     do {
       return try await databaseManager.write { db in
-        guard let executionRecord = try ChecklistSessionRecord.fetchOne(db, key: executionId.uuidString) else {
-          throw ChecklistExecutionError.executionNotFound(executionId)
+        guard let sessionRecord = try ChecklistSessionRecord.fetchOne(db, key: sessionId.uuidString) else {
+          throw ChecklistSessionError.sessionNotFound(sessionId)
         }
-        guard executionRecord.status == ChecklistExecutionStatus.inProgress.rawValue else {
-          throw ChecklistExecutionError.executionAlreadyFinished(executionId)
+        guard sessionRecord.status == ChecklistSessionStatus.inProgress.rawValue else {
+          throw ChecklistSessionError.sessionAlreadyFinished(sessionId)
         }
         guard var itemRecord = try ChecklistSessionItemRecord.fetchOne(db, key: itemId.uuidString) else {
-          throw ChecklistExecutionError.itemNotFound(itemId)
+          throw ChecklistSessionError.itemNotFound(itemId)
         }
 
         // 2. Strict Idempotency: Return immediately with 0 disk write if state is identical
         if itemRecord.is_checked == isChecked {
           let allItems = try ChecklistSessionItemRecord
-            .filter(ChecklistSessionItemRecord.Columns.execution_id == executionId.uuidString)
+            .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
             .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
             .fetchAll(db)
-          return try Self.mapExecution(record: executionRecord, itemRecords: allItems)
+          return try Self.mapSession(record: sessionRecord, itemRecords: allItems)
         }
 
         itemRecord.is_checked = isChecked
@@ -509,60 +495,60 @@ public final class ChecklistService: ChecklistServiceProtocol {
         try itemRecord.update(db)
 
         let allItems = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == executionId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
-        return try Self.mapExecution(record: executionRecord, itemRecords: allItems)
+        return try Self.mapSession(record: sessionRecord, itemRecords: allItems)
       }
-    } catch let error as ChecklistExecutionError {
+    } catch let error as ChecklistSessionError {
       throw error
     } catch {
-      throw ChecklistExecutionError.databaseFailure(error.localizedDescription)
+      throw ChecklistSessionError.databaseFailure(error.localizedDescription)
     }
   }
 
-  public func completeExecution(
-    executionId: UUID,
+  public func completeSession(
+    sessionId: UUID,
     notes: String? = nil
-  ) async throws(ChecklistExecutionError) -> ChecklistExecution {
+  ) async throws(ChecklistSessionError) -> ChecklistSession {
     do {
       return try await databaseManager.write { db in
-        guard var executionRecord = try ChecklistSessionRecord.fetchOne(db, key: executionId.uuidString) else {
-          throw ChecklistExecutionError.executionNotFound(executionId)
+        guard var sessionRecord = try ChecklistSessionRecord.fetchOne(db, key: sessionId.uuidString) else {
+          throw ChecklistSessionError.sessionNotFound(sessionId)
         }
-        guard executionRecord.status == ChecklistExecutionStatus.inProgress.rawValue else {
-          throw ChecklistExecutionError.executionAlreadyFinished(executionId)
+        guard sessionRecord.status == ChecklistSessionStatus.inProgress.rawValue else {
+          throw ChecklistSessionError.sessionAlreadyFinished(sessionId)
         }
 
         let allItems = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == executionId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
-        executionRecord.status = ChecklistExecutionStatus.completed.rawValue
-        executionRecord.completed_at = Date()
-        executionRecord.notes = notes
-        try executionRecord.update(db)
+        sessionRecord.status = ChecklistSessionStatus.completed.rawValue
+        sessionRecord.completed_at = Date()
+        sessionRecord.notes = notes
+        try sessionRecord.update(db)
 
-        Logger.checklist.info("Completed checklist execution '\(executionId.uuidString, privacy: .public)'")
-        return try Self.mapExecution(record: executionRecord, itemRecords: allItems)
+        Logger.checklist.info("Completed checklist session '\(sessionId.uuidString, privacy: .public)'")
+        return try Self.mapSession(record: sessionRecord, itemRecords: allItems)
       }
-    } catch let error as ChecklistExecutionError {
+    } catch let error as ChecklistSessionError {
       throw error
     } catch {
-      throw ChecklistExecutionError.databaseFailure(error.localizedDescription)
+      throw ChecklistSessionError.databaseFailure(error.localizedDescription)
     }
   }
 
-  public func resetExecution(executionId: UUID) async throws(ChecklistExecutionError) -> ChecklistExecution {
+  public func resetSession(sessionId: UUID) async throws(ChecklistSessionError) -> ChecklistSession {
     do {
       return try await databaseManager.write { db in
-        guard let executionRecord = try ChecklistSessionRecord.fetchOne(db, key: executionId.uuidString) else {
-          throw ChecklistExecutionError.executionNotFound(executionId)
+        guard let sessionRecord = try ChecklistSessionRecord.fetchOne(db, key: sessionId.uuidString) else {
+          throw ChecklistSessionError.sessionNotFound(sessionId)
         }
-        guard executionRecord.status == ChecklistExecutionStatus.inProgress.rawValue else {
-          throw ChecklistExecutionError.executionAlreadyFinished(executionId)
+        guard sessionRecord.status == ChecklistSessionStatus.inProgress.rawValue else {
+          throw ChecklistSessionError.sessionAlreadyFinished(sessionId)
         }
 
         try db.execute(
@@ -571,58 +557,58 @@ public final class ChecklistService: ChecklistServiceProtocol {
           SET is_checked = 0, checked_at = NULL, latitude_deg = NULL, longitude_deg = NULL
           WHERE execution_id = ?
           """,
-          arguments: [executionId.uuidString]
+          arguments: [sessionId.uuidString]
         )
 
         let allItems = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == executionId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
-        Logger.checklist.info("Reset checklist execution '\(executionId.uuidString, privacy: .public)'")
-        return try Self.mapExecution(record: executionRecord, itemRecords: allItems)
+        Logger.checklist.info("Reset checklist session '\(sessionId.uuidString, privacy: .public)'")
+        return try Self.mapSession(record: sessionRecord, itemRecords: allItems)
       }
-    } catch let error as ChecklistExecutionError {
+    } catch let error as ChecklistSessionError {
       throw error
     } catch {
-      throw ChecklistExecutionError.databaseFailure(error.localizedDescription)
+      throw ChecklistSessionError.databaseFailure(error.localizedDescription)
     }
   }
 
-  public func abandonExecution(executionId: UUID) async throws(ChecklistExecutionError) -> ChecklistExecution {
+  public func abandonSession(sessionId: UUID) async throws(ChecklistSessionError) -> ChecklistSession {
     do {
       return try await databaseManager.write { db in
-        guard var executionRecord = try ChecklistSessionRecord.fetchOne(db, key: executionId.uuidString) else {
-          throw ChecklistExecutionError.executionNotFound(executionId)
+        guard var sessionRecord = try ChecklistSessionRecord.fetchOne(db, key: sessionId.uuidString) else {
+          throw ChecklistSessionError.sessionNotFound(sessionId)
         }
-        guard executionRecord.status == ChecklistExecutionStatus.inProgress.rawValue else {
-          throw ChecklistExecutionError.executionAlreadyFinished(executionId)
+        guard sessionRecord.status == ChecklistSessionStatus.inProgress.rawValue else {
+          throw ChecklistSessionError.sessionAlreadyFinished(sessionId)
         }
 
-        executionRecord.status = ChecklistExecutionStatus.abandoned.rawValue
-        executionRecord.completed_at = Date()
-        try executionRecord.update(db)
+        sessionRecord.status = ChecklistSessionStatus.abandoned.rawValue
+        sessionRecord.completed_at = Date()
+        try sessionRecord.update(db)
 
         let allItems = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == executionId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
-        Logger.checklist.info("Abandoned checklist execution '\(executionId.uuidString, privacy: .public)'")
-        return try Self.mapExecution(record: executionRecord, itemRecords: allItems)
+        Logger.checklist.info("Abandoned checklist session '\(sessionId.uuidString, privacy: .public)'")
+        return try Self.mapSession(record: sessionRecord, itemRecords: allItems)
       }
-    } catch let error as ChecklistExecutionError {
+    } catch let error as ChecklistSessionError {
       throw error
     } catch {
-      throw ChecklistExecutionError.databaseFailure(error.localizedDescription)
+      throw ChecklistSessionError.databaseFailure(error.localizedDescription)
     }
   }
 
-  public func fetchActiveExecution(for templateId: UUID) async throws -> ChecklistExecution? {
+  public func fetchActiveSession(for templateId: UUID) async throws -> ChecklistSession? {
     try await databaseManager.reader.read { db in
       guard let record = try ChecklistSessionRecord
         .filter(ChecklistSessionRecord.Columns.template_id == templateId.uuidString)
-        .filter(ChecklistSessionRecord.Columns.status == ChecklistExecutionStatus.inProgress.rawValue)
+        .filter(ChecklistSessionRecord.Columns.status == ChecklistSessionStatus.inProgress.rawValue)
         .fetchOne(db) else {
         return nil
       }
@@ -632,11 +618,11 @@ public final class ChecklistService: ChecklistServiceProtocol {
         .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
         .fetchAll(db)
 
-      return try Self.mapExecution(record: record, itemRecords: items)
+      return try Self.mapSession(record: record, itemRecords: items)
     }
   }
 
-  public func fetchExecution(id: UUID) async throws -> ChecklistExecution? {
+  public func fetchSession(id: UUID) async throws -> ChecklistSession? {
     try await databaseManager.reader.read { db in
       guard let record = try ChecklistSessionRecord.fetchOne(db, key: id.uuidString) else {
         return nil
@@ -647,11 +633,11 @@ public final class ChecklistService: ChecklistServiceProtocol {
         .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
         .fetchAll(db)
 
-      return try Self.mapExecution(record: record, itemRecords: items)
+      return try Self.mapSession(record: record, itemRecords: items)
     }
   }
 
-  public func fetchRecentExecutions(limit: Int) async throws -> [ChecklistExecution] {
+  public func fetchRecentSessions(limit: Int) async throws -> [ChecklistSession] {
     try await databaseManager.reader.read { db in
       let records = try ChecklistSessionRecord
         .order(ChecklistSessionRecord.Columns.started_at.desc)
@@ -663,7 +649,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .filter(ChecklistSessionItemRecord.Columns.execution_id == record.id)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
-        return try Self.mapExecution(record: record, itemRecords: items)
+        return try Self.mapSession(record: record, itemRecords: items)
       }
     }
   }
@@ -676,10 +662,10 @@ public final class ChecklistService: ChecklistServiceProtocol {
 
   // MARK: - Reactive Observation (AsyncThrowingStream, No Task.detached)
 
-  public func observeActiveExecutions() -> AsyncThrowingStream<[ChecklistExecution], any Error> {
+  public func observeActiveSessions() -> AsyncThrowingStream<[ChecklistSession], any Error> {
     let observation = ValueObservation.tracking { db in
       let records = try ChecklistSessionRecord
-        .filter(ChecklistSessionRecord.Columns.status == ChecklistExecutionStatus.inProgress.rawValue)
+        .filter(ChecklistSessionRecord.Columns.status == ChecklistSessionStatus.inProgress.rawValue)
         .order(ChecklistSessionRecord.Columns.started_at.desc)
         .fetchAll(db)
 
@@ -688,7 +674,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .filter(ChecklistSessionItemRecord.Columns.execution_id == record.id)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
-        return try Self.mapExecution(record: record, itemRecords: items)
+        return try Self.mapSession(record: record, itemRecords: items)
       }
     }
 
@@ -698,8 +684,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
         onError: { error in
           continuation.finish(throwing: error)
         },
-        onChange: { executions in
-          continuation.yield(executions)
+        onChange: { sessions in
+          continuation.yield(sessions)
         }
       )
 

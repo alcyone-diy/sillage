@@ -1,5 +1,5 @@
 //
-//  ChecklistExecutionError.swift
+//  ChecklistSessionError.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-09-27.
@@ -11,12 +11,12 @@
 import Foundation
 
 /// Specific domain errors related to checklist lifecycle and database operations.
-public enum ChecklistExecutionError: Error, Sendable, LocalizedError {
+public enum ChecklistSessionError: Error, Sendable, LocalizedError, Equatable {
   case templateNotFound(UUID)
-  case executionNotFound(UUID)
-  case executionAlreadyFinished(UUID)
+  case sessionNotFound(UUID)
+  case sessionAlreadyFinished(UUID)
   case itemNotFound(UUID)
-  case templateHasExistingExecutions(UUID)
+  case templateHasExistingSessions(UUID)
   case databaseInconsistency(String)
   case databaseFailure(String)
 
@@ -24,14 +24,14 @@ public enum ChecklistExecutionError: Error, Sendable, LocalizedError {
     switch self {
     case .templateNotFound(let id):
       return "Checklist template '\(id)' not found."
-    case .executionNotFound(let id):
-      return "Checklist execution '\(id)' not found."
-    case .executionAlreadyFinished(let id):
-      return "Checklist execution '\(id)' is already finished or archived."
+    case .sessionNotFound(let id):
+      return "Checklist session '\(id)' not found."
+    case .sessionAlreadyFinished(let id):
+      return "Checklist session '\(id)' is already finished or archived."
     case .itemNotFound(let id):
-      return "Checklist item '\(id)' not found in execution."
-    case .templateHasExistingExecutions(let id):
-      return "Cannot delete template '\(id)' because it has associated historical executions."
+      return "Checklist item '\(id)' not found in session."
+    case .templateHasExistingSessions(let id):
+      return "Cannot delete template '\(id)' because it has associated historical sessions."
     case .databaseInconsistency(let reason):
       return "Critical database inconsistency: \(reason)"
     case .databaseFailure(let msg):

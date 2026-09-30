@@ -13,7 +13,7 @@ import CoreLocation
 import Observation
 import OSLog
 
-/// View model managing the interactive execution and detail state of a maritime checklist.
+/// View model managing the interactive session and detail state of a maritime checklist.
 @MainActor
 @Observable
 final class ChecklistDetailViewModel {
@@ -22,7 +22,7 @@ final class ChecklistDetailViewModel {
   private let locationProvider: (@MainActor () -> NavigationFix?)?
 
   var template: ChecklistTemplate?
-  var execution: ChecklistExecution?
+  var session: ChecklistSession?
   var isLoading = false
   var isPerformingAction = false
   var errorMessage: String?
@@ -40,7 +40,7 @@ final class ChecklistDetailViewModel {
   }
 
   var title: String {
-    execution?.templateTitleSnapshot ?? template?.title ?? ""
+    session?.templateTitleSnapshot ?? template?.title ?? ""
   }
 
   var description: String? {
@@ -51,8 +51,8 @@ final class ChecklistDetailViewModel {
     template?.category
   }
 
-  var items: [ChecklistExecutionItem] {
-    execution?.items ?? []
+  var items: [ChecklistSessionItem] {
+    session?.items ?? []
   }
 
   /// Identifies the first unchecked item in the list for progressive disclosure styling.
@@ -61,29 +61,29 @@ final class ChecklistDetailViewModel {
   }
 
   var totalCount: Int {
-    execution?.totalCount ?? template?.items.count ?? 0
+    session?.totalCount ?? template?.items.count ?? 0
   }
 
   var completedCount: Int {
-    execution?.completedCount ?? 0
+    session?.completedCount ?? 0
   }
 
   var progressRatio: Double {
-    execution?.progressRatio ?? 0.0
+    session?.progressRatio ?? 0.0
   }
 
   var isCompleted: Bool {
-    execution?.status == .completed
+    session?.status == .completed
   }
 
   var canComplete: Bool {
-    guard let execution else { return false }
-    return execution.status == .inProgress && execution.isFullyCompleted
+    guard let session else { return false }
+    return session.status == .inProgress && session.isFullyCompleted
   }
 
   var canReset: Bool {
-    guard let execution else { return false }
-    return execution.completedCount > 0
+    guard let session else { return false }
+    return session.completedCount > 0
   }
 
   func load() async {
@@ -93,7 +93,7 @@ final class ChecklistDetailViewModel {
 
     do {
       template = try await checklistService.fetchTemplate(id: templateId)
-      execution = try await checklistService.startExecution(templateId: templateId)
+      session = try await checklistService.startSession(templateId: templateId)
     } catch {
       Logger.checklist.error("Failed to load checklist detail: \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
@@ -106,43 +106,43 @@ final class ChecklistDetailViewModel {
       if let updated = try await checklistService.fetchTemplate(id: templateId) {
         self.template = updated
       }
-      if let active = try await checklistService.fetchActiveExecution(for: templateId) {
-        self.execution = active
+      if let active = try await checklistService.fetchActiveSession(for: templateId) {
+        self.session = active
       }
     } catch {
       Logger.checklist.error("Failed to reload template: \(error.localizedDescription, privacy: .public)")
     }
   }
 
-  /// Subscribes asynchronously to active executions stream to drive UI reactively from the database.
+  /// Subscribes asynchronously to active sessions stream to drive UI reactively from the database.
   func observe() async {
     do {
-      for try await activeExecutions in checklistService.observeActiveExecutions() {
+      for try await activeSessions in checklistService.observeActiveSessions() {
         if Task.isCancelled { break }
-        if let matching = activeExecutions.first(where: { $0.templateId == templateId }) {
-          self.execution = matching
-        } else if let currentId = execution?.id {
-          if let finished = try await checklistService.fetchExecution(id: currentId) {
-            self.execution = finished
+        if let matching = activeSessions.first(where: { $0.templateId == templateId }) {
+          self.session = matching
+        } else if let currentId = session?.id {
+          if let finished = try await checklistService.fetchSession(id: currentId) {
+            self.session = finished
           }
         }
       }
     } catch {
       if !Task.isCancelled {
-        Logger.checklist.error("Error observing active executions: \(error.localizedDescription, privacy: .public)")
+        Logger.checklist.error("Error observing active sessions: \(error.localizedDescription, privacy: .public)")
       }
     }
   }
 
-  func toggleItem(_ item: ChecklistExecutionItem) async {
-    guard let execution, !isPerformingAction else { return }
+  func toggleItem(_ item: ChecklistSessionItem) async {
+    guard let session, !isPerformingAction else { return }
     isPerformingAction = true
     defer { isPerformingAction = false }
 
     do {
       let coordinate = resolveAuditableCoordinate()
       _ = try await checklistService.setItemChecked(
-        executionId: execution.id,
+        sessionId: session.id,
         itemId: item.id,
         isChecked: !item.isChecked,
         coordinate: coordinate
@@ -154,30 +154,30 @@ final class ChecklistDetailViewModel {
   }
 
   func complete() async {
-    guard let execution, canComplete, !isPerformingAction else { return }
+    guard let session, canComplete, !isPerformingAction else { return }
     isPerformingAction = true
     defer { isPerformingAction = false }
 
     do {
-      _ = try await checklistService.completeExecution(
-        executionId: execution.id,
+      _ = try await checklistService.completeSession(
+        sessionId: session.id,
         notes: nil
       )
     } catch {
-      Logger.checklist.error("Failed to complete checklist '\(execution.id, privacy: .public)': \(error.localizedDescription, privacy: .public)")
+      Logger.checklist.error("Failed to complete checklist '\(session.id, privacy: .public)': \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
     }
   }
 
   func reset() async {
-    guard let execution, !isPerformingAction else { return }
+    guard let session, !isPerformingAction else { return }
     isPerformingAction = true
     defer { isPerformingAction = false }
 
     do {
-      _ = try await checklistService.resetExecution(executionId: execution.id)
+      _ = try await checklistService.resetSession(sessionId: session.id)
     } catch {
-      Logger.checklist.error("Failed to reset checklist '\(execution.id, privacy: .public)': \(error.localizedDescription, privacy: .public)")
+      Logger.checklist.error("Failed to reset checklist '\(session.id, privacy: .public)': \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
     }
   }
@@ -188,7 +188,7 @@ final class ChecklistDetailViewModel {
     defer { isPerformingAction = false }
 
     do {
-      _ = try await checklistService.startExecution(templateId: templateId)
+      _ = try await checklistService.startSession(templateId: templateId)
     } catch {
       Logger.checklist.error("Failed to restart checklist session: \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription

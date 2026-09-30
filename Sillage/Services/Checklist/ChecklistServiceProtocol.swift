@@ -11,7 +11,7 @@
 import Foundation
 import CoreLocation
 
-/// Public contract defining operations on maritime checklist templates and execution sessions.
+/// Public contract defining operations on maritime checklist templates and sessions.
 public protocol ChecklistServiceProtocol: Sendable {
   // MARK: - Templates
 
@@ -38,7 +38,7 @@ public protocol ChecklistServiceProtocol: Sendable {
     items: [(id: UUID?, title: String, detail: String?)]
   ) async throws -> ChecklistTemplate
 
-  /// Deletes a template if no execution records are attached.
+  /// Deletes a template and its associated sessions.
   func deleteTemplate(id: UUID) async throws
 
   /// Creates a custom user-defined checklist template.
@@ -58,39 +58,39 @@ public protocol ChecklistServiceProtocol: Sendable {
     items: [(id: UUID?, title: String, detail: String?)]
   ) async throws -> ChecklistTemplate
 
-  /// Deletes a custom template if no execution records are attached.
+  /// Deletes a custom template and its associated sessions.
   func deleteCustomTemplate(id: UUID) async throws
 
-  // MARK: - Executions (Get-or-Create pattern)
+  // MARK: - Sessions (Get-or-Create pattern)
 
-  /// Starts a new checklist execution or transparently returns the active one if already in progress.
-  func startExecution(templateId: UUID) async throws(ChecklistExecutionError) -> ChecklistExecution
+  /// Starts a new checklist session or transparently returns the active one if already in progress.
+  func startSession(templateId: UUID) async throws(ChecklistSessionError) -> ChecklistSession
 
-  /// Fetches the currently active in-progress execution for a given template, if any.
-  func fetchActiveExecution(for templateId: UUID) async throws -> ChecklistExecution?
+  /// Fetches the currently active in-progress session for a given template, if any.
+  func fetchActiveSession(for templateId: UUID) async throws -> ChecklistSession?
 
-  /// Fetches an execution by its identifier.
-  func fetchExecution(id: UUID) async throws -> ChecklistExecution?
+  /// Fetches a session by its identifier.
+  func fetchSession(id: UUID) async throws -> ChecklistSession?
 
-  /// Fetches recent executions up to the specified limit.
-  func fetchRecentExecutions(limit: Int) async throws -> [ChecklistExecution]
+  /// Fetches recent sessions up to the specified limit.
+  func fetchRecentSessions(limit: Int) async throws -> [ChecklistSession]
 
   /// Sets the checked state of a specific item idempotently with optional GPS coordinate auditing.
   func setItemChecked(
-    executionId: UUID,
+    sessionId: UUID,
     itemId: UUID,
     isChecked: Bool,
     coordinate: CLLocationCoordinate2D?
-  ) async throws(ChecklistExecutionError) -> ChecklistExecution
+  ) async throws(ChecklistSessionError) -> ChecklistSession
 
-  /// Resets an active execution, clearing checked states and coordinates.
-  func resetExecution(executionId: UUID) async throws(ChecklistExecutionError) -> ChecklistExecution
+  /// Resets an active session, clearing checked states and coordinates.
+  func resetSession(sessionId: UUID) async throws(ChecklistSessionError) -> ChecklistSession
 
-  /// Marks an in-progress execution as completed.
-  func completeExecution(executionId: UUID, notes: String?) async throws(ChecklistExecutionError) -> ChecklistExecution
+  /// Marks an in-progress session as completed.
+  func completeSession(sessionId: UUID, notes: String?) async throws(ChecklistSessionError) -> ChecklistSession
 
-  /// Abandons an in-progress execution without marking it completed.
-  func abandonExecution(executionId: UUID) async throws(ChecklistExecutionError) -> ChecklistExecution
+  /// Abandons an in-progress session without marking it completed.
+  func abandonSession(sessionId: UUID) async throws(ChecklistSessionError) -> ChecklistSession
 
   /// Seeds default system checklists if not present in the database.
   func seedDefaultTemplatesIfNeeded() async throws
@@ -98,7 +98,7 @@ public protocol ChecklistServiceProtocol: Sendable {
   // MARK: - Reactive Observation
 
   /// Observes all currently active in-progress checklist sessions in real-time.
-  func observeActiveExecutions() -> AsyncThrowingStream<[ChecklistExecution], any Error>
+  func observeActiveSessions() -> AsyncThrowingStream<[ChecklistSession], any Error>
 }
 
 extension ChecklistServiceProtocol {

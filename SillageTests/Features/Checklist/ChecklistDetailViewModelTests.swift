@@ -62,14 +62,14 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
   // MARK: - Load & Get-or-Create Tests
 
-  func testLoadStartsExecutionAndLoadsTemplate() async {
+  func testLoadStartsSessionAndLoadsTemplate() async {
     XCTAssertNil(viewModel.template)
-    XCTAssertNil(viewModel.execution)
+    XCTAssertNil(viewModel.session)
 
     await viewModel.load()
 
     XCTAssertNotNil(viewModel.template)
-    XCTAssertNotNil(viewModel.execution)
+    XCTAssertNotNil(viewModel.session)
     XCTAssertEqual(viewModel.title, "Engine Check")
     XCTAssertEqual(viewModel.description, "Pre-departure engine inspection")
     XCTAssertEqual(viewModel.category, .engineTechnical)
@@ -129,12 +129,12 @@ final class ChecklistDetailViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.currentItemId, viewModel.items[0].id)
 
     // Toggle item 0 directly in DB
-    guard let execution = viewModel.execution else {
-      XCTFail("Execution must exist")
+    guard let session = viewModel.session else {
+      XCTFail("Session must exist")
       return
     }
     _ = try? await checklistService.setItemChecked(
-      executionId: execution.id,
+      sessionId: session.id,
       itemId: viewModel.items[0].id,
       isChecked: true,
       coordinate: nil
@@ -147,13 +147,13 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
     // Toggle items 1 and 2
     _ = try? await checklistService.setItemChecked(
-      executionId: execution.id,
+      sessionId: session.id,
       itemId: viewModel.items[1].id,
       isChecked: true,
       coordinate: nil
     )
     _ = try? await checklistService.setItemChecked(
-      executionId: execution.id,
+      sessionId: session.id,
       itemId: viewModel.items[2].id,
       isChecked: true,
       coordinate: nil
@@ -182,15 +182,15 @@ final class ChecklistDetailViewModelTests: XCTestCase {
       timestamp: Date()
     )
 
-    guard let firstItem = viewModel.items.first, let execution = viewModel.execution else {
-      XCTFail("Missing item or execution")
+    guard let firstItem = viewModel.items.first, let session = viewModel.session else {
+      XCTFail("Missing item or session")
       return
     }
 
     await viewModel.toggleItem(firstItem)
 
-    let updatedExecution = try await checklistService.fetchExecution(id: execution.id)
-    let updatedItem = updatedExecution?.items.first { $0.id == firstItem.id }
+    let updatedSession = try await checklistService.fetchSession(id: session.id)
+    let updatedItem = updatedSession?.items.first { $0.id == firstItem.id }
     XCTAssertNotNil(updatedItem?.coordinate)
     XCTAssertEqual(updatedItem?.coordinate?.latitude, 46.159)
     XCTAssertEqual(updatedItem?.coordinate?.longitude, -1.152)
@@ -210,30 +210,30 @@ final class ChecklistDetailViewModelTests: XCTestCase {
       timestamp: Date()
     )
 
-    guard let firstItem = viewModel.items.first, let execution = viewModel.execution else {
-      XCTFail("Missing item or execution")
+    guard let firstItem = viewModel.items.first, let session = viewModel.session else {
+      XCTFail("Missing item or session")
       return
     }
 
     await viewModel.toggleItem(firstItem)
 
-    let updatedExecution = try await checklistService.fetchExecution(id: execution.id)
-    let updatedItem = updatedExecution?.items.first { $0.id == firstItem.id }
+    let updatedSession = try await checklistService.fetchSession(id: session.id)
+    let updatedItem = updatedSession?.items.first { $0.id == firstItem.id }
     XCTAssertTrue(updatedItem?.isChecked == true)
     XCTAssertNil(updatedItem?.coordinate)
   }
 
   // MARK: - Completion Tests
 
-  func testCompleteExecution() async throws {
+  func testCompleteSession() async throws {
     await viewModel.load()
     observeTask = Task { [viewModel] in
       await viewModel?.observe()
     }
     try await Task.sleep(nanoseconds: 50_000_000)
 
-    guard let execution = viewModel.execution else {
-      XCTFail("Execution missing")
+    guard let session = viewModel.session else {
+      XCTFail("Session missing")
       return
     }
 
@@ -242,7 +242,7 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
     for item in viewModel.items {
       _ = try await checklistService.setItemChecked(
-        executionId: execution.id,
+        sessionId: session.id,
         itemId: item.id,
         isChecked: true,
         coordinate: nil
@@ -261,7 +261,7 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
   // MARK: - Cascade Deletion Tests
 
-  func testDeleteCustomTemplateWithExecutionHistorySucceeds() async {
+  func testDeleteCustomTemplateWithSessionHistorySucceeds() async {
     await viewModel.load()
 
     // With cascade deletion, deleting this template succeeds even with active/historical sessions
@@ -274,7 +274,7 @@ final class ChecklistDetailViewModelTests: XCTestCase {
     XCTAssertNil(fetched)
   }
 
-  func testDeleteCustomTemplateWithoutExecutionHistorySucceeds() async throws {
+  func testDeleteCustomTemplateWithoutSessionHistorySucceeds() async throws {
     let freshTemplate = try await checklistService.createCustomTemplate(
       title: "Fresh Unexecuted",
       description: nil,
@@ -287,7 +287,7 @@ final class ChecklistDetailViewModelTests: XCTestCase {
       checklistService: checklistService
     )
 
-    // Before load() (no execution created)
+    // Before load() (no session created)
     freshVM.template = freshTemplate
     let success = await freshVM.deleteTemplate()
     XCTAssertTrue(success)
@@ -299,7 +299,7 @@ final class ChecklistDetailViewModelTests: XCTestCase {
 
   // MARK: - Template Refresh Tests
 
-  func testRefreshTemplateRefreshesReorderedExecutionItems() async throws {
+  func testRefreshTemplateRefreshesReorderedSessionItems() async throws {
     await viewModel.load()
     XCTAssertEqual(viewModel.items.count, 3)
     XCTAssertEqual(viewModel.items[0].title, "Check oil level")

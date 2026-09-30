@@ -107,16 +107,30 @@ final class ChecklistServiceTests: XCTestCase {
       return
     }
 
-    // Start an execution to create history
-    let execution = try await checklistService.startExecution(templateId: template.id)
+    // Start a session to create history
+    let session = try await checklistService.startSession(templateId: template.id)
 
     try await checklistService.deleteTemplate(id: template.id)
 
     let fetchedTemplate = try await checklistService.fetchTemplate(id: template.id)
     XCTAssertNil(fetchedTemplate)
 
-    let fetchedExecution = try await checklistService.fetchExecution(id: execution.id)
-    XCTAssertNil(fetchedExecution)
+    let fetchedSession = try await checklistService.fetchSession(id: session.id)
+    XCTAssertNil(fetchedSession)
+
+    let remainingTemplateItems = try await databaseManager.reader.read { db in
+      try ChecklistTemplateItemRecord
+        .filter(ChecklistTemplateItemRecord.Columns.template_id == template.id.uuidString)
+        .fetchCount(db)
+    }
+    XCTAssertEqual(remainingTemplateItems, 0)
+
+    let remainingSessionItems = try await databaseManager.reader.read { db in
+      try ChecklistSessionItemRecord
+        .filter(ChecklistSessionItemRecord.Columns.execution_id == session.id.uuidString)
+        .fetchCount(db)
+    }
+    XCTAssertEqual(remainingSessionItems, 0)
   }
 
   func testCanUpdateDefaultTemplate() async throws {
@@ -170,12 +184,12 @@ final class ChecklistServiceTests: XCTestCase {
         items: [("Ghost step", nil)]
       )
       XCTFail("Expected error when updating non-existent template")
-    } catch ChecklistExecutionError.templateNotFound {
+    } catch ChecklistSessionError.templateNotFound {
       // Expected
     }
   }
 
-  func testUpdateCustomTemplateUpdatesActiveExecutionSnapshot() async throws {
+  func testUpdateCustomTemplateUpdatesActiveSessionSnapshot() async throws {
     let template = try await checklistService.createCustomTemplate(
       title: "Pre-Sail",
       description: nil,
@@ -183,8 +197,8 @@ final class ChecklistServiceTests: XCTestCase {
       items: [("Check rigging", nil)]
     )
 
-    let execution = try await checklistService.startExecution(templateId: template.id)
-    XCTAssertEqual(execution.templateTitleSnapshot, "Pre-Sail")
+    let session = try await checklistService.startSession(templateId: template.id)
+    XCTAssertEqual(session.templateTitleSnapshot, "Pre-Sail")
 
     _ = try await checklistService.updateCustomTemplate(
       id: template.id,
@@ -194,12 +208,12 @@ final class ChecklistServiceTests: XCTestCase {
       items: [("Check rigging thoroughly", nil)]
     )
 
-    let activeExecution = try await checklistService.fetchActiveExecution(for: template.id)
-    XCTAssertNotNil(activeExecution)
-    XCTAssertEqual(activeExecution?.templateTitleSnapshot, "Pre-Sail Rigging Check")
+    let activeSession = try await checklistService.fetchActiveSession(for: template.id)
+    XCTAssertNotNil(activeSession)
+    XCTAssertEqual(activeSession?.templateTitleSnapshot, "Pre-Sail Rigging Check")
   }
 
-  func testUpdateCustomTemplateReordersActiveExecutionItemsAndPreservesCheckedState() async throws {
+  func testUpdateCustomTemplateReordersActiveSessionItemsAndPreservesCheckedState() async throws {
     let template = try await checklistService.createCustomTemplate(
       title: "Pre-Sail",
       description: nil,
@@ -211,16 +225,16 @@ final class ChecklistServiceTests: XCTestCase {
       ]
     )
 
-    let execution = try await checklistService.startExecution(templateId: template.id)
-    XCTAssertEqual(execution.items.count, 3)
-    XCTAssertEqual(execution.items[0].title, "Check bilges")
-    XCTAssertEqual(execution.items[1].title, "Check engine oil")
-    XCTAssertEqual(execution.items[2].title, "Turn on VHF")
+    let session = try await checklistService.startSession(templateId: template.id)
+    XCTAssertEqual(session.items.count, 3)
+    XCTAssertEqual(session.items[0].title, "Check bilges")
+    XCTAssertEqual(session.items[1].title, "Check engine oil")
+    XCTAssertEqual(session.items[2].title, "Turn on VHF")
 
     // Check the first item ("Check bilges")
-    let firstItemId = execution.items[0].id
+    let firstItemId = session.items[0].id
     _ = try await checklistService.setItemChecked(
-      executionId: execution.id,
+      sessionId: session.id,
       itemId: firstItemId,
       isChecked: true,
       coordinate: nil
@@ -241,27 +255,27 @@ final class ChecklistServiceTests: XCTestCase {
       items: reorderedItems
     )
 
-    let activeExecution = try await checklistService.fetchActiveExecution(for: template.id)
-    XCTAssertNotNil(activeExecution)
-    guard let activeExecution else { return }
+    let activeSession = try await checklistService.fetchActiveSession(for: template.id)
+    XCTAssertNotNil(activeSession)
+    guard let activeSession else { return }
 
-    XCTAssertEqual(activeExecution.items.count, 3)
-    XCTAssertEqual(activeExecution.items[0].title, "Turn on VHF")
-    XCTAssertFalse(activeExecution.items[0].isChecked)
-    XCTAssertEqual(activeExecution.items[0].sortOrder, 0)
+    XCTAssertEqual(activeSession.items.count, 3)
+    XCTAssertEqual(activeSession.items[0].title, "Turn on VHF")
+    XCTAssertFalse(activeSession.items[0].isChecked)
+    XCTAssertEqual(activeSession.items[0].sortOrder, 0)
 
-    XCTAssertEqual(activeExecution.items[1].title, "Check bilges")
-    XCTAssertTrue(activeExecution.items[1].isChecked)
-    XCTAssertEqual(activeExecution.items[1].sortOrder, 1)
+    XCTAssertEqual(activeSession.items[1].title, "Check bilges")
+    XCTAssertTrue(activeSession.items[1].isChecked)
+    XCTAssertEqual(activeSession.items[1].sortOrder, 1)
 
-    XCTAssertEqual(activeExecution.items[2].title, "Check engine oil")
-    XCTAssertFalse(activeExecution.items[2].isChecked)
-    XCTAssertEqual(activeExecution.items[2].sortOrder, 2)
+    XCTAssertEqual(activeSession.items[2].title, "Check engine oil")
+    XCTAssertFalse(activeSession.items[2].isChecked)
+    XCTAssertEqual(activeSession.items[2].sortOrder, 2)
   }
 
-  // MARK: - Execution Lifecycle & Get-or-Create Tests
+  // MARK: - Session Lifecycle & Get-or-Create Tests
 
-  func testStartExecutionAndGetOrCreate() async throws {
+  func testStartSessionAndGetOrCreate() async throws {
     let template = try await checklistService.createCustomTemplate(
       title: "Engine Start",
       description: nil,
@@ -273,16 +287,16 @@ final class ChecklistServiceTests: XCTestCase {
     )
 
     // 1. Initial start
-    let execution1 = try await checklistService.startExecution(templateId: template.id)
-    XCTAssertEqual(execution1.templateId, template.id)
-    XCTAssertEqual(execution1.status, .inProgress)
-    XCTAssertEqual(execution1.items.count, 2)
-    XCTAssertEqual(execution1.completedCount, 0)
-    XCTAssertEqual(execution1.progressRatio, 0.0)
+    let session1 = try await checklistService.startSession(templateId: template.id)
+    XCTAssertEqual(session1.templateId, template.id)
+    XCTAssertEqual(session1.status, .inProgress)
+    XCTAssertEqual(session1.items.count, 2)
+    XCTAssertEqual(session1.completedCount, 0)
+    XCTAssertEqual(session1.progressRatio, 0.0)
 
     // 2. Second start on same template -> Transparent resume (Get-or-Create)
-    let execution2 = try await checklistService.startExecution(templateId: template.id)
-    XCTAssertEqual(execution1.id, execution2.id)
+    let session2 = try await checklistService.startSession(templateId: template.id)
+    XCTAssertEqual(session1.id, session2.id)
   }
 
   func testSetItemCheckedIdempotencyAndCoordinate() async throws {
@@ -296,14 +310,14 @@ final class ChecklistServiceTests: XCTestCase {
       ]
     )
 
-    let execution = try await checklistService.startExecution(templateId: template.id)
-    let itemToToggle = execution.items[0]
+    let session = try await checklistService.startSession(templateId: template.id)
+    let itemToToggle = session.items[0]
 
     let coordinate = CLLocationCoordinate2D(latitude: 46.159, longitude: -1.152)
 
     // Check item with coordinate
     let updated1 = try await checklistService.setItemChecked(
-      executionId: execution.id,
+      sessionId: session.id,
       itemId: itemToToggle.id,
       isChecked: true,
       coordinate: coordinate
@@ -319,7 +333,7 @@ final class ChecklistServiceTests: XCTestCase {
 
     // Second check with isChecked: true -> Idempotent, no change
     let updated2 = try await checklistService.setItemChecked(
-      executionId: execution.id,
+      sessionId: session.id,
       itemId: itemToToggle.id,
       isChecked: true,
       coordinate: coordinate
@@ -328,7 +342,7 @@ final class ChecklistServiceTests: XCTestCase {
 
     // Uncheck item
     let updated3 = try await checklistService.setItemChecked(
-      executionId: execution.id,
+      sessionId: session.id,
       itemId: itemToToggle.id,
       isChecked: false,
       coordinate: nil
@@ -339,7 +353,7 @@ final class ChecklistServiceTests: XCTestCase {
     XCTAssertNil(uncheckedItem?.coordinate)
   }
 
-  func testResetExecution() async throws {
+  func testResetSession() async throws {
     let template = try await checklistService.createCustomTemplate(
       title: "Reset Test",
       description: nil,
@@ -350,20 +364,20 @@ final class ChecklistServiceTests: XCTestCase {
       ]
     )
 
-    let execution = try await checklistService.startExecution(templateId: template.id)
+    let session = try await checklistService.startSession(templateId: template.id)
     _ = try await checklistService.setItemChecked(
-      executionId: execution.id,
-      itemId: execution.items[0].id,
+      sessionId: session.id,
+      itemId: session.items[0].id,
       isChecked: true,
       coordinate: nil
     )
 
-    let resetExecution = try await checklistService.resetExecution(executionId: execution.id)
-    XCTAssertEqual(resetExecution.completedCount, 0)
-    XCTAssertTrue(resetExecution.items.allSatisfy { !$0.isChecked && $0.checkedAt == nil })
+    let resetSession = try await checklistService.resetSession(sessionId: session.id)
+    XCTAssertEqual(resetSession.completedCount, 0)
+    XCTAssertTrue(resetSession.items.allSatisfy { !$0.isChecked && $0.checkedAt == nil })
   }
 
-  func testCompleteExecution() async throws {
+  func testCompleteSession() async throws {
     let template = try await checklistService.createCustomTemplate(
       title: "Completion Test",
       description: nil,
@@ -374,17 +388,17 @@ final class ChecklistServiceTests: XCTestCase {
       ]
     )
 
-    let execution = try await checklistService.startExecution(templateId: template.id)
+    let session = try await checklistService.startSession(templateId: template.id)
 
     _ = try await checklistService.setItemChecked(
-      executionId: execution.id,
-      itemId: execution.items[0].id,
+      sessionId: session.id,
+      itemId: session.items[0].id,
       isChecked: true,
       coordinate: nil
     )
 
-    let completed = try await checklistService.completeExecution(
-      executionId: execution.id,
+    let completed = try await checklistService.completeSession(
+      sessionId: session.id,
       notes: "Executed in 2 minutes"
     )
     XCTAssertEqual(completed.status, .completed)
@@ -393,16 +407,16 @@ final class ChecklistServiceTests: XCTestCase {
 
     // Attempting completion again should fail
     do {
-      _ = try await checklistService.completeExecution(executionId: execution.id, notes: nil)
-      XCTFail("Expected executionAlreadyFinished error")
-    } catch ChecklistExecutionError.executionAlreadyFinished {
+      _ = try await checklistService.completeSession(sessionId: session.id, notes: nil)
+      XCTFail("Expected sessionAlreadyFinished error")
+    } catch ChecklistSessionError.sessionAlreadyFinished {
       // Expected
     } catch {
       XCTFail("Unexpected error: \(error)")
     }
   }
 
-  func testAbandonExecution() async throws {
+  func testAbandonSession() async throws {
     let template = try await checklistService.createCustomTemplate(
       title: "Abandon Test",
       description: nil,
@@ -410,22 +424,22 @@ final class ChecklistServiceTests: XCTestCase {
       items: [("Task 1", nil)]
     )
 
-    let execution = try await checklistService.startExecution(templateId: template.id)
-    let abandoned = try await checklistService.abandonExecution(executionId: execution.id)
+    let session = try await checklistService.startSession(templateId: template.id)
+    let abandoned = try await checklistService.abandonSession(sessionId: session.id)
 
     XCTAssertEqual(abandoned.status, .abandoned)
     XCTAssertNotNil(abandoned.completedAt)
 
-    // Modifying an abandoned execution should fail
+    // Modifying an abandoned session should fail
     do {
       _ = try await checklistService.setItemChecked(
-        executionId: execution.id,
-        itemId: execution.items[0].id,
+        sessionId: session.id,
+        itemId: session.items[0].id,
         isChecked: true,
         coordinate: nil
       )
-      XCTFail("Expected executionAlreadyFinished error")
-    } catch ChecklistExecutionError.executionAlreadyFinished {
+      XCTFail("Expected sessionAlreadyFinished error")
+    } catch ChecklistSessionError.sessionAlreadyFinished {
       // Expected
     } catch {
       XCTFail("Unexpected error: \(error)")
@@ -440,19 +454,19 @@ final class ChecklistServiceTests: XCTestCase {
       items: [("Item", nil)]
     )
 
-    let execution = try await checklistService.startExecution(templateId: template.id)
-    _ = try await checklistService.abandonExecution(executionId: execution.id)
+    let session = try await checklistService.startSession(templateId: template.id)
+    _ = try await checklistService.abandonSession(sessionId: session.id)
 
     try await checklistService.deleteCustomTemplate(id: template.id)
 
     let fetchedTemplate = try await checklistService.fetchTemplate(id: template.id)
     XCTAssertNil(fetchedTemplate)
 
-    let fetchedExecution = try await checklistService.fetchExecution(id: execution.id)
-    XCTAssertNil(fetchedExecution)
+    let fetchedSession = try await checklistService.fetchSession(id: session.id)
+    XCTAssertNil(fetchedSession)
   }
 
-  func testReactiveActiveExecutionsObservation() async throws {
+  func testReactiveActiveSessionsObservation() async throws {
     let template = try await checklistService.createCustomTemplate(
       title: "Observation Test",
       description: nil,
@@ -460,21 +474,21 @@ final class ChecklistServiceTests: XCTestCase {
       items: [("Step", nil)]
     )
 
-    let stream = checklistService.observeActiveExecutions()
+    let stream = checklistService.observeActiveSessions()
     var iterator = stream.makeAsyncIterator()
 
     // 1. Initial emission: empty array
     let initial = try await iterator.next()
     XCTAssertEqual(initial?.count, 0)
 
-    // 2. Start execution
-    let execution = try await checklistService.startExecution(templateId: template.id)
+    // 2. Start session
+    let session = try await checklistService.startSession(templateId: template.id)
     let afterStart = try await iterator.next()
     XCTAssertEqual(afterStart?.count, 1)
-    XCTAssertEqual(afterStart?.first?.id, execution.id)
+    XCTAssertEqual(afterStart?.first?.id, session.id)
 
-    // 3. Complete execution
-    _ = try await checklistService.completeExecution(executionId: execution.id, notes: nil)
+    // 3. Complete session
+    _ = try await checklistService.completeSession(sessionId: session.id, notes: nil)
     let afterComplete = try await iterator.next()
     XCTAssertEqual(afterComplete?.count, 0)
   }

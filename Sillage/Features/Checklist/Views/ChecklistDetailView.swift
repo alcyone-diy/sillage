@@ -10,7 +10,7 @@
 
 import SwiftUI
 
-/// Detail and interactive execution view for a nautical checklist.
+/// Detail and interactive session view for a nautical checklist.
 @MainActor
 struct ChecklistDetailView: View {
   @Environment(\.marineTheme) private var marineTheme
@@ -35,7 +35,7 @@ struct ChecklistDetailView: View {
 
   var body: some View {
     List {
-      if viewModel.isLoading && viewModel.execution == nil {
+      if viewModel.isLoading && viewModel.session == nil {
         loadingSection
       } else {
         headerSection
@@ -195,7 +195,7 @@ struct ChecklistDetailView: View {
     Section("Items") {
       ForEach(viewModel.items) { item in
         let isCurrent = (item.id == viewModel.currentItemId)
-        ChecklistExecutionItemRowView(
+        ChecklistSessionItemRowView(
           item: item,
           isCurrentItem: isCurrent,
           isPerformingAction: viewModel.isPerformingAction,
@@ -301,11 +301,11 @@ struct ChecklistDetailView: View {
   }
 }
 
-/// Interactive item row in a checklist execution adhering strictly to Glove Mode.
+/// Interactive item row in a checklist session adhering strictly to Glove Mode.
 @MainActor
-private struct ChecklistExecutionItemRowView: View {
+private struct ChecklistSessionItemRowView: View {
   @Environment(\.marineTheme) private var marineTheme
-  let item: ChecklistExecutionItem
+  let item: ChecklistSessionItem
   let isCurrentItem: Bool
   let isPerformingAction: Bool
   let onToggle: @MainActor () -> Void
