@@ -259,19 +259,19 @@ final class ChecklistDetailViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.canComplete)
   }
 
-  // MARK: - Auditability (Delete Rejection) Tests
+  // MARK: - Cascade Deletion Tests
 
-  func testDeleteCustomTemplateWithExecutionHistoryFails() async {
+  func testDeleteCustomTemplateWithExecutionHistorySucceeds() async {
     await viewModel.load()
 
-    // Since load() started an in_progress execution session, deleting this template must fail
+    // With cascade deletion, deleting this template succeeds even with active/historical sessions
     let success = await viewModel.deleteTemplate()
-    XCTAssertFalse(success)
-    XCTAssertNotNil(viewModel.errorMessage)
+    XCTAssertTrue(success)
+    XCTAssertNil(viewModel.errorMessage)
 
-    // Template still exists in DB
+    // Template is deleted from DB
     let fetched = try? await checklistService.fetchTemplate(id: template.id)
-    XCTAssertNotNil(fetched)
+    XCTAssertNil(fetched)
   }
 
   func testDeleteCustomTemplateWithoutExecutionHistorySucceeds() async throws {

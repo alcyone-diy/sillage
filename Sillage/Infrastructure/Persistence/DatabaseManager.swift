@@ -87,7 +87,7 @@ public final class DatabaseManager: Sendable {
     }
   }
   
-  nonisolated private static var migrator: DatabaseMigrator {
+  nonisolated static var migrator: DatabaseMigrator {
     var migrator = DatabaseMigrator()
     
     migrator.registerMigration("v1") { db in
@@ -204,11 +204,17 @@ public final class DatabaseManager: Sendable {
 
     migrator.registerMigration("v3") { db in
       // Ensure clean state if tables existed from unversioned migration in development
-      if try db.tableExists(ChecklistExecutionItemRecord.databaseTableName) {
-        try db.drop(table: ChecklistExecutionItemRecord.databaseTableName)
+      if try db.tableExists("checklist_execution_item") {
+        try db.drop(table: "checklist_execution_item")
       }
-      if try db.tableExists(ChecklistExecutionRecord.databaseTableName) {
-        try db.drop(table: ChecklistExecutionRecord.databaseTableName)
+      if try db.tableExists("checklist_execution") {
+        try db.drop(table: "checklist_execution")
+      }
+      if try db.tableExists(ChecklistSessionItemRecord.databaseTableName) {
+        try db.drop(table: ChecklistSessionItemRecord.databaseTableName)
+      }
+      if try db.tableExists(ChecklistSessionRecord.databaseTableName) {
+        try db.drop(table: ChecklistSessionRecord.databaseTableName)
       }
       if try db.tableExists(ChecklistTemplateItemRecord.databaseTableName) {
         try db.drop(table: ChecklistTemplateItemRecord.databaseTableName)
@@ -246,12 +252,12 @@ public final class DatabaseManager: Sendable {
         columns: ["template_id", "sort_order"]
       )
 
-      // 3. Checklist Executions (RESTRICT deletion if template has history)
-      try db.create(table: ChecklistExecutionRecord.databaseTableName) { t in
+      // 3. Checklist Sessions (CASCADE deletion if template is deleted)
+      try db.create(table: ChecklistSessionRecord.databaseTableName) { t in
         t.column("id", .text).primaryKey()
         t.column("template_id", .text)
           .notNull()
-          .references(ChecklistTemplateRecord.databaseTableName, column: "id", onDelete: .restrict)
+          .references(ChecklistTemplateRecord.databaseTableName, column: "id", onDelete: .cascade)
         t.column("template_title_snapshot", .text).notNull()
         t.column("status", .text).notNull()
         t.column("started_at", .datetime).notNull()
@@ -260,24 +266,24 @@ public final class DatabaseManager: Sendable {
 
         t.check(sql: "status IN ('in_progress', 'completed', 'abandoned')")
       }
-      try db.create(index: "idx_checklist_execution_status", on: ChecklistExecutionRecord.databaseTableName, columns: ["status"])
-      try db.create(index: "idx_checklist_execution_started_at", on: ChecklistExecutionRecord.databaseTableName, columns: ["started_at"])
+      try db.create(index: "idx_checklist_session_status", on: ChecklistSessionRecord.databaseTableName, columns: ["status"])
+      try db.create(index: "idx_checklist_session_started_at", on: ChecklistSessionRecord.databaseTableName, columns: ["started_at"])
 
       // Partial unique index guaranteeing only one in-progress execution per template
       try db.create(
-        index: "idx_unique_active_execution",
-        on: ChecklistExecutionRecord.databaseTableName,
+        index: "idx_unique_active_session",
+        on: ChecklistSessionRecord.databaseTableName,
         columns: ["template_id"],
         unique: true,
         condition: SQL("status = 'in_progress'")
       )
 
-      // 4. Checklist Execution Items
-      try db.create(table: ChecklistExecutionItemRecord.databaseTableName) { t in
+      // 4. Checklist Session Items
+      try db.create(table: ChecklistSessionItemRecord.databaseTableName) { t in
         t.column("id", .text).primaryKey()
         t.column("execution_id", .text)
           .notNull()
-          .references(ChecklistExecutionRecord.databaseTableName, column: "id", onDelete: .cascade)
+          .references(ChecklistSessionRecord.databaseTableName, column: "id", onDelete: .cascade)
         t.column("source_template_item_id", .text)
         t.column("sort_order", .integer).notNull()
         t.column("title", .text).notNull()
@@ -293,10 +299,114 @@ public final class DatabaseManager: Sendable {
         t.check(sql: "longitude_deg IS NULL OR (longitude_deg BETWEEN -180 AND 180)")
       }
       try db.create(
-        index: "idx_checklist_execution_item_execution_order",
-        on: ChecklistExecutionItemRecord.databaseTableName,
+        index: "idx_checklist_session_item_execution_order",
+        on: ChecklistSessionItemRecord.databaseTableName,
         columns: ["execution_id", "sort_order"]
       )
+    }
+
+    migrator.registerMigration("v4") { db in
+      let hasOldExecution = try db.tableExists("checklist_execution")
+      let hasOldItems = try db.tableExists("checklist_execution_item")
+      let hasSessionItemsReferencingOldTable = try {
+        guard try db.tableExists(ChecklistSessionItemRecord.databaseTableName) else { return false }
+        let rows = try Row.fetchAll(db, sql: "PRAGMA foreign_key_list('\(ChecklistSessionItemRecord.databaseTableName)')")
+        return rows.contains { ($0["table"] as? String) == "checklist_execution" }
+      }()
+
+      if hasOldExecution || hasOldItems || hasSessionItemsReferencingOldTable {
+        // 1. Create checklist_session if needed and copy rows from checklist_execution
+        if try !db.tableExists(ChecklistSessionRecord.databaseTableName) {
+          try db.create(table: ChecklistSessionRecord.databaseTableName) { t in
+            t.column("id", .text).primaryKey()
+            t.column("template_id", .text)
+              .notNull()
+              .references(ChecklistTemplateRecord.databaseTableName, column: "id", onDelete: .cascade)
+            t.column("template_title_snapshot", .text).notNull()
+            t.column("status", .text).notNull()
+            t.column("started_at", .datetime).notNull()
+            t.column("completed_at", .datetime)
+            t.column("notes", .text)
+
+            t.check(sql: "status IN ('in_progress', 'completed', 'abandoned')")
+          }
+
+          if hasOldExecution {
+            try db.execute(sql: "INSERT INTO \(ChecklistSessionRecord.databaseTableName) SELECT * FROM checklist_execution")
+          }
+
+          try db.create(index: "idx_checklist_session_status", on: ChecklistSessionRecord.databaseTableName, columns: ["status"])
+          try db.create(index: "idx_checklist_session_started_at", on: ChecklistSessionRecord.databaseTableName, columns: ["started_at"])
+          try db.create(
+            index: "idx_unique_active_session",
+            on: ChecklistSessionRecord.databaseTableName,
+            columns: ["template_id"],
+            unique: true,
+            condition: SQL("status = 'in_progress'")
+          )
+        }
+
+        // 2. Recreate checklist_session_item pointing to checklist_session
+        let sourceItemTable: String? = try {
+          if try db.tableExists("checklist_execution_item") {
+            return "checklist_execution_item"
+          } else if try db.tableExists(ChecklistSessionItemRecord.databaseTableName) {
+            return ChecklistSessionItemRecord.databaseTableName
+          }
+          return nil
+        }()
+
+        if let sourceTable = sourceItemTable {
+          let tempItemTable = "checklist_session_item_migrated"
+          if try db.tableExists(tempItemTable) {
+            try db.drop(table: tempItemTable)
+          }
+
+          try db.create(table: tempItemTable) { t in
+            t.column("id", .text).primaryKey()
+            t.column("execution_id", .text)
+              .notNull()
+              .references(ChecklistSessionRecord.databaseTableName, column: "id", onDelete: .cascade)
+            t.column("source_template_item_id", .text)
+            t.column("sort_order", .integer).notNull()
+            t.column("title", .text).notNull()
+            t.column("detail", .text)
+            t.column("is_checked", .boolean).notNull().defaults(to: false)
+            t.column("checked_at", .datetime)
+            t.column("latitude_deg", .double)
+            t.column("longitude_deg", .double)
+
+            t.check(sql: "(latitude_deg IS NULL) = (longitude_deg IS NULL)")
+            t.check(sql: "latitude_deg IS NULL OR (latitude_deg BETWEEN -90 AND 90)")
+            t.check(sql: "longitude_deg IS NULL OR (longitude_deg BETWEEN -180 AND 180)")
+          }
+
+          try db.execute(sql: """
+            INSERT INTO \(tempItemTable)
+            SELECT * FROM \(sourceTable)
+            WHERE execution_id IN (SELECT id FROM \(ChecklistSessionRecord.databaseTableName))
+          """)
+
+          try db.drop(table: sourceTable)
+
+          if try db.tableExists(ChecklistSessionItemRecord.databaseTableName) {
+            try db.drop(table: ChecklistSessionItemRecord.databaseTableName)
+          }
+
+          try db.rename(table: tempItemTable, to: ChecklistSessionItemRecord.databaseTableName)
+
+          try db.create(
+            index: "idx_checklist_session_item_execution_order",
+            on: ChecklistSessionItemRecord.databaseTableName,
+            columns: ["execution_id", "sort_order"]
+          )
+        }
+
+        // 3. Drop checklist_execution safely now that all child references are migrated or dropped
+        if try db.tableExists("checklist_execution") {
+          try db.drop(table: "checklist_execution")
+        }
+      }
     }
     
     return migrator

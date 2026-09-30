@@ -278,7 +278,100 @@ final class DatabaseManagerTests {
       }
     }
   }
-  
+
+  @Test("v4 migration properly migrates checklist_execution to checklist_session without foreign key violation")
+  func testV4MigrationFromChecklistExecution() throws {
+    let queue = try DatabaseQueue()
+
+    // 1. Setup pre-v4 database state with v1, v2, v3 applied and old tables existing
+    try queue.write { db in
+      try db.execute(sql: """
+        CREATE TABLE grdb_migrations (
+          identifier TEXT NOT NULL PRIMARY KEY
+        );
+        INSERT INTO grdb_migrations VALUES ('v1'), ('v2'), ('v3');
+      """)
+
+      try db.create(table: ChecklistTemplateRecord.databaseTableName) { t in
+        t.column("id", .text).primaryKey()
+        t.column("title", .text).notNull()
+        t.column("description", .text)
+        t.column("category", .text).notNull()
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+
+      try db.create(table: "checklist_execution") { t in
+        t.column("id", .text).primaryKey()
+        t.column("template_id", .text)
+          .notNull()
+          .references(ChecklistTemplateRecord.databaseTableName, column: "id", onDelete: .cascade)
+        t.column("template_title_snapshot", .text).notNull()
+        t.column("status", .text).notNull()
+        t.column("started_at", .datetime).notNull()
+        t.column("completed_at", .datetime)
+        t.column("notes", .text)
+      }
+
+      try db.create(table: "checklist_execution_item") { t in
+        t.column("id", .text).primaryKey()
+        t.column("execution_id", .text)
+          .notNull()
+          .references("checklist_execution", column: "id", onDelete: .cascade)
+        t.column("source_template_item_id", .text)
+        t.column("sort_order", .integer).notNull()
+        t.column("title", .text).notNull()
+        t.column("detail", .text)
+        t.column("is_checked", .boolean).notNull().defaults(to: false)
+        t.column("checked_at", .datetime)
+        t.column("latitude_deg", .double)
+        t.column("longitude_deg", .double)
+      }
+
+      let templateId = UUID().uuidString
+      let executionId = UUID().uuidString
+      let itemId = UUID().uuidString
+
+      try db.execute(
+        sql: "INSERT INTO checklist_template (id, title, category, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        arguments: [templateId, "Pre-Departure", "routine", 0, Date(), Date()]
+      )
+      try db.execute(
+        sql: "INSERT INTO checklist_execution (id, template_id, template_title_snapshot, status, started_at) VALUES (?, ?, ?, ?, ?)",
+        arguments: [executionId, templateId, "Pre-Departure", "in_progress", Date()]
+      )
+      try db.execute(
+        sql: "INSERT INTO checklist_execution_item (id, execution_id, sort_order, title, is_checked) VALUES (?, ?, ?, ?, ?)",
+        arguments: [itemId, executionId, 0, "Check Bilge", false]
+      )
+    }
+
+    // 2. Run DatabaseManager migrations (which executes v4 and performs foreign key check)
+    let migrator = DatabaseManager.migrator
+    try migrator.migrate(queue)
+
+    // 3. Verify that new session and session item tables exist and old execution tables are gone
+    try queue.read { db in
+      #expect(try db.tableExists(ChecklistSessionRecord.databaseTableName))
+      #expect(try db.tableExists(ChecklistSessionItemRecord.databaseTableName))
+      #expect(try !db.tableExists("checklist_execution"))
+      #expect(try !db.tableExists("checklist_execution_item"))
+
+      let sessionCount = try ChecklistSessionRecord.fetchCount(db)
+      let itemCount = try ChecklistSessionItemRecord.fetchCount(db)
+      #expect(sessionCount == 1)
+      #expect(itemCount == 1)
+
+      let item = try ChecklistSessionItemRecord.fetchOne(db)
+      #expect(item?.title == "Check Bilge")
+
+      // Verify foreign key integrity
+      let fkViolations = try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
+      #expect(fkViolations.isEmpty)
+    }
+  }
+
   // MARK: - Helpers
   
   private func makeTrackPoint(sessionID: String, timestamp: Date, segmentIndex: Int = 0) -> TrackPointRecord {

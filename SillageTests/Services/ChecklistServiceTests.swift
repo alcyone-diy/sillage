@@ -99,7 +99,7 @@ final class ChecklistServiceTests: XCTestCase {
     XCTAssertNil(fetched)
   }
 
-  func testCannotDeleteTemplateWithHistory() async throws {
+  func testDeleteTemplateWithHistoryCascades() async throws {
     try await checklistService.seedDefaultTemplatesIfNeeded()
     let templates = try await checklistService.fetchTemplates()
     guard let template = templates.first else {
@@ -108,14 +108,15 @@ final class ChecklistServiceTests: XCTestCase {
     }
 
     // Start an execution to create history
-    _ = try await checklistService.startExecution(templateId: template.id)
+    let execution = try await checklistService.startExecution(templateId: template.id)
 
-    do {
-      try await checklistService.deleteTemplate(id: template.id)
-      XCTFail("Expected error when deleting template with execution history")
-    } catch ChecklistExecutionError.templateHasExistingExecutions {
-      // Expected
-    }
+    try await checklistService.deleteTemplate(id: template.id)
+
+    let fetchedTemplate = try await checklistService.fetchTemplate(id: template.id)
+    XCTAssertNil(fetchedTemplate)
+
+    let fetchedExecution = try await checklistService.fetchExecution(id: execution.id)
+    XCTAssertNil(fetchedExecution)
   }
 
   func testCanUpdateDefaultTemplate() async throws {
@@ -431,7 +432,7 @@ final class ChecklistServiceTests: XCTestCase {
     }
   }
 
-  func testCannotDeleteTemplateWithExecutions() async throws {
+  func testDeleteCustomTemplateWithHistoryCascades() async throws {
     let template = try await checklistService.createCustomTemplate(
       title: "History Protected",
       description: nil,
@@ -442,14 +443,13 @@ final class ChecklistServiceTests: XCTestCase {
     let execution = try await checklistService.startExecution(templateId: template.id)
     _ = try await checklistService.abandonExecution(executionId: execution.id)
 
-    do {
-      try await checklistService.deleteCustomTemplate(id: template.id)
-      XCTFail("Expected templateHasExistingExecutions error")
-    } catch ChecklistExecutionError.templateHasExistingExecutions(let id) {
-      XCTAssertEqual(id, template.id)
-    } catch {
-      XCTFail("Unexpected error: \(error)")
-    }
+    try await checklistService.deleteCustomTemplate(id: template.id)
+
+    let fetchedTemplate = try await checklistService.fetchTemplate(id: template.id)
+    XCTAssertNil(fetchedTemplate)
+
+    let fetchedExecution = try await checklistService.fetchExecution(id: execution.id)
+    XCTAssertNil(fetchedExecution)
   }
 
   func testReactiveActiveExecutionsObservation() async throws {

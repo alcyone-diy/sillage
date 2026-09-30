@@ -1,5 +1,5 @@
 //
-//  ChecklistExecutionRecord.swift
+//  ChecklistSessionRecord.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-09-27.
@@ -11,9 +11,9 @@
 import Foundation
 import GRDB
 
-/// GRDB Persistence record for a checklist execution session.
-public struct ChecklistExecutionRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
-  public static let databaseTableName = "checklist_execution"
+/// GRDB Persistence record for a checklist session.
+public struct ChecklistSessionRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
+  public static let databaseTableName = "checklist_session"
 
   public var id: String
   public var template_id: String
@@ -51,6 +51,6 @@ public struct ChecklistExecutionRecord: Codable, FetchableRecord, PersistableRec
     case notes
   }
 
-  public static let items = hasMany(ChecklistExecutionItemRecord.self)
+  public static let items = hasMany(ChecklistSessionItemRecord.self)
   public static let template = belongsTo(ChecklistTemplateRecord.self)
 }
