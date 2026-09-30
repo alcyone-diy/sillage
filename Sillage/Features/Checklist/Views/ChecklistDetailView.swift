@@ -152,7 +152,7 @@ struct ChecklistDetailView: View {
             Text(category.title)
           }
           .marineFont(.caption)
-          .foregroundStyle(categoryColor(for: category))
+          .foregroundStyle(category.color(for: marineTheme))
         }
 
         if let description = viewModel.description, !description.isEmpty {
@@ -282,21 +282,6 @@ struct ChecklistDetailView: View {
         .disabled(viewModel.isPerformingAction)
         .marineListCell()
       }
-    }
-  }
-
-  private func categoryColor(for category: ChecklistCategory) -> Color {
-    switch category {
-    case .safetyEmergency:
-      return marineTheme.colors.warning
-    case .navigationManeuver:
-      return marineTheme.colors.accent
-    case .routine:
-      return marineTheme.colors.primary
-    case .engineTechnical:
-      return marineTheme.colors.textSecondary
-    case .winteringMaintenance:
-      return marineTheme.colors.inactive
     }
   }
 }

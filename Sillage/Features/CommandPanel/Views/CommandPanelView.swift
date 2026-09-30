@@ -281,6 +281,8 @@ struct CommandPanelView: View {
           }
         )
       }
+    case .checklistTemplate(let templateId):
+      ChecklistTemplateView(templateId: templateId)
     }
   }
 }

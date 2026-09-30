@@ -391,6 +391,9 @@
     "Continue" : {
 
     },
+    "Continue Checklist" : {
+
+    },
     "Corrupt GeoGarage Token" : {
 
     },
@@ -1137,6 +1140,9 @@
       "comment" : "Weather alarm"
     },
     "Start" : {
+
+    },
+    "Start Checklist" : {
 
     },
     "Start New Session" : {

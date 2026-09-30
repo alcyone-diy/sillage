@@ -62,14 +62,12 @@ struct ChecklistListView: View {
         ForEach(viewModel.groupedTemplates, id: \.category) { section in
           Section {
             ForEach(section.templates) { template in
-              ChecklistTemplateRowView(
-                template: template,
-                activeSession: viewModel.activeSession(for: template.id),
-                latestCompletionDate: viewModel.latestCompletionDate(for: template.id)
-              )
-              .contentShape(Rectangle())
-              .onTapGesture {
-                // TODO: Ouvrir la checklist en mode readonly (sera fait dans un deuxième temps)
+              NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistTemplate(templateId: template.id)) {
+                ChecklistTemplateRowView(
+                  template: template,
+                  activeSession: viewModel.activeSession(for: template.id),
+                  latestCompletionDate: viewModel.latestCompletionDate(for: template.id)
+                )
               }
               .swipeActions(edge: .leading, allowsFullSwipe: true) {
                 let hasActive = viewModel.hasActiveSession(for: template.id)
@@ -96,7 +94,7 @@ struct ChecklistListView: View {
           } header: {
             HStack(spacing: MarineTheme.Spacing.small) {
               Image(systemName: section.category.systemImage)
-                .foregroundStyle(categoryColor(for: section.category))
+                .foregroundStyle(section.category.color(for: marineTheme))
               Text(section.category.title)
             }
             .marineFont(.caption)
@@ -133,9 +131,6 @@ struct ChecklistListView: View {
       }
       .presentationDetents([.large])
       .presentationDragIndicator(.visible)
-    }
-    .task {
-      await viewModel.loadTemplates()
     }
     .task {
       await viewModel.observeActiveSessions()
@@ -180,20 +175,8 @@ struct ChecklistListView: View {
     } message: { message in
       Text(message)
     }
-  }
-
-  private func categoryColor(for category: ChecklistCategory) -> Color {
-    switch category {
-    case .safetyEmergency:
-      return marineTheme.colors.warning
-    case .navigationManeuver:
-      return marineTheme.colors.accent
-    case .routine:
-      return marineTheme.colors.primary
-    case .engineTechnical:
-      return marineTheme.colors.textSecondary
-    case .winteringMaintenance:
-      return marineTheme.colors.inactive
+    .task {
+      await viewModel.loadTemplates()
     }
   }
 }

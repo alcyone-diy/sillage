@@ -42,6 +42,7 @@ public final class PanelManagerViewModel {
     case chartPreferences
     case checklists
     case checklistDetail(templateId: UUID)
+    case checklistTemplate(templateId: UUID)
   }
 
   /// The currently active panel visible to the user.

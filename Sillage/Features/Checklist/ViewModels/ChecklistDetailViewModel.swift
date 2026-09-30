@@ -219,7 +219,8 @@ final class ChecklistDetailViewModel {
     defer { isPerformingAction = false }
 
     do {
-      _ = try await checklistService.resetSession(sessionId: session.id)
+      let updated = try await checklistService.resetSession(sessionId: session.id)
+      self.session = updated
     } catch {
       Logger.checklist.error("Failed to reset checklist '\(session.id, privacy: .public)': \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
