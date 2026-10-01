@@ -95,6 +95,9 @@ public protocol ChecklistServiceProtocol: Sendable {
   /// Seeds default system checklists if not present in the database.
   func seedDefaultTemplatesIfNeeded() async throws
 
+  /// Fetches the latest completion date for a checklist template, if any.
+  func fetchLatestCompletionDate(for templateId: UUID) async throws -> Date?
+
   // MARK: - Reactive Observation
 
   /// Observes all currently active in-progress checklist sessions in real-time.

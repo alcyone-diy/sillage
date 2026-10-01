@@ -143,7 +143,7 @@ public struct ChecklistTemplateDetailView: View {
       }
     }
     .task(id: templateId) {
-      await viewModel.load()
+      await viewModel.startObserving()
     }
     .alert(
       "Delete Template?",
@@ -203,6 +203,31 @@ public struct ChecklistTemplateDetailView: View {
           Text(viewModel.category.title)
             .marineFont(.body)
             .foregroundStyle(marineTheme.colors.textPrimary)
+        }
+      }
+      .marineListCell()
+
+      HStack {
+        Text("Status")
+          .marineFont(.body)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+        Spacer()
+        switch viewModel.usageStatus {
+        case .inProgress(let session):
+          Text("Started \(session.startedAt, format: Date.FormatStyle(date: .abbreviated, time: .shortened)) • \(session.completedCount)/\(session.totalCount) checked")
+            .marineFont(.body)
+            .foregroundStyle(marineTheme.colors.textPrimary)
+            .multilineTextAlignment(.trailing)
+        case .completed(let date):
+          Text("Completed \(date, format: Date.FormatStyle(date: .abbreviated, time: .shortened))")
+            .marineFont(.body)
+            .foregroundStyle(marineTheme.colors.textPrimary)
+            .multilineTextAlignment(.trailing)
+        case .neverUsed:
+          Text("Never used")
+            .marineFont(.body)
+            .foregroundStyle(marineTheme.colors.textPrimary)
+            .multilineTextAlignment(.trailing)
         }
       }
       .marineListCell()

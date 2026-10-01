@@ -13,6 +13,13 @@ import SwiftUI
 import Observation
 import OSLog
 
+/// Represents the usage or execution status of a checklist template.
+public enum ChecklistUsageStatus: Equatable, Sendable {
+  case inProgress(ChecklistSession)
+  case completed(Date)
+  case neverUsed
+}
+
 /// A draft model representing a single step being authored within a checklist template.
 public struct ChecklistItemDraft: Identifiable, Equatable, Sendable {
   public let id: UUID
@@ -39,6 +46,7 @@ public final class ChecklistTemplateDetailViewModel {
 
   public private(set) var template: ChecklistTemplate?
   public private(set) var activeSession: ChecklistSession?
+  public private(set) var latestCompletionDate: Date?
   public private(set) var isLoading: Bool = false
   public private(set) var isSaving: Bool = false
   public var isEditable: Bool
@@ -72,6 +80,22 @@ public final class ChecklistTemplateDetailViewModel {
 
   public var hasActiveSession: Bool {
     activeSession != nil && activeSession?.status == .inProgress && (activeSession?.completedCount ?? 0) > 0
+  }
+
+  /// Active session if currently in progress with at least one item checked.
+  public var activeSessionWithProgress: ChecklistSession? {
+    hasActiveSession ? activeSession : nil
+  }
+
+  /// The strongly typed execution/usage status of this checklist template.
+  public var usageStatus: ChecklistUsageStatus {
+    if let activeSession = activeSessionWithProgress {
+      return .inProgress(activeSession)
+    } else if let latestCompletionDate {
+      return .completed(latestCompletionDate)
+    } else {
+      return .neverUsed
+    }
   }
 
   /// Returns true if the template has a valid non-empty title and at least one step with a non-empty title.
@@ -137,9 +161,58 @@ public final class ChecklistTemplateDetailViewModel {
         populate(from: fetchedTemplate)
       }
       self.activeSession = try await checklistService.fetchActiveSession(for: templateId)
+      self.latestCompletionDate = try await checklistService.fetchLatestCompletionDate(for: templateId)
     } catch {
       Logger.checklist.error("Failed to load checklist template \(templateId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
+    }
+  }
+
+  /// Loads the template and concurrently observes active and completed sessions using structured concurrency.
+  public func startObserving() async {
+    await load()
+    guard templateId != nil else { return }
+
+    await withTaskGroup(of: Void.self) { group in
+      group.addTask { @MainActor [weak self] in
+        await self?.observeActiveSessions()
+      }
+      group.addTask { @MainActor [weak self] in
+        await self?.observeCompletedSessions()
+      }
+    }
+  }
+
+  /// Observes active in-progress checklist sessions for this template.
+  public func observeActiveSessions() async {
+    guard let templateId else { return }
+    do {
+      for try await sessions in checklistService.observeActiveSessions() {
+        if Task.isCancelled { break }
+        self.activeSession = sessions.first {
+          $0.templateId == templateId &&
+          $0.status == .inProgress
+        }
+      }
+    } catch {
+      if !Task.isCancelled {
+        Logger.checklist.error("Error observing active sessions: \(error.localizedDescription, privacy: .public)")
+      }
+    }
+  }
+
+  /// Observes latest completion dates for this template.
+  public func observeCompletedSessions() async {
+    guard let templateId else { return }
+    do {
+      for try await dates in checklistService.observeCompletedSessions() {
+        if Task.isCancelled { break }
+        self.latestCompletionDate = dates[templateId]
+      }
+    } catch {
+      if !Task.isCancelled {
+        Logger.checklist.error("Error observing completed sessions: \(error.localizedDescription, privacy: .public)")
+      }
     }
   }
 

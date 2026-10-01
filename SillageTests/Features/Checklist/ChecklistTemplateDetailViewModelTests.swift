@@ -56,6 +56,9 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.templateId, template.id)
     XCTAssertNil(viewModel.template)
     XCTAssertNil(viewModel.activeSession)
+    XCTAssertNil(viewModel.latestCompletionDate)
+    XCTAssertNil(viewModel.activeSessionWithProgress)
+    XCTAssertEqual(viewModel.usageStatus, .neverUsed)
     XCTAssertFalse(viewModel.isLoading)
     XCTAssertNil(viewModel.errorMessage)
     XCTAssertEqual(viewModel.title, "")
@@ -82,6 +85,112 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.items[0].title, "Lifejackets")
     XCTAssertEqual(viewModel.items[1].title, "EPIRB check")
     XCTAssertFalse(viewModel.hasActiveSession)
+    XCTAssertNil(viewModel.latestCompletionDate)
+    XCTAssertEqual(viewModel.usageStatus, .neverUsed)
+  }
+
+  func testUsageStatusWithActiveSessionAndProgress() async throws {
+    let session = try await checklistService.startSession(templateId: template.id)
+    guard let firstItem = session.items.first else {
+      XCTFail("Expected session to have items")
+      return
+    }
+    _ = try await checklistService.setItemChecked(
+      sessionId: session.id,
+      itemId: firstItem.id,
+      isChecked: true,
+      coordinate: nil
+    )
+
+    await viewModel.load()
+
+    XCTAssertTrue(viewModel.hasActiveSession)
+    XCTAssertNotNil(viewModel.activeSessionWithProgress)
+    if case .inProgress(let currentSession) = viewModel.usageStatus {
+      XCTAssertEqual(currentSession.id, session.id)
+      XCTAssertEqual(currentSession.completedCount, 1)
+    } else {
+      XCTFail("Expected usageStatus to be .inProgress, got \(viewModel.usageStatus)")
+    }
+  }
+
+  func testUsageStatusWithCompletedSession() async throws {
+    let session = try await checklistService.startSession(templateId: template.id)
+    for item in session.items {
+      _ = try await checklistService.setItemChecked(
+        sessionId: session.id,
+        itemId: item.id,
+        isChecked: true,
+        coordinate: nil
+      )
+    }
+    _ = try await checklistService.completeSession(sessionId: session.id, notes: nil)
+
+    await viewModel.load()
+
+    XCTAssertFalse(viewModel.hasActiveSession)
+    XCTAssertNil(viewModel.activeSessionWithProgress)
+    XCTAssertNotNil(viewModel.latestCompletionDate)
+    if case .completed(let date) = viewModel.usageStatus {
+      XCTAssertEqual(date, viewModel.latestCompletionDate)
+    } else {
+      XCTFail("Expected usageStatus to be .completed, got \(viewModel.usageStatus)")
+    }
+  }
+
+  func testObservationUpdatesActiveAndCompletedSessions() async throws {
+    let observeTask = Task { [weak viewModel] in
+      await viewModel?.startObserving()
+    }
+
+    try await Task.sleep(nanoseconds: 50_000_000)
+
+    let session = try await checklistService.startSession(templateId: template.id)
+    guard let firstItem = session.items.first else {
+      XCTFail("Expected session to have items")
+      return
+    }
+    _ = try await checklistService.setItemChecked(
+      sessionId: session.id,
+      itemId: firstItem.id,
+      isChecked: true,
+      coordinate: nil
+    )
+
+    try await Task.sleep(nanoseconds: 100_000_000)
+
+    XCTAssertTrue(viewModel.hasActiveSession)
+    XCTAssertNotNil(viewModel.activeSessionWithProgress)
+    if case .inProgress(let currentSession) = viewModel.usageStatus {
+      XCTAssertEqual(currentSession.id, session.id)
+      XCTAssertEqual(currentSession.completedCount, 1)
+    } else {
+      XCTFail("Expected usageStatus to be .inProgress, got \(viewModel.usageStatus)")
+    }
+
+    // Complete session
+    for item in session.items {
+      _ = try await checklistService.setItemChecked(
+        sessionId: session.id,
+        itemId: item.id,
+        isChecked: true,
+        coordinate: nil
+      )
+    }
+    _ = try await checklistService.completeSession(sessionId: session.id, notes: nil)
+
+    try await Task.sleep(nanoseconds: 100_000_000)
+
+    XCTAssertFalse(viewModel.hasActiveSession)
+    XCTAssertNil(viewModel.activeSessionWithProgress)
+    XCTAssertNotNil(viewModel.latestCompletionDate)
+    if case .completed(let date) = viewModel.usageStatus {
+      XCTAssertEqual(date, viewModel.latestCompletionDate)
+    } else {
+      XCTFail("Expected usageStatus to be .completed, got \(viewModel.usageStatus)")
+    }
+
+    observeTask.cancel()
   }
 
   func testStartOrResumeSessionCreatesAndReturnsSessionId() async {

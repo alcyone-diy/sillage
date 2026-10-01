@@ -668,6 +668,21 @@ public final class ChecklistService: ChecklistServiceProtocol {
     }
   }
 
+  public func fetchLatestCompletionDate(for templateId: UUID) async throws -> Date? {
+    try await databaseManager.reader.read { db in
+      let row = try Row.fetchOne(
+        db,
+        sql: """
+        SELECT MAX(completed_at) AS latest_completed_at
+        FROM \(ChecklistSessionRecord.databaseTableName)
+        WHERE template_id = ? AND status = ? AND completed_at IS NOT NULL
+        """,
+        arguments: [templateId.uuidString, ChecklistSessionStatus.completed.rawValue]
+      )
+      return row?["latest_completed_at"]
+    }
+  }
+
   public func seedDefaultTemplatesIfNeeded() async throws {
     try await databaseManager.write { db in
       try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db)
