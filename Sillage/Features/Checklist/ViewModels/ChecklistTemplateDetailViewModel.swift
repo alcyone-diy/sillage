@@ -64,6 +64,11 @@ public final class ChecklistTemplateDetailViewModel {
     templateId == nil
   }
 
+  /// Indicates whether deletion is allowed (hides/disables the button in the UI)
+  public var canDelete: Bool {
+    templateId != nil && !isSaving
+  }
+
   public var hasActiveSession: Bool {
     activeSession != nil && activeSession?.status == .inProgress && (activeSession?.completedCount ?? 0) > 0
   }

@@ -65,6 +65,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.hasActiveSession)
     XCTAssertFalse(viewModel.isEditable)
     XCTAssertTrue(viewModel.isEditing)
+    XCTAssertTrue(viewModel.canDelete)
   }
 
   func testLoadTemplate() async {
@@ -167,6 +168,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertEqual(creationVM.category, .routine)
     XCTAssertEqual(creationVM.items.count, 1)
     XCTAssertEqual(creationVM.items.first?.title, "")
+    XCTAssertFalse(creationVM.canDelete)
     XCTAssertFalse(creationVM.isValid)
     XCTAssertFalse(creationVM.isSaving)
     XCTAssertNil(creationVM.errorMessage)

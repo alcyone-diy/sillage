@@ -75,9 +75,6 @@
     "%@/3h" : {
       "comment" : "Format for 3-hour barometric trend suffix"
     },
-    "%lld" : {
-
-    },
     "%lld of %lld completed" : {
       "localizations" : {
         "en" : {
@@ -442,9 +439,6 @@
     "Delete Offline Chart?" : {
 
     },
-    "Delete Template" : {
-
-    },
     "Delete Template?" : {
 
     },
@@ -545,9 +539,6 @@
 
     },
     "Edit Checklist" : {
-
-    },
-    "Edit Template" : {
 
     },
     "Enable COG Vector" : {
