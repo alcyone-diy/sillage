@@ -118,16 +118,18 @@ final class ChecklistServiceTests: XCTestCase {
     let fetchedSession = try await checklistService.fetchSession(id: session.id)
     XCTAssertNil(fetchedSession)
 
+    let templateIdString = template.id.uuidString
     let remainingTemplateItems = try await databaseManager.reader.read { db in
       try ChecklistTemplateItemRecord
-        .filter(ChecklistTemplateItemRecord.Columns.template_id == template.id.uuidString)
+        .filter(ChecklistTemplateItemRecord.Columns.template_id == templateIdString)
         .fetchCount(db)
     }
     XCTAssertEqual(remainingTemplateItems, 0)
 
+    let sessionIdString = session.id.uuidString
     let remainingSessionItems = try await databaseManager.reader.read { db in
       try ChecklistSessionItemRecord
-        .filter(ChecklistSessionItemRecord.Columns.execution_id == session.id.uuidString)
+        .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionIdString)
         .fetchCount(db)
     }
     XCTAssertEqual(remainingSessionItems, 0)
