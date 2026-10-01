@@ -52,6 +52,7 @@ public struct ChecklistTemplateEditorView: View {
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .navigationTitle(viewModel.isEditing ? String(localized: "Edit Checklist") : String(localized: "New Checklist"))
     .navigationBarTitleDisplayMode(.inline)
+    .navigationBarBackButtonHidden(true)
     .toolbar {
       ToolbarItem(placement: .cancellationAction) {
         Button {
@@ -81,15 +82,9 @@ public struct ChecklistTemplateEditorView: View {
             }
           }
         } label: {
-          if viewModel.isSaving {
-            ProgressView()
-              .tint(marineTheme.colors.accent)
-          } else {
-            Image(marineIcon: .save)
-              .foregroundStyle(marineTheme.colors.accent)
-              .padding(8)
-              .contentShape(Rectangle())
-          }
+          Image(marineIcon: .save)
+            .padding(8)
+            .contentShape(Rectangle())
         }
         .disabled(viewModel.isSaving)
         .accessibilityLabel(String(localized: "Save"))
