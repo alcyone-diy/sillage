@@ -1,5 +1,5 @@
 //
-//  ChecklistTemplateView.swift
+//  ChecklistTemplateDetailView.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-10-01.
@@ -11,38 +11,31 @@
 import SwiftUI
 import OSLog
 
-/// A presentation view for inspecting, starting, and editing a maritime checklist template.
+/// A read-only presentation view for inspecting, starting, and editing a maritime checklist template.
 @MainActor
-struct ChecklistTemplateView: View {
+public struct ChecklistTemplateDetailView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.marineTheme) private var marineTheme
-  @Environment(\.checklistService) private var checklistService
   @Environment(PanelManagerViewModel.self) private var panelManager: PanelManagerViewModel?
 
   let templateId: UUID
-  @State private var template: ChecklistTemplate?
-  @State private var hasActiveSession: Bool = false
-  @State private var isLoading: Bool = false
-  @State private var errorMessage: String?
+  @State private var viewModel: ChecklistTemplateDetailViewModel
   @State private var showDeleteConfirmation: Bool = false
-  @State private var isShowingEditSheet: Bool = false
-  var onTemplateUpdated: (@MainActor (ChecklistTemplate) -> Void)?
 
-  init(
+  public init(
     templateId: UUID,
-    onTemplateUpdated: (@MainActor (ChecklistTemplate) -> Void)? = nil
+    checklistService: any ChecklistServiceProtocol
   ) {
     self.templateId = templateId
-    self.onTemplateUpdated = onTemplateUpdated
+    _viewModel = State(initialValue: ChecklistTemplateDetailViewModel(
+      templateId: templateId,
+      checklistService: checklistService
+    ))
   }
 
-  private var items: [ChecklistTemplateItem] {
-    template?.items.sorted { $0.sortOrder < $1.sortOrder } ?? []
-  }
-
-  var body: some View {
+  public var body: some View {
     Form {
-      if isLoading && template == nil {
+      if viewModel.isLoading && viewModel.template == nil {
         loadingSection
       } else {
         generalSection
@@ -52,13 +45,13 @@ struct ChecklistTemplateView: View {
     }
     .marineListBackground()
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-    .navigationTitle(template?.title.isEmpty == false ? (template?.title ?? "") : String(localized: "Checklist"))
+    .navigationTitle(viewModel.title.isEmpty ? String(localized: "Checklist") : viewModel.title)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
-      if template != nil && checklistService != nil {
+      if viewModel.template != nil {
         ToolbarItem(placement: .primaryAction) {
           Button {
-            isShowingEditSheet = true
+            panelManager?.commandPath.append(.checklistTemplateEditor(templateId: templateId))
           } label: {
             Text("Edit")
               .marineFont(.body)
@@ -68,24 +61,8 @@ struct ChecklistTemplateView: View {
         }
       }
     }
-    .sheet(isPresented: $isShowingEditSheet) {
-      if let template, let checklistService {
-        NavigationStack {
-          ChecklistEditView(
-            template: template,
-            checklistService: checklistService,
-            onTemplateUpdated: { updatedTemplate in
-              self.template = updatedTemplate
-              onTemplateUpdated?(updatedTemplate)
-            }
-          )
-        }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-      }
-    }
     .task(id: templateId) {
-      await load()
+      await viewModel.load()
     }
     .alert(
       "Delete Template?",
@@ -93,7 +70,9 @@ struct ChecklistTemplateView: View {
     ) {
       Button("Delete", role: .destructive) {
         Task {
-          await deleteTemplate()
+          if await viewModel.deleteTemplate() {
+            dismiss()
+          }
         }
       }
       Button("Cancel", role: .cancel) { }
@@ -103,10 +82,10 @@ struct ChecklistTemplateView: View {
     .alert(
       "Error",
       isPresented: Binding(
-        get: { errorMessage != nil },
-        set: { if !$0 { errorMessage = nil } }
+        get: { viewModel.errorMessage != nil },
+        set: { if !$0 { viewModel.errorMessage = nil } }
       ),
-      presenting: errorMessage
+      presenting: viewModel.errorMessage
     ) { _ in
       Button("OK", role: .cancel) { }
     } message: { message in
@@ -132,7 +111,7 @@ struct ChecklistTemplateView: View {
   @ViewBuilder
   private var generalSection: some View {
     Section("Information") {
-      if let category = template?.category {
+      if let category = viewModel.category {
         HStack {
           Text("Category")
             .marineFont(.body)
@@ -149,7 +128,7 @@ struct ChecklistTemplateView: View {
         .marineListCell()
       }
 
-      if let description = template?.description, !description.isEmpty {
+      if let description = viewModel.description, !description.isEmpty {
         VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
           Text("Description")
             .marineFont(.caption)
@@ -166,13 +145,13 @@ struct ChecklistTemplateView: View {
   @ViewBuilder
   private var stepsSection: some View {
     Section {
-      if items.isEmpty {
+      if viewModel.items.isEmpty {
         Text("No steps added yet")
           .marineFont(.body)
           .foregroundStyle(marineTheme.colors.textSecondary)
           .marineListCell()
       } else {
-        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+        ForEach(Array(viewModel.items.enumerated()), id: \.element.id) { index, item in
           ChecklistTemplateStepRow(
             index: index,
             title: item.title,
@@ -184,7 +163,7 @@ struct ChecklistTemplateView: View {
       HStack {
         Text("Steps")
         Spacer()
-        Text("\(items.count)")
+        Text("\(viewModel.items.count)")
           .foregroundStyle(marineTheme.colors.textSecondary)
       }
       .marineFont(.caption)
@@ -195,71 +174,41 @@ struct ChecklistTemplateView: View {
   private var actionsSection: some View {
     Section {
       Button {
-        if let templateId = template?.id {
-          panelManager?.commandPath.append(.checklistDetail(templateId: templateId))
+        Task {
+          if let sessionId = await viewModel.startOrResumeSession() {
+            panelManager?.commandPath.append(.activeSession(sessionId: sessionId))
+          }
         }
       } label: {
         HStack(spacing: MarineTheme.Spacing.small) {
-          Image(systemName: hasActiveSession ? "play.circle.fill" : "play.fill")
-          Text(hasActiveSession ? "Continue Checklist" : "Start Checklist")
+          Image(systemName: viewModel.hasActiveSession ? "play.circle.fill" : "play.fill")
+          Text(viewModel.hasActiveSession ? "Continue Checklist" : "Start Checklist")
         }
       }
       .buttonStyle(MarineButtonStyle(.primary))
       .marineListCell()
 
-      if checklistService != nil {
-        Button {
-          isShowingEditSheet = true
-        } label: {
-          HStack(spacing: MarineTheme.Spacing.small) {
-            Image(systemName: "pencil")
-            Text("Edit Template")
-          }
+      Button {
+        panelManager?.commandPath.append(.checklistTemplateEditor(templateId: templateId))
+      } label: {
+        HStack(spacing: MarineTheme.Spacing.small) {
+          Image(systemName: "pencil")
+          Text("Edit Template")
         }
-        .buttonStyle(MarineButtonStyle(.secondary))
-        .marineListCell()
-
-        Button(role: .destructive) {
-          showDeleteConfirmation = true
-        } label: {
-          HStack(spacing: MarineTheme.Spacing.small) {
-            Image(marineIcon: .delete)
-            Text("Delete Template")
-          }
-        }
-        .buttonStyle(MarineButtonStyle(.destructive))
-        .marineListCell()
       }
-    }
-  }
+      .buttonStyle(MarineButtonStyle(.secondary))
+      .marineListCell()
 
-  // MARK: - Actions
-
-  private func load() async {
-    guard let checklistService else { return }
-    isLoading = true
-    defer { isLoading = false }
-    errorMessage = nil
-
-    do {
-      template = try await checklistService.fetchTemplate(id: templateId)
-      let session = try await checklistService.fetchActiveSession(for: templateId)
-      hasActiveSession = (session?.status == .inProgress && (session?.completedCount ?? 0) > 0)
-    } catch {
-      Logger.checklist.error("Failed to load checklist template \(self.templateId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
-    }
-  }
-
-  private func deleteTemplate() async {
-    guard let checklistService else { return }
-    do {
-      try await checklistService.deleteCustomTemplate(id: templateId)
-      Logger.checklist.info("Successfully deleted custom template: \(self.templateId.uuidString, privacy: .public)")
-      dismiss()
-    } catch {
-      Logger.checklist.error("Failed to delete template: \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Button(role: .destructive) {
+        showDeleteConfirmation = true
+      } label: {
+        HStack(spacing: MarineTheme.Spacing.small) {
+          Image(marineIcon: .delete)
+          Text("Delete Template")
+        }
+      }
+      .buttonStyle(MarineButtonStyle(.destructive))
+      .marineListCell()
     }
   }
 }

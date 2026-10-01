@@ -1,8 +1,8 @@
 //
-//  ChecklistCreateViewModel.swift
+//  ChecklistTemplateEditorViewModel.swift
 //  Alcyone Sillage
 //
-//  Created by Alcyone on 2026-09-27.
+//  Created by Alcyone on 2026-10-01.
 //  Copyright © 2026 Alcyone.
 //  This file is released under the MIT License.
 //  See LICENSE file in the project root for full license information.
@@ -13,7 +13,7 @@ import SwiftUI
 import Observation
 import OSLog
 
-/// A draft model representing an item being authored within a new checklist template.
+/// A draft model representing a single step being authored within a checklist template.
 public struct ChecklistItemDraft: Identifiable, Equatable, Sendable {
   public let id: UUID
   public var title: String
@@ -30,19 +30,26 @@ public struct ChecklistItemDraft: Identifiable, Equatable, Sendable {
   }
 }
 
-/// A view model managing the creation and validation of a new maritime checklist template.
+/// A unified view model managing the composition, editing, reordering, and persistence of a maritime checklist template.
 @MainActor
 @Observable
-public final class ChecklistCreateViewModel {
+public final class ChecklistTemplateEditorViewModel {
+  public let templateId: UUID?
   private let checklistService: any ChecklistServiceProtocol
 
   public var title: String = ""
   public var descriptionText: String = ""
   public var category: ChecklistCategory = .routine
   public var items: [ChecklistItemDraft] = []
+  public private(set) var isLoading: Bool = false
   public private(set) var isSaving: Bool = false
   public var alertTitle: String = "Error"
   public var errorMessage: String?
+
+  /// Returns whether this editor is modifying an existing template or authoring a new one.
+  public var isEditing: Bool {
+    templateId != nil
+  }
 
   /// Returns true if the template has a valid non-empty title and at least one step with a non-empty title.
   public var isValid: Bool {
@@ -68,12 +75,50 @@ public final class ChecklistCreateViewModel {
   }
 
   public init(
+    templateId: UUID? = nil,
+    template: ChecklistTemplate? = nil,
     checklistService: any ChecklistServiceProtocol,
     initialCategory: ChecklistCategory = .routine
   ) {
+    self.templateId = templateId ?? template?.id
     self.checklistService = checklistService
-    self.category = initialCategory
-    self.items = [ChecklistItemDraft()]
+
+    if let template {
+      populate(from: template)
+    } else if templateId == nil {
+      self.category = initialCategory
+      self.items = [ChecklistItemDraft()]
+    }
+  }
+
+  /// Loads the existing template from the database if editing and not already loaded.
+  public func load() async {
+    guard let templateId, items.isEmpty && title.isEmpty else { return }
+    isLoading = true
+    defer { isLoading = false }
+
+    do {
+      if let template = try await checklistService.fetchTemplate(id: templateId) {
+        populate(from: template)
+      }
+    } catch {
+      Logger.checklist.error("Failed to load template for editing: \(error.localizedDescription, privacy: .public)")
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func populate(from template: ChecklistTemplate) {
+    self.title = template.title
+    self.descriptionText = template.description ?? ""
+    self.category = template.category
+    let mapped = template.items.sorted { $0.sortOrder < $1.sortOrder }.map { item in
+      ChecklistItemDraft(
+        id: item.id,
+        title: item.title,
+        detail: item.detail ?? ""
+      )
+    }
+    self.items = mapped.isEmpty ? [ChecklistItemDraft()] : mapped
   }
 
   /// Appends a new draft step to the checklist.
@@ -121,8 +166,8 @@ public final class ChecklistCreateViewModel {
     moveItemDown(at: index)
   }
 
-  /// Persists the new checklist template to the database.
-  /// - Returns: The newly created `ChecklistTemplate` if successful, or `nil` on failure.
+  /// Persists the checklist template (inserting if new, updating if existing).
+  /// - Returns: The saved `ChecklistTemplate` if successful, or `nil` on failure.
   public func save() async -> ChecklistTemplate? {
     guard isValid, !isSaving else {
       if let validation = validationErrorMessage {
@@ -139,28 +184,48 @@ public final class ChecklistCreateViewModel {
     let trimmedDescription = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
     let desc = trimmedDescription.isEmpty ? nil : trimmedDescription
 
-    // Filter out completely blank steps
     let validItems = items.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    let serviceItems = validItems.map { item in
-      let itemTitle = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
-      let itemDetail = item.detail.trimmingCharacters(in: .whitespacesAndNewlines)
-      return (
-        title: itemTitle,
-        detail: itemDetail.isEmpty ? nil : itemDetail
-      )
-    }
 
     do {
-      let createdTemplate = try await checklistService.createCustomTemplate(
-        title: trimmedTitle,
-        description: desc,
-        category: category,
-        items: serviceItems
-      )
-      Logger.checklist.info("Successfully created custom checklist template: \(createdTemplate.id.uuidString, privacy: .public)")
-      return createdTemplate
+      if let templateId {
+        let serviceItems = validItems.map { item in
+          let itemTitle = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+          let itemDetail = item.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+          return (
+            id: Optional(item.id),
+            title: itemTitle,
+            detail: itemDetail.isEmpty ? nil : itemDetail
+          )
+        }
+        let updated = try await checklistService.updateCustomTemplate(
+          id: templateId,
+          title: trimmedTitle,
+          description: desc,
+          category: category,
+          items: serviceItems
+        )
+        Logger.checklist.info("Successfully updated custom checklist template: \(updated.id.uuidString, privacy: .public)")
+        return updated
+      } else {
+        let serviceItems = validItems.map { item in
+          let itemTitle = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+          let itemDetail = item.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+          return (
+            title: itemTitle,
+            detail: itemDetail.isEmpty ? nil : itemDetail
+          )
+        }
+        let created = try await checklistService.createCustomTemplate(
+          title: trimmedTitle,
+          description: desc,
+          category: category,
+          items: serviceItems
+        )
+        Logger.checklist.info("Successfully created custom checklist template: \(created.id.uuidString, privacy: .public)")
+        return created
+      }
     } catch {
-      Logger.checklist.error("Failed to create custom checklist template: \(error.localizedDescription, privacy: .public)")
+      Logger.checklist.error("Failed to save checklist template: \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
       return nil
     }

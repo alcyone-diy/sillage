@@ -1,5 +1,5 @@
 //
-//  ChecklistDetailView.swift
+//  ChecklistSessionView.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-09-27.
@@ -10,32 +10,32 @@
 
 import SwiftUI
 
-/// Detail and interactive session view for a nautical checklist.
+/// Detail and interactive session view for a maritime checklist in execution (Glove Mode).
 @MainActor
-struct ChecklistDetailView: View {
+public struct ChecklistSessionView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.dismiss) private var dismiss
+  @Environment(PanelManagerViewModel.self) private var panelManager: PanelManagerViewModel?
 
   private let checklistService: any ChecklistServiceProtocol
-  @State private var viewModel: ChecklistDetailViewModel
-  @State private var isShowingEditSheet = false
+  @State private var viewModel: ChecklistSessionViewModel
 
-  init(
-    templateId: UUID,
+  public init(
+    sessionId: UUID,
     checklistService: any ChecklistServiceProtocol,
     locationProvider: (@MainActor () -> NavigationFix?)? = nil
   ) {
     self.checklistService = checklistService
-    _viewModel = State(initialValue: ChecklistDetailViewModel(
-      templateId: templateId,
+    _viewModel = State(initialValue: ChecklistSessionViewModel(
+      sessionId: sessionId,
       checklistService: checklistService,
       locationProvider: locationProvider
     ))
   }
 
-  var body: some View {
+  public var body: some View {
     List {
-      if viewModel.isLoading && viewModel.template == nil && viewModel.session == nil {
+      if viewModel.isLoading && viewModel.session == nil {
         loadingSection
       } else {
         headerSection
@@ -49,10 +49,10 @@ struct ChecklistDetailView: View {
     .navigationTitle(viewModel.title.isEmpty ? String(localized: "Checklist") : viewModel.title)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
-      if viewModel.template != nil {
+      if let templateId = viewModel.session?.templateId ?? viewModel.template?.id {
         ToolbarItem(placement: .primaryAction) {
           Button {
-            isShowingEditSheet = true
+            panelManager?.commandPath.append(.checklistTemplateEditor(templateId: templateId))
           } label: {
             Text("Edit")
               .marineFont(.body)
@@ -60,23 +60,6 @@ struct ChecklistDetailView: View {
           }
           .accessibilityLabel(String(localized: "Edit Checklist"))
         }
-      }
-    }
-    .sheet(isPresented: $isShowingEditSheet) {
-      if let template = viewModel.template {
-        NavigationStack {
-          ChecklistEditView(
-            template: template,
-            checklistService: checklistService,
-            onTemplateUpdated: { _ in
-              Task {
-                await viewModel.refreshTemplate()
-              }
-            }
-          )
-        }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
       }
     }
     .task {
@@ -228,17 +211,14 @@ struct ChecklistDetailView: View {
         }
       } else {
         Button {
-          Task {
-            await viewModel.restartSession()
-          }
+          dismiss()
         } label: {
           HStack(spacing: MarineTheme.Spacing.small) {
-            Image(systemName: "arrow.clockwise")
-            Text("Start New Session")
+            Image(systemName: "checkmark.circle.fill")
+            Text("Done")
           }
         }
         .buttonStyle(MarineButtonStyle(.primary))
-        .disabled(viewModel.isPerformingAction)
         .marineListCell()
       }
     }

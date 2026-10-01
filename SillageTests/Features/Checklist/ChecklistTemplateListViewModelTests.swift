@@ -1,5 +1,5 @@
 //
-//  ChecklistListViewModelTests.swift
+//  ChecklistTemplateListViewModelTests.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-09-30.
@@ -12,10 +12,10 @@ import XCTest
 @testable import Sillage
 
 @MainActor
-final class ChecklistListViewModelTests: XCTestCase {
+final class ChecklistTemplateListViewModelTests: XCTestCase {
   private var databaseManager: DatabaseManager?
   private var checklistService: ChecklistService?
-  private var viewModel: ChecklistListViewModel?
+  private var viewModel: ChecklistTemplateListViewModel?
 
   override func setUp() async throws {
     try await super.setUp()
@@ -26,7 +26,7 @@ final class ChecklistListViewModelTests: XCTestCase {
     )
     self.databaseManager = dbManager
     self.checklistService = service
-    self.viewModel = ChecklistListViewModel(checklistService: service)
+    self.viewModel = ChecklistTemplateListViewModel(checklistService: service)
   }
 
   override func tearDown() async throws {
@@ -96,7 +96,6 @@ final class ChecklistListViewModelTests: XCTestCase {
       await viewModel?.observeActiveSessions()
     }
 
-    // Give observation stream a moment to emit
     try await Task.sleep(nanoseconds: 50_000_000)
 
     // With 0 items completed, it should not be considered "in progress" to continue (action is "Start")
@@ -133,6 +132,27 @@ final class ChecklistListViewModelTests: XCTestCase {
     XCTAssertNil(vm.activeSession(for: template.id))
 
     observeTask.cancel()
+  }
+
+  // MARK: - Start or Resume Session Tests
+
+  func testStartOrResumeSessionReturnsSessionId() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let vm = try XCTUnwrap(viewModel)
+
+    let template = try await service.createCustomTemplate(
+      title: "Quick Check",
+      description: nil,
+      category: .routine,
+      items: [("Step 1", nil)]
+    )
+
+    let sessionId = await vm.startOrResumeSession(for: template.id)
+    XCTAssertNotNil(sessionId)
+
+    // Resuming returns the same active session ID
+    let resumedSessionId = await vm.startOrResumeSession(for: template.id)
+    XCTAssertEqual(sessionId, resumedSessionId)
   }
 
   // MARK: - Completed Sessions Observation Tests

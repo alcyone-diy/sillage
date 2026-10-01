@@ -269,20 +269,32 @@ struct CommandPanelView: View {
       ChartPreferencesView()
     case .checklists:
       if let service = checklistService ?? appEnvironment.checklistService {
-        ChecklistListView(checklistService: service)
+        ChecklistTemplateListView(checklistService: service)
       }
-    case .checklistDetail(let templateId):
+    case .checklistTemplateDetail(let templateId):
       if let service = checklistService ?? appEnvironment.checklistService {
-        ChecklistDetailView(
+        ChecklistTemplateDetailView(
           templateId: templateId,
+          checklistService: service
+        )
+      }
+    case .checklistTemplateEditor(let templateId):
+      if let service = checklistService ?? appEnvironment.checklistService {
+        ChecklistTemplateEditorView(
+          templateId: templateId,
+          checklistService: service
+        )
+      }
+    case .activeSession(let sessionId):
+      if let service = checklistService ?? appEnvironment.checklistService {
+        ChecklistSessionView(
+          sessionId: sessionId,
           checklistService: service,
           locationProvider: {
             appEnvironment.lastKnownLocation
           }
         )
       }
-    case .checklistTemplate(let templateId):
-      ChecklistTemplateView(templateId: templateId)
     }
   }
 }

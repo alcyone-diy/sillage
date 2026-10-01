@@ -1,5 +1,5 @@
 //
-//  ChecklistListViewModel.swift
+//  ChecklistTemplateListViewModel.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-09-27.
@@ -15,7 +15,7 @@ import OSLog
 /// A view model managing the presentation of available checklist templates.
 @MainActor
 @Observable
-public final class ChecklistListViewModel {
+public final class ChecklistTemplateListViewModel {
   private let checklistService: any ChecklistServiceProtocol
 
   public private(set) var templates: [ChecklistTemplate] = []
@@ -83,6 +83,19 @@ public final class ChecklistListViewModel {
     }
   }
 
+  /// Starts or resumes a session for the specified template.
+  /// - Returns: The UUID of the active `ChecklistSession`, or `nil` on failure.
+  public func startOrResumeSession(for templateId: UUID) async -> UUID? {
+    do {
+      let session = try await checklistService.startSession(templateId: templateId)
+      return session.id
+    } catch {
+      Logger.checklist.error("Failed to start or resume session for template \(templateId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+      errorMessage = error.localizedDescription
+      return nil
+    }
+  }
+
   /// Observes latest completion dates for checklist templates.
   public func observeCompletedSessions() async {
     do {
@@ -100,5 +113,18 @@ public final class ChecklistListViewModel {
   /// Returns the latest completion date for a template, if any exists.
   public func latestCompletionDate(for templateId: UUID) -> Date? {
     latestCompletionDates[templateId]
+  }
+
+  /// Deletes a custom checklist template.
+  public func deleteTemplate(id: UUID) async -> Bool {
+    do {
+      try await checklistService.deleteCustomTemplate(id: id)
+      await loadTemplates()
+      return true
+    } catch {
+      Logger.checklist.error("Failed to delete custom template \(id.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+      errorMessage = error.localizedDescription
+      return false
+    }
   }
 }

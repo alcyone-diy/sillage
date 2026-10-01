@@ -1,8 +1,8 @@
 //
-//  ChecklistEditView.swift
+//  ChecklistTemplateEditorView.swift
 //  Alcyone Sillage
 //
-//  Created by Alcyone on 2026-09-28.
+//  Created by Alcyone on 2026-10-01.
 //  Copyright © 2026 Alcyone.
 //  This file is released under the MIT License.
 //  See LICENSE file in the project root for full license information.
@@ -10,29 +10,33 @@
 
 import SwiftUI
 
-/// A view for modifying and persisting changes to an existing maritime checklist template.
+/// A unified view for composing a new maritime checklist template or modifying an existing one.
 @MainActor
-struct ChecklistEditView: View {
+public struct ChecklistTemplateEditorView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.marineTheme) private var marineTheme
 
-  @State private var viewModel: ChecklistEditViewModel
+  @State private var viewModel: ChecklistTemplateEditorViewModel
   @State private var editMode: EditMode = .inactive
-  var onTemplateUpdated: (@MainActor (ChecklistTemplate) -> Void)?
+  public var onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)?
 
-  init(
-    template: ChecklistTemplate,
+  public init(
+    templateId: UUID? = nil,
+    template: ChecklistTemplate? = nil,
     checklistService: any ChecklistServiceProtocol,
-    onTemplateUpdated: (@MainActor (ChecklistTemplate) -> Void)? = nil
+    initialCategory: ChecklistCategory = .routine,
+    onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)? = nil
   ) {
-    _viewModel = State(initialValue: ChecklistEditViewModel(
+    _viewModel = State(initialValue: ChecklistTemplateEditorViewModel(
+      templateId: templateId,
       template: template,
-      checklistService: checklistService
+      checklistService: checklistService,
+      initialCategory: initialCategory
     ))
-    self.onTemplateUpdated = onTemplateUpdated
+    self.onTemplateSaved = onTemplateSaved
   }
 
-  var body: some View {
+  public var body: some View {
     Form {
       generalSection
       stepsSection
@@ -46,7 +50,7 @@ struct ChecklistEditView: View {
     }
     .interactiveDismissDisabled(viewModel.isSaving)
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-    .navigationTitle("Edit Checklist")
+    .navigationTitle(viewModel.isEditing ? String(localized: "Edit Checklist") : String(localized: "New Checklist"))
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .cancellationAction) {
@@ -71,8 +75,8 @@ struct ChecklistEditView: View {
           }
 
           Task {
-            if let template = await viewModel.save() {
-              onTemplateUpdated?(template)
+            if let saved = await viewModel.save() {
+              onTemplateSaved?(saved)
               dismiss()
             }
           }
@@ -90,6 +94,9 @@ struct ChecklistEditView: View {
         .disabled(viewModel.isSaving)
         .accessibilityLabel(String(localized: "Save"))
       }
+    }
+    .task {
+      await viewModel.load()
     }
     .alert(
       viewModel.alertTitle,

@@ -337,6 +337,9 @@
     "Checklist" : {
 
     },
+    "Checklist session not found." : {
+
+    },
     "Checklists" : {
 
     },
@@ -1143,9 +1146,6 @@
 
     },
     "Start Checklist" : {
-
-    },
-    "Start New Session" : {
 
     },
     "Start Time" : {

@@ -1,5 +1,5 @@
 //
-//  ChecklistListView.swift
+//  ChecklistTemplateListView.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-09-27.
@@ -10,22 +10,21 @@
 
 import SwiftUI
 
-/// Displays the catalog of available maritime checklists.
+/// Displays the catalog of available maritime checklist templates.
 @MainActor
-struct ChecklistListView: View {
+public struct ChecklistTemplateListView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(PanelManagerViewModel.self) private var panelManager: PanelManagerViewModel?
   private let checklistService: any ChecklistServiceProtocol
-  @State private var viewModel: ChecklistListViewModel
-  @State private var isShowingCreateSheet = false
+  @State private var viewModel: ChecklistTemplateListViewModel
   @State private var templateToDelete: ChecklistTemplate?
 
-  init(checklistService: any ChecklistServiceProtocol) {
+  public init(checklistService: any ChecklistServiceProtocol) {
     self.checklistService = checklistService
-    _viewModel = State(initialValue: ChecklistListViewModel(checklistService: checklistService))
+    _viewModel = State(initialValue: ChecklistTemplateListViewModel(checklistService: checklistService))
   }
 
-  var body: some View {
+  public var body: some View {
     List {
       if viewModel.isLoading && viewModel.templates.isEmpty {
         Section {
@@ -45,7 +44,7 @@ struct ChecklistListView: View {
               .marineFont(.body)
 
             Button {
-              isShowingCreateSheet = true
+              panelManager?.commandPath.append(.checklistTemplateEditor(templateId: nil))
             } label: {
               HStack(spacing: MarineTheme.Spacing.small) {
                 Image(marineIcon: .add)
@@ -62,7 +61,7 @@ struct ChecklistListView: View {
         ForEach(viewModel.groupedTemplates, id: \.category) { section in
           Section {
             ForEach(section.templates) { template in
-              NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistTemplate(templateId: template.id)) {
+              NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistTemplateDetail(templateId: template.id)) {
                 ChecklistTemplateRowView(
                   template: template,
                   activeSession: viewModel.activeSession(for: template.id),
@@ -72,7 +71,11 @@ struct ChecklistListView: View {
               .swipeActions(edge: .leading, allowsFullSwipe: true) {
                 let hasActive = viewModel.hasActiveSession(for: template.id)
                 Button {
-                  panelManager?.commandPath.append(.checklistDetail(templateId: template.id))
+                  Task {
+                    if let sessionId = await viewModel.startOrResumeSession(for: template.id) {
+                      panelManager?.commandPath.append(.activeSession(sessionId: sessionId))
+                    }
+                  }
                 } label: {
                   Label(
                     hasActive ? "Continue" : "Start",
@@ -110,7 +113,7 @@ struct ChecklistListView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          isShowingCreateSheet = true
+          panelManager?.commandPath.append(.checklistTemplateEditor(templateId: nil))
         } label: {
           Image(marineIcon: .add)
             .foregroundStyle(marineTheme.colors.accent)
@@ -118,19 +121,8 @@ struct ChecklistListView: View {
         .accessibilityLabel(String(localized: "New Checklist"))
       }
     }
-    .sheet(isPresented: $isShowingCreateSheet) {
-      NavigationStack {
-        ChecklistCreateView(
-          checklistService: checklistService,
-          onTemplateCreated: { _ in
-            Task {
-              await viewModel.loadTemplates()
-            }
-          }
-        )
-      }
-      .presentationDetents([.large])
-      .presentationDragIndicator(.visible)
+    .task {
+      await viewModel.loadTemplates()
     }
     .task {
       await viewModel.observeActiveSessions()
@@ -148,12 +140,7 @@ struct ChecklistListView: View {
     ) { template in
       Button("Delete", role: .destructive) {
         Task {
-          do {
-            try await checklistService.deleteCustomTemplate(id: template.id)
-            await viewModel.loadTemplates()
-          } catch {
-            viewModel.errorMessage = error.localizedDescription
-          }
+          _ = await viewModel.deleteTemplate(id: template.id)
           templateToDelete = nil
         }
       }
@@ -174,9 +161,6 @@ struct ChecklistListView: View {
       Button("OK", role: .cancel) { }
     } message: { message in
       Text(message)
-    }
-    .task {
-      await viewModel.loadTemplates()
     }
   }
 }
