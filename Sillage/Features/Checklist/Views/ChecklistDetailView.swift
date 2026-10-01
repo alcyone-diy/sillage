@@ -99,21 +99,6 @@ struct ChecklistDetailView: View {
       Text("This will uncheck all items in this active session.")
     }
     .alert(
-      "Delete Template?",
-      isPresented: $viewModel.showDeleteConfirmation
-    ) {
-      Button("Delete", role: .destructive) {
-        Task {
-          if await viewModel.deleteTemplate() {
-            dismiss()
-          }
-        }
-      }
-      Button("Cancel", role: .cancel) { }
-    } message: {
-      Text("Are you sure you want to permanently delete this custom checklist?")
-    }
-    .alert(
       "Error",
       isPresented: Binding(
         get: { viewModel.errorMessage != nil },
@@ -253,32 +238,6 @@ struct ChecklistDetailView: View {
           }
         }
         .buttonStyle(MarineButtonStyle(.primary))
-        .disabled(viewModel.isPerformingAction)
-        .marineListCell()
-      }
-
-      if viewModel.template != nil {
-        Button {
-          isShowingEditSheet = true
-        } label: {
-          HStack(spacing: MarineTheme.Spacing.small) {
-            Image(systemName: "pencil")
-            Text("Edit Template")
-          }
-        }
-        .buttonStyle(MarineButtonStyle(.secondary))
-        .disabled(viewModel.isPerformingAction)
-        .marineListCell()
-
-        Button(role: .destructive) {
-          viewModel.showDeleteConfirmation = true
-        } label: {
-          HStack(spacing: MarineTheme.Spacing.small) {
-            Image(marineIcon: .delete)
-            Text("Delete Template")
-          }
-        }
-        .buttonStyle(MarineButtonStyle(.destructive))
         .disabled(viewModel.isPerformingAction)
         .marineListCell()
       }
