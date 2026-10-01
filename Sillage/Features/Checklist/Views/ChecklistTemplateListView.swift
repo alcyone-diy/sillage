@@ -44,7 +44,7 @@ public struct ChecklistTemplateListView: View {
               .marineFont(.body)
 
             Button {
-              panelManager?.commandPath.append(.checklistTemplateEditor(templateId: nil))
+              panelManager?.commandPath.append(.checklistTemplateDetail(templateId: nil, startEditable: true))
             } label: {
               HStack(spacing: MarineTheme.Spacing.small) {
                 Image(marineIcon: .add)
@@ -113,7 +113,7 @@ public struct ChecklistTemplateListView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          panelManager?.commandPath.append(.checklistTemplateEditor(templateId: nil))
+          panelManager?.commandPath.append(.checklistTemplateDetail(templateId: nil, startEditable: true))
         } label: {
           Image(marineIcon: .add)
             .foregroundStyle(marineTheme.colors.accent)

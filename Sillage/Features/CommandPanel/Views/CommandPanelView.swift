@@ -271,18 +271,12 @@ struct CommandPanelView: View {
       if let service = checklistService ?? appEnvironment.checklistService {
         ChecklistTemplateListView(checklistService: service)
       }
-    case .checklistTemplateDetail(let templateId):
+    case .checklistTemplateDetail(let templateId, let startEditable):
       if let service = checklistService ?? appEnvironment.checklistService {
         ChecklistTemplateDetailView(
           templateId: templateId,
-          checklistService: service
-        )
-      }
-    case .checklistTemplateEditor(let templateId):
-      if let service = checklistService ?? appEnvironment.checklistService {
-        ChecklistTemplateEditorView(
-          templateId: templateId,
-          checklistService: service
+          checklistService: service,
+          startEditable: startEditable
         )
       }
     case .activeSession(let sessionId):

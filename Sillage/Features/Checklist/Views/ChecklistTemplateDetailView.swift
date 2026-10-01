@@ -11,25 +11,35 @@
 import SwiftUI
 import OSLog
 
-/// A read-only presentation view for inspecting, starting, and editing a maritime checklist template.
+/// A unified view for inspecting, executing, composing, and modifying a maritime checklist template.
 @MainActor
 public struct ChecklistTemplateDetailView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.marineTheme) private var marineTheme
   @Environment(PanelManagerViewModel.self) private var panelManager: PanelManagerViewModel?
 
-  let templateId: UUID
+  let templateId: UUID?
   @State private var viewModel: ChecklistTemplateDetailViewModel
+  @State private var editMode: EditMode = .inactive
   @State private var showDeleteConfirmation: Bool = false
+  public var onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)?
 
   public init(
-    templateId: UUID,
-    checklistService: any ChecklistServiceProtocol
+    templateId: UUID? = nil,
+    template: ChecklistTemplate? = nil,
+    checklistService: any ChecklistServiceProtocol,
+    startEditable: Bool = false,
+    initialCategory: ChecklistCategory = .routine,
+    onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)? = nil
   ) {
-    self.templateId = templateId
+    self.templateId = templateId ?? template?.id
+    self.onTemplateSaved = onTemplateSaved
     _viewModel = State(initialValue: ChecklistTemplateDetailViewModel(
       templateId: templateId,
-      checklistService: checklistService
+      template: template,
+      checklistService: checklistService,
+      startEditable: startEditable,
+      initialCategory: initialCategory
     ))
   }
 
@@ -37,27 +47,93 @@ public struct ChecklistTemplateDetailView: View {
     Form {
       if viewModel.isLoading && viewModel.template == nil {
         loadingSection
+      } else if viewModel.isEditable {
+        generalEditSection
+        stepsEditSection
       } else {
-        generalSection
-        stepsSection
-        actionsSection
+        generalConsultationSection
+        stepsConsultationSection
+        actionsConsultationSection
       }
     }
     .marineListBackground()
+    .environment(\.editMode, $editMode)
+    .onChange(of: viewModel.items.count) { _, newCount in
+      if newCount <= 1 && editMode == .active {
+        editMode = .inactive
+      }
+    }
+    .interactiveDismissDisabled(viewModel.isSaving)
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-    .navigationTitle(viewModel.title.isEmpty ? String(localized: "Checklist") : viewModel.title)
+    .navigationTitle(
+      viewModel.isEditable
+        ? (viewModel.isNew ? String(localized: "New Checklist") : String(localized: "Edit Checklist"))
+        : (viewModel.title.isEmpty ? String(localized: "Checklist") : viewModel.title)
+    )
     .navigationBarTitleDisplayMode(.inline)
+    .navigationBarBackButtonHidden(viewModel.isEditable)
     .toolbar {
-      if viewModel.template != nil {
-        ToolbarItem(placement: .primaryAction) {
+      if viewModel.isEditable {
+        ToolbarItem(placement: .cancellationAction) {
           Button {
-            panelManager?.commandPath.append(.checklistTemplateEditor(templateId: templateId))
+            if viewModel.isNew {
+              dismiss()
+            } else {
+              withAnimation {
+                editMode = .inactive
+                viewModel.revert()
+              }
+            }
           } label: {
-            Text("Edit")
-              .marineFont(.body)
-              .foregroundStyle(marineTheme.colors.accent)
+            Image(marineIcon: .close)
+              .foregroundStyle(marineTheme.colors.textSecondary)
+              .padding(8)
+              .contentShape(Rectangle())
           }
-          .accessibilityLabel(String(localized: "Edit Checklist"))
+          .disabled(viewModel.isSaving)
+          .accessibilityLabel(String(localized: "Cancel"))
+        }
+
+        ToolbarItem(placement: .confirmationAction) {
+          Button {
+            guard viewModel.isValid else {
+              viewModel.alertTitle = String(localized: "Incomplete Checklist")
+              viewModel.errorMessage = viewModel.validationErrorMessage
+              return
+            }
+
+            Task {
+              let wasNew = viewModel.isNew
+              if let saved = await viewModel.save() {
+                onTemplateSaved?(saved)
+                editMode = .inactive
+                if wasNew {
+                  dismiss()
+                }
+              }
+            }
+          } label: {
+            Image(marineIcon: .save)
+              .padding(8)
+              .contentShape(Rectangle())
+          }
+          .disabled(viewModel.isSaving)
+          .accessibilityLabel(String(localized: "Save"))
+        }
+      } else {
+        if viewModel.template != nil {
+          ToolbarItem(placement: .primaryAction) {
+            Button {
+              withAnimation {
+                viewModel.isEditable = true
+              }
+            } label: {
+              Text("Edit")
+                .marineFont(.body)
+                .foregroundStyle(marineTheme.colors.accent)
+            }
+            .accessibilityLabel(String(localized: "Edit Checklist"))
+          }
         }
       }
     }
@@ -80,7 +156,7 @@ public struct ChecklistTemplateDetailView: View {
       Text("Are you sure you want to permanently delete this custom checklist?")
     }
     .alert(
-      "Error",
+      viewModel.alertTitle,
       isPresented: Binding(
         get: { viewModel.errorMessage != nil },
         set: { if !$0 { viewModel.errorMessage = nil } }
@@ -93,7 +169,7 @@ public struct ChecklistTemplateDetailView: View {
     }
   }
 
-  // MARK: - Sections
+  // MARK: - Sections (Consultation Mode)
 
   @ViewBuilder
   private var loadingSection: some View {
@@ -109,24 +185,22 @@ public struct ChecklistTemplateDetailView: View {
   }
 
   @ViewBuilder
-  private var generalSection: some View {
+  private var generalConsultationSection: some View {
     Section("Information") {
-      if let category = viewModel.category {
-        HStack {
-          Text("Category")
+      HStack {
+        Text("Category")
+          .marineFont(.body)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+        Spacer()
+        HStack(spacing: MarineTheme.Spacing.small) {
+          Image(systemName: viewModel.category.systemImage)
+            .foregroundStyle(viewModel.category.color(for: marineTheme))
+          Text(viewModel.category.title)
             .marineFont(.body)
-            .foregroundStyle(marineTheme.colors.textSecondary)
-          Spacer()
-          HStack(spacing: MarineTheme.Spacing.small) {
-            Image(systemName: category.systemImage)
-              .foregroundStyle(category.color(for: marineTheme))
-            Text(category.title)
-              .marineFont(.body)
-              .foregroundStyle(marineTheme.colors.textPrimary)
-          }
+            .foregroundStyle(marineTheme.colors.textPrimary)
         }
-        .marineListCell()
       }
+      .marineListCell()
 
       if let description = viewModel.description, !description.isEmpty {
         VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
@@ -143,7 +217,7 @@ public struct ChecklistTemplateDetailView: View {
   }
 
   @ViewBuilder
-  private var stepsSection: some View {
+  private var stepsConsultationSection: some View {
     Section {
       if viewModel.items.isEmpty {
         Text("No steps added yet")
@@ -155,7 +229,7 @@ public struct ChecklistTemplateDetailView: View {
           ChecklistTemplateStepRow(
             index: index,
             title: item.title,
-            detail: item.detail
+            detail: item.detail.isEmpty ? nil : item.detail
           )
         }
       }
@@ -171,7 +245,7 @@ public struct ChecklistTemplateDetailView: View {
   }
 
   @ViewBuilder
-  private var actionsSection: some View {
+  private var actionsConsultationSection: some View {
     Section {
       Button {
         Task {
@@ -189,7 +263,9 @@ public struct ChecklistTemplateDetailView: View {
       .marineListCell()
 
       Button {
-        panelManager?.commandPath.append(.checklistTemplateEditor(templateId: templateId))
+        withAnimation {
+          viewModel.isEditable = true
+        }
       } label: {
         HStack(spacing: MarineTheme.Spacing.small) {
           Image(systemName: "pencil")
@@ -209,6 +285,161 @@ public struct ChecklistTemplateDetailView: View {
       }
       .buttonStyle(MarineButtonStyle(.destructive))
       .marineListCell()
+    }
+  }
+
+  // MARK: - Sections (Edit Mode)
+
+  @ViewBuilder
+  private var generalEditSection: some View {
+    Section(header: Text("Information")) {
+      TextField("Title", text: $viewModel.title)
+        .marineFont(.body)
+        .marineListCell()
+
+      Picker("Category", selection: $viewModel.category) {
+        ForEach(ChecklistCategory.allCases, id: \.self) { category in
+          Label(category.title, systemImage: category.systemImage).tag(category)
+        }
+      }
+      .pickerStyle(.menu)
+      .marineFont(.body)
+      .marineListCell()
+
+      TextField("Description (Optional)", text: $viewModel.descriptionText)
+        .marineFont(.body)
+        .marineListCell()
+    }
+  }
+
+  @ViewBuilder
+  private var stepsEditSection: some View {
+    Section {
+      if viewModel.items.isEmpty {
+        Text("No steps added yet")
+          .marineFont(.body)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+          .marineListCell()
+      } else {
+        ForEach($viewModel.items) { $item in
+          let item = $item.wrappedValue
+          let isFirst = item.id == viewModel.items.first?.id
+          let isLast = item.id == viewModel.items.last?.id
+          let displayIndex = viewModel.items.firstIndex(where: { $0.id == item.id }) ?? 0
+
+          VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+            HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
+              Text("\(displayIndex + 1).")
+                .marineFont(.subheadline)
+                .foregroundStyle(marineTheme.colors.textSecondary)
+                .frame(minWidth: 22, alignment: .leading)
+
+              TextField("Step title", text: $item.title)
+                .marineFont(.body)
+
+              if editMode == .active {
+                HStack(spacing: MarineTheme.Spacing.tiny) {
+                  Button {
+                    withAnimation {
+                      viewModel.moveItemUp(id: item.id)
+                    }
+                  } label: {
+                    Image(systemName: "chevron.up")
+                      .font(.body.weight(.semibold))
+                      .foregroundStyle(isFirst ? marineTheme.colors.inactive.opacity(0.3) : marineTheme.colors.accent)
+                      .frame(minWidth: 32, minHeight: 32)
+                      .contentShape(Rectangle())
+                  }
+                  .buttonStyle(.plain)
+                  .disabled(isFirst)
+                  .accessibilityLabel(Text("Move up"))
+
+                  Button {
+                    withAnimation {
+                      viewModel.moveItemDown(id: item.id)
+                    }
+                  } label: {
+                    Image(systemName: "chevron.down")
+                      .font(.body.weight(.semibold))
+                      .foregroundStyle(isLast ? marineTheme.colors.inactive.opacity(0.3) : marineTheme.colors.accent)
+                      .frame(minWidth: 32, minHeight: 32)
+                      .contentShape(Rectangle())
+                  }
+                  .buttonStyle(.plain)
+                  .disabled(isLast)
+                  .accessibilityLabel(Text("Move down"))
+                }
+              }
+            }
+
+            TextField("Detail / instructions (Optional)", text: $item.detail)
+              .marineFont(.subheadline)
+              .foregroundStyle(marineTheme.colors.textSecondary)
+              .padding(.leading, 30)
+          }
+          .padding(.vertical, 6)
+          .marineListCell()
+        }
+        .onDelete(perform: viewModel.removeItems)
+        .onMove(perform: viewModel.moveItems)
+      }
+
+      Button {
+        viewModel.addItem()
+      } label: {
+        HStack(spacing: MarineTheme.Spacing.small) {
+          Image(marineIcon: .add)
+          Text("Add Step")
+        }
+        .foregroundStyle(marineTheme.colors.accent)
+        .marineFont(.body)
+      }
+      .marineListCell()
+    } header: {
+      HStack {
+        Text("Steps")
+        Spacer()
+        if viewModel.items.count > 1 {
+          Button {
+            withAnimation {
+              editMode = editMode == .active ? .inactive : .active
+            }
+          } label: {
+            HStack(spacing: 4) {
+              Image(systemName: editMode == .active ? "checkmark" : "arrow.up.arrow.down")
+                .font(.caption2)
+              Text(editMode == .active ? "Done" : "Reorder")
+                .marineFont(.caption)
+            }
+            .foregroundStyle(marineTheme.colors.accent)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(
+              Capsule()
+                .fill(marineTheme.colors.secondaryActionBackground)
+            )
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel(Text(editMode == .active ? "Done" : "Reorder"))
+        }
+        Text("\(viewModel.items.count)")
+          .foregroundStyle(marineTheme.colors.textSecondary)
+      }
+      .marineFont(.caption)
+    } footer: {
+      if editMode == .active {
+        Text("Drag handles or tap arrows to change step order.")
+          .marineFont(.caption)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+      } else if viewModel.items.count > 1 {
+        Text("Swipe to delete. Tap Reorder to change step order.")
+          .marineFont(.caption)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+      } else {
+        Text("Swipe to delete.")
+          .marineFont(.caption)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+      }
     }
   }
 }

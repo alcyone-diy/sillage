@@ -41,8 +41,7 @@ public final class PanelManagerViewModel {
     case offlineChartDetail(id: UUID)
     case chartPreferences
     case checklists
-    case checklistTemplateDetail(templateId: UUID)
-    case checklistTemplateEditor(templateId: UUID? = nil)
+    case checklistTemplateDetail(templateId: UUID? = nil, startEditable: Bool = false)
     case activeSession(sessionId: UUID)
   }
 

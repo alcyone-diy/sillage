@@ -9,67 +9,165 @@
 //
 
 import Foundation
+import SwiftUI
 import Observation
 import OSLog
 
-/// A view model managing the read-only presentation and session launching for a checklist template.
+/// A draft model representing a single step being authored within a checklist template.
+public struct ChecklistItemDraft: Identifiable, Equatable, Sendable {
+  public let id: UUID
+  public var title: String
+  public var detail: String
+
+  public init(
+    id: UUID = UUID(),
+    title: String = "",
+    detail: String = ""
+  ) {
+    self.id = id
+    self.title = title
+    self.detail = detail
+  }
+}
+
+/// A unified view model managing the presentation, editing, reordering, and session launching for a checklist template.
 @MainActor
 @Observable
 public final class ChecklistTemplateDetailViewModel {
-  public let templateId: UUID
+  public private(set) var templateId: UUID?
   private let checklistService: any ChecklistServiceProtocol
 
   public private(set) var template: ChecklistTemplate?
   public private(set) var activeSession: ChecklistSession?
   public private(set) var isLoading: Bool = false
+  public private(set) var isSaving: Bool = false
+  public var isEditable: Bool
+  public var alertTitle: String = "Error"
   public var errorMessage: String?
 
-  public var title: String {
-    template?.title ?? ""
-  }
+  public var title: String = ""
+  public var descriptionText: String = ""
+  public var category: ChecklistCategory = .routine
+  public var items: [ChecklistItemDraft] = []
 
   public var description: String? {
-    template?.description
+    descriptionText.isEmpty ? nil : descriptionText
   }
 
-  public var category: ChecklistCategory? {
-    template?.category
+  /// Returns whether this view model is modifying an existing template or authoring a new one.
+  public var isEditing: Bool {
+    templateId != nil
   }
 
-  public var items: [ChecklistTemplateItem] {
-    template?.items.sorted { $0.sortOrder < $1.sortOrder } ?? []
+  /// Returns true if creating a new template (no templateId).
+  public var isNew: Bool {
+    templateId == nil
   }
 
   public var hasActiveSession: Bool {
     activeSession != nil && activeSession?.status == .inProgress && (activeSession?.completedCount ?? 0) > 0
   }
 
+  /// Returns true if the template has a valid non-empty title and at least one step with a non-empty title.
+  public var isValid: Bool {
+    validationErrorMessage == nil
+  }
+
+  /// Explains why the checklist template cannot be saved, or returns nil if valid.
+  public var validationErrorMessage: String? {
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    let validItems = items.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    let isTitleEmpty = trimmedTitle.isEmpty
+    let isStepsEmpty = validItems.isEmpty
+
+    if isTitleEmpty && isStepsEmpty {
+      return String(localized: "Please provide a title and at least one step for your checklist.")
+    } else if isTitleEmpty {
+      return String(localized: "Please provide a title for your checklist.")
+    } else if isStepsEmpty {
+      return String(localized: "Please add at least one step with a title to your checklist.")
+    }
+    return nil
+  }
+
   public init(
-    templateId: UUID,
-    checklistService: any ChecklistServiceProtocol
+    templateId: UUID? = nil,
+    template: ChecklistTemplate? = nil,
+    checklistService: any ChecklistServiceProtocol,
+    startEditable: Bool = false,
+    initialCategory: ChecklistCategory = .routine
   ) {
-    self.templateId = templateId
+    self.templateId = templateId ?? template?.id
     self.checklistService = checklistService
+    self.isEditable = (templateId == nil && template == nil) ? true : startEditable
+
+    if let template {
+      self.template = template
+      populate(from: template)
+    } else if templateId == nil {
+      self.category = initialCategory
+      self.items = [ChecklistItemDraft()]
+    }
   }
 
   /// Loads the checklist template and any currently active session.
   public func load() async {
+    guard let templateId else {
+      if items.isEmpty {
+        items = [ChecklistItemDraft()]
+      }
+      return
+    }
+
     isLoading = true
     defer { isLoading = false }
     errorMessage = nil
 
     do {
-      self.template = try await checklistService.fetchTemplate(id: templateId)
+      let fetchedTemplate = try await checklistService.fetchTemplate(id: templateId)
+      self.template = fetchedTemplate
+      if let fetchedTemplate {
+        populate(from: fetchedTemplate)
+      }
       self.activeSession = try await checklistService.fetchActiveSession(for: templateId)
     } catch {
-      Logger.checklist.error("Failed to load checklist template \(self.templateId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+      Logger.checklist.error("Failed to load checklist template \(templateId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
+    }
+  }
+
+  private func populate(from template: ChecklistTemplate) {
+    self.title = template.title
+    self.descriptionText = template.description ?? ""
+    self.category = template.category
+    let mapped = template.items.sorted { $0.sortOrder < $1.sortOrder }.map { item in
+      ChecklistItemDraft(
+        id: item.id,
+        title: item.title,
+        detail: item.detail ?? ""
+      )
+    }
+    self.items = mapped.isEmpty ? [ChecklistItemDraft()] : mapped
+  }
+
+  /// Reverts any in-progress edits back to the loaded template state.
+  public func revert() {
+    if let template {
+      populate(from: template)
+      isEditable = false
+    } else {
+      title = ""
+      descriptionText = ""
+      category = .routine
+      items = [ChecklistItemDraft()]
     }
   }
 
   /// Starts a new session or transparently resumes the active session for this template.
   /// - Returns: The UUID of the session, or `nil` on failure.
   public func startOrResumeSession() async -> UUID? {
+    guard let templateId else { return nil }
     do {
       let session = try await checklistService.startSession(templateId: templateId)
       self.activeSession = session
@@ -84,14 +182,132 @@ public final class ChecklistTemplateDetailViewModel {
   /// Deletes the custom template from the database.
   /// - Returns: `true` if deletion succeeded, `false` otherwise.
   public func deleteTemplate() async -> Bool {
+    guard let templateId else { return false }
     do {
       try await checklistService.deleteCustomTemplate(id: templateId)
-      Logger.checklist.info("Successfully deleted custom template: \(self.templateId.uuidString, privacy: .public)")
+      Logger.checklist.info("Successfully deleted custom template: \(templateId.uuidString, privacy: .public)")
       return true
     } catch {
       Logger.checklist.error("Failed to delete custom template: \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
       return false
+    }
+  }
+
+  // MARK: - Editing Actions
+
+  /// Appends a new draft step to the checklist.
+  public func addItem(
+    title: String = "",
+    detail: String = ""
+  ) {
+    items.append(ChecklistItemDraft(
+      title: title,
+      detail: detail
+    ))
+  }
+
+  /// Removes steps at the specified offsets.
+  public func removeItems(atOffsets offsets: IndexSet) {
+    items.remove(atOffsets: offsets)
+  }
+
+  /// Moves steps from source offsets to destination index.
+  public func moveItems(fromOffsets source: IndexSet, toOffset destination: Int) {
+    items.move(fromOffsets: source, toOffset: destination)
+  }
+
+  /// Moves an item at the given index up by one position if possible.
+  public func moveItemUp(at index: Int) {
+    guard index > 0, index < items.count else { return }
+    items.swapAt(index, index - 1)
+  }
+
+  /// Moves an item at the given index down by one position if possible.
+  public func moveItemDown(at index: Int) {
+    guard index >= 0, index < items.count - 1 else { return }
+    items.swapAt(index, index + 1)
+  }
+
+  /// Moves the item with the given ID up by one position if possible.
+  public func moveItemUp(id: UUID) {
+    guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+    moveItemUp(at: index)
+  }
+
+  /// Moves the item with the given ID down by one position if possible.
+  public func moveItemDown(id: UUID) {
+    guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+    moveItemDown(at: index)
+  }
+
+  /// Persists the checklist template (inserting if new, updating if existing).
+  /// - Returns: The saved `ChecklistTemplate` if successful, or `nil` on failure.
+  public func save() async -> ChecklistTemplate? {
+    guard isValid, !isSaving else {
+      if let validation = validationErrorMessage {
+        alertTitle = String(localized: "Incomplete Checklist")
+        errorMessage = validation
+      }
+      return nil
+    }
+    isSaving = true
+    defer { isSaving = false }
+    errorMessage = nil
+
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedDescription = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let desc = trimmedDescription.isEmpty ? nil : trimmedDescription
+
+    let validItems = items.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    do {
+      let saved: ChecklistTemplate
+      if let templateId {
+        let serviceItems = validItems.map { item in
+          let itemTitle = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+          let itemDetail = item.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+          return (
+            id: Optional(item.id),
+            title: itemTitle,
+            detail: itemDetail.isEmpty ? nil : itemDetail
+          )
+        }
+        saved = try await checklistService.updateCustomTemplate(
+          id: templateId,
+          title: trimmedTitle,
+          description: desc,
+          category: category,
+          items: serviceItems
+        )
+        Logger.checklist.info("Successfully updated custom checklist template: \(saved.id.uuidString, privacy: .public)")
+      } else {
+        let serviceItems = validItems.map { item in
+          let itemTitle = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+          let itemDetail = item.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+          return (
+            title: itemTitle,
+            detail: itemDetail.isEmpty ? nil : itemDetail
+          )
+        }
+        saved = try await checklistService.createCustomTemplate(
+          title: trimmedTitle,
+          description: desc,
+          category: category,
+          items: serviceItems
+        )
+        Logger.checklist.info("Successfully created custom checklist template: \(saved.id.uuidString, privacy: .public)")
+      }
+
+      self.template = saved
+      self.templateId = saved.id
+      populate(from: saved)
+      self.isEditable = false
+      return saved
+    } catch {
+      Logger.checklist.error("Failed to save checklist template: \(error.localizedDescription, privacy: .public)")
+      errorMessage = error.localizedDescription
+      return nil
     }
   }
 }

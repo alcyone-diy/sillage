@@ -52,7 +52,7 @@ public struct ChecklistSessionView: View {
       if let templateId = viewModel.session?.templateId ?? viewModel.template?.id {
         ToolbarItem(placement: .primaryAction) {
           Button {
-            panelManager?.commandPath.append(.checklistTemplateEditor(templateId: templateId))
+            panelManager?.commandPath.append(.checklistTemplateDetail(templateId: templateId, startEditable: true))
           } label: {
             Text("Edit")
               .marineFont(.body)
