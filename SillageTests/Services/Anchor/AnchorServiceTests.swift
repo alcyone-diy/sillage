@@ -52,11 +52,21 @@ final class MockPositioningService: PositioningService {
 
   private(set) var locationUpdatesAccessCount = 0
 
+  private var bufferedStates: [PositioningState] = []
+
+  var isSubscribed: Bool {
+    !locationContinuations.isEmpty
+  }
+
   var locationUpdates: AsyncStream<PositioningState> {
     locationUpdatesAccessCount += 1
     let (stream, continuation) = AsyncStream.makeStream(of: PositioningState.self)
     let id = UUID()
     locationContinuations[id] = continuation
+    for state in bufferedStates {
+      continuation.yield(state)
+    }
+    bufferedStates.removeAll()
     continuation.onTermination = { [weak self] _ in
       Task { @MainActor [weak self] in
         self?.locationContinuations.removeValue(forKey: id)
@@ -92,8 +102,12 @@ final class MockPositioningService: PositioningService {
   }
 
   func yieldLocation(_ state: PositioningState) {
-    for continuation in locationContinuations.values {
-      continuation.yield(state)
+    if locationContinuations.isEmpty {
+      bufferedStates.append(state)
+    } else {
+      for continuation in locationContinuations.values {
+        continuation.yield(state)
+      }
     }
   }
 
@@ -105,6 +119,7 @@ final class MockPositioningService: PositioningService {
   }
 
   func finishLocationStreams() {
+    bufferedStates.removeAll()
     for continuation in locationContinuations.values {
       continuation.finish()
     }
@@ -236,6 +251,25 @@ final class MockAnchorStateStore: AnchorStateStoreProtocol, @unchecked Sendable 
 }
 
 @MainActor
+final class MockAlarmAudioService: AlarmAudioServiceProtocol {
+  private(set) var startSirenCallCount = 0
+  private(set) var stopSirenCallCount = 0
+  private(set) var isPlaying = false
+
+  func prepareAudioSession() {}
+
+  func startSiren() {
+    startSirenCallCount += 1
+    isPlaying = true
+  }
+
+  func stopSiren() {
+    stopSirenCallCount += 1
+    isPlaying = false
+  }
+}
+
+@MainActor
 final class AnchorServiceTests: XCTestCase {
   
   var service: AnchorService!
@@ -245,23 +279,27 @@ final class AnchorServiceTests: XCTestCase {
   var mockPermission: MockPermissionService!
   var mockMonitoring: MockBackgroundMonitoringService!
   var mockStateStore: MockAnchorStateStore!
+  var mockAudio: MockAlarmAudioService!
   
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     mockGPS = MockPositioningService()
     mockPrefs = MockPreferencesService()
     mockNotif = MockNotificationService()
     mockPermission = MockPermissionService()
     mockMonitoring = MockBackgroundMonitoringService()
     mockStateStore = MockAnchorStateStore()
+    mockAudio = MockAlarmAudioService()
     service = AnchorService(
       positioningService: mockGPS,
       preferencesService: mockPrefs,
       notificationService: mockNotif,
       permissionService: mockPermission,
       backgroundMonitoringService: mockMonitoring,
+      alarmAudioService: mockAudio,
       stateStore: mockStateStore
     )
+    try await waitFor { self.mockGPS.isSubscribed }
   }
   
   func testAnchorService_triggersAlarm_InvalidAccuracy_MinusOne() async throws {
@@ -517,6 +555,7 @@ final class AnchorServiceTests: XCTestCase {
       notificationService: mockNotif,
       permissionService: mockPermission,
       backgroundMonitoringService: mockMonitoring,
+      alarmAudioService: mockAudio,
       stateStore: stateStore
     )
     
