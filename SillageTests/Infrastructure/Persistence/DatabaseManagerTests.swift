@@ -372,6 +372,288 @@ final class DatabaseManagerTests {
     }
   }
 
+  @Test("v5 migration creates missing checklist_session and checklist_session_item tables on databases stuck at v4")
+  func testV5MigrationWhenChecklistSessionMissing() throws {
+    let queue = try DatabaseQueue()
+
+    // 1. Setup pre-v5 database state with v1..v4 applied, template table existing, but NO session tables
+    try queue.write { db in
+      try db.execute(sql: """
+        CREATE TABLE grdb_migrations (
+          identifier TEXT NOT NULL PRIMARY KEY
+        );
+        INSERT INTO grdb_migrations VALUES ('v1'), ('v2'), ('v3'), ('v4');
+      """)
+
+      try db.create(table: ChecklistTemplateRecord.databaseTableName) { t in
+        t.column("id", .text).primaryKey()
+        t.column("title", .text).notNull()
+        t.column("description", .text)
+        t.column("category", .text).notNull()
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+    }
+
+    // 2. Run DatabaseManager migrations (which executes v5)
+    let migrator = DatabaseManager.migrator
+    try migrator.migrate(queue)
+
+    // 3. Verify session tables exist and can be queried without SQLite error
+    try queue.read { db in
+      #expect(try db.tableExists(ChecklistSessionRecord.databaseTableName))
+      #expect(try db.tableExists(ChecklistSessionItemRecord.databaseTableName))
+
+      let sessionCount = try ChecklistSessionRecord.fetchCount(db)
+      let itemCount = try ChecklistSessionItemRecord.fetchCount(db)
+      #expect(sessionCount == 0)
+      #expect(itemCount == 0)
+
+      let fkViolations = try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
+      #expect(fkViolations.isEmpty)
+    }
+  }
+
+  @Test("v5 migration properly migrates legacy checklist_execution on databases that skipped v4")
+  func testV5MigrationMigratesLegacyChecklistExecution() throws {
+    let queue = try DatabaseQueue()
+
+    // 1. Setup pre-v5 state with v1..v4 applied but legacy execution tables still present
+    try queue.write { db in
+      try db.execute(sql: """
+        CREATE TABLE grdb_migrations (
+          identifier TEXT NOT NULL PRIMARY KEY
+        );
+        INSERT INTO grdb_migrations VALUES ('v1'), ('v2'), ('v3'), ('v4');
+      """)
+
+      try db.create(table: ChecklistTemplateRecord.databaseTableName) { t in
+        t.column("id", .text).primaryKey()
+        t.column("title", .text).notNull()
+        t.column("description", .text)
+        t.column("category", .text).notNull()
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+
+      try db.create(table: "checklist_execution") { t in
+        t.column("id", .text).primaryKey()
+        t.column("template_id", .text)
+          .notNull()
+          .references(ChecklistTemplateRecord.databaseTableName, column: "id", onDelete: .cascade)
+        t.column("template_title_snapshot", .text).notNull()
+        t.column("status", .text).notNull()
+        t.column("started_at", .datetime).notNull()
+        t.column("completed_at", .datetime)
+        t.column("notes", .text)
+      }
+
+      try db.create(table: "checklist_execution_item") { t in
+        t.column("id", .text).primaryKey()
+        t.column("execution_id", .text)
+          .notNull()
+          .references("checklist_execution", column: "id", onDelete: .cascade)
+        t.column("source_template_item_id", .text)
+        t.column("sort_order", .integer).notNull()
+        t.column("title", .text).notNull()
+        t.column("detail", .text)
+        t.column("is_checked", .boolean).notNull().defaults(to: false)
+        t.column("checked_at", .datetime)
+        t.column("latitude_deg", .double)
+        t.column("longitude_deg", .double)
+      }
+
+      let templateId = UUID().uuidString
+      let executionId = UUID().uuidString
+      let itemId = UUID().uuidString
+
+      try db.execute(
+        sql: "INSERT INTO checklist_template (id, title, category, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        arguments: [templateId, "Routine Departure", "routine", 0, Date(), Date()]
+      )
+      try db.execute(
+        sql: "INSERT INTO checklist_execution (id, template_id, template_title_snapshot, status, started_at) VALUES (?, ?, ?, ?, ?)",
+        arguments: [executionId, templateId, "Routine Departure", "in_progress", Date()]
+      )
+      try db.execute(
+        sql: "INSERT INTO checklist_execution_item (id, execution_id, sort_order, title, is_checked) VALUES (?, ?, ?, ?, ?)",
+        arguments: [itemId, executionId, 0, "Check Engine Oil", true]
+      )
+    }
+
+    // 2. Run DatabaseManager migrations (which executes v5)
+    let migrator = DatabaseManager.migrator
+    try migrator.migrate(queue)
+
+    // 3. Verify data is migrated and old tables dropped
+    try queue.read { db in
+      #expect(try db.tableExists(ChecklistSessionRecord.databaseTableName))
+      #expect(try db.tableExists(ChecklistSessionItemRecord.databaseTableName))
+      #expect(try !db.tableExists("checklist_execution"))
+      #expect(try !db.tableExists("checklist_execution_item"))
+
+      let session = try ChecklistSessionRecord.fetchOne(db)
+      #expect(session?.template_title_snapshot == "Routine Departure")
+      #expect(session?.status == "in_progress")
+
+      let item = try ChecklistSessionItemRecord.fetchOne(db)
+      #expect(item?.title == "Check Engine Oil")
+      #expect(item?.is_checked == true)
+
+      let fkViolations = try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
+      #expect(fkViolations.isEmpty)
+    }
+  }
+
+  @Test("v5 migration preserves newer session items and handles pre-existing indexes safely")
+  func testV5MigrationPreservesNewerSessionItemsAndSafeIndexes() throws {
+    let queue = try DatabaseQueue()
+
+    let templateId = UUID().uuidString
+    let sessionId = UUID().uuidString
+    let itemId = UUID().uuidString
+    let unmigratedExecutionId = UUID().uuidString
+    let unmigratedItemId = UUID().uuidString
+
+    // 1. Setup pre-v5 state with v1..v4, pre-existing session table + legacy execution table + pre-existing index
+    try queue.write { db in
+      try db.execute(sql: """
+        CREATE TABLE grdb_migrations (
+          identifier TEXT NOT NULL PRIMARY KEY
+        );
+        INSERT INTO grdb_migrations VALUES ('v1'), ('v2'), ('v3'), ('v4');
+      """)
+
+      try db.create(table: ChecklistTemplateRecord.databaseTableName) { t in
+        t.column("id", .text).primaryKey()
+        t.column("title", .text).notNull()
+        t.column("description", .text)
+        t.column("category", .text).notNull()
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+
+      // Pre-existing session table with a newer item
+      try db.create(table: ChecklistSessionRecord.databaseTableName) { t in
+        t.column("id", .text).primaryKey()
+        t.column("template_id", .text)
+          .notNull()
+          .references(ChecklistTemplateRecord.databaseTableName, column: "id", onDelete: .cascade)
+        t.column("template_title_snapshot", .text).notNull()
+        t.column("status", .text).notNull()
+        t.column("started_at", .datetime).notNull()
+        t.column("completed_at", .datetime)
+        t.column("notes", .text)
+      }
+
+      // Pre-create index to test safe index replacement
+      try db.create(index: "idx_checklist_session_status", on: ChecklistSessionRecord.databaseTableName, columns: ["status"])
+
+      try db.create(table: ChecklistSessionItemRecord.databaseTableName) { t in
+        t.column("id", .text).primaryKey()
+        t.column("execution_id", .text)
+          .notNull()
+          .references(ChecklistSessionRecord.databaseTableName, column: "id", onDelete: .cascade)
+        t.column("source_template_item_id", .text)
+        t.column("sort_order", .integer).notNull()
+        t.column("title", .text).notNull()
+        t.column("detail", .text)
+        t.column("is_checked", .boolean).notNull().defaults(to: false)
+        t.column("checked_at", .datetime)
+        t.column("latitude_deg", .double)
+        t.column("longitude_deg", .double)
+      }
+
+      // Also create legacy execution tables with conflicting session ID and an unmigrated session
+      try db.create(table: "checklist_execution") { t in
+        t.column("id", .text).primaryKey()
+        t.column("template_id", .text).notNull()
+        t.column("template_title_snapshot", .text).notNull()
+        t.column("status", .text).notNull()
+        t.column("started_at", .datetime).notNull()
+        t.column("completed_at", .datetime)
+        t.column("notes", .text)
+      }
+
+      try db.create(table: "checklist_execution_item") { t in
+        t.column("id", .text).primaryKey()
+        t.column("execution_id", .text).notNull()
+        t.column("source_template_item_id", .text)
+        t.column("sort_order", .integer).notNull()
+        t.column("title", .text).notNull()
+        t.column("detail", .text)
+        t.column("is_checked", .boolean).notNull()
+        t.column("checked_at", .datetime)
+        t.column("latitude_deg", .double)
+        t.column("longitude_deg", .double)
+      }
+
+      try db.execute(
+        sql: "INSERT INTO checklist_template (id, title, category, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        arguments: [templateId, "Pre-Departure", "routine", 0, Date(), Date()]
+      )
+
+      // Newer session in checklist_session
+      try db.execute(
+        sql: "INSERT INTO checklist_session (id, template_id, template_title_snapshot, status, started_at) VALUES (?, ?, ?, ?, ?)",
+        arguments: [sessionId, templateId, "Pre-Departure (Newer)", "in_progress", Date()]
+      )
+      try db.execute(
+        sql: "INSERT INTO checklist_session_item (id, execution_id, sort_order, title, is_checked) VALUES (?, ?, ?, ?, ?)",
+        arguments: [itemId, sessionId, 0, "Check Engine Oil", true]
+      )
+
+      // Older duplicate session in checklist_execution (should be ignored by INSERT OR IGNORE)
+      try db.execute(
+        sql: "INSERT INTO checklist_execution (id, template_id, template_title_snapshot, status, started_at) VALUES (?, ?, ?, ?, ?)",
+        arguments: [sessionId, templateId, "Pre-Departure (Old)", "abandoned", Date()]
+      )
+      // Unmigrated legacy session (should be imported)
+      try db.execute(
+        sql: "INSERT INTO checklist_execution (id, template_id, template_title_snapshot, status, started_at) VALUES (?, ?, ?, ?, ?)",
+        arguments: [unmigratedExecutionId, templateId, "Old Anchoring", "completed", Date()]
+      )
+      try db.execute(
+        sql: "INSERT INTO checklist_execution_item (id, execution_id, sort_order, title, is_checked) VALUES (?, ?, ?, ?, ?)",
+        arguments: [unmigratedItemId, unmigratedExecutionId, 0, "Set Anchor", true]
+      )
+    }
+
+    // 2. Migrate
+    let migrator = DatabaseManager.migrator
+    try migrator.migrate(queue)
+
+    // 3. Verify
+    try queue.read { db in
+      #expect(try db.tableExists(ChecklistSessionRecord.databaseTableName))
+      #expect(try db.tableExists(ChecklistSessionItemRecord.databaseTableName))
+      #expect(try !db.tableExists("checklist_execution"))
+      #expect(try !db.tableExists("checklist_execution_item"))
+
+      // Both sessions exist: existing one kept newer title, unmigrated one was imported
+      let session1 = try ChecklistSessionRecord.fetchOne(db, key: sessionId)
+      #expect(session1?.template_title_snapshot == "Pre-Departure (Newer)")
+      #expect(session1?.status == "in_progress")
+
+      let session2 = try ChecklistSessionRecord.fetchOne(db, key: unmigratedExecutionId)
+      #expect(session2?.template_title_snapshot == "Old Anchoring")
+      #expect(session2?.status == "completed")
+
+      // Both items exist
+      let item1 = try ChecklistSessionItemRecord.fetchOne(db, key: itemId)
+      #expect(item1?.is_checked == true)
+
+      let item2 = try ChecklistSessionItemRecord.fetchOne(db, key: unmigratedItemId)
+      #expect(item2?.title == "Set Anchor")
+
+      let fkViolations = try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
+      #expect(fkViolations.isEmpty)
+    }
+  }
+
   // MARK: - Helpers
   
   private func makeTrackPoint(sessionID: String, timestamp: Date, segmentIndex: Int = 0) -> TrackPointRecord {
