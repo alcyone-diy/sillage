@@ -207,8 +207,8 @@ public struct ChecklistTemplateDetailView: View {
       }
       .marineListCell()
 
-      if let description = viewModel.description, !description.isEmpty {
-        VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+      if let description = viewModel.description {
+        VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
           Text("Description")
             .marineFont(.caption)
             .foregroundStyle(marineTheme.colors.textSecondary)
@@ -267,9 +267,14 @@ public struct ChecklistTemplateDetailView: View {
   @ViewBuilder
   private var generalEditSection: some View {
     Section("Information") {
-      TextField("Title", text: $viewModel.title)
-        .marineFont(.body)
-        .marineListCell()
+      VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+        Text("Title")
+          .marineFont(.caption)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+        TextField("Checklist Title", text: $viewModel.title)
+          .marineFont(.body)
+      }
+      .marineListCell()
 
       Picker("Category", selection: $viewModel.category) {
         ForEach(ChecklistCategory.allCases, id: \.self) { category in
@@ -280,9 +285,16 @@ public struct ChecklistTemplateDetailView: View {
       .marineFont(.body)
       .marineListCell()
 
-      TextField("Description (Optional)", text: $viewModel.descriptionText)
-        .marineFont(.body)
-        .marineListCell()
+      VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+        Text("Description")
+          .marineFont(.caption)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+        MarineExpandingTextEditor(
+          placeholder: "Checklist Description (Optional)",
+          text: $viewModel.descriptionText
+        )
+      }
+      .marineListCell()
     }
   }
 

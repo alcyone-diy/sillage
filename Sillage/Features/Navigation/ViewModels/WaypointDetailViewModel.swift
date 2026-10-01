@@ -18,6 +18,12 @@ import SwiftUI
 public final class WaypointDetailViewModel {
   public var name: String = ""
   public var description: String = ""
+  
+  public var trimmedDescription: String? {
+    let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+  }
+  
   public var latHemisphere: Hemisphere = .north
   public var latDegrees: Int? = nil
   public var latMinutes: Double? = nil
@@ -141,8 +147,8 @@ public final class WaypointDetailViewModel {
     
     let waypoint = Waypoint(
       id: editingWaypointID ?? UUID().uuidString,
-      name: name.trimmingCharacters(in: .whitespaces),
-      description: description.trimmingCharacters(in: .whitespaces).isEmpty ? nil : description.trimmingCharacters(in: .whitespaces),
+      name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+      description: trimmedDescription,
       symbol: nil,
       colorHex: color.hexString,
       isVisible: isVisible,

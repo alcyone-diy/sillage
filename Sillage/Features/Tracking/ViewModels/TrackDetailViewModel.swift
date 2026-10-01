@@ -20,6 +20,11 @@ final class TrackDetailViewModel {
   var name: String = ""
   var description: String = ""
 
+  var trimmedDescription: String? {
+    let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+  }
+
   var isEditing: Bool = false
   var isSaving: Bool = false
 

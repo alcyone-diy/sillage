@@ -35,11 +35,11 @@ struct OfflineChartDetailView: View {
               VStack(alignment: .leading, spacing: 4) {
                 Text("File Not Found on Disk")
                   .marineFont(.headline)
-                  .foregroundStyle(.primary)
+                  .foregroundStyle(marineTheme.colors.textPrimary)
 
                 Text("The underlying .mbtiles file is missing or unreachable in local storage. You can delete this orphaned record.")
                   .marineFont(.subheadline)
-                  .foregroundStyle(.secondary)
+                  .foregroundStyle(marineTheme.colors.textSecondary)
                   .fixedSize(horizontal: false, vertical: true)
               }
             }
@@ -53,7 +53,7 @@ struct OfflineChartDetailView: View {
             VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
               Text("Name")
                 .marineFont(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(marineTheme.colors.textSecondary)
 
               HStack(spacing: 8) {
                 TextField("Chart Name", text: $viewModel.editableName)
@@ -69,7 +69,7 @@ struct OfflineChartDetailView: View {
                     viewModel.editableName = ""
                   } label: {
                     Image(systemName: "xmark.circle.fill")
-                      .foregroundColor(.secondary)
+                      .foregroundStyle(marineTheme.colors.textSecondary)
                       .frame(minWidth: 44, minHeight: 44)
                   }
                   .buttonStyle(.plain)
@@ -82,11 +82,11 @@ struct OfflineChartDetailView: View {
             VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
               Text("Name")
                 .marineFont(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(marineTheme.colors.textSecondary)
 
               Text(viewModel.chartName)
                 .marineFont(.title3)
-                .foregroundStyle(.primary)
+                .foregroundStyle(marineTheme.colors.textPrimary)
 
               HStack(spacing: 6) {
                 Text(viewModel.layerBrand)
@@ -101,8 +101,8 @@ struct OfflineChartDetailView: View {
                   .marineFont(.caption)
                   .padding(.horizontal, 8)
                   .padding(.vertical, 4)
-                  .background(Color.secondary.opacity(0.15))
-                  .foregroundStyle(.secondary)
+                  .background(marineTheme.colors.textSecondary.opacity(0.15))
+                  .foregroundStyle(marineTheme.colors.textSecondary)
                   .clipShape(Capsule())
               }
               .padding(.top, 2)
@@ -114,7 +114,7 @@ struct OfflineChartDetailView: View {
         // MARK: - Package Characteristics
         Section(header: Text("Characteristics")) {
           DetailRow(
-            label: String(localized: "File Size"),
+            label: "File Size",
             value: {
               switch viewModel.fileStatus {
               case .checking:
@@ -133,7 +133,7 @@ struct OfflineChartDetailView: View {
 
           if let maxZoom = viewModel.maxZoom {
             DetailRow(
-              label: String(localized: "Max Zoom Level"),
+              label: "Max Zoom Level",
               value: "Zoom \(maxZoom)"
             )
             .marineListCell()
@@ -141,7 +141,7 @@ struct OfflineChartDetailView: View {
 
           if let downloadDate = viewModel.downloadDate {
             DetailRow(
-              label: String(localized: "Downloaded On"),
+              label: "Downloaded On",
               value: downloadDate.formatted(date: .abbreviated, time: .shortened)
             )
             .marineListCell()
@@ -170,7 +170,7 @@ struct OfflineChartDetailView: View {
         ) {
           if let area = viewModel.geographicArea {
             DetailRow(
-              label: String(localized: "Surface Area"),
+              label: "Surface Area",
               value: area.marineFormatted
             )
             .marineListCell()
@@ -178,7 +178,7 @@ struct OfflineChartDetailView: View {
 
           if let center = viewModel.formattedCenterCoordinate {
             DetailRow(
-              label: String(localized: "Center Coordinates"),
+              label: "Center Coordinates",
               value: center
             )
             .marineListCell()
@@ -186,7 +186,7 @@ struct OfflineChartDetailView: View {
 
           if let sw = viewModel.formattedSouthWestCoordinate {
             DetailRow(
-              label: String(localized: "South-West Bound"),
+              label: "South-West Bound",
               value: sw
             )
             .marineListCell()
@@ -194,7 +194,7 @@ struct OfflineChartDetailView: View {
 
           if let ne = viewModel.formattedNorthEastCoordinate {
             DetailRow(
-              label: String(localized: "North-East Bound"),
+              label: "North-East Bound",
               value: ne
             )
             .marineListCell()
@@ -313,19 +313,4 @@ struct OfflineChartDetailView: View {
 
 // MARK: - Subcomponents
 
-private struct DetailRow: View {
-  let label: String
-  let value: String
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Text(label)
-        .marineFont(.caption)
-        .foregroundStyle(.secondary)
-      Text(value)
-        .marineFont(.body)
-        .foregroundStyle(.primary)
-        .textSelection(.enabled)
-    }
-  }
-}
+private typealias DetailRow = MarineDetailRow

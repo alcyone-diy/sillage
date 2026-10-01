@@ -25,15 +25,49 @@ struct WaypointDetailView: View {
     VStack(spacing: 0) {
       Form {
         Section(header: Text("Details")) {
-          TextField("Name", text: $viewModel.name)
-            .marineFont(.body)
+          if viewModel.isEditable {
+            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+              Text("Name")
+                .marineFont(.caption)
+                .foregroundStyle(marineTheme.colors.textSecondary)
+              TextField("Waypoint Name", text: $viewModel.name)
+                .marineFont(.body)
+            }
             .marineListCell()
-            .disabled(!viewModel.isEditable)
-          
-          TextField("Description (Optional)", text: $viewModel.description)
-            .marineFont(.body)
+            
+            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+              Text("Description")
+                .marineFont(.caption)
+                .foregroundStyle(marineTheme.colors.textSecondary)
+              MarineExpandingTextEditor(
+                placeholder: "Waypoint Description (Optional)",
+                text: $viewModel.description
+              )
+            }
             .marineListCell()
-            .disabled(!viewModel.isEditable)
+          } else {
+            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+              Text("Name")
+                .marineFont(.caption)
+                .foregroundStyle(marineTheme.colors.textSecondary)
+              Text(viewModel.name.isEmpty ? String(localized: "Unnamed Waypoint") : viewModel.name)
+                .marineFont(.body)
+                .foregroundStyle(marineTheme.colors.textPrimary)
+            }
+            .marineListCell()
+            
+            if let description = viewModel.trimmedDescription {
+              VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+                Text("Description")
+                  .marineFont(.caption)
+                  .foregroundStyle(marineTheme.colors.textSecondary)
+                Text(description)
+                  .marineFont(.body)
+                  .foregroundStyle(marineTheme.colors.textPrimary)
+              }
+              .marineListCell()
+            }
+          }
             
           ColorPicker("Color", selection: $viewModel.color, supportsOpacity: false)
             .marineFont(.body)

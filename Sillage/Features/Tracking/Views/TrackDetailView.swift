@@ -31,8 +31,8 @@ struct TrackDetailView: View {
           if viewModel.isEditing {
             VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
               Text("Name")
-                .foregroundStyle(.secondary)
                 .marineFont(.caption)
+                .foregroundStyle(marineTheme.colors.textSecondary)
               TextField("Track Name", text: $viewModel.name)
                 .marineFont(.body)
             }
@@ -40,10 +40,10 @@ struct TrackDetailView: View {
             
             VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
               Text("Description")
-                .foregroundStyle(.secondary)
                 .marineFont(.caption)
+                .foregroundStyle(marineTheme.colors.textSecondary)
               MarineExpandingTextEditor(
-                placeholder: "Track Description",
+                placeholder: "Track Description (Optional)",
                 text: $viewModel.description
               )
             }
@@ -51,24 +51,25 @@ struct TrackDetailView: View {
           } else {
             VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
               Text("Name")
-                .foregroundStyle(.secondary)
                 .marineFont(.caption)
+                .foregroundStyle(marineTheme.colors.textSecondary)
               Text(viewModel.name.isEmpty ? (viewModel.session?.startTime.formatted(date: .complete, time: .shortened) ?? String(localized: "Unnamed Track")) : viewModel.name)
                 .marineFont(.body)
+                .foregroundStyle(marineTheme.colors.textPrimary)
             }
             .marineListCell()
             
-            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-              Text("Description")
-                .foregroundStyle(.secondary)
-                .marineFont(.caption)
-              Text(viewModel.description.isEmpty ? "No description" : viewModel.description)
-                .marineFont(.body)
-                .foregroundStyle(viewModel.description.isEmpty ? .secondary : .primary)
-                .padding(.top, 8)
-                .frame(maxWidth: .infinity, minHeight: 88, alignment: .topLeading)
+            if let description = viewModel.trimmedDescription {
+              VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+                Text("Description")
+                  .marineFont(.caption)
+                  .foregroundStyle(marineTheme.colors.textSecondary)
+                Text(description)
+                  .marineFont(.body)
+                  .foregroundStyle(marineTheme.colors.textPrimary)
+              }
+              .marineListCell()
             }
-            .marineListCell()
           }
         }
         
@@ -284,18 +285,4 @@ struct TrackDetailView: View {
   }
 }
 
-fileprivate struct DetailRow: View {
-  let label: LocalizedStringKey
-  let value: String
-  
-  var body: some View {
-    HStack {
-      Text(label)
-        .foregroundStyle(.secondary)
-        .marineFont(.body)
-      Spacer()
-      Text(verbatim: value)
-        .marineFont(.body)
-    }
-  }
-}
+private typealias DetailRow = MarineDetailRow

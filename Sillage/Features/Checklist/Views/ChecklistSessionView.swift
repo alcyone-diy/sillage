@@ -123,7 +123,7 @@ public struct ChecklistSessionView: View {
           .foregroundStyle(category.color(for: marineTheme))
         }
 
-        if let description = viewModel.description, !description.isEmpty {
+        if let description = viewModel.description {
           Text(description)
             .marineFont(.subheadline)
             .foregroundStyle(marineTheme.colors.textSecondary)

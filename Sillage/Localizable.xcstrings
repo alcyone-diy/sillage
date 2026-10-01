@@ -334,7 +334,13 @@
     "Checklist" : {
 
     },
+    "Checklist Description (Optional)" : {
+
+    },
     "Checklist session not found." : {
+
+    },
+    "Checklist Title" : {
 
     },
     "Checklists" : {
@@ -452,9 +458,6 @@
 
     },
     "Description" : {
-
-    },
-    "Description (Optional)" : {
 
     },
     "Deselect" : {
@@ -1239,7 +1242,7 @@
     "Track" : {
 
     },
-    "Track Description" : {
+    "Track Description (Optional)" : {
 
     },
     "Track Detail" : {
@@ -1282,6 +1285,9 @@
 
     },
     "Unnamed Track" : {
+
+    },
+    "Unnamed Waypoint" : {
 
     },
     "User is not authenticated with GeoGarage. Please login first." : {
@@ -1328,6 +1334,12 @@
 
     },
     "Waypoint" : {
+
+    },
+    "Waypoint Description (Optional)" : {
+
+    },
+    "Waypoint Name" : {
 
     },
     "Waypoint not found in the database." : {

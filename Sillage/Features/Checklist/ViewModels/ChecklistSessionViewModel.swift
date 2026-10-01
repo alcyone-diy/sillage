@@ -43,7 +43,9 @@ public final class ChecklistSessionViewModel {
   }
 
   public var description: String? {
-    template?.description
+    guard let desc = template?.description else { return nil }
+    let trimmed = desc.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
   }
 
   public var category: ChecklistCategory? {

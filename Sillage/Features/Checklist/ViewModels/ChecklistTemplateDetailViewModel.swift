@@ -51,7 +51,8 @@ public final class ChecklistTemplateDetailViewModel {
   public var items: [ChecklistItemDraft] = []
 
   public var description: String? {
-    descriptionText.isEmpty ? nil : descriptionText
+    let trimmed = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
   }
 
   /// Returns whether this view model is modifying an existing template or authoring a new one.
