@@ -24,8 +24,8 @@ struct WaypointDetailView: View {
   var body: some View {
     VStack(spacing: 0) {
       Form {
-        Section(header: Text("Details")) {
-          if viewModel.isEditable {
+        if viewModel.isEditable {
+          Section {
             VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
               Text("Name")
                 .marineFont(.caption)
@@ -45,30 +45,22 @@ struct WaypointDetailView: View {
               )
             }
             .marineListCell()
-          } else {
+          }
+        } else if let description = viewModel.trimmedDescription {
+          Section {
             VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-              Text("Name")
+              Text("Description")
                 .marineFont(.caption)
                 .foregroundStyle(marineTheme.colors.textSecondary)
-              Text(viewModel.name.isEmpty ? String(localized: "Unnamed Waypoint") : viewModel.name)
+              Text(description)
                 .marineFont(.body)
                 .foregroundStyle(marineTheme.colors.textPrimary)
             }
             .marineListCell()
-            
-            if let description = viewModel.trimmedDescription {
-              VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-                Text("Description")
-                  .marineFont(.caption)
-                  .foregroundStyle(marineTheme.colors.textSecondary)
-                Text(description)
-                  .marineFont(.body)
-                  .foregroundStyle(marineTheme.colors.textPrimary)
-              }
-              .marineListCell()
-            }
           }
-            
+        }
+        
+        Section(header: Text("Display")) {
           ColorPicker("Color", selection: $viewModel.color, supportsOpacity: false)
             .marineFont(.body)
             .marineListCell()
@@ -187,7 +179,13 @@ struct WaypointDetailView: View {
     } message: {
       Text("Are you sure you want to delete this waypoint? This action cannot be undone.")
     }
-    .navigationTitle(viewModel.editingWaypointID == nil ? "New Waypoint" : (viewModel.isEditable ? "Edit Waypoint" : viewModel.name))
+    .navigationTitle(
+      viewModel.editingWaypointID == nil
+        ? String(localized: "New Waypoint")
+        : (viewModel.isEditable
+            ? String(localized: "Edit Waypoint")
+            : (viewModel.name.isEmpty ? String(localized: "Unnamed Waypoint") : viewModel.name))
+    )
     .navigationBarTitleDisplayMode(.inline)
       .navigationBarBackButtonHidden(viewModel.isEditable && viewModel.editingWaypointID != nil)
       .toolbar {

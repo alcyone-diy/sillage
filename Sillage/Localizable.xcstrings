@@ -316,9 +316,6 @@
     "Characteristics" : {
 
     },
-    "Chart Details" : {
-
-    },
     "Chart Name" : {
 
     },
@@ -383,7 +380,7 @@
 
     },
     "Completed %@" : {
-
+      "comment" : "Checklist template usage status description when the checklist was previously completed."
     },
     "Configuration" : {
 
@@ -487,6 +484,9 @@
     "Discover GeoGarage" : {
 
     },
+    "Display" : {
+
+    },
     "Distance" : {
 
     },
@@ -541,7 +541,16 @@
     "Edit" : {
 
     },
+    "Edit Chart" : {
+
+    },
     "Edit Checklist" : {
+
+    },
+    "Edit Track" : {
+
+    },
+    "Edit Waypoint" : {
 
     },
     "Enable COG Vector" : {
@@ -618,6 +627,9 @@
 
     },
     "File system error: %@." : {
+
+    },
+    "Format" : {
 
     },
     "Format: N/S Degrees Minutes." : {
@@ -872,9 +884,12 @@
 
     },
     "Never used" : {
-
+      "comment" : "Checklist template usage status description when the checklist has never been executed."
     },
     "New Checklist" : {
+
+    },
+    "New Waypoint" : {
 
     },
     "No active recording to stop." : {
@@ -1146,6 +1161,7 @@
 
     },
     "Started %@ • %lld/%lld checked" : {
+      "comment" : "Checklist template usage status description when an execution session is currently in progress.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1162,9 +1178,6 @@
 
     },
     "Steps" : {
-
-    },
-    "Status" : {
 
     },
     "Stop" : {
@@ -1248,9 +1261,6 @@
     "Track Description (Optional)" : {
 
     },
-    "Track Detail" : {
-
-    },
     "Track Manager" : {
 
     },
@@ -1285,6 +1295,9 @@
 
     },
     "Unknown Chart" : {
+
+    },
+    "Unnamed Chart" : {
 
     },
     "Unnamed Track" : {

@@ -26,9 +26,9 @@ struct TrackDetailView: View {
   var body: some View {
     VStack(spacing: 0) {
       List {
-        // Identity Section (Editable)
-        Section() {
-          if viewModel.isEditing {
+        // Identity Section
+        if viewModel.isEditing {
+          Section {
             VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
               Text("Name")
                 .marineFont(.caption)
@@ -48,28 +48,18 @@ struct TrackDetailView: View {
               )
             }
             .marineListCell()
-          } else {
+          }
+        } else if let description = viewModel.trimmedDescription {
+          Section {
             VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-              Text("Name")
+              Text("Description")
                 .marineFont(.caption)
                 .foregroundStyle(marineTheme.colors.textSecondary)
-              Text(viewModel.name.isEmpty ? (viewModel.session?.startTime.formatted(date: .complete, time: .shortened) ?? String(localized: "Unnamed Track")) : viewModel.name)
+              Text(description)
                 .marineFont(.body)
                 .foregroundStyle(marineTheme.colors.textPrimary)
             }
             .marineListCell()
-            
-            if let description = viewModel.trimmedDescription {
-              VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-                Text("Description")
-                  .marineFont(.caption)
-                  .foregroundStyle(marineTheme.colors.textSecondary)
-                Text(description)
-                  .marineFont(.body)
-                  .foregroundStyle(marineTheme.colors.textPrimary)
-              }
-              .marineListCell()
-            }
           }
         }
         
@@ -216,7 +206,11 @@ struct TrackDetailView: View {
     } message: {
       Text("Are you sure you want to delete this track? This action cannot be undone.")
     }
-    .navigationTitle("Track Detail")
+    .navigationTitle(
+      viewModel.isEditing
+        ? String(localized: "Edit Track")
+        : displayTitle
+    )
     .navigationBarTitleDisplayMode(.inline)
     .navigationBarBackButtonHidden(viewModel.isEditing || viewModel.isExporting)
     .toolbar {
@@ -277,6 +271,16 @@ struct TrackDetailView: View {
     }
   }
   
+  private var displayTitle: String {
+    if !viewModel.name.isEmpty {
+      return viewModel.name
+    } else if let startTime = viewModel.session?.startTime {
+      return startTime.formatted(date: .complete, time: .shortened)
+    } else {
+      return String(localized: "Unnamed Track")
+    }
+  }
+
   private var exportButtonLabel: some View {
     HStack {
       Image(marineIcon: .share)

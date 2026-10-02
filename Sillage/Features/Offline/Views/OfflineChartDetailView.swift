@@ -47,9 +47,9 @@ struct OfflineChartDetailView: View {
           }
         }
 
-        // MARK: - Identity Section
-        Section {
-          if viewModel.isEditing {
+        // MARK: - Identity Section (Editing)
+        if viewModel.isEditing {
+          Section {
             VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
               Text("Name")
                 .marineFont(.caption)
@@ -78,17 +78,20 @@ struct OfflineChartDetailView: View {
               }
             }
             .marineListCell()
-          } else {
-            VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-              Text("Name")
-                .marineFont(.caption)
-                .foregroundStyle(marineTheme.colors.textSecondary)
+          }
+        }
 
-              Text(viewModel.chartName)
-                .marineFont(.title3)
-                .foregroundStyle(marineTheme.colors.textPrimary)
+        // MARK: - Package Characteristics
+        Section(header: Text("Characteristics")) {
+          HStack {
+            Text("Format")
+              .marineFont(.body)
+              .foregroundStyle(marineTheme.colors.textPrimary)
 
-              HStack(spacing: 6) {
+            Spacer()
+
+            HStack(spacing: 6) {
+              if !viewModel.layerBrand.isEmpty {
                 Text(viewModel.layerBrand)
                   .marineFont(.caption)
                   .padding(.horizontal, 8)
@@ -96,23 +99,19 @@ struct OfflineChartDetailView: View {
                   .background(marineTheme.colors.accent.opacity(0.15))
                   .foregroundStyle(marineTheme.colors.accent)
                   .clipShape(Capsule())
-
-                Text("MBTiles")
-                  .marineFont(.caption)
-                  .padding(.horizontal, 8)
-                  .padding(.vertical, 4)
-                  .background(marineTheme.colors.textSecondary.opacity(0.15))
-                  .foregroundStyle(marineTheme.colors.textSecondary)
-                  .clipShape(Capsule())
               }
-              .padding(.top, 2)
-            }
-            .marineListCell()
-          }
-        }
 
-        // MARK: - Package Characteristics
-        Section(header: Text("Characteristics")) {
+              Text("MBTiles")
+                .marineFont(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(marineTheme.colors.textSecondary.opacity(0.15))
+                .foregroundStyle(marineTheme.colors.textSecondary)
+                .clipShape(Capsule())
+            }
+          }
+          .marineListCell()
+
           DetailRow(
             label: "File Size",
             value: {
@@ -237,7 +236,11 @@ struct OfflineChartDetailView: View {
     } message: {
       Text("Are you sure you want to delete this offline chart package? This action cannot be undone.")
     }
-    .navigationTitle("Chart Details")
+    .navigationTitle(
+      viewModel.isEditing
+        ? String(localized: "Edit Chart")
+        : (viewModel.chartName.isEmpty ? String(localized: "Unnamed Chart") : viewModel.chartName)
+    )
     .navigationBarTitleDisplayMode(.inline)
     .navigationBarBackButtonHidden(viewModel.isEditing)
     .toolbar {
