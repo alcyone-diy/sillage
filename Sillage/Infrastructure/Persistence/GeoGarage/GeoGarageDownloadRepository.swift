@@ -64,8 +64,33 @@ final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
   func load() async {
     do {
       let loaded: [OfflineChartDownload]? = try await persistence.load(from: fileURL)
-      self.downloads = loaded ?? []
+      var items = loaded ?? []
+      let hadMissingSizes = items.contains(where: { $0.fileSize == nil })
+      if hadMissingSizes {
+        items = await Task.detached(priority: .utility) {
+          items.map { item in
+            guard item.fileSize == nil,
+                  let url = item.resolvedFileURL(),
+                  let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+                  let size = attrs[.size] as? Int64 else {
+              return item
+            }
+            return item.updatingFileSize(Measurement(value: Double(size), unit: .bytes))
+          }
+        }.value
+      }
+      self.downloads = items
       Logger.caas.info("Loaded \(self.downloads.count, privacy: .public) offline chart download(s) from cache.")
+
+      // Persist backfilled sizes permanently so future app launches do not repeat disk I/O
+      if hadMissingSizes && items != (loaded ?? []) {
+        do {
+          try await persistence.save(items, to: fileURL)
+          Logger.caas.info("Persisted backfilled file sizes to download cache.")
+        } catch {
+          Logger.caas.warning("Failed to persist backfilled file sizes (non-fatal): \(error, privacy: .public)")
+        }
+      }
     } catch {
       Logger.caas.error("Failed to load download repository: \(error, privacy: .public)")
       self.downloads = []

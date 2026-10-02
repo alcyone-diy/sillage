@@ -225,4 +225,60 @@ final class GeoGarageDownloadRepositoryTests: XCTestCase {
     XCTAssertEqual(repo.lastDownloadDate(for: "shom")?.timeIntervalSince1970 ?? 0, 5_000_000, accuracy: 1.0)
     XCTAssertEqual(repo.lastDownloadDate(for: "noaa")?.timeIntervalSince1970 ?? 0, 1_000_000, accuracy: 1.0)
   }
+
+  // MARK: - Backfill Persistence
+
+  func testLoad_persistsBackfilledFileSizes() async throws {
+    guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+      XCTFail("Documents directory unavailable.")
+      return
+    }
+
+    let chartsDir = documentsDir.appendingPathComponent("Charts")
+    try? FileManager.default.createDirectory(at: chartsDir, withIntermediateDirectories: true)
+    let mbtilesURL = chartsDir.appendingPathComponent("test_backfill_\(UUID().uuidString).mbtiles")
+    let testData = Data(repeating: 0x42, count: 2048)
+    try testData.write(to: mbtilesURL)
+
+    defer {
+      try? FileManager.default.removeItem(at: mbtilesURL)
+    }
+
+    let relativePath = "Charts/" + mbtilesURL.lastPathComponent
+    let legacyJSON = """
+    [
+      {
+        "id": "\(UUID().uuidString)",
+        "layerID": "shom",
+        "layerName": "SHOM Test",
+        "downloadDate": "2026-08-16T12:00:00Z",
+        "relativePath": "\(relativePath)",
+        "md5": "abc",
+        "zoomMax": 12,
+        "boundsWKT": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
+      }
+    ]
+    """
+
+    let jsonURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+    try legacyJSON.data(using: .utf8)?.write(to: jsonURL)
+
+    defer {
+      try? FileManager.default.removeItem(at: jsonURL)
+    }
+
+    let persistence = LocalFilePersistenceActor()
+    let repo = GeoGarageDownloadRepository(persistence: persistence, fileURL: jsonURL)
+
+    // First load: reads disk, resolves size, and persists back to JSON
+    await repo.load()
+
+    XCTAssertEqual(repo.downloads.count, 1)
+    XCTAssertEqual(repo.downloads.first?.fileSize, Measurement(value: 2048, unit: .bytes))
+
+    // Second check: inspect raw JSON on disk to verify backfilled size was persisted permanently
+    let reloadedItems: [OfflineChartDownload]? = try await persistence.load(from: jsonURL)
+    XCTAssertEqual(reloadedItems?.count, 1)
+    XCTAssertEqual(reloadedItems?.first?.fileSize, Measurement(value: 2048, unit: .bytes), "The backfilled size must be persisted to the backing JSON file.")
+  }
 }

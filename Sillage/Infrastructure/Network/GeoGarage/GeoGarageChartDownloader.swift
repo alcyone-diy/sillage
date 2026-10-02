@@ -172,6 +172,14 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
     }
 
     // 4. Register download record in repository
+    let fileSize: Measurement<UnitInformationStorage>?
+    if let attrs = try? FileManager.default.attributesOfItem(atPath: destinationFileURL.path),
+       let bytes = attrs[.size] as? Int64 {
+      fileSize = Measurement(value: Double(bytes), unit: .bytes)
+    } else {
+      fileSize = nil
+    }
+
     let record = OfflineChartDownload(
       id: recordID,
       layerID: layerID,
@@ -180,7 +188,8 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
       relativePath: relativePath,
       md5: expectedMD5.lowercased(),
       zoomMax: zoomMax,
-      boundsWKT: boundsWKT
+      boundsWKT: boundsWKT,
+      fileSize: fileSize
     )
 
     do {

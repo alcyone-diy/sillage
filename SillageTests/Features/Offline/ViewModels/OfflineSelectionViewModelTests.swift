@@ -655,7 +655,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       md5: "hash1",
       zoomMax: 14,
       boundsWKT: "POLYGON(...)",
-      customFileSizeBytes: 1000
+      fileSize: Measurement(value: 1000, unit: .bytes)
     )
     let download2 = OfflineChartDownload(
       id: UUID(),
@@ -666,7 +666,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       md5: "hash2",
       zoomMax: 14,
       boundsWKT: "POLYGON(...)",
-      customFileSizeBytes: 2500
+      fileSize: Measurement(value: 2500, unit: .bytes)
     )
     downloadRepo.downloads = [download1, download2]
 
@@ -675,7 +675,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(sut.downloadedCharts.count, 2)
     XCTAssertEqual(sut.downloadedCharts[0].layerName, "SHOM Brest")
     XCTAssertEqual(sut.downloadedCharts[1].layerName, "UKHO Solent")
-    XCTAssertEqual(sut.totalDownloadedSize, 3500)
+    XCTAssertEqual(sut.totalDownloadedSize, Measurement(value: 3500, unit: .bytes))
   }
 
   func testGroupedDownloadedCharts_areSortedAlphabeticallyByTitle() {
@@ -691,7 +691,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       md5: "hash_ukho",
       zoomMax: 14,
       boundsWKT: "POLYGON(...)",
-      customFileSizeBytes: 1000
+      fileSize: Measurement(value: 1000, unit: .bytes)
     )
     let shomRecent = OfflineChartDownload(
       id: UUID(),
@@ -702,7 +702,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       md5: "hash_shom2",
       zoomMax: 14,
       boundsWKT: "POLYGON(...)",
-      customFileSizeBytes: 2000
+      fileSize: Measurement(value: 2000, unit: .bytes)
     )
     let shomOld = OfflineChartDownload(
       id: UUID(),
@@ -713,7 +713,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       md5: "hash_shom1",
       zoomMax: 14,
       boundsWKT: "POLYGON(...)",
-      customFileSizeBytes: 1500
+      fileSize: Measurement(value: 1500, unit: .bytes)
     )
     let bsh = OfflineChartDownload(
       id: UUID(),
@@ -724,7 +724,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       md5: "hash_bsh",
       zoomMax: 14,
       boundsWKT: "POLYGON(...)",
-      customFileSizeBytes: 3000
+      fileSize: Measurement(value: 3000, unit: .bytes)
     )
 
     downloadRepo.downloads = [ukho, shomRecent, shomOld, bsh]

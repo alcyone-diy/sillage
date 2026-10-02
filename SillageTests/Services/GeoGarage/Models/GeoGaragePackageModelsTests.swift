@@ -340,4 +340,56 @@ final class GeoGaragePackageModelsTests: XCTestCase {
     XCTAssertNotEqual(downloading, cancelled)
     XCTAssertNotEqual(failed, cancelled)
   }
+
+  // MARK: - OfflineChartDownload Codable & Legacy Decoding
+
+  func testOfflineChartDownload_decodesLegacyJSONWithCustomFileSizeBytes() throws {
+    let jsonString = """
+    {
+      "id": "E621E1F8-C36C-495A-93FC-0C247A3E6E5F",
+      "layerID": "shom",
+      "layerName": "SHOM France",
+      "downloadDate": "2026-08-16T12:00:00Z",
+      "relativePath": "Charts/shom.mbtiles",
+      "md5": "d41d8cd98f00b204e9800998ecf8427e",
+      "zoomMax": 14,
+      "boundsWKT": "POLYGON((-5.0 47.0, 0.0 47.0, 0.0 50.0, -5.0 50.0, -5.0 47.0))",
+      "customName": "Bretagne Sud",
+      "customFileSizeBytes": 5242880
+    }
+    """
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let data = try XCTUnwrap(jsonString.data(using: .utf8))
+    let decoded = try decoder.decode(OfflineChartDownload.self, from: data)
+
+    XCTAssertEqual(decoded.id, UUID(uuidString: "E621E1F8-C36C-495A-93FC-0C247A3E6E5F"))
+    XCTAssertEqual(decoded.fileSize, Measurement(value: 5242880, unit: UnitInformationStorage.bytes))
+  }
+
+  func testOfflineChartDownload_roundTripEncodingPreservesCustomFileSize() throws {
+    let original = OfflineChartDownload(
+      id: UUID(),
+      layerID: "ukho",
+      layerName: "UKHO Charts",
+      downloadDate: Date(timeIntervalSince1970: 1_737_900_000),
+      relativePath: "Charts/ukho.mbtiles",
+      md5: "abc",
+      zoomMax: 10,
+      boundsWKT: "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
+      fileSize: Measurement(value: 1048576, unit: .bytes),
+      customName: "South Coast"
+    )
+
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let data = try encoder.encode(original)
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let decoded = try decoder.decode(OfflineChartDownload.self, from: data)
+
+    XCTAssertEqual(decoded, original)
+    XCTAssertEqual(decoded.fileSize, Measurement(value: 1048576, unit: .bytes))
+  }
 }

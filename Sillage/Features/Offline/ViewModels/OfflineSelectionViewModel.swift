@@ -92,9 +92,9 @@ final class OfflineSelectionViewModel {
     return items
   }
 
-  /// Total size in bytes of all locally downloaded offline packages.
-  var totalDownloadedSize: Int64 {
-    downloadedCharts.reduce(0) { $0 + ($1.fileSizeBytes ?? 0) }
+  /// Total physical size of all locally downloaded offline packages.
+  var totalDownloadedSize: Measurement<UnitInformationStorage> {
+    downloadedCharts.compactMap(\.fileSize).reduce(Measurement(value: 0, unit: .bytes), +)
   }
 
   var isDownloading: Bool {

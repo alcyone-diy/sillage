@@ -206,7 +206,7 @@ private struct OfflineRegionsHeaderView: View {
       Text("\(downloadsCount) offline charts")
         .marineFont(.headline)
 
-      Text("Total size: \(totalSize.formatted(.byteCount(style: .file)))")
+      Text("Total size: \(totalSize.formatted())")
         .marineFont(.subheadline)
         .foregroundStyle(.secondary)
     }
@@ -252,11 +252,11 @@ private struct OfflineDownloadRowView: View {
             .marineFont(.caption)
             .foregroundColor(.secondary)
 
-          if let size = download.fileSizeBytes {
+          if let size = download.fileSize {
             Text("•")
               .marineFont(.caption)
               .foregroundColor(.secondary)
-            Text(size.formatted(.byteCount(style: .file)))
+            Text(size.formatted())
               .marineFont(.caption)
               .foregroundColor(.secondary)
           }

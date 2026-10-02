@@ -121,8 +121,8 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
   /// If nil, presentation layers fall back to layerName or download date.
   let customName: String?
 
-  /// Optional size override (useful for testing or when metadata is pre-cached without querying the filesystem).
-  private let customFileSizeBytes: Int64?
+  /// Physical package size on disk, populated asynchronously at load or download time.
+  let fileSize: Measurement<UnitInformationStorage>?
 
   private enum CodingKeys: String, CodingKey {
     case id
@@ -134,6 +134,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     case zoomMax
     case boundsWKT
     case customName
+    case customFileSizeBytes
   }
 
   init(
@@ -145,7 +146,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     md5: String,
     zoomMax: Int,
     boundsWKT: String,
-    customFileSizeBytes: Int64? = nil,
+    fileSize: Measurement<UnitInformationStorage>? = nil,
     customName: String? = nil
   ) {
     self.id = id
@@ -156,7 +157,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     self.md5 = md5
     self.zoomMax = zoomMax
     self.boundsWKT = boundsWKT
-    self.customFileSizeBytes = customFileSizeBytes
+    self.fileSize = fileSize
     self.customName = customName
   }
 
@@ -171,7 +172,11 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     self.zoomMax = try container.decode(Int.self, forKey: .zoomMax)
     self.boundsWKT = try container.decode(String.self, forKey: .boundsWKT)
     self.customName = try container.decodeIfPresent(String.self, forKey: .customName)
-    self.customFileSizeBytes = nil
+    if let bytes = try container.decodeIfPresent(Int64.self, forKey: .customFileSizeBytes) {
+      self.fileSize = Measurement(value: Double(bytes), unit: UnitInformationStorage.bytes)
+    } else {
+      self.fileSize = nil
+    }
   }
 
   func encode(to encoder: Encoder) throws {
@@ -185,6 +190,10 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     try container.encode(zoomMax, forKey: .zoomMax)
     try container.encode(boundsWKT, forKey: .boundsWKT)
     try container.encodeIfPresent(customName, forKey: .customName)
+    if let fileSize {
+      let bytes = Int64(fileSize.converted(to: .bytes).value)
+      try container.encode(bytes, forKey: .customFileSizeBytes)
+    }
   }
 
   static func == (lhs: OfflineChartDownload, rhs: OfflineChartDownload) -> Bool {
@@ -196,7 +205,8 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     lhs.md5 == rhs.md5 &&
     lhs.zoomMax == rhs.zoomMax &&
     lhs.boundsWKT == rhs.boundsWKT &&
-    lhs.customName == rhs.customName
+    lhs.customName == rhs.customName &&
+    lhs.fileSize == rhs.fileSize
   }
 
   /// Creates a copy of this download record with an updated custom name.
@@ -210,8 +220,24 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
       md5: md5,
       zoomMax: zoomMax,
       boundsWKT: boundsWKT,
-      customFileSizeBytes: customFileSizeBytes,
+      fileSize: fileSize,
       customName: newCustomName
+    )
+  }
+
+  /// Creates a copy of this download record with an updated physical file size.
+  func updatingFileSize(_ newFileSize: Measurement<UnitInformationStorage>?) -> OfflineChartDownload {
+    OfflineChartDownload(
+      id: id,
+      layerID: layerID,
+      layerName: layerName,
+      downloadDate: downloadDate,
+      relativePath: relativePath,
+      md5: md5,
+      zoomMax: zoomMax,
+      boundsWKT: boundsWKT,
+      fileSize: newFileSize,
+      customName: customName
     )
   }
 
@@ -233,19 +259,6 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
       cleanRelative = relativePath
     }
     return documentsURL.appendingPathComponent(cleanRelative)
-  }
-
-  /// Physical size in bytes of the local package archive on disk, or nil if unreachable/missing.
-  var fileSizeBytes: Int64? {
-    if let customFileSizeBytes {
-      return customFileSizeBytes
-    }
-    guard let url = resolvedFileURL(),
-          let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-          let size = attrs[.size] as? Int64 else {
-      return nil
-    }
-    return size
   }
 }
 
