@@ -101,7 +101,7 @@ nonisolated struct PackageStatusResponse: Codable, Sendable {
 /// Local record of a downloaded CAAS MBTiles package.
 ///
 /// Persisted as JSON in `Documents/geogarage_downloads.json`.
-nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Sendable {
+nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
   let id: UUID
   let layerID: String
   let layerName: String
@@ -123,19 +123,6 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
 
   /// Physical package size on disk, populated asynchronously at load or download time.
   let fileSize: Measurement<UnitInformationStorage>?
-
-  private enum CodingKeys: String, CodingKey {
-    case id
-    case layerID
-    case layerName
-    case downloadDate
-    case relativePath
-    case md5
-    case zoomMax
-    case boundsWKT
-    case customName
-    case customFileSizeBytes
-  }
 
   init(
     id: UUID,
@@ -159,41 +146,6 @@ nonisolated struct OfflineChartDownload: Identifiable, Codable, Equatable, Senda
     self.boundsWKT = boundsWKT
     self.fileSize = fileSize
     self.customName = customName
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.id = try container.decode(UUID.self, forKey: .id)
-    self.layerID = try container.decode(String.self, forKey: .layerID)
-    self.layerName = try container.decode(String.self, forKey: .layerName)
-    self.downloadDate = try container.decode(Date.self, forKey: .downloadDate)
-    self.relativePath = try container.decode(String.self, forKey: .relativePath)
-    self.md5 = try container.decode(String.self, forKey: .md5)
-    self.zoomMax = try container.decode(Int.self, forKey: .zoomMax)
-    self.boundsWKT = try container.decode(String.self, forKey: .boundsWKT)
-    self.customName = try container.decodeIfPresent(String.self, forKey: .customName)
-    if let bytes = try container.decodeIfPresent(Int64.self, forKey: .customFileSizeBytes) {
-      self.fileSize = Measurement(value: Double(bytes), unit: UnitInformationStorage.bytes)
-    } else {
-      self.fileSize = nil
-    }
-  }
-
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(id, forKey: .id)
-    try container.encode(layerID, forKey: .layerID)
-    try container.encode(layerName, forKey: .layerName)
-    try container.encode(downloadDate, forKey: .downloadDate)
-    try container.encode(relativePath, forKey: .relativePath)
-    try container.encode(md5, forKey: .md5)
-    try container.encode(zoomMax, forKey: .zoomMax)
-    try container.encode(boundsWKT, forKey: .boundsWKT)
-    try container.encodeIfPresent(customName, forKey: .customName)
-    if let fileSize {
-      let bytes = Int64(fileSize.converted(to: .bytes).value)
-      try container.encode(bytes, forKey: .customFileSizeBytes)
-    }
   }
 
   static func == (lhs: OfflineChartDownload, rhs: OfflineChartDownload) -> Bool {
