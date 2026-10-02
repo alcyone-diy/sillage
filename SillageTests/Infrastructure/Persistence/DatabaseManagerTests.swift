@@ -654,6 +654,102 @@ final class DatabaseManagerTests {
     }
   }
 
+  @Test("Migration v6 creates geogarage_download table and indexes with DESC sort order")
+  func testMigrationV6_createsTableAndIndexes() async throws {
+    let queue = try DatabaseQueue()
+    try DatabaseManager.migrator.migrate(queue)
+
+    try await queue.read { db in
+      #expect(try db.tableExists(GeoGarageDownloadRecord.databaseTableName))
+
+      let indexes = try db.indexes(on: GeoGarageDownloadRecord.databaseTableName)
+      let indexNames = Set(indexes.map(\.name))
+      #expect(indexNames.contains("idx_geogarage_download_layer_id"))
+      #expect(indexNames.contains("idx_geogarage_download_layer_date"))
+
+      // Formally verify via PRAGMA index_xinfo that download_timestamp_unix is sorted DESC (desc == 1)
+      let xinfoRows = try Row.fetchAll(db, sql: "PRAGMA index_xinfo('idx_geogarage_download_layer_date')")
+      let timestampRow = xinfoRows.first { ($0["name"] as? String) == "download_timestamp_unix" }
+      #expect(timestampRow != nil)
+      let isDesc = (timestampRow?["desc"] as? Int) == 1 || (timestampRow?["desc"] as? Int64) == 1
+      #expect(isDesc)
+
+      // Also verify the explicit DDL definition in sqlite_master
+      let masterSQL = try String.fetchOne(
+        db,
+        sql: "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_geogarage_download_layer_date'"
+      )
+      #expect(masterSQL?.contains("download_timestamp_unix DESC") == true)
+    }
+  }
+
+  @Test("fetchLastDownloadDate aggregates MAX timestamp in O(1) and uses index")
+  func testFetchLastDownloadDate_aggregatesMaxAndUsesIndex() async throws {
+    let id1 = UUID().uuidString
+    let id2 = UUID().uuidString
+    let id3 = UUID().uuidString
+
+    try await dbManager.write { db in
+      try GeoGarageDownloadRecord(
+        id: id1,
+        layer_id: "shom",
+        layer_name: "SHOM 1",
+        download_timestamp_unix: 1_000_000,
+        relative_path: "Charts/shom1.mbtiles",
+        md5: "abc1",
+        zoom_max: 12,
+        bounds_wkt: "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
+        file_size_bytes: 1024
+      ).insert(db)
+
+      try GeoGarageDownloadRecord(
+        id: id2,
+        layer_id: "shom",
+        layer_name: "SHOM 2",
+        download_timestamp_unix: 2_000_000,
+        relative_path: "Charts/shom2.mbtiles",
+        md5: "abc2",
+        zoom_max: 14,
+        bounds_wkt: "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
+        file_size_bytes: 2048
+      ).insert(db)
+
+      try GeoGarageDownloadRecord(
+        id: id3,
+        layer_id: "noaa",
+        layer_name: "NOAA Raster",
+        download_timestamp_unix: 1_500_000,
+        relative_path: "Charts/noaa.mbtiles",
+        md5: "abc3",
+        zoom_max: 10,
+        bounds_wkt: "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
+        file_size_bytes: 4096
+      ).insert(db)
+    }
+
+    // Verify MAX aggregation values
+    let shomDate = try await dbManager.fetchLastDownloadDate(for: "shom")
+    #expect(shomDate?.timeIntervalSince1970 == 2_000_000)
+
+    let noaaDate = try await dbManager.fetchLastDownloadDate(for: "noaa")
+    #expect(noaaDate?.timeIntervalSince1970 == 1_500_000)
+
+    let unknownDate = try await dbManager.fetchLastDownloadDate(for: "unknown")
+    #expect(unknownDate == nil)
+
+    // Verify EXPLAIN QUERY PLAN confirms index usage (O(1) B-tree lookup without table scan)
+    try await dbManager.reader.read { db in
+      let queryPlanRows = try Row.fetchAll(
+        db,
+        sql: "EXPLAIN QUERY PLAN SELECT MAX(download_timestamp_unix) FROM geogarage_download WHERE layer_id = ?",
+        arguments: ["shom"]
+      )
+      let planDetail = queryPlanRows.map { ($0["detail"] as? String) ?? "" }.joined(separator: " ")
+      #expect(planDetail.contains("idx_geogarage_download_layer_date"))
+      #expect(!planDetail.contains("SCAN TABLE"))
+    }
+  }
+
   // MARK: - Helpers
   
   private func makeTrackPoint(sessionID: String, timestamp: Date, segmentIndex: Int = 0) -> TrackPointRecord {

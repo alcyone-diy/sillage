@@ -607,6 +607,37 @@ public final class DatabaseManager: Sendable {
         try db.drop(table: "checklist_execution")
       }
     }
+
+    migrator.registerMigration("v6") { db in
+      guard try !db.tableExists("geogarage_download") else { return }
+
+      try db.create(table: "geogarage_download") { t in
+        t.column("id", .text).primaryKey()
+        t.column("layer_id", .text).notNull()
+        t.column("layer_name", .text).notNull()
+        t.column("download_timestamp_unix", .double).notNull()
+        t.column("relative_path", .text).notNull()
+        t.column("md5", .text).notNull()
+        t.column("zoom_max", .integer).notNull()
+        t.column("bounds_wkt", .text).notNull()
+        t.column("custom_name", .text)
+        t.column("file_size_bytes", .integer)
+
+        t.check(sql: "zoom_max >= 0")
+        t.check(sql: "file_size_bytes IS NULL OR file_size_bytes >= 0")
+      }
+
+      try db.create(
+        index: "idx_geogarage_download_layer_id",
+        on: "geogarage_download",
+        columns: ["layer_id"]
+      )
+
+      try db.execute(sql: """
+        CREATE INDEX IF NOT EXISTS idx_geogarage_download_layer_date
+        ON geogarage_download (layer_id, download_timestamp_unix DESC)
+      """)
+    }
     
     return migrator
   }
@@ -677,6 +708,19 @@ extension DatabaseManager {
         .limit(limit)
         .fetchAll(db)
       return records.reversed().map { $0.domainModel }
+    }
+  }
+
+  /// Returns the latest download timestamp for a given layer ID in O(1) via SQL aggregation on indexed columns.
+  func fetchLastDownloadDate(for layerID: String) async throws -> Date? {
+    try await self.reader.read { db in
+      let maxTimestamp = try Double.fetchOne(
+        db,
+        GeoGarageDownloadRecord
+          .filter(GeoGarageDownloadRecord.Columns.layer_id == layerID)
+          .select(max(GeoGarageDownloadRecord.Columns.download_timestamp_unix))
+      )
+      return maxTimestamp.map { Date(timeIntervalSince1970: $0) }
     }
   }
 }
