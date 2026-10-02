@@ -98,6 +98,29 @@ public final class ChecklistTemplateDetailViewModel {
     }
   }
 
+  /// A localized, human-readable description of the template's usage status for display in the UI.
+  public var usageStatusDescription: String {
+    switch usageStatus {
+    case .inProgress(let session):
+      let dateString = session.startedAt.formatted(date: .abbreviated, time: .shortened)
+      return String(
+        localized: "Started \(dateString) • \(session.completedCount)/\(session.totalCount) checked",
+        comment: "Checklist template usage status description when an execution session is currently in progress."
+      )
+    case .completed(let date):
+      let dateString = date.formatted(date: .abbreviated, time: .shortened)
+      return String(
+        localized: "Completed \(dateString)",
+        comment: "Checklist template usage status description when the checklist was previously completed."
+      )
+    case .neverUsed:
+      return String(
+        localized: "Never used",
+        comment: "Checklist template usage status description when the checklist has never been executed."
+      )
+    }
+  }
+
   /// Returns true if the template has a valid non-empty title and at least one step with a non-empty title.
   public var isValid: Bool {
     validationErrorMessage == nil

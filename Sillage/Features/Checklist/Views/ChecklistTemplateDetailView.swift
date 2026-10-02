@@ -191,43 +191,18 @@ public struct ChecklistTemplateDetailView: View {
 
   @ViewBuilder
   private var generalConsultationSection: some View {
-    Section("Information") {
+    Section {
       HStack {
         Text("Category")
           .marineFont(.body)
-          .foregroundStyle(marineTheme.colors.textSecondary)
+          .foregroundStyle(marineTheme.colors.textPrimary)
         Spacer()
         HStack(spacing: MarineTheme.Spacing.small) {
           Image(systemName: viewModel.category.systemImage)
             .foregroundStyle(viewModel.category.color(for: marineTheme))
           Text(viewModel.category.title)
             .marineFont(.body)
-            .foregroundStyle(marineTheme.colors.textPrimary)
-        }
-      }
-      .marineListCell()
-
-      HStack {
-        Text("Status")
-          .marineFont(.body)
-          .foregroundStyle(marineTheme.colors.textSecondary)
-        Spacer()
-        switch viewModel.usageStatus {
-        case .inProgress(let session):
-          Text("Started \(session.startedAt, format: Date.FormatStyle(date: .abbreviated, time: .shortened)) • \(session.completedCount)/\(session.totalCount) checked")
-            .marineFont(.body)
-            .foregroundStyle(marineTheme.colors.textPrimary)
-            .multilineTextAlignment(.trailing)
-        case .completed(let date):
-          Text("Completed \(date, format: Date.FormatStyle(date: .abbreviated, time: .shortened))")
-            .marineFont(.body)
-            .foregroundStyle(marineTheme.colors.textPrimary)
-            .multilineTextAlignment(.trailing)
-        case .neverUsed:
-          Text("Never used")
-            .marineFont(.body)
-            .foregroundStyle(marineTheme.colors.textPrimary)
-            .multilineTextAlignment(.trailing)
+            .foregroundStyle(marineTheme.colors.textSecondary)
         }
       }
       .marineListCell()
@@ -243,6 +218,12 @@ public struct ChecklistTemplateDetailView: View {
         }
         .marineListCell()
       }
+    } header: {
+      Text("Information")
+    } footer: {
+      Text(viewModel.usageStatusDescription)
+        .marineFont(.body)
+        .foregroundStyle(marineTheme.colors.textSecondary)
     }
   }
 

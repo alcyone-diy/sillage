@@ -87,6 +87,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.hasActiveSession)
     XCTAssertNil(viewModel.latestCompletionDate)
     XCTAssertEqual(viewModel.usageStatus, .neverUsed)
+    XCTAssertEqual(viewModel.usageStatusDescription, "Never used")
   }
 
   func testUsageStatusWithActiveSessionAndProgress() async throws {
@@ -112,6 +113,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     } else {
       XCTFail("Expected usageStatus to be .inProgress, got \(viewModel.usageStatus)")
     }
+    XCTAssertTrue(viewModel.usageStatusDescription.contains("1/"))
   }
 
   func testUsageStatusWithCompletedSession() async throws {
@@ -136,6 +138,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     } else {
       XCTFail("Expected usageStatus to be .completed, got \(viewModel.usageStatus)")
     }
+    XCTAssertTrue(viewModel.usageStatusDescription.contains("Completed"))
   }
 
   func testObservationUpdatesActiveAndCompletedSessions() async throws {
