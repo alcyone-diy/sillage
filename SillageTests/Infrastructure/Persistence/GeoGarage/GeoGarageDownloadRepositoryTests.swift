@@ -14,271 +14,174 @@ import XCTest
 @MainActor
 final class GeoGarageDownloadRepositoryTests: XCTestCase {
 
-  // MARK: - Helpers
+  private var dbManager: DatabaseManager!
+  private var repository: GeoGarageDownloadRepository!
 
-  private func makeRepository(fileName: String = UUID().uuidString + ".json") -> GeoGarageDownloadRepository {
-    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-    let persistence = LocalFilePersistenceActor()
-    return GeoGarageDownloadRepository(persistence: persistence, fileURL: tempURL)
+  override func setUp() async throws {
+    try await super.setUp()
+    dbManager = try DatabaseManager.inMemory()
+    repository = GeoGarageDownloadRepository(databaseManager: dbManager)
   }
 
+  override func tearDown() async throws {
+    repository = nil
+    dbManager = nil
+    try await super.tearDown()
+  }
+
+  // MARK: - Helpers
+
   private func makeDownload(
+    id: UUID = UUID(),
     layerID: String = "shom",
     layerName: String = "SHOM France",
-    downloadDate: Date = Date()
+    downloadDate: Date = Date(),
+    fileSize: Measurement<UnitInformationStorage>? = Measurement(value: 1048576, unit: .bytes)
   ) -> OfflineChartDownload {
     OfflineChartDownload(
-      id: UUID(),
+      id: id,
       layerID: layerID,
       layerName: layerName,
       downloadDate: downloadDate,
       relativePath: "Charts/\(layerID)_test.mbtiles",
       md5: "d41d8cd98f00b204e9800998ecf8427e",
       zoomMax: 14,
-      boundsWKT: "POLYGON((-5.0 47.0, 0.0 47.0, 0.0 50.0, -5.0 50.0, -5.0 47.0))"
+      boundsWKT: "POLYGON((-5.0 47.0, 0.0 47.0, 0.0 50.0, -5.0 50.0, -5.0 47.0))",
+      fileSize: fileSize
     )
   }
 
   // MARK: - Load
 
-  func testLoad_emptyWhenFileDoesNotExist() async {
-    let repo = makeRepository()
-
-    await repo.load()
-
-    XCTAssertTrue(repo.downloads.isEmpty, "A repository without an existing backing file must start empty.")
+  func testLoad_emptyWhenDatabaseEmpty() async {
+    await repository.load()
+    XCTAssertTrue(repository.downloads.isEmpty, "Repository must start empty when database has no records.")
   }
 
   // MARK: - Save
 
   func testSave_appendsNewDownload() async throws {
-    let repo = makeRepository()
     let download = makeDownload()
+    try await repository.save(download)
 
-    try await repo.save(download)
-
-    XCTAssertEqual(repo.downloads.count, 1)
-    XCTAssertEqual(repo.downloads.first?.id, download.id)
+    XCTAssertEqual(repository.downloads.count, 1)
+    XCTAssertEqual(repository.downloads.first?.id, download.id)
   }
 
   func testSave_isIdempotent_sameID() async throws {
-    let repo = makeRepository()
     let download = makeDownload()
     let updatedDownload = OfflineChartDownload(
       id: download.id,
       layerID: download.layerID,
-      layerName: "Updated Name",
+      layerName: "Updated SHOM",
       downloadDate: Date(),
       relativePath: download.relativePath,
       md5: "newmd5",
       zoomMax: 16,
-      boundsWKT: download.boundsWKT
+      boundsWKT: download.boundsWKT,
+      fileSize: Measurement(value: 2097152, unit: .bytes)
     )
 
-    try await repo.save(download)
-    try await repo.save(updatedDownload)
+    try await repository.save(download)
+    try await repository.save(updatedDownload)
 
-    XCTAssertEqual(repo.downloads.count, 1, "Saving an entry with an existing UUID must update in-place without duplicating.")
-    XCTAssertEqual(repo.downloads.first?.layerName, "Updated Name")
-    XCTAssertEqual(repo.downloads.first?.md5, "newmd5")
+    XCTAssertEqual(repository.downloads.count, 1, "Saving an entry with existing ID must update in-place without duplicating.")
+    XCTAssertEqual(repository.downloads.first?.layerName, "Updated SHOM")
+    XCTAssertEqual(repository.downloads.first?.md5, "newmd5")
+    XCTAssertEqual(repository.downloads.first?.fileSize, Measurement(value: 2097152, unit: .bytes))
   }
 
   func testSave_multipleDifferentDownloads() async throws {
-    let repo = makeRepository()
     let d1 = makeDownload(layerID: "shom")
     let d2 = makeDownload(layerID: "noaa")
 
-    try await repo.save(d1)
-    try await repo.save(d2)
+    try await repository.save(d1)
+    try await repository.save(d2)
 
-    XCTAssertEqual(repo.downloads.count, 2)
+    XCTAssertEqual(repository.downloads.count, 2)
   }
 
   // MARK: - Delete
 
   func testDelete_removesCorrectEntry() async throws {
-    let repo = makeRepository()
     let d1 = makeDownload(layerID: "shom")
     let d2 = makeDownload(layerID: "noaa")
 
-    try await repo.save(d1)
-    try await repo.save(d2)
-    try await repo.delete(id: d1.id)
+    try await repository.save(d1)
+    try await repository.save(d2)
+    try await repository.delete(id: d1.id)
 
-    XCTAssertEqual(repo.downloads.count, 1)
-    XCTAssertEqual(repo.downloads.first?.layerID, "noaa")
+    XCTAssertEqual(repository.downloads.count, 1)
+    XCTAssertEqual(repository.downloads.first?.layerID, "noaa")
   }
 
   func testDelete_noOpOnNonexistentID() async throws {
-    let repo = makeRepository()
     let download = makeDownload()
-    try await repo.save(download)
+    try await repository.save(download)
 
-    try await repo.delete(id: UUID())
+    try await repository.delete(id: UUID())
 
-    XCTAssertEqual(repo.downloads.count, 1, "Deleting an unknown UUID should not modify existing entries.")
+    XCTAssertEqual(repository.downloads.count, 1, "Deleting an unknown UUID should not modify existing entries.")
   }
 
-  // MARK: - Persistence (Round-Trip via file)
+  // MARK: - Persistence (Reload across instances)
 
-  func testPersistence_survivesRoundTrip() async throws {
-    let fileName = UUID().uuidString + ".json"
-    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-    let persistence = LocalFilePersistenceActor()
+  func testPersistence_survivesReloadAcrossInstances() async throws {
     let download = makeDownload()
 
-    // Write phase
-    let repoWrite = GeoGarageDownloadRepository(persistence: persistence, fileURL: tempURL)
-    try await repoWrite.save(download)
+    // Write via first repository instance
+    try await repository.save(download)
 
-    // Read phase with new instance pointing to same file
-    let repoRead = GeoGarageDownloadRepository(persistence: persistence, fileURL: tempURL)
-    await repoRead.load()
+    // Read via a fresh repository instance connected to the same database
+    let freshRepository = GeoGarageDownloadRepository(databaseManager: dbManager)
+    await freshRepository.load()
 
-    XCTAssertEqual(repoRead.downloads.count, 1)
-    XCTAssertEqual(repoRead.downloads.first?.id, download.id)
-    XCTAssertEqual(repoRead.downloads.first?.layerID, download.layerID)
-    XCTAssertEqual(repoRead.downloads.first?.md5, download.md5)
-
-    // Cleanup
-    try? FileManager.default.removeItem(at: tempURL)
-  }
-
-  // MARK: - State Consistency on Disk Failure
-
-  func testSave_whenDiskWriteFails_inMemoryStateIsNotModifiedAndThrows() async {
-    // Point repository to an impossible path to force persistence.save() to throw
-    let invalidURL = URL(fileURLWithPath: "/dev/null/invalid_dir/geogarage_downloads.json")
-    let persistence = LocalFilePersistenceActor()
-    let repo = GeoGarageDownloadRepository(persistence: persistence, fileURL: invalidURL)
-
-    let download = makeDownload()
-    do {
-      try await repo.save(download)
-      XCTFail("Repository save must throw when disk write fails")
-    } catch {
-      // Expected failure
-    }
-
-    XCTAssertTrue(
-      repo.downloads.isEmpty,
-      "If disk persistence fails, in-memory state must NOT be modified (disk is the single source of truth)."
-    )
-  }
-
-  func testDelete_whenDiskWriteFails_inMemoryStateIsNotModifiedAndThrows() async throws {
-    let fileName = UUID().uuidString + ".json"
-    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-    let persistence = LocalFilePersistenceActor()
-    let repo = GeoGarageDownloadRepository(persistence: persistence, fileURL: tempURL)
-
-    let download = makeDownload()
-    try await repo.save(download)
-    XCTAssertEqual(repo.downloads.count, 1)
-
-    let invalidURL = URL(fileURLWithPath: "/dev/null/invalid_dir/geogarage_downloads.json")
-    let failingRepo = GeoGarageDownloadRepository(persistence: persistence, fileURL: invalidURL)
-
-    // Attempt delete on invalid path repo
-    do {
-      try await failingRepo.delete(id: download.id)
-      XCTFail("Repository delete must throw when disk write fails")
-    } catch {
-      // Expected failure
-    }
-    XCTAssertTrue(failingRepo.downloads.isEmpty, "Delete failure on disk must not modify in-memory state.")
-
-    // Cleanup
-    try? FileManager.default.removeItem(at: tempURL)
+    XCTAssertEqual(freshRepository.downloads.count, 1)
+    XCTAssertEqual(freshRepository.downloads.first?.id, download.id)
+    XCTAssertEqual(freshRepository.downloads.first?.layerID, download.layerID)
+    XCTAssertEqual(freshRepository.downloads.first?.md5, download.md5)
+    XCTAssertEqual(freshRepository.downloads.first?.fileSize, download.fileSize)
   }
 
   // MARK: - lastDownloadDate
 
   func testLastDownloadDate_returnsLatestForLayer() async throws {
-    let repo = makeRepository()
     let older = makeDownload(layerID: "shom", downloadDate: Date(timeIntervalSince1970: 1_000_000))
     let newer = makeDownload(layerID: "shom", downloadDate: Date(timeIntervalSince1970: 2_000_000))
 
-    try await repo.save(older)
-    try await repo.save(newer)
+    try await repository.save(older)
+    try await repository.save(newer)
 
-    let lastDate = repo.lastDownloadDate(for: "shom")
+    let lastDate = repository.lastDownloadDate(for: "shom")
     XCTAssertEqual(lastDate?.timeIntervalSince1970 ?? 0, 2_000_000, accuracy: 1.0)
   }
 
   func testLastDownloadDate_nilForUnknownLayer() async throws {
-    let repo = makeRepository()
     let download = makeDownload(layerID: "shom")
-    try await repo.save(download)
+    try await repository.save(download)
 
-    XCTAssertNil(repo.lastDownloadDate(for: "noaa"), "No date should be returned for an unknown layerID.")
+    XCTAssertNil(repository.lastDownloadDate(for: "noaa"), "No date should be returned for an unknown layerID.")
   }
 
   func testLastDownloadDate_doesNotCrossLayers() async throws {
-    let repo = makeRepository()
     let shomDate = Date(timeIntervalSince1970: 5_000_000)
     let noaaDate = Date(timeIntervalSince1970: 1_000_000)
 
-    try await repo.save(makeDownload(layerID: "shom", downloadDate: shomDate))
-    try await repo.save(makeDownload(layerID: "noaa", downloadDate: noaaDate))
+    try await repository.save(makeDownload(layerID: "shom", downloadDate: shomDate))
+    try await repository.save(makeDownload(layerID: "noaa", downloadDate: noaaDate))
 
-    XCTAssertEqual(repo.lastDownloadDate(for: "shom")?.timeIntervalSince1970 ?? 0, 5_000_000, accuracy: 1.0)
-    XCTAssertEqual(repo.lastDownloadDate(for: "noaa")?.timeIntervalSince1970 ?? 0, 1_000_000, accuracy: 1.0)
+    XCTAssertEqual(repository.lastDownloadDate(for: "shom")?.timeIntervalSince1970 ?? 0, 5_000_000, accuracy: 1.0)
+    XCTAssertEqual(repository.lastDownloadDate(for: "noaa")?.timeIntervalSince1970 ?? 0, 1_000_000, accuracy: 1.0)
   }
 
-  // MARK: - Backfill Persistence
+  func testFetchLastDownloadDate_queriesDatabaseDirectly() async throws {
+    let shomDate = Date(timeIntervalSince1970: 3_000_000)
+    try await repository.save(makeDownload(layerID: "shom", downloadDate: shomDate))
 
-  func testLoad_persistsBackfilledFileSizes() async throws {
-    guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-      XCTFail("Documents directory unavailable.")
-      return
-    }
+    let dbDate = try await repository.fetchLastDownloadDate(for: "shom")
+    XCTAssertEqual(dbDate?.timeIntervalSince1970 ?? 0, 3_000_000, accuracy: 1.0)
 
-    let chartsDir = documentsDir.appendingPathComponent("Charts")
-    try? FileManager.default.createDirectory(at: chartsDir, withIntermediateDirectories: true)
-    let mbtilesURL = chartsDir.appendingPathComponent("test_backfill_\(UUID().uuidString).mbtiles")
-    let testData = Data(repeating: 0x42, count: 2048)
-    try testData.write(to: mbtilesURL)
-
-    defer {
-      try? FileManager.default.removeItem(at: mbtilesURL)
-    }
-
-    let relativePath = "Charts/" + mbtilesURL.lastPathComponent
-    let legacyJSON = """
-    [
-      {
-        "id": "\(UUID().uuidString)",
-        "layerID": "shom",
-        "layerName": "SHOM Test",
-        "downloadDate": "2026-08-16T12:00:00Z",
-        "relativePath": "\(relativePath)",
-        "md5": "abc",
-        "zoomMax": 12,
-        "boundsWKT": "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
-      }
-    ]
-    """
-
-    let jsonURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
-    try legacyJSON.data(using: .utf8)?.write(to: jsonURL)
-
-    defer {
-      try? FileManager.default.removeItem(at: jsonURL)
-    }
-
-    let persistence = LocalFilePersistenceActor()
-    let repo = GeoGarageDownloadRepository(persistence: persistence, fileURL: jsonURL)
-
-    // First load: reads disk, resolves size, and persists back to JSON
-    await repo.load()
-
-    XCTAssertEqual(repo.downloads.count, 1)
-    XCTAssertEqual(repo.downloads.first?.fileSize, Measurement(value: 2048, unit: .bytes))
-
-    // Second check: inspect raw JSON on disk to verify backfilled size was persisted permanently
-    let reloadedItems: [OfflineChartDownload]? = try await persistence.load(from: jsonURL)
-    XCTAssertEqual(reloadedItems?.count, 1)
-    XCTAssertEqual(reloadedItems?.first?.fileSize, Measurement(value: 2048, unit: .bytes), "The backfilled size must be persisted to the backing JSON file.")
+    let unknownDate = try await repository.fetchLastDownloadDate(for: "unknown")
+    XCTAssertNil(unknownDate)
   }
 }

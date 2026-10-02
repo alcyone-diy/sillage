@@ -181,12 +181,11 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
 
   // MARK: - 2. Composite Queue Progress Tests
 
-  func testGlobalDownloadProgress_multipleDownloadsInQueue_smoothProgression() async {
+  func testGlobalDownloadProgress_multipleDownloadsInQueue_smoothProgression() async throws {
     let packageService = MockPackageService()
     let downloader = MockChartDownloader()
-    let persistenceActor = LocalFilePersistenceActor()
-    let repoURL = FileManager.default.temporaryDirectory.appendingPathComponent("downloads_\(UUID().uuidString).json")
-    let repository = GeoGarageDownloadRepository(persistence: persistenceActor, fileURL: repoURL)
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
     let preferences = makePreferencesService()
     let networkMonitor = MockNetworkMonitor()
 
@@ -221,12 +220,11 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
 
   // MARK: - 3. Failure & Batch Adjustment Tests
 
-  func testGlobalDownloadProgress_item1Fails_item2CompletesTo100Percent() async {
+  func testGlobalDownloadProgress_item1Fails_item2CompletesTo100Percent() async throws {
     let packageService = MockPackageService()
     let downloader = MockChartDownloader()
-    let persistenceActor = LocalFilePersistenceActor()
-    let repoURL = FileManager.default.temporaryDirectory.appendingPathComponent("downloads_\(UUID().uuidString).json")
-    let repository = GeoGarageDownloadRepository(persistence: persistenceActor, fileURL: repoURL)
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
     let preferences = makePreferencesService()
     let networkMonitor = MockNetworkMonitor()
 
@@ -259,12 +257,11 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
 
   // MARK: - 4. Network Loss Edge Case
 
-  func testNetworkLoss_transitionsToWaitingWithoutCrashing() async {
+  func testNetworkLoss_transitionsToWaitingWithoutCrashing() async throws {
     let packageService = MockPackageService()
     let downloader = MockChartDownloader()
-    let persistenceActor = LocalFilePersistenceActor()
-    let repoURL = FileManager.default.temporaryDirectory.appendingPathComponent("downloads_\(UUID().uuidString).json")
-    let repository = GeoGarageDownloadRepository(persistence: persistenceActor, fileURL: repoURL)
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
     let preferences = makePreferencesService()
     let networkMonitor = MockNetworkMonitor()
 
@@ -292,12 +289,11 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
 
   // MARK: - 5. Cancellation Cleanup
 
-  func testCancellation_cleansUpSessionTrackingAndResetsProgress() async {
+  func testCancellation_cleansUpSessionTrackingAndResetsProgress() async throws {
     let packageService = MockPackageService()
     let downloader = MockChartDownloader()
-    let persistenceActor = LocalFilePersistenceActor()
-    let repoURL = FileManager.default.temporaryDirectory.appendingPathComponent("downloads_\(UUID().uuidString).json")
-    let repository = GeoGarageDownloadRepository(persistence: persistenceActor, fileURL: repoURL)
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
     let preferences = makePreferencesService()
     let networkMonitor = MockNetworkMonitor()
 

@@ -727,14 +727,25 @@ final class DatabaseManagerTests {
       ).insert(db)
     }
 
-    // Verify MAX aggregation values
-    let shomDate = try await dbManager.fetchLastDownloadDate(for: "shom")
+    // Verify MAX aggregation values directly via reader on geogarage_download
+    let fetchMaxDate: (String) async throws -> Date? = { layerID in
+      try await self.dbManager.reader.read { db in
+        let maxTimestamp = try Double.fetchOne(
+          db,
+          sql: "SELECT MAX(download_timestamp_unix) FROM geogarage_download WHERE layer_id = ?",
+          arguments: [layerID]
+        )
+        return maxTimestamp.map { Date(timeIntervalSince1970: $0) }
+      }
+    }
+
+    let shomDate = try await fetchMaxDate("shom")
     #expect(shomDate?.timeIntervalSince1970 == 2_000_000)
 
-    let noaaDate = try await dbManager.fetchLastDownloadDate(for: "noaa")
+    let noaaDate = try await fetchMaxDate("noaa")
     #expect(noaaDate?.timeIntervalSince1970 == 1_500_000)
 
-    let unknownDate = try await dbManager.fetchLastDownloadDate(for: "unknown")
+    let unknownDate = try await fetchMaxDate("unknown")
     #expect(unknownDate == nil)
 
     // Verify EXPLAIN QUERY PLAN confirms index usage (O(1) B-tree lookup without table scan)

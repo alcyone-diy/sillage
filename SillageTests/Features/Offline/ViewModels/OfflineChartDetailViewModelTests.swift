@@ -46,6 +46,10 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     func lastDownloadDate(for layerID: String) -> Date? {
       downloads.filter { $0.layerID == layerID }.map(\.downloadDate).max()
     }
+
+    func fetchLastDownloadDate(for layerID: String) async throws -> Date? {
+      lastDownloadDate(for: layerID)
+    }
   }
 
   // MARK: - Test Helpers

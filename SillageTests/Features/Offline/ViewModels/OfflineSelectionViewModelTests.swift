@@ -193,6 +193,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       downloads.removeAll { $0.id == id }
     }
     func lastDownloadDate(for layerID: String) -> Date? { nil }
+    func fetchLastDownloadDate(for layerID: String) async throws -> Date? { nil }
   }
 
   @MainActor

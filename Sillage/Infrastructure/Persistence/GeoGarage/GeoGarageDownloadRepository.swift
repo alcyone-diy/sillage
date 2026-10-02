@@ -11,6 +11,7 @@
 import Foundation
 import Observation
 import OSLog
+import GRDB
 
 // MARK: - Protocol
 
@@ -20,139 +21,116 @@ protocol GeoGarageDownloadRepositoryProtocol: AnyObject, Sendable {
   @MainActor func save(_ download: OfflineChartDownload) async throws
   @MainActor func delete(id: UUID) async throws
   @MainActor func lastDownloadDate(for layerID: String) -> Date?
+  @MainActor func fetchLastDownloadDate(for layerID: String) async throws -> Date?
 }
 
 // MARK: - Implementation
 
 /// `@MainActor` repository managing the collection of locally downloaded CAAS MBTiles packages.
 ///
-/// **Concurrency Architecture**:
-/// - The observable state (`downloads`) is isolated on `@MainActor` for reactive UI bindings.
-/// - All disk read/write operations are delegated to `LocalFilePersistenceActor`,
-///   a dedicated Swift 6 actor that serializes JSON file access and guarantees atomic writing (`.atomic`).
+/// **Architecture**:
+/// - Single Responsibility Principle (SRP): pure persistence repository backed by SQLite via `DatabaseManager`.
+/// - Observable state (`downloads`) is isolated on `@MainActor` for reactive UI bindings.
+/// - Read/Write operations are delegated to `DatabaseManager.reader` and `DatabaseManager.writer`.
+/// - Zero dependencies on `FileManager`, `LocalFilePersistenceActor`, or JSON encoders/decoders.
 @Observable
 @MainActor
 final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
   private(set) var downloads: [OfflineChartDownload] = []
 
-  private let persistence: LocalFilePersistenceActor
-  private let fileURL: URL
+  private let databaseManager: DatabaseManager
 
   // MARK: - Init
 
-  init(persistence: LocalFilePersistenceActor, fileURL: URL? = nil) {
-    self.persistence = persistence
-
-    if let fileURL {
-      self.fileURL = fileURL
-    } else if let documentsDir = FileManager.default.urls(
-      for: .documentDirectory,
-      in: .userDomainMask
-    ).first {
-      self.fileURL = documentsDir.appendingPathComponent("geogarage_downloads.json")
-    } else {
-      self.fileURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("geogarage_downloads.json")
-      Logger.caas.error("Documents directory unavailable, falling back to temp directory.")
-    }
+  init(databaseManager: DatabaseManager) {
+    self.databaseManager = databaseManager
   }
 
   // MARK: - Load
 
-  /// Loads downloaded packages list from disk.
+  /// Loads downloaded packages from the SQLite database.
   /// Should be called during app bootstrap before accessing `downloads`.
   func load() async {
     do {
-      let loaded: [OfflineChartDownload]? = try await persistence.load(from: fileURL)
-      var items = loaded ?? []
-      let hadMissingSizes = items.contains(where: { $0.fileSize == nil })
-      if hadMissingSizes {
-        items = await Task.detached(priority: .utility) {
-          items.map { item in
-            guard item.fileSize == nil,
-                  let url = item.resolvedFileURL(),
-                  let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-                  let size = attrs[.size] as? Int64 else {
-              return item
-            }
-            return item.updatingFileSize(Measurement(value: Double(size), unit: .bytes))
-          }
-        }.value
+      let records = try await databaseManager.reader.read { db in
+        try GeoGarageDownloadRecord
+          .order(GeoGarageDownloadRecord.Columns.download_timestamp_unix.desc)
+          .fetchAll(db)
       }
-      self.downloads = items
-      Logger.caas.info("Loaded \(self.downloads.count, privacy: .public) offline chart download(s) from cache.")
-
-      // Persist backfilled sizes permanently so future app launches do not repeat disk I/O
-      if hadMissingSizes && items != (loaded ?? []) {
-        do {
-          try await persistence.save(items, to: fileURL)
-          Logger.caas.info("Persisted backfilled file sizes to download cache.")
-        } catch {
-          Logger.caas.warning("Failed to persist backfilled file sizes (non-fatal): \(error, privacy: .public)")
-        }
-      }
+      self.downloads = records.compactMap { $0.toDomain() }
+      Logger.caas.info("Loaded \(self.downloads.count, privacy: .public) offline chart download(s) from database.")
     } catch {
-      Logger.caas.error("Failed to load download repository: \(error, privacy: .public)")
+      Logger.caas.error("Failed to load download repository from database: \(error, privacy: .public)")
       self.downloads = []
     }
   }
 
   // MARK: - Save
 
-  /// Persists a download entry atomically to disk. If an entry with the same `id` already exists,
-  /// it is updated in-place (idempotent for retry safety).
+  /// Persists a download entry to SQLite. If an entry with the same `id` already exists,
+  /// it is updated in-place via `save(db)`.
   ///
   /// **State Consistency Architecture**:
-  /// Disk persistence is the single source of truth. Mutations are performed on a local snapshot
-  /// and `self.downloads` is updated **only** after `persistence.save(snapshot)` succeeds atomically.
-  /// Any disk failure is logged and rethrown to prevent silent failures.
+  /// Database persistence is the single source of truth. Mutations are reflected in `self.downloads`
+  /// **only** after `databaseManager.writer.write` succeeds.
   func save(_ download: OfflineChartDownload) async throws {
-    var snapshot = downloads
-    if let existingIndex = snapshot.firstIndex(where: { $0.id == download.id }) {
-      snapshot[existingIndex] = download
-    } else {
-      snapshot.append(download)
-    }
-
+    let record = GeoGarageDownloadRecord(domainModel: download)
     do {
-      try await persistence.save(snapshot, to: fileURL)
+      try await databaseManager.writer.write { db in
+        try record.save(db)
+      }
+      var snapshot = downloads
+      if let existingIndex = snapshot.firstIndex(where: { $0.id == download.id }) {
+        snapshot[existingIndex] = download
+      } else {
+        snapshot.insert(download, at: 0)
+      }
       self.downloads = snapshot
-      Logger.caas.debug("Saved \(snapshot.count, privacy: .public) download(s) to repository atomically.")
+      Logger.caas.debug("Saved download \(download.id.uuidString, privacy: .public) to database.")
     } catch {
-      Logger.caas.error("Failed to persist download repository atomically to disk: \(error, privacy: .public)")
+      Logger.caas.error("Failed to persist download \(download.id.uuidString, privacy: .public) to database: \(error, privacy: .public)")
       throw error
     }
   }
 
   // MARK: - Delete
 
-  /// Deletes a download record matching `id` and persists the updated catalog atomically.
-  ///
-  /// **State Consistency Architecture**:
-  /// `self.downloads` is updated only after the modified snapshot is successfully persisted atomically to disk.
+  /// Deletes a download record matching `id` from SQLite and updates memory state.
   /// Note: Does not delete the actual `.mbtiles` file on disk.
   func delete(id: UUID) async throws {
-    var snapshot = downloads
-    snapshot.removeAll { $0.id == id }
-
     do {
-      try await persistence.save(snapshot, to: fileURL)
-      self.downloads = snapshot
-      Logger.caas.debug("Deleted download \(id.uuidString, privacy: .public) from repository atomically.")
+      try await databaseManager.writer.write { db in
+        try GeoGarageDownloadRecord.deleteOne(db, key: id.uuidString)
+      }
+      self.downloads.removeAll { $0.id == id }
+      Logger.caas.debug("Deleted download \(id.uuidString, privacy: .public) from database.")
     } catch {
-      Logger.caas.error("Failed to persist repository after deletion: \(error, privacy: .public)")
+      Logger.caas.error("Failed to delete download \(id.uuidString, privacy: .public) from database: \(error, privacy: .public)")
       throw error
     }
   }
 
   // MARK: - Query
 
-  /// Returns the timestamp of the latest successful download for the specified `layerID`.
-  /// Used to compare against `GeoGarageLayer.versionDate` to detect available updates.
+  /// Returns the timestamp of the latest successful download for the specified `layerID` from the in-memory cache.
+  /// Used for fast synchronous queries in the UI.
   func lastDownloadDate(for layerID: String) -> Date? {
     downloads
       .filter { $0.layerID == layerID }
       .max(by: { $0.downloadDate < $1.downloadDate })
       .map { $0.downloadDate }
+  }
+
+  /// Returns the timestamp of the latest download for `layerID` in O(1) directly from SQLite via index aggregation.
+  func fetchLastDownloadDate(for layerID: String) async throws -> Date? {
+    try await databaseManager.reader.read { db in
+      let maxTimestamp = try Double.fetchOne(
+        db,
+        GeoGarageDownloadRecord
+          .filter(GeoGarageDownloadRecord.Columns.layer_id == layerID)
+          .select(max(GeoGarageDownloadRecord.Columns.download_timestamp_unix))
+      )
+      return maxTimestamp.map { Date(timeIntervalSince1970: $0) }
+    }
   }
 }

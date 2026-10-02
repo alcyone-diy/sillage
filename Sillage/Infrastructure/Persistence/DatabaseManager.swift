@@ -710,17 +710,4 @@ extension DatabaseManager {
       return records.reversed().map { $0.domainModel }
     }
   }
-
-  /// Returns the latest download timestamp for a given layer ID in O(1) via SQL aggregation on indexed columns.
-  func fetchLastDownloadDate(for layerID: String) async throws -> Date? {
-    try await self.reader.read { db in
-      let maxTimestamp = try Double.fetchOne(
-        db,
-        GeoGarageDownloadRecord
-          .filter(GeoGarageDownloadRecord.Columns.layer_id == layerID)
-          .select(max(GeoGarageDownloadRecord.Columns.download_timestamp_unix))
-      )
-      return maxTimestamp.map { Date(timeIntervalSince1970: $0) }
-    }
-  }
 }

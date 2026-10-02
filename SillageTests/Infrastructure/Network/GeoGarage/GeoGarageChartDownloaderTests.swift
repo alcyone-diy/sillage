@@ -88,9 +88,8 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
     }
 
     let mockPackageService = MockPackageService()
-    let persistenceActor = LocalFilePersistenceActor()
-    let repoURL = tempDirURL.appendingPathComponent("downloads.json")
-    let repository = GeoGarageDownloadRepository(persistence: persistenceActor, fileURL: repoURL)
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
 
     let downloader = GeoGarageChartDownloader(
       packageService: mockPackageService,
@@ -141,9 +140,8 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
     }
 
     let mockPackageService = MockPackageService()
-    let persistenceActor = LocalFilePersistenceActor()
-    let repoURL = tempDirURL.appendingPathComponent("downloads.json")
-    let repository = GeoGarageDownloadRepository(persistence: persistenceActor, fileURL: repoURL)
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
 
     let downloader = GeoGarageChartDownloader(
       packageService: mockPackageService,
@@ -185,14 +183,14 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
   // MARK: - Delete Local Chart
 
   func testDeleteLocalChart_removesFileAndRepositoryRecord() async throws {
-    let packageUUID = UUID(uuidString: "3FA85F64-5717-4562-B3FC-2C963F66AFA6")!
+    let packageUUID = try XCTUnwrap(UUID(uuidString: "3FA85F64-5717-4562-B3FC-2C963F66AFA6"))
     let mockFile = tempDirURL.appendingPathComponent("shom_\(packageUUID.uuidString.lowercased()).mbtiles")
-    try "Chart Data".data(using: .utf8)!.write(to: mockFile)
+    let chartData = try XCTUnwrap("Chart Data".data(using: .utf8))
+    try chartData.write(to: mockFile)
     XCTAssertTrue(FileManager.default.fileExists(atPath: mockFile.path))
 
-    let persistenceActor = LocalFilePersistenceActor()
-    let repoURL = tempDirURL.appendingPathComponent("downloads.json")
-    let repository = GeoGarageDownloadRepository(persistence: persistenceActor, fileURL: repoURL)
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
 
     let record = OfflineChartDownload(
       id: packageUUID,
