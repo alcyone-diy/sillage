@@ -11,7 +11,7 @@
 import Foundation
 
 /// A representation of a recorded track session.
-public struct TrackSession: Sendable, Codable, Identifiable {
+public struct TrackSession: Sendable, Codable, Identifiable, Hashable, Equatable {
   public let id: String
   public let startTime: Date
   public let endTime: Date?

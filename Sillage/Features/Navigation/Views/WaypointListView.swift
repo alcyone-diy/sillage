@@ -34,7 +34,7 @@ struct WaypointListView: View {
             .marineListCell()
         } else {
           ForEach(viewModel.waypoints) { waypoint in
-            NavigationLink(value: PanelManagerViewModel.CommandDestination.waypointDetail(waypoint.id)) {
+            NavigationLink(value: PanelManagerViewModel.CommandDestination.waypointDetail(waypoint.id, waypoint: waypoint)) {
               WaypointRowView(
                 waypoint: waypoint,
                 isGoTo: viewModel.goToWaypointID == waypoint.id

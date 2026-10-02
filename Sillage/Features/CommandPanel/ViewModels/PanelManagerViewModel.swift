@@ -32,8 +32,8 @@ public final class PanelManagerViewModel {
     case settings
     case tracks
     case waypoints
-    case sessionDetail(sessionID: TrackSession.ID)
-    case waypointDetail(String)
+    case sessionDetail(sessionID: TrackSession.ID, session: TrackSession? = nil)
+    case waypointDetail(String, waypoint: Waypoint? = nil)
     case baroAlarm
     case anchorAlarm
     case geoGarageLogin(context: GeoGarageLoginContext = .initialSetup)
@@ -41,7 +41,7 @@ public final class PanelManagerViewModel {
     case offlineChartDetail(id: UUID)
     case chartPreferences
     case checklists
-    case checklistTemplateDetail(templateId: UUID? = nil, startEditable: Bool = false)
+    case checklistTemplateDetail(templateId: UUID? = nil, template: ChecklistTemplate? = nil, startEditable: Bool = false)
     case activeSession(sessionId: UUID)
   }
 

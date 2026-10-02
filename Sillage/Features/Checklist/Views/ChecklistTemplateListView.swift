@@ -61,7 +61,7 @@ public struct ChecklistTemplateListView: View {
         ForEach(viewModel.groupedTemplates, id: \.category) { section in
           Section {
             ForEach(section.templates) { template in
-              NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistTemplateDetail(templateId: template.id)) {
+              NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistTemplateDetail(templateId: template.id, template: template)) {
                 ChecklistTemplateRowView(
                   template: template,
                   activeSession: viewModel.activeSession(for: template.id),

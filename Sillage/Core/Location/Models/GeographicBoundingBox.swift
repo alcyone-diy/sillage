@@ -11,7 +11,7 @@
 import Foundation
 import CoreLocation
 
-public struct GeographicBoundingBox: Sendable, Equatable, Codable {
+public struct GeographicBoundingBox: Sendable, Equatable, Hashable, Codable {
   
   // MARK: - Properties
   

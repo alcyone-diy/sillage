@@ -234,10 +234,11 @@ struct CommandPanelView: View {
         let model = WaypointListViewModel(waypointService: waypointService)
         WaypointListView(viewModel: model)
       }
-    case .sessionDetail(let sessionID):
+    case .sessionDetail(let sessionID, let session):
       if let trackService {
         let model = TrackDetailViewModel(
           sessionID: sessionID,
+          initialSession: session,
           trackService: trackService,
           trackRecordingService: trackRecordingService
         )
@@ -246,8 +247,26 @@ struct CommandPanelView: View {
           viewModel.closePanel()
         }
       }
-    case .waypointDetail(let id):
-      WaypointDetailContainer(waypointID: id)
+    case .waypointDetail(let id, let waypoint):
+      if let waypoint, let waypointService {
+        let vm = WaypointDetailViewModel(
+          waypointService: waypointService,
+          editingWaypoint: waypoint,
+          startEditable: false
+        )
+        WaypointDetailView(
+          viewModel: vm,
+          onGoToRequested: { waypointID in
+            waypointService.setDestination(waypointID: waypointID)
+            viewModel.closePanel()
+          },
+          onCancelNavigationRequested: {
+            waypointService.setDestination(waypointID: nil)
+          }
+        )
+      } else {
+        WaypointDetailContainer(waypointID: id)
+      }
     case .baroAlarm:
       BarometerAlarmView(viewModel: barometerViewModel)
     case .anchorAlarm:
@@ -271,10 +290,11 @@ struct CommandPanelView: View {
       if let service = checklistService ?? appEnvironment.checklistService {
         ChecklistTemplateListView(checklistService: service)
       }
-    case .checklistTemplateDetail(let templateId, let startEditable):
+    case .checklistTemplateDetail(let templateId, let template, let startEditable):
       if let service = checklistService ?? appEnvironment.checklistService {
         ChecklistTemplateDetailView(
           templateId: templateId,
+          template: template,
           checklistService: service,
           startEditable: startEditable
         )

@@ -35,7 +35,7 @@ struct TrackListView: View {
           .marineListCell()
       } else {
         ForEach(viewModel.sessions) { session in
-          NavigationLink(value: PanelManagerViewModel.CommandDestination.sessionDetail(sessionID: session.id)) {
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.sessionDetail(sessionID: session.id, session: session)) {
             TrackRowView(
               session: session,
               subtitle: viewModel.subtitle(for: session),

@@ -22,6 +22,13 @@ extension CLLocationCoordinate2D: @retroactive Equatable {
   }
 }
 
+extension CLLocationCoordinate2D: @retroactive Hashable {
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(latitude)
+    hasher.combine(longitude)
+  }
+}
+
 extension CLLocationCoordinate2D: @retroactive Codable {
   enum CodingKeys: String, CodingKey {
     case latitude

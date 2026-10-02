@@ -43,10 +43,16 @@ final class TrackDetailViewModel {
 
   init(
     sessionID: String,
+    initialSession: TrackSession? = nil,
     trackService: TrackService,
     trackRecordingService: TrackRecordingService
   ) {
     self.sessionID = sessionID
+    self.session = initialSession
+    if let initialSession {
+      self.name = initialSession.name ?? ""
+      self.description = initialSession.description ?? ""
+    }
     self.trackService = trackService
     self.trackRecordingService = trackRecordingService
   }

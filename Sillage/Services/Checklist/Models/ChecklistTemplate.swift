@@ -11,7 +11,7 @@
 import Foundation
 
 /// Represents a single reusable step within a checklist template.
-public struct ChecklistTemplateItem: Identifiable, Equatable, Sendable {
+public struct ChecklistTemplateItem: Identifiable, Hashable, Sendable {
   public let id: UUID
   public let templateId: UUID
   public let sortOrder: Int
@@ -34,7 +34,7 @@ public struct ChecklistTemplateItem: Identifiable, Equatable, Sendable {
 }
 
 /// Represents a reusable maritime checklist template definition.
-public struct ChecklistTemplate: Identifiable, Equatable, Sendable {
+public struct ChecklistTemplate: Identifiable, Hashable, Sendable {
   public let id: UUID
   public let title: String
   public let description: String?
