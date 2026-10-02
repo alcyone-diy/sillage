@@ -12,6 +12,7 @@ import XCTest
 import GRDB
 @testable import Sillage
 
+@MainActor
 final class GeoGarageLegacyDataMigratorTests: XCTestCase {
 
   private var tempDirectory: URL!

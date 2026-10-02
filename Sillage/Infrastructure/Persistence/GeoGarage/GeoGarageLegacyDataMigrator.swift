@@ -65,17 +65,17 @@ actor GeoGarageLegacyDataMigrator {
     do {
       let data = try Data(contentsOf: sourceFileURL)
       let decoder = JSONDecoder()
-      let standardFormatter = ISO8601DateFormatter()
-      let fractionalFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-      }()
 
       decoder.dateDecodingStrategy = .custom { d in
         let container = try d.singleValueContainer()
         let dateString = try container.decode(String.self)
-        if let date = standardFormatter.date(from: dateString) ?? fractionalFormatter.date(from: dateString) {
+        let standardFormatter = ISO8601DateFormatter()
+        if let date = standardFormatter.date(from: dateString) {
+          return date
+        }
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalFormatter.date(from: dateString) {
           return date
         }
         throw DecodingError.dataCorruptedError(
@@ -171,7 +171,7 @@ private struct LegacyOfflineChartDownloadDTO: Decodable, Sendable {
     }
   }
 
-  func toRecord() -> GeoGarageDownloadRecord {
+  nonisolated func toRecord() -> GeoGarageDownloadRecord {
     GeoGarageDownloadRecord(
       id: id.uuidString,
       layer_id: layerID,

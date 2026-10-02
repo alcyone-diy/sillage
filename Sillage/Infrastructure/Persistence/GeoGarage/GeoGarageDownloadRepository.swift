@@ -99,7 +99,7 @@ final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
   /// Note: Does not delete the actual `.mbtiles` file on disk.
   func delete(id: UUID) async throws {
     do {
-      try await databaseManager.writer.write { db in
+      _ = try await databaseManager.writer.write { db in
         try GeoGarageDownloadRecord.deleteOne(db, key: id.uuidString)
       }
       self.downloads.removeAll { $0.id == id }
