@@ -25,10 +25,9 @@ public struct ActiveChecklistListView: View {
     List {
       Section {
         ForEach(viewModel.activeSessions) { session in
-          Button(action: { viewModel.selectSession(session) }) {
+          NavigationLink(value: session.id) {
             ActiveChecklistRowView(session: session)
           }
-          .buttonStyle(.plain)
           .marineListCell()
         }
       } header: {

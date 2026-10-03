@@ -29,23 +29,11 @@ public final class ChecklistOverlayViewModel {
     activeSessions.count == 1 ? activeSessions.first : nil
   }
 
-  /// Destination for the active checklist modal presentation.
-  public enum Destination: Identifiable, Equatable, Sendable {
-    case single(ChecklistSession)
-    case list
+  /// Whether the dedicated active checklist sheet is presented.
+  public var isSheetPresented: Bool = false
 
-    public var id: String {
-      switch self {
-      case .single(let session):
-        return session.id.uuidString
-      case .list:
-        return "active_checklists_list"
-      }
-    }
-  }
-
-  /// Current destination presented in a dedicated sheet.
-  public var destination: Destination?
+  /// The navigation path stack for checklist sessions within the sheet.
+  public var navigationPath: [UUID] = []
 
   public init() {}
 
@@ -53,27 +41,25 @@ public final class ChecklistOverlayViewModel {
   /// - If exactly 1 checklist is in progress, opens that checklist directly.
   /// - If more than 1 checklist is in progress, opens the list of active checklists.
   public func openActiveChecklists() {
+    isSheetPresented = true
     if let single = singleActiveSession {
-      destination = .single(single)
-    } else if activeSessions.count > 1 {
-      destination = .list
+      navigationPath = [single.id]
+    } else {
+      navigationPath = []
     }
   }
 
-  /// Selects a specific checklist session to present in the modal.
+  /// Selects a specific checklist session to present in the modal stack.
   public func selectSession(_ session: ChecklistSession) {
-    destination = .single(session)
+    if !navigationPath.contains(session.id) {
+      navigationPath.append(session.id)
+    }
   }
 
-  /// Opens the single active session if exactly one is in progress.
-  public func openSingleActiveSession() {
-    guard let session = singleActiveSession else { return }
-    destination = .single(session)
-  }
-
-  /// Dismisses the currently presented destination.
+  /// Dismisses the active checklist sheet and clears the navigation stack.
   public func dismiss() {
-    destination = nil
+    isSheetPresented = false
+    navigationPath.removeAll()
   }
 
   /// Observes active checklist sessions continuously using structured concurrency.
@@ -87,9 +73,12 @@ public final class ChecklistOverlayViewModel {
         }
         self.activeSessions = inProgressSessions
         if inProgressSessions.isEmpty {
-          self.destination = nil
-        } else if case .single(let current) = self.destination, !inProgressSessions.contains(where: { $0.id == current.id }) {
-          self.destination = nil
+          self.isSheetPresented = false
+          self.navigationPath.removeAll()
+        } else {
+          self.navigationPath = self.navigationPath.filter { id in
+            inProgressSessions.contains(where: { $0.id == id })
+          }
         }
       }
     } catch {

@@ -283,34 +283,19 @@ struct ContentView: View {
       }
     }
     .environment(panelManagerViewModel)
-    .sheet(item: $checklistOverlayViewModel.destination) { destination in
+    .sheet(isPresented: $checklistOverlayViewModel.isSheetPresented) {
       if let checklistService {
-        NavigationStack {
-          switch destination {
-          case .single(let session):
-            ChecklistSessionView(
-              sessionId: session.id,
-              checklistService: checklistService,
-              locationProvider: {
-                appEnvironment?.lastKnownLocation
-              }
-            )
-            .toolbar {
-              ToolbarItem(placement: .cancellationAction) {
-                Button {
-                  checklistOverlayViewModel.dismiss()
-                } label: {
-                  Image(marineIcon: .close)
-                    .foregroundStyle(marineTheme.colors.textSecondary)
-                    .padding(8)
-                    .contentShape(Rectangle())
+        NavigationStack(path: $checklistOverlayViewModel.navigationPath) {
+          ActiveChecklistListView(viewModel: checklistOverlayViewModel)
+            .navigationDestination(for: UUID.self) { sessionId in
+              ChecklistSessionView(
+                sessionId: sessionId,
+                checklistService: checklistService,
+                locationProvider: {
+                  appEnvironment?.lastKnownLocation
                 }
-                .accessibilityLabel(String(localized: "Close"))
-              }
+              )
             }
-          case .list:
-            ActiveChecklistListView(viewModel: checklistOverlayViewModel)
-          }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)

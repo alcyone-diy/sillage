@@ -46,6 +46,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     XCTAssertTrue(vm.activeSessions.isEmpty)
     XCTAssertFalse(vm.hasActiveChecklists)
     XCTAssertNil(vm.singleActiveSession)
+    XCTAssertFalse(vm.isSheetPresented)
+    XCTAssertTrue(vm.navigationPath.isEmpty)
   }
 
   // MARK: - Reactive Observation & Business Filtering Tests
@@ -188,13 +190,16 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     try await waitUntil { vm.singleActiveSession != nil }
     let activeSession = try XCTUnwrap(vm.singleActiveSession)
 
-    XCTAssertNil(vm.destination)
+    XCTAssertFalse(vm.isSheetPresented)
+    XCTAssertTrue(vm.navigationPath.isEmpty)
 
-    vm.selectSession(activeSession)
-    XCTAssertEqual(vm.destination, .single(activeSession))
+    vm.openActiveChecklists()
+    XCTAssertTrue(vm.isSheetPresented)
+    XCTAssertEqual(vm.navigationPath, [activeSession.id])
 
     vm.dismiss()
-    XCTAssertNil(vm.destination)
+    XCTAssertFalse(vm.isSheetPresented)
+    XCTAssertTrue(vm.navigationPath.isEmpty)
   }
 
   func testAutoDismissWhenSessionCompletes() async throws {
@@ -224,15 +229,17 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let activeSession = try XCTUnwrap(vm.singleActiveSession)
 
     // Open session in sheet
-    vm.selectSession(activeSession)
-    XCTAssertEqual(vm.destination, .single(activeSession))
+    vm.openActiveChecklists()
+    XCTAssertTrue(vm.isSheetPresented)
+    XCTAssertEqual(vm.navigationPath, [activeSession.id])
 
     // Complete session in service
     _ = try await service.completeSession(sessionId: session.id)
 
     // Automatically dismissed via reactive synchronization
-    try await waitUntil { vm.destination == nil }
-    XCTAssertNil(vm.destination)
+    try await waitUntil { !vm.isSheetPresented && vm.navigationPath.isEmpty }
+    XCTAssertFalse(vm.isSheetPresented)
+    XCTAssertTrue(vm.navigationPath.isEmpty)
   }
 
   func testOpenActiveChecklistsRoutesToSingleWhenOnlyOneActive() async throws {
@@ -262,10 +269,12 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let activeSession = try XCTUnwrap(vm.singleActiveSession)
 
     vm.openActiveChecklists()
-    XCTAssertEqual(vm.destination, .single(activeSession))
+    XCTAssertTrue(vm.isSheetPresented)
+    XCTAssertEqual(vm.navigationPath, [activeSession.id])
 
     vm.dismiss()
-    XCTAssertNil(vm.destination)
+    XCTAssertFalse(vm.isSheetPresented)
+    XCTAssertTrue(vm.navigationPath.isEmpty)
   }
 
   func testOpenActiveChecklistsRoutesToListWhenMultipleActive() async throws {
@@ -298,18 +307,27 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
 
     try await waitUntil { vm.activeSessions.count == 2 }
 
+    // Opens sheet with empty navigationPath (showing the list root)
     vm.openActiveChecklists()
-    XCTAssertEqual(vm.destination, .list)
+    XCTAssertTrue(vm.isSheetPresented)
+    XCTAssertTrue(vm.navigationPath.isEmpty)
 
-    // Complete first session -> 1 session left, list remains open
+    // User selects session 1
+    vm.selectSession(session1)
+    XCTAssertEqual(vm.navigationPath, [session1.id])
+
+    // Complete session 1 -> navigationPath filters out session1, pops back to list (path empty), sheet remains open
     _ = try await service.completeSession(sessionId: session1.id)
     try await waitUntil { vm.activeSessions.count == 1 }
-    XCTAssertEqual(vm.destination, .list)
+    try await waitUntil { vm.navigationPath.isEmpty }
+    XCTAssertTrue(vm.isSheetPresented)
+    XCTAssertTrue(vm.navigationPath.isEmpty)
 
-    // Complete second session -> 0 sessions left -> auto-dismisses
+    // Complete session 2 -> activeSessions becomes empty -> sheet auto-dismisses
     _ = try await service.completeSession(sessionId: session2.id)
     try await waitUntil { vm.activeSessions.isEmpty }
-    try await waitUntil { vm.destination == nil }
-    XCTAssertNil(vm.destination)
+    try await waitUntil { !vm.isSheetPresented }
+    XCTAssertFalse(vm.isSheetPresented)
+    XCTAssertTrue(vm.navigationPath.isEmpty)
   }
 }
