@@ -124,7 +124,7 @@ struct ContentView: View {
             Spacer()
 
             if !chartViewModel.isActionConfirmationCardActive {
-              VStack(spacing: MarineTheme.Spacing.medium) {
+              VStack(spacing: MarineTheme.Spacing.extraLarge) {
                 if checklistOverlayViewModel.hasActiveChecklists {
                   ActiveChecklistButtonView {
                     checklistOverlayViewModel.openActiveChecklists()
