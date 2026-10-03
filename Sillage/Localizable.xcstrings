@@ -238,6 +238,9 @@
     "Are you sure you want to delete \"%@\"? This action cannot be undone." : {
 
     },
+    "Are you sure you want to delete this completed session for \"%@\"? This action cannot be undone." : {
+
+    },
     "Are you sure you want to delete this downloaded chart package? This action cannot be undone." : {
 
     },
@@ -401,6 +404,9 @@
 
     },
     "Confirm Anchor Drop" : {
+
+    },
+    "Confirmation" : {
 
     },
     "Continue" : {
@@ -1262,6 +1268,9 @@
 
     },
     "This will delete the current checklist session." : {
+
+    },
+    "This will delete the current progress and reset \"%@\"." : {
 
     },
     "This will replace the active GeoGarage token with an invalid test token." : {

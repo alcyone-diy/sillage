@@ -16,6 +16,44 @@ import OSLog
 public struct ActiveChecklistListView: View {
   @Environment(\.marineTheme) private var marineTheme
 
+  private enum PendingSessionAction: Identifiable {
+    case reset(ChecklistSession)
+    case delete(ChecklistSession)
+
+    var id: UUID {
+      switch self {
+      case .reset(let session), .delete(let session):
+        return session.id
+      }
+    }
+
+    var actionTitle: LocalizedStringKey {
+      switch self {
+      case .reset:
+        return "Reset"
+      case .delete:
+        return "Delete"
+      }
+    }
+
+    var message: LocalizedStringKey {
+      switch self {
+      case .reset(let session):
+        return "This will delete the current progress and reset \"\(session.templateTitleSnapshot)\"."
+      case .delete(let session):
+        return "Are you sure you want to delete this completed session for \"\(session.templateTitleSnapshot)\"? This action cannot be undone."
+      }
+    }
+
+    var session: ChecklistSession {
+      switch self {
+      case .reset(let session), .delete(let session):
+        return session
+      }
+    }
+  }
+
+  @State private var pendingAction: PendingSessionAction?
   let viewModel: ChecklistOverlayViewModel
   let checklistService: (any ChecklistServiceProtocol)?
 
@@ -35,15 +73,9 @@ public struct ActiveChecklistListView: View {
             // From the mariner's perspective, this action is a "Reset" (clearing execution to restart fresh;
             // the checklist template itself is not deleted). Under the hood, resetting is achieved by physically deleting
             // the active session record from SQLite (`deleteSession`), completely removing it from active observation.
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
               Button(role: .destructive) {
-                Task {
-                  do {
-                    try await checklistService?.deleteSession(sessionId: session.id)
-                  } catch {
-                    Logger.checklist.error("Failed to delete session '\(session.id.uuidString, privacy: .public)' from swipe action: \(error.localizedDescription, privacy: .public)")
-                  }
-                }
+                pendingAction = .reset(session)
               } label: {
                 Label("Reset", systemImage: "arrow.counterclockwise")
               }
@@ -65,19 +97,12 @@ public struct ActiveChecklistListView: View {
             NavigationLink(value: ChecklistOverlayDestination.session(ChecklistSessionRoute(id: session.id, snapshot: session))) {
               ActiveChecklistRowView(session: session)
             }
-            // From the mariner's perspective, this action resets the completed session so it can be restarted from scratch.
-            // Under the hood, this physically deletes the completed session record via `deleteSession`.
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            // Deletes the completed session record from SQLite.
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
               Button(role: .destructive) {
-                Task {
-                  do {
-                    try await checklistService?.deleteSession(sessionId: session.id)
-                  } catch {
-                    Logger.checklist.error("Failed to delete session '\(session.id.uuidString, privacy: .public)' from swipe action: \(error.localizedDescription, privacy: .public)")
-                  }
-                }
+                pendingAction = .delete(session)
               } label: {
-                Label("Reset", systemImage: "arrow.counterclockwise")
+                Label("Delete", systemImage: MarineIcon.delete.rawValue)
               }
               .tint(.red)
             }
@@ -116,6 +141,28 @@ public struct ActiveChecklistListView: View {
         }
         .accessibilityLabel(String(localized: "Close"))
       }
+    }
+    .alert(
+      "Confirmation",
+      isPresented: Binding(
+        get: { pendingAction != nil },
+        set: { if !$0 { pendingAction = nil } }
+      ),
+      presenting: pendingAction
+    ) { action in
+      Button(action.actionTitle, role: .destructive) {
+        let sessionId = action.session.id
+        Task {
+          do {
+            try await checklistService?.deleteSession(sessionId: sessionId)
+          } catch {
+            Logger.checklist.error("Failed to delete session '\(sessionId.uuidString, privacy: .public)' from swipe action: \(error.localizedDescription, privacy: .public)")
+          }
+        }
+      }
+      Button("Cancel", role: .cancel) { }
+    } message: { action in
+      Text(action.message)
     }
   }
 }
