@@ -29,32 +29,32 @@ public final class ChecklistOverlayViewModel {
     activeSessions.filter { $0.status == .completed }
   }
 
-  /// Whether any checklist session is currently active or completed.
+  /// Whether any checklist session is currently in progress.
+  /// When all checklists are completed (even if retained in activeSessions for 48h),
+  /// the floating button must disappear from the main map overlay.
   public var hasActiveChecklists: Bool {
-    !activeSessions.isEmpty
+    !inProgressSessions.isEmpty
   }
 
-  /// Single active session if exactly one checklist is in progress or present.
+  /// Single active session if exactly one checklist is currently in progress.
   public var singleActiveSession: ChecklistSession? {
     if inProgressSessions.count == 1 {
       return inProgressSessions.first
-    } else if activeSessions.count == 1 {
-      return activeSessions.first
     }
     return nil
   }
 
-  /// Total number of completed steps across all tracked checklist sessions.
+  /// Total number of completed steps across all in-progress checklist sessions.
   public var completedStepsCount: Int {
-    activeSessions.reduce(0) { $0 + $1.completedCount }
+    inProgressSessions.reduce(0) { $0 + $1.completedCount }
   }
 
-  /// Total number of steps across all tracked checklist sessions.
+  /// Total number of steps across all in-progress checklist sessions.
   public var totalStepsCount: Int {
-    activeSessions.reduce(0) { $0 + $1.totalCount }
+    inProgressSessions.reduce(0) { $0 + $1.totalCount }
   }
 
-  /// Ratio of completed steps over total steps across tracked checklist sessions (between 0.0 and 1.0).
+  /// Ratio of completed steps over total steps across in-progress checklist sessions (between 0.0 and 1.0).
   public var progressRatio: Double {
     guard totalStepsCount > 0 else { return 0.0 }
     return Double(completedStepsCount) / Double(totalStepsCount)
@@ -69,13 +69,11 @@ public final class ChecklistOverlayViewModel {
   public init() {}
 
   /// Handles tap on the active checklist button:
-  /// - If exactly 1 checklist is in progress (or present), opens that checklist directly.
-  /// - If more than 1 checklist is present, opens the list of active checklists.
+  /// - If exactly 1 checklist is in progress, opens that checklist directly.
+  /// - If more than 1 checklist is in progress, opens the list of active checklists.
   public func openActiveChecklists() {
     isSheetPresented = true
     if inProgressSessions.count == 1, let single = inProgressSessions.first {
-      navigationPath = [single.id]
-    } else if activeSessions.count == 1, let single = activeSessions.first {
       navigationPath = [single.id]
     } else {
       navigationPath = []

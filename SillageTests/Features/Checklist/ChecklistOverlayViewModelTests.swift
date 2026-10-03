@@ -134,12 +134,15 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     // Complete session
     _ = try await service.completeSession(sessionId: session.id)
 
-    // Session remains in the list and is NOT removed!
+    // Session remains in the active sessions list (under completed within 48h) and is NOT removed!
     try await waitUntil { vm.completedSessions.count == 1 }
-    XCTAssertTrue(vm.hasActiveChecklists)
     XCTAssertEqual(vm.activeSessions.count, 1)
     XCTAssertEqual(vm.completedSessions.first?.id, session.id)
     XCTAssertTrue(vm.inProgressSessions.isEmpty)
+
+    // But the floating checklist button must disappear from the overlay when no session is in progress
+    XCTAssertFalse(vm.hasActiveChecklists)
+    XCTAssertNil(vm.singleActiveSession)
   }
 
   func testMultipleActiveSessions() async throws {
@@ -442,9 +445,16 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
 
     XCTAssertEqual(vm.inProgressSessions.count, 1)
     XCTAssertEqual(vm.inProgressSessions.first?.id, safetySession.id)
+    XCTAssertTrue(vm.hasActiveChecklists)
 
     XCTAssertEqual(vm.completedSessions.count, 2)
     XCTAssertTrue(vm.completedSessions.contains(where: { $0.id == routineSession.id }))
     XCTAssertTrue(vm.completedSessions.contains(where: { $0.id == engineSession.id }))
+
+    // Once the last in-progress session is completed, hasActiveChecklists becomes false
+    _ = try await service.completeSession(sessionId: safetySession.id)
+    try await waitUntil { vm.completedSessions.count == 3 }
+    XCTAssertFalse(vm.hasActiveChecklists)
+    XCTAssertEqual(vm.activeSessions.count, 3)
   }
 }
