@@ -126,7 +126,7 @@ struct ContentView: View {
             if !chartViewModel.isActionConfirmationCardActive {
               VStack(spacing: MarineTheme.Spacing.extraLarge) {
                 if checklistOverlayViewModel.hasActiveChecklists {
-                  ActiveChecklistButtonView {
+                  ActiveChecklistButtonView(progress: checklistOverlayViewModel.progressRatio) {
                     checklistOverlayViewModel.openActiveChecklists()
                   }
                   .transition(.scale.combined(with: .opacity))

@@ -50,6 +50,7 @@ struct MarineTheme {
     // Computed properties for derived colors and aliases
     var accent: Color { primary }
     var error: Color { destructive }
+    var caution: Color { cancelAction }
     var primaryFaded: Color { primary.opacity(0.4) }
     var secondaryActionBackground: Color { primary.opacity(0.15) }
     var planningLine: Color { primary.opacity(0.5) }

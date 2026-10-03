@@ -29,6 +29,22 @@ public final class ChecklistOverlayViewModel {
     activeSessions.count == 1 ? activeSessions.first : nil
   }
 
+  /// Total number of completed steps across all in-progress checklist sessions.
+  public var completedStepsCount: Int {
+    activeSessions.reduce(0) { $0 + $1.completedCount }
+  }
+
+  /// Total number of steps across all in-progress checklist sessions.
+  public var totalStepsCount: Int {
+    activeSessions.reduce(0) { $0 + $1.totalCount }
+  }
+
+  /// Ratio of completed steps over total steps across in-progress checklist sessions (between 0.0 and 1.0).
+  public var progressRatio: Double {
+    guard totalStepsCount > 0 else { return 0.0 }
+    return Double(completedStepsCount) / Double(totalStepsCount)
+  }
+
   /// Whether the dedicated active checklist sheet is presented.
   public var isSheetPresented: Bool = false
 
