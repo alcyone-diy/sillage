@@ -46,7 +46,6 @@ public struct ChecklistSessionView: View {
       } else {
         headerSection
         itemsSection
-        actionsSection
       }
     }
     .listStyle(.insetGrouped)
@@ -174,27 +173,39 @@ public struct ChecklistSessionView: View {
 
   @ViewBuilder
   private var itemsSection: some View {
-    Section(header: Text("Items").marineSectionHeader()) {
-      ForEach(viewModel.items, id: \.stableId) { item in
-        let isCurrent = (item.stableId == viewModel.currentItemId)
-        ChecklistSessionItemRowView(
-          item: item,
-          isCurrentItem: isCurrent,
-          isPerformingAction: viewModel.isPerformingAction,
-          onToggle: {
-            Task {
-              await viewModel.toggleItem(item)
+    Section {
+      if viewModel.items.isEmpty {
+        Text("No items in checklist")
+          .marineFont(.body)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+          .marineListCell()
+      } else {
+        ForEach(viewModel.items, id: \.stableId) { item in
+          let isCurrent = (item.stableId == viewModel.currentItemId)
+          ChecklistSessionItemRowView(
+            item: item,
+            isCurrentItem: isCurrent,
+            isPerformingAction: viewModel.isPerformingAction,
+            onToggle: {
+              Task {
+                await viewModel.toggleItem(item)
+              }
             }
-          }
-        )
-        .marineListCell()
+          )
+          .marineListCell()
+        }
       }
+    } header: {
+      Text("Items")
+        .marineSectionHeader()
+    } footer: {
+      actionsFooter
     }
   }
 
   @ViewBuilder
-  private var actionsSection: some View {
-    Section {
+  private var actionsFooter: some View {
+    VStack(spacing: MarineTheme.Spacing.small) {
       if !viewModel.isCompleted {
         Button {
           Task {
@@ -208,7 +219,6 @@ public struct ChecklistSessionView: View {
         }
         .buttonStyle(MarineButtonStyle(.primary))
         .disabled(!viewModel.canComplete || viewModel.isPerformingAction)
-        .marineListCell()
 
         if viewModel.canReset {
           Button(role: .destructive) {
@@ -221,7 +231,6 @@ public struct ChecklistSessionView: View {
           }
           .buttonStyle(MarineButtonStyle(.destructive))
           .disabled(viewModel.isPerformingAction)
-          .marineListCell()
         }
       } else {
         // Intentionally do not dismiss the editor automatically upon completion.
@@ -236,7 +245,6 @@ public struct ChecklistSessionView: View {
           }
         }
         .buttonStyle(MarineButtonStyle(.secondary))
-        .marineListCell()
 
         if viewModel.canReset {
           Button(role: .destructive) {
@@ -249,10 +257,11 @@ public struct ChecklistSessionView: View {
           }
           .buttonStyle(MarineButtonStyle(.destructive))
           .disabled(viewModel.isPerformingAction)
-          .marineListCell()
         }
       }
     }
+    .textCase(nil)
+    .padding(.top, MarineTheme.Spacing.medium)
   }
 }
 
