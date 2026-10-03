@@ -259,6 +259,15 @@ private struct ChecklistSessionItemRowView: View {
               .marineFont(.caption)
               .foregroundStyle(marineTheme.colors.textSecondary)
           }
+        }
+
+        Spacer()
+
+        ZStack(alignment: .trailing) {
+          Text("00:00")
+            .marineFont(.caption)
+            .hidden()
+            .accessibilityHidden(true)
 
           if let checkedAt = item.checkedAt, item.isChecked {
             Text(checkedAt.formatted(date: .omitted, time: .shortened))
@@ -266,8 +275,6 @@ private struct ChecklistSessionItemRowView: View {
               .foregroundStyle(marineTheme.colors.textSecondary.opacity(0.7))
           }
         }
-
-        Spacer()
       }
       .frame(minHeight: marineTheme.minTouchTarget)
       .contentShape(Rectangle())
