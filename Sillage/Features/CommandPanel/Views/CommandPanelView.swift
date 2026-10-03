@@ -300,10 +300,11 @@ struct CommandPanelView: View {
           startEditable: startEditable
         )
       }
-    case .activeSession(let sessionId):
+    case .activeSession(let route):
       if let service = checklistService ?? appEnvironment.checklistService {
         ChecklistSessionView(
-          sessionId: sessionId,
+          sessionId: route.id,
+          session: route.snapshot,
           checklistService: service,
           locationProvider: {
             appEnvironment.lastKnownLocation

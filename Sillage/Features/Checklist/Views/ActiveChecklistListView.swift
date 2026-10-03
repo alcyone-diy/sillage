@@ -28,7 +28,7 @@ public struct ActiveChecklistListView: View {
       if !viewModel.inProgressSessions.isEmpty {
         Section {
           ForEach(viewModel.inProgressSessions) { session in
-            NavigationLink(value: ChecklistOverlayDestination.session(sessionId: session.id)) {
+            NavigationLink(value: ChecklistOverlayDestination.session(ChecklistSessionRoute(id: session.id, snapshot: session))) {
               ActiveChecklistRowView(session: session)
             }
             .marineListCell()
@@ -44,7 +44,7 @@ public struct ActiveChecklistListView: View {
       if !viewModel.completedSessions.isEmpty {
         Section {
           ForEach(viewModel.completedSessions) { session in
-            NavigationLink(value: ChecklistOverlayDestination.session(sessionId: session.id)) {
+            NavigationLink(value: ChecklistOverlayDestination.session(ChecklistSessionRoute(id: session.id, snapshot: session))) {
               ActiveChecklistRowView(session: session)
             }
             .marineListCell()

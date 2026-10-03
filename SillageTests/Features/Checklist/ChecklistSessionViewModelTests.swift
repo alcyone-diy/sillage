@@ -66,6 +66,19 @@ final class ChecklistSessionViewModelTests: XCTestCase {
 
   // MARK: - Load Tests
 
+  func testInitWithPreloadedSessionExposesTitleInstantly() {
+    let preloadedVM = ChecklistSessionViewModel(
+      sessionId: session.id,
+      session: session,
+      checklistService: checklistService
+    )
+
+    XCTAssertEqual(preloadedVM.title, "Engine Check")
+    XCTAssertEqual(preloadedVM.items.count, 3)
+    XCTAssertFalse(preloadedVM.title.isEmpty)
+    XCTAssertNotNil(preloadedVM.session)
+  }
+
   func testLoadFetchesSessionAndTemplate() async {
     XCTAssertNil(viewModel.session)
     XCTAssertNil(viewModel.template)

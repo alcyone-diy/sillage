@@ -84,11 +84,11 @@ public final class ChecklistTemplateListViewModel {
   }
 
   /// Starts or resumes a session for the specified template.
-  /// - Returns: The UUID of the active `ChecklistSession`, or `nil` on failure.
-  public func startOrResumeSession(for templateId: UUID) async -> UUID? {
+  /// - Returns: The active `ChecklistSession`, or `nil` on failure.
+  public func startOrResumeSession(for templateId: UUID) async -> ChecklistSession? {
     do {
       let session = try await checklistService.startSession(templateId: templateId)
-      return session.id
+      return session
     } catch {
       Logger.checklist.error("Failed to start or resume session for template \(templateId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription

@@ -72,8 +72,8 @@ public struct ChecklistTemplateListView: View {
                 let hasActive = viewModel.hasActiveSession(for: template.id)
                 Button {
                   Task {
-                    if let sessionId = await viewModel.startOrResumeSession(for: template.id) {
-                      panelManager?.commandPath.append(.activeSession(sessionId: sessionId))
+                    if let session = await viewModel.startOrResumeSession(for: template.id) {
+                      panelManager?.commandPath.append(.activeSession(ChecklistSessionRoute(id: session.id, snapshot: session)))
                     }
                   }
                 } label: {

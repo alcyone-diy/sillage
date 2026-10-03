@@ -18,14 +18,22 @@ public struct ChecklistSessionView: View {
   private let checklistService: any ChecklistServiceProtocol
   @State private var viewModel: ChecklistSessionViewModel
 
+  /// Initializes the checklist session view.
+  /// - Parameters:
+  ///   - sessionId: Persistent identifier of the session.
+  ///   - session: Optional in-memory session snapshot enabling zero-latency initial rendering.
+  ///   - checklistService: The checklist service handling data mutations and observation.
+  ///   - locationProvider: Optional provider for auditing GPS coordinates upon step completion.
   public init(
     sessionId: UUID,
+    session: ChecklistSession? = nil,
     checklistService: any ChecklistServiceProtocol,
     locationProvider: (@MainActor () -> NavigationFix?)? = nil
   ) {
     self.checklistService = checklistService
     _viewModel = State(initialValue: ChecklistSessionViewModel(
       sessionId: sessionId,
+      session: session,
       checklistService: checklistService,
       locationProvider: locationProvider
     ))

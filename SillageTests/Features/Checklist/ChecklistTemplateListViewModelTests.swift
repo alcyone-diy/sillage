@@ -147,12 +147,12 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
       items: [("Step 1", nil)]
     )
 
-    let sessionId = await vm.startOrResumeSession(for: template.id)
-    XCTAssertNotNil(sessionId)
+    let session = await vm.startOrResumeSession(for: template.id)
+    XCTAssertNotNil(session)
 
     // Resuming returns the same active session ID
-    let resumedSessionId = await vm.startOrResumeSession(for: template.id)
-    XCTAssertEqual(sessionId, resumedSessionId)
+    let resumedSession = await vm.startOrResumeSession(for: template.id)
+    XCTAssertEqual(session?.id, resumedSession?.id)
   }
 
   // MARK: - Completed Sessions Observation Tests

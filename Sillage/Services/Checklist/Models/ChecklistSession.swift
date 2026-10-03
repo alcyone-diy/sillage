@@ -19,7 +19,7 @@ public enum ChecklistSessionStatus: String, Codable, Sendable {
 }
 
 /// Represents an item snapshot within a specific checklist session.
-public struct ChecklistSessionItem: Identifiable, Equatable, Sendable {
+public struct ChecklistSessionItem: Identifiable, Equatable, Hashable, Sendable {
   public let id: UUID
   public let sessionId: UUID
   public let sourceTemplateItemId: UUID?
@@ -59,7 +59,7 @@ public struct ChecklistSessionItem: Identifiable, Equatable, Sendable {
 }
 
 /// Represents an active or completed checklist session.
-public struct ChecklistSession: Identifiable, Equatable, Sendable {
+public struct ChecklistSession: Identifiable, Equatable, Hashable, Sendable {
   public let id: UUID
   public let templateId: UUID
   public let templateTitleSnapshot: String

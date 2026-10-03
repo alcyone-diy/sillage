@@ -29,12 +29,21 @@ public final class ChecklistSessionViewModel {
   public var errorMessage: String?
   public var showResetConfirmation: Bool = false
 
+  /// Initializes the session view model.
+  /// - Parameters:
+  ///   - sessionId: Persistent identifier for database lookup, persistence, and fallback.
+  ///   - session: Optional in-memory session snapshot used to render the title and steps immediately,
+  ///              preventing UI latency while the asynchronous database load completes.
+  ///   - checklistService: The service handling checklist execution and persistence.
+  ///   - locationProvider: Optional closure returning the latest GPS fix for geotagged checks.
   public init(
     sessionId: UUID,
+    session: ChecklistSession? = nil,
     checklistService: any ChecklistServiceProtocol,
     locationProvider: (@MainActor () -> NavigationFix?)? = nil
   ) {
     self.sessionId = sessionId
+    self.session = session
     self.checklistService = checklistService
     self.locationProvider = locationProvider
   }

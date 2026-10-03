@@ -209,7 +209,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
 
     vm.openActiveChecklists()
     XCTAssertTrue(vm.isSheetPresented)
-    XCTAssertEqual(vm.navigationPath, [.session(sessionId: activeSession.id)])
+    XCTAssertEqual(vm.navigationPath, [.session(ChecklistSessionRoute(id: activeSession.id, snapshot: activeSession))])
 
     vm.dismiss()
     XCTAssertFalse(vm.isSheetPresented)
@@ -245,7 +245,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     // Open session in sheet
     vm.openActiveChecklists()
     XCTAssertTrue(vm.isSheetPresented)
-    XCTAssertEqual(vm.navigationPath, [.session(sessionId: activeSession.id)])
+    XCTAssertEqual(vm.navigationPath, [.session(ChecklistSessionRoute(id: activeSession.id, snapshot: activeSession))])
 
     // Complete session in service
     _ = try await service.completeSession(sessionId: session.id)
@@ -253,7 +253,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     // View remains presented and navigation path is NOT cleared automatically
     try await waitUntil { vm.completedSessions.count == 1 }
     XCTAssertTrue(vm.isSheetPresented)
-    XCTAssertEqual(vm.navigationPath, [.session(sessionId: activeSession.id)])
+    XCTAssertEqual(vm.navigationPath, [.session(ChecklistSessionRoute(id: activeSession.id, snapshot: activeSession))])
   }
 
   func testOpenActiveChecklistsRoutesToSingleWhenOnlyOneActive() async throws {
@@ -284,7 +284,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
 
     vm.openActiveChecklists()
     XCTAssertTrue(vm.isSheetPresented)
-    XCTAssertEqual(vm.navigationPath, [.session(sessionId: activeSession.id)])
+    XCTAssertEqual(vm.navigationPath, [.session(ChecklistSessionRoute(id: activeSession.id, snapshot: activeSession))])
 
     vm.dismiss()
     XCTAssertFalse(vm.isSheetPresented)
@@ -328,13 +328,13 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
 
     // User selects session 1
     vm.selectSession(session1)
-    XCTAssertEqual(vm.navigationPath, [.session(sessionId: session1.id)])
+    XCTAssertEqual(vm.navigationPath, [.session(ChecklistSessionRoute(id: session1.id, snapshot: session1))])
 
     // Complete session 1 -> session1 remains in activeSessions (under completed), sheet remains open and path is preserved
     _ = try await service.completeSession(sessionId: session1.id)
     try await waitUntil { vm.completedSessions.count == 1 }
     XCTAssertTrue(vm.isSheetPresented)
-    XCTAssertEqual(vm.navigationPath, [.session(sessionId: session1.id)])
+    XCTAssertEqual(vm.navigationPath, [.session(ChecklistSessionRoute(id: session1.id, snapshot: session1))])
     XCTAssertEqual(vm.activeSessions.count, 2)
 
     // Complete session 2 -> both remain in activeSessions, sheet remains open
@@ -484,5 +484,84 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     try await waitUntil { vm.activeSessions.isEmpty }
     XCTAssertTrue(vm.activeSessions.isEmpty)
     XCTAssertFalse(vm.hasActiveChecklists)
+  }
+
+  // MARK: - Navigation Identity Tests
+
+  func testDestinationEqualityIgnoresMutableSessionSnapshot() {
+    let sessionId = UUID()
+    let templateId = UUID()
+
+    let initialSession = ChecklistSession(
+      id: sessionId,
+      templateId: templateId,
+      templateTitleSnapshot: "Safety Briefing",
+      category: .safetyEmergency,
+      status: .inProgress,
+      items: [
+        ChecklistSessionItem(
+          sessionId: sessionId,
+          sourceTemplateItemId: UUID(),
+          sortOrder: 0,
+          title: "Lifejackets",
+          isChecked: false
+        )
+      ]
+    )
+
+    let mutatedSession = ChecklistSession(
+      id: sessionId,
+      templateId: templateId,
+      templateTitleSnapshot: "Safety Briefing",
+      category: .safetyEmergency,
+      status: .completed,
+      items: [
+        ChecklistSessionItem(
+          sessionId: sessionId,
+          sourceTemplateItemId: UUID(),
+          sortOrder: 0,
+          title: "Lifejackets",
+          isChecked: true
+        )
+      ]
+    )
+
+    let route1 = ChecklistSessionRoute(id: sessionId, snapshot: initialSession)
+    let route2 = ChecklistSessionRoute(id: sessionId, snapshot: mutatedSession)
+    let routeWithoutPayload = ChecklistSessionRoute(id: sessionId)
+    let routeDifferentId = ChecklistSessionRoute(id: UUID(), snapshot: initialSession)
+
+    // Route equality relies exclusively on id
+    XCTAssertEqual(route1, route2)
+    XCTAssertEqual(route1, routeWithoutPayload)
+    XCTAssertNotEqual(route1, routeDifferentId)
+
+    // Route hash consistency relies exclusively on id
+    var routeHasher1 = Hasher()
+    route1.hash(into: &routeHasher1)
+    var routeHasher2 = Hasher()
+    route2.hash(into: &routeHasher2)
+    var routeHasherWithout = Hasher()
+    routeWithoutPayload.hash(into: &routeHasherWithout)
+    XCTAssertEqual(routeHasher1.finalize(), routeHasher2.finalize())
+    XCTAssertEqual(routeHasher1.finalize(), routeHasherWithout.finalize())
+
+    let dest1 = ChecklistOverlayDestination.session(route1)
+    let dest2 = ChecklistOverlayDestination.session(route2)
+    let destWithoutPayload = ChecklistOverlayDestination.session(routeWithoutPayload)
+    let destDifferentId = ChecklistOverlayDestination.session(routeDifferentId)
+
+    // Synthesized destination equality relies on route's id
+    XCTAssertEqual(dest1, dest2)
+    XCTAssertEqual(dest1, destWithoutPayload)
+    XCTAssertNotEqual(dest1, destDifferentId)
+
+    // In a navigation path, re-selecting mutatedSession when initialSession is already present is cleanly prevented
+    let vm = ChecklistOverlayViewModel()
+    vm.selectSession(initialSession)
+    XCTAssertEqual(vm.navigationPath.count, 1)
+
+    vm.selectSession(mutatedSession)
+    XCTAssertEqual(vm.navigationPath.count, 1)
   }
 }

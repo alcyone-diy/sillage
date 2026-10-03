@@ -292,9 +292,10 @@ struct ContentView: View {
           )
             .navigationDestination(for: ChecklistOverlayDestination.self) { destination in
               switch destination {
-              case .session(let sessionId):
+              case .session(let route):
                 ChecklistSessionView(
-                  sessionId: sessionId,
+                  sessionId: route.id,
+                  session: route.snapshot,
                   checklistService: checklistService,
                   locationProvider: {
                     appEnvironment?.lastKnownLocation
