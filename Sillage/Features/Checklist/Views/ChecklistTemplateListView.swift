@@ -181,7 +181,7 @@ private struct ChecklistTemplateRowView: View {
           .foregroundStyle(marineTheme.colors.textPrimary)
 
         if let activeSession {
-          Text("Started \(activeSession.startedAt.formatted(date: .abbreviated, time: .shortened)) • \(activeSession.completedCount)/\(activeSession.totalCount) checked")
+          Text("Started \(activeSession.startedAt.formatted(date: .abbreviated, time: .shortened))")
             .marineFont(.caption)
             .foregroundStyle(marineTheme.colors.textSecondary)
             .lineLimit(1)
@@ -199,6 +199,28 @@ private struct ChecklistTemplateRowView: View {
       }
 
       Spacer()
+
+      if let activeSession {
+        Text(verbatim: "\(activeSession.completedCount)/\(activeSession.totalCount)")
+          .marineFont(.subheadline)
+          .fontWeight(.bold)
+          .padding(.horizontal, 10)
+          .padding(.vertical, 4)
+          .background(marineTheme.colors.accent.opacity(0.15))
+          .foregroundStyle(marineTheme.colors.accent)
+          .clipShape(Capsule())
+      } else {
+        Text(verbatim: "\(template.items.count)")
+          .marineFont(.subheadline)
+          .fontWeight(.medium)
+          .padding(.horizontal, 10)
+          .padding(.vertical, 4)
+          .background(marineTheme.colors.secondaryActionBackground)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+          .clipShape(Capsule())
+      }
     }
+    .frame(minHeight: marineTheme.minTouchTarget)
+    .contentShape(Rectangle())
   }
 }

@@ -64,10 +64,6 @@ private struct ActiveChecklistRowView: View {
 
   var body: some View {
     HStack(alignment: .center, spacing: MarineTheme.Spacing.medium) {
-      Image(marineIcon: .checklist)
-        .marineFont(.title3)
-        .foregroundStyle(marineTheme.colors.accent)
-
       VStack(alignment: .leading, spacing: 4) {
         Text(session.templateTitleSnapshot)
           .marineFont(.body)
@@ -82,7 +78,7 @@ private struct ActiveChecklistRowView: View {
 
       Spacer()
 
-      Text("\(session.completedCount)/\(session.totalCount)")
+      Text(verbatim: "\(session.completedCount)/\(session.totalCount)")
         .marineFont(.subheadline)
         .fontWeight(.bold)
         .padding(.horizontal, 10)
