@@ -84,7 +84,7 @@ public struct ChecklistTemplateListView: View {
                 }
                 .tint(marineTheme.colors.accent)
               }
-              .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+              .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 Button(role: .destructive) {
                   templateToDelete = template
                 } label: {
@@ -131,7 +131,7 @@ public struct ChecklistTemplateListView: View {
       await viewModel.observeCompletedSessions()
     }
     .alert(
-      "Delete Checklist?",
+      "Confirmation",
       isPresented: Binding(
         get: { templateToDelete != nil },
         set: { if !$0 { templateToDelete = nil } }
@@ -139,14 +139,12 @@ public struct ChecklistTemplateListView: View {
       presenting: templateToDelete
     ) { template in
       Button("Delete", role: .destructive) {
+        let templateId = template.id
         Task {
-          _ = await viewModel.deleteTemplate(id: template.id)
-          templateToDelete = nil
+          _ = await viewModel.deleteTemplate(id: templateId)
         }
       }
-      Button("Cancel", role: .cancel) {
-        templateToDelete = nil
-      }
+      Button("Cancel", role: .cancel) { }
     } message: { template in
       Text("Are you sure you want to delete \"\(template.title)\"? This action cannot be undone.")
     }
