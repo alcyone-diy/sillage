@@ -12,6 +12,12 @@ import Foundation
 import Observation
 import OSLog
 
+/// Scoped destination enum for navigating within the active checklist overlay stack.
+public enum ChecklistOverlayDestination: Hashable, Sendable {
+  case session(sessionId: UUID)
+  case templateDetail(templateId: UUID, startEditable: Bool = true)
+}
+
 /// Manages the presentation state and observation for checklist sessions in the main overlay.
 @Observable
 @MainActor
@@ -63,8 +69,8 @@ public final class ChecklistOverlayViewModel {
   /// Whether the dedicated active checklist sheet is presented.
   public var isSheetPresented: Bool = false
 
-  /// The navigation path stack for checklist sessions within the sheet.
-  public var navigationPath: [UUID] = []
+  /// The navigation path stack for checklist destinations within the sheet.
+  public var navigationPath: [ChecklistOverlayDestination] = []
 
   public init() {}
 
@@ -74,7 +80,7 @@ public final class ChecklistOverlayViewModel {
   public func openActiveChecklists() {
     isSheetPresented = true
     if inProgressSessions.count == 1, let single = inProgressSessions.first {
-      navigationPath = [single.id]
+      navigationPath = [.session(sessionId: single.id)]
     } else {
       navigationPath = []
     }
@@ -82,8 +88,9 @@ public final class ChecklistOverlayViewModel {
 
   /// Selects a specific checklist session to present in the modal stack.
   public func selectSession(_ session: ChecklistSession) {
-    if !navigationPath.contains(session.id) {
-      navigationPath.append(session.id)
+    let destination = ChecklistOverlayDestination.session(sessionId: session.id)
+    if !navigationPath.contains(destination) {
+      navigationPath.append(destination)
     }
   }
 

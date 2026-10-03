@@ -25,6 +25,7 @@ public final class ChecklistSessionViewModel {
   public private(set) var template: ChecklistTemplate?
   public private(set) var isLoading: Bool = false
   public private(set) var isPerformingAction: Bool = false
+  public private(set) var isSessionDeleted: Bool = false
   public var errorMessage: String?
   public var showResetConfirmation: Bool = false
 
@@ -98,6 +99,8 @@ public final class ChecklistSessionViewModel {
         self.session = fetchedSession
         self.template = try await checklistService.fetchTemplate(id: fetchedSession.templateId)
       } else {
+        self.session = nil
+        self.isSessionDeleted = true
         errorMessage = String(localized: "Checklist session not found.")
       }
     } catch {
@@ -113,6 +116,10 @@ public final class ChecklistSessionViewModel {
         if Task.isCancelled { break }
         if let matching = sessions.first(where: { $0.id == sessionId }) {
           self.session = matching
+        } else if session != nil {
+          // The session previously existed but was deleted (e.g. template deleted)
+          self.session = nil
+          self.isSessionDeleted = true
         }
       }
     } catch {

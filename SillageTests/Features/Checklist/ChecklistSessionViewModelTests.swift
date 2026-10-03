@@ -183,4 +183,24 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.canReset)
   }
 
+  func testTemplateDeletionMarksSessionAsDeleted() async throws {
+    await viewModel.load()
+    XCTAssertNotNil(viewModel.session)
+    XCTAssertFalse(viewModel.isSessionDeleted)
+
+    let task = Task { [weak viewModel] in
+      await viewModel?.observe()
+    }
+    defer { task.cancel() }
+
+    try await checklistService.deleteTemplate(id: template.id)
+
+    let start = Date()
+    while !viewModel.isSessionDeleted && Date().timeIntervalSince(start) < 2.0 {
+      try await Task.sleep(nanoseconds: 20_000_000)
+    }
+
+    XCTAssertTrue(viewModel.isSessionDeleted)
+    XCTAssertNil(viewModel.session)
+  }
 }

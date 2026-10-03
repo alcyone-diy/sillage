@@ -15,8 +15,6 @@ import SwiftUI
 public struct ChecklistSessionView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.dismiss) private var dismiss
-  @Environment(PanelManagerViewModel.self) private var panelManager: PanelManagerViewModel?
-
   private let checklistService: any ChecklistServiceProtocol
   @State private var viewModel: ChecklistSessionViewModel
 
@@ -51,9 +49,7 @@ public struct ChecklistSessionView: View {
     .toolbar {
       if let templateId = viewModel.session?.templateId ?? viewModel.template?.id {
         ToolbarItem(placement: .primaryAction) {
-          Button {
-            panelManager?.commandPath.append(.checklistTemplateDetail(templateId: templateId, startEditable: true))
-          } label: {
+          NavigationLink(value: ChecklistOverlayDestination.templateDetail(templateId: templateId, startEditable: true)) {
             Text("Edit")
               .marineFont(.body)
               .foregroundStyle(marineTheme.colors.accent)
@@ -84,7 +80,7 @@ public struct ChecklistSessionView: View {
     .alert(
       "Error",
       isPresented: Binding(
-        get: { viewModel.errorMessage != nil },
+        get: { viewModel.errorMessage != nil && !viewModel.isSessionDeleted },
         set: { if !$0 { viewModel.errorMessage = nil } }
       ),
       presenting: viewModel.errorMessage
@@ -92,6 +88,16 @@ public struct ChecklistSessionView: View {
       Button("OK", role: .cancel) { }
     } message: { message in
       Text(message)
+    }
+    .onChange(of: viewModel.isSessionDeleted) { _, isDeleted in
+      if isDeleted {
+        dismiss()
+      }
+    }
+    .onAppear {
+      if viewModel.isSessionDeleted {
+        dismiss()
+      }
     }
   }
 

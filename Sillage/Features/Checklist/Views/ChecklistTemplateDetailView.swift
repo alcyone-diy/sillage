@@ -19,6 +19,7 @@ public struct ChecklistTemplateDetailView: View {
   @Environment(PanelManagerViewModel.self) private var panelManager: PanelManagerViewModel?
 
   let templateId: UUID?
+  private let startEditable: Bool
   @State private var viewModel: ChecklistTemplateDetailViewModel
   @State private var editMode: EditMode = .inactive
   @State private var showDeleteConfirmation: Bool = false
@@ -33,6 +34,7 @@ public struct ChecklistTemplateDetailView: View {
     onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)? = nil
   ) {
     self.templateId = templateId ?? template?.id
+    self.startEditable = startEditable
     self.onTemplateSaved = onTemplateSaved
     _viewModel = State(initialValue: ChecklistTemplateDetailViewModel(
       templateId: templateId,
@@ -81,7 +83,7 @@ public struct ChecklistTemplateDetailView: View {
       if viewModel.isEditable {
         ToolbarItem(placement: .cancellationAction) {
           Button {
-            if viewModel.isNew {
+            if viewModel.isNew || startEditable {
               dismiss()
             } else {
               withAnimation {
@@ -112,7 +114,7 @@ public struct ChecklistTemplateDetailView: View {
               if let saved = await viewModel.save() {
                 onTemplateSaved?(saved)
                 editMode = .inactive
-                if wasNew {
+                if wasNew || startEditable {
                   dismiss()
                 }
               }

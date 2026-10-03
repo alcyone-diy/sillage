@@ -290,14 +290,23 @@ struct ContentView: View {
             viewModel: checklistOverlayViewModel,
             checklistService: checklistService
           )
-            .navigationDestination(for: UUID.self) { sessionId in
-              ChecklistSessionView(
-                sessionId: sessionId,
-                checklistService: checklistService,
-                locationProvider: {
-                  appEnvironment?.lastKnownLocation
-                }
-              )
+            .navigationDestination(for: ChecklistOverlayDestination.self) { destination in
+              switch destination {
+              case .session(let sessionId):
+                ChecklistSessionView(
+                  sessionId: sessionId,
+                  checklistService: checklistService,
+                  locationProvider: {
+                    appEnvironment?.lastKnownLocation
+                  }
+                )
+              case .templateDetail(let templateId, let startEditable):
+                ChecklistTemplateDetailView(
+                  templateId: templateId,
+                  checklistService: checklistService,
+                  startEditable: startEditable
+                )
+              }
             }
         }
         .presentationDetents([.medium, .large])

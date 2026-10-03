@@ -209,7 +209,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
 
     vm.openActiveChecklists()
     XCTAssertTrue(vm.isSheetPresented)
-    XCTAssertEqual(vm.navigationPath, [activeSession.id])
+    XCTAssertEqual(vm.navigationPath, [.session(sessionId: activeSession.id)])
 
     vm.dismiss()
     XCTAssertFalse(vm.isSheetPresented)
@@ -245,7 +245,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     // Open session in sheet
     vm.openActiveChecklists()
     XCTAssertTrue(vm.isSheetPresented)
-    XCTAssertEqual(vm.navigationPath, [activeSession.id])
+    XCTAssertEqual(vm.navigationPath, [.session(sessionId: activeSession.id)])
 
     // Complete session in service
     _ = try await service.completeSession(sessionId: session.id)
@@ -253,7 +253,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     // View remains presented and navigation path is NOT cleared automatically
     try await waitUntil { vm.completedSessions.count == 1 }
     XCTAssertTrue(vm.isSheetPresented)
-    XCTAssertEqual(vm.navigationPath, [activeSession.id])
+    XCTAssertEqual(vm.navigationPath, [.session(sessionId: activeSession.id)])
   }
 
   func testOpenActiveChecklistsRoutesToSingleWhenOnlyOneActive() async throws {
@@ -284,7 +284,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
 
     vm.openActiveChecklists()
     XCTAssertTrue(vm.isSheetPresented)
-    XCTAssertEqual(vm.navigationPath, [activeSession.id])
+    XCTAssertEqual(vm.navigationPath, [.session(sessionId: activeSession.id)])
 
     vm.dismiss()
     XCTAssertFalse(vm.isSheetPresented)
@@ -328,13 +328,13 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
 
     // User selects session 1
     vm.selectSession(session1)
-    XCTAssertEqual(vm.navigationPath, [session1.id])
+    XCTAssertEqual(vm.navigationPath, [.session(sessionId: session1.id)])
 
     // Complete session 1 -> session1 remains in activeSessions (under completed), sheet remains open and path is preserved
     _ = try await service.completeSession(sessionId: session1.id)
     try await waitUntil { vm.completedSessions.count == 1 }
     XCTAssertTrue(vm.isSheetPresented)
-    XCTAssertEqual(vm.navigationPath, [session1.id])
+    XCTAssertEqual(vm.navigationPath, [.session(sessionId: session1.id)])
     XCTAssertEqual(vm.activeSessions.count, 2)
 
     // Complete session 2 -> both remain in activeSessions, sheet remains open
@@ -456,5 +456,33 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     try await waitUntil { vm.completedSessions.count == 3 }
     XCTAssertFalse(vm.hasActiveChecklists)
     XCTAssertEqual(vm.activeSessions.count, 3)
+  }
+
+  func testTemplateDeletionUpdatesSessionsAndActiveChecklists() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let vm = try XCTUnwrap(viewModel)
+
+    observationTask = Task { [weak vm, weak service] in
+      guard let vm, let service else { return }
+      await vm.observe(service: service)
+    }
+
+    let template = try await service.createCustomTemplate(
+      title: "Temporary Checklist",
+      description: nil,
+      category: .routine,
+      items: [("Step 1", nil)]
+    )
+
+    _ = try await service.startSession(templateId: template.id)
+    try await waitUntil { vm.activeSessions.count == 1 && vm.hasActiveChecklists }
+
+    // Delete the template from the service
+    try await service.deleteCustomTemplate(id: template.id)
+
+    // DB stream updates sessions and active checklist state without side-effect mutations on navigationPath
+    try await waitUntil { vm.activeSessions.isEmpty }
+    XCTAssertTrue(vm.activeSessions.isEmpty)
+    XCTAssertFalse(vm.hasActiveChecklists)
   }
 }
