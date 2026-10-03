@@ -158,6 +158,46 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     XCTAssertNil(updatedItem?.coordinate)
   }
 
+  func testToggleItemDoesNotTriggerIsPerformingAction() async {
+    await viewModel.load()
+
+    guard let firstItem = viewModel.items.first else {
+      XCTFail("Items should not be empty")
+      return
+    }
+
+    XCTAssertFalse(viewModel.isPerformingAction)
+    await viewModel.toggleItem(firstItem)
+    // isPerformingAction must remain false so buttons (e.g. Reset) don't flicker disabled/enabled
+    XCTAssertFalse(viewModel.isPerformingAction)
+  }
+
+  func testResetAvailabilityRemainsStableWhileTogglingSubsequentItems() async {
+    await viewModel.load()
+
+    guard viewModel.items.count >= 2 else {
+      XCTFail("At least 2 items expected")
+      return
+    }
+
+    let item0 = viewModel.items[0]
+    let item1 = viewModel.items[1]
+
+    XCTAssertFalse(viewModel.canReset)
+
+    await viewModel.toggleItem(item0)
+    XCTAssertTrue(viewModel.canReset)
+    XCTAssertFalse(viewModel.isPerformingAction)
+
+    await viewModel.toggleItem(item1)
+    XCTAssertTrue(viewModel.canReset)
+    XCTAssertFalse(viewModel.isPerformingAction)
+
+    await viewModel.toggleItem(item1)
+    XCTAssertTrue(viewModel.canReset)
+    XCTAssertFalse(viewModel.isPerformingAction)
+  }
+
   // MARK: - Complete & Reset Tests
 
   func testCompleteRequiresAllItemsChecked() async {

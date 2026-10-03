@@ -28,6 +28,7 @@ public final class ChecklistSessionViewModel {
   public private(set) var isSessionDeleted: Bool = false
   public var errorMessage: String?
   public var showResetConfirmation: Bool = false
+  private var togglingItemIds: Set<UUID> = []
 
   /// Initializes the session view model.
   /// - Parameters:
@@ -124,7 +125,9 @@ public final class ChecklistSessionViewModel {
       for try await sessions in checklistService.observeSessions() {
         if Task.isCancelled { break }
         if let matching = sessions.first(where: { $0.id == sessionId }) {
-          self.session = matching
+          if self.session != matching {
+            self.session = matching
+          }
         } else if session != nil {
           // The session previously existed but was deleted (e.g. template deleted)
           self.session = nil
@@ -140,10 +143,10 @@ public final class ChecklistSessionViewModel {
 
   /// Toggles the checked status of a checklist item with GPS audit coordinate.
   public func toggleItem(_ item: ChecklistSessionItem) async {
-    // UI-level guard: strictly drop simultaneous parasitic touches (rebound, double-tap, sea spray)
-    guard !isPerformingAction, let currentSession = session else { return }
-    isPerformingAction = true
-    defer { isPerformingAction = false }
+    // Drop simultaneous parasitic touches on the same item without locking the entire UI
+    guard !isPerformingAction, !togglingItemIds.contains(item.id), let currentSession = session else { return }
+    togglingItemIds.insert(item.id)
+    defer { togglingItemIds.remove(item.id) }
 
     do {
       let coordinate = resolveAuditableCoordinate()
