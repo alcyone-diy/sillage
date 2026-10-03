@@ -376,7 +376,18 @@ final class ChecklistServiceTests: XCTestCase {
 
     let resetSession = try await checklistService.resetSession(sessionId: session.id)
     XCTAssertEqual(resetSession.completedCount, 0)
+    XCTAssertEqual(resetSession.status, .inProgress)
     XCTAssertTrue(resetSession.items.allSatisfy { !$0.isChecked && $0.checkedAt == nil })
+
+    // Complete session then reset again
+    _ = try await checklistService.setItemChecked(sessionId: session.id, itemId: session.items[0].id, isChecked: true)
+    _ = try await checklistService.setItemChecked(sessionId: session.id, itemId: session.items[1].id, isChecked: true)
+    _ = try await checklistService.completeSession(sessionId: session.id, notes: nil)
+
+    let resetCompleted = try await checklistService.resetSession(sessionId: session.id)
+    XCTAssertEqual(resetCompleted.status, .inProgress)
+    XCTAssertEqual(resetCompleted.completedCount, 0)
+    XCTAssertNil(resetCompleted.completedAt)
   }
 
   func testCompleteSession() async throws {
@@ -493,6 +504,65 @@ final class ChecklistServiceTests: XCTestCase {
     _ = try await checklistService.completeSession(sessionId: session.id, notes: nil)
     let afterComplete = try await iterator.next()
     XCTAssertEqual(afterComplete?.count, 0)
+  }
+
+  func testReactiveSessionsObservation() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "All Sessions Observation Test",
+      description: nil,
+      category: .routine,
+      items: [("Step", nil)]
+    )
+
+    let secondTemplate = try await checklistService.createCustomTemplate(
+      title: "Second Checklist",
+      description: nil,
+      category: .safetyEmergency,
+      items: [("Check", nil)]
+    )
+
+    let stream = checklistService.observeSessions()
+    var iterator = stream.makeAsyncIterator()
+
+    // 1. Initial emission: empty array
+    let initial = try await iterator.next()
+    XCTAssertEqual(initial?.count, 0)
+
+    // 2. Start session
+    let session = try await checklistService.startSession(templateId: template.id)
+    let afterStart = try await iterator.next()
+    XCTAssertEqual(afterStart?.count, 1)
+    XCTAssertEqual(afterStart?.first?.id, session.id)
+
+    // 3. Complete session -> still present in observeSessions
+    _ = try await checklistService.completeSession(sessionId: session.id, notes: nil)
+    let afterComplete = try await iterator.next()
+    XCTAssertEqual(afterComplete?.count, 1)
+    XCTAssertEqual(afterComplete?.first?.id, session.id)
+    XCTAssertEqual(afterComplete?.first?.status, .completed)
+    XCTAssertEqual(afterComplete?.first?.category, .routine)
+
+    // 4. Age completed session past retention threshold (e.g. 49h ago) -> excluded by frozen threshold
+    let sessionIdString = session.id.uuidString
+    let pastRetentionInterval = -Double(ChecklistService.completedSessionRetentionHours + 1) * 3600
+    try await databaseManager.write { db in
+      var record = try XCTUnwrap(ChecklistSessionRecord.fetchOne(db, key: sessionIdString))
+      record.completed_at = Date().addingTimeInterval(pastRetentionInterval)
+      try record.update(db)
+    }
+    let afterAging = try await iterator.next()
+    XCTAssertEqual(afterAging?.count, 0)
+
+    // 5. In-progress sessions remain included regardless of age
+    _ = try await checklistService.startSession(templateId: secondTemplate.id)
+    let afterSecond = try await iterator.next()
+    XCTAssertEqual(afterSecond?.count, 1)
+
+    // 6. A fresh observation stream also excludes the old completed session
+    let freshStream = checklistService.observeSessions()
+    var freshIterator = freshStream.makeAsyncIterator()
+    let freshInitial = try await freshIterator.next()
+    XCTAssertEqual(freshInitial?.count, 1)
   }
 
   func testThrottlerDebouncesRapidTaps() async throws {

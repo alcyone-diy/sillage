@@ -159,6 +159,11 @@ final class ChecklistSessionViewModelTests: XCTestCase {
 
     XCTAssertTrue(viewModel.isCompleted)
     XCTAssertFalse(viewModel.canComplete)
+    XCTAssertTrue(viewModel.canReset)
+
+    await viewModel.reset()
+    XCTAssertFalse(viewModel.isCompleted)
+    XCTAssertEqual(viewModel.completedCount, 0)
     XCTAssertFalse(viewModel.canReset)
   }
 

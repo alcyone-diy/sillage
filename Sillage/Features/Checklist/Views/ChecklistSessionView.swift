@@ -79,7 +79,7 @@ public struct ChecklistSessionView: View {
       }
       Button("Cancel", role: .cancel) { }
     } message: {
-      Text("This will uncheck all items in this active session.")
+      Text("This will uncheck all items in this checklist session.")
     }
     .alert(
       "Error",
@@ -210,6 +210,9 @@ public struct ChecklistSessionView: View {
           .marineListCell()
         }
       } else {
+        // Intentionally do not dismiss the editor automatically upon completion.
+        // It remains open so the mariner can review completed items, make adjustments,
+        // or restart the checklist from scratch without unexpected screen dismissals.
         Button {
           dismiss()
         } label: {
@@ -218,8 +221,22 @@ public struct ChecklistSessionView: View {
             Text("Done")
           }
         }
-        .buttonStyle(MarineButtonStyle(.primary))
+        .buttonStyle(MarineButtonStyle(.secondary))
         .marineListCell()
+
+        if viewModel.canReset {
+          Button(role: .destructive) {
+            viewModel.showResetConfirmation = true
+          } label: {
+            HStack(spacing: MarineTheme.Spacing.small) {
+              Image(systemName: "arrow.counterclockwise")
+              Text("Restart Checklist")
+            }
+          }
+          .buttonStyle(MarineButtonStyle(.destructive))
+          .disabled(viewModel.isPerformingAction)
+          .marineListCell()
+        }
       }
     }
   }

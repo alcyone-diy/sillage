@@ -638,7 +638,9 @@ public final class DatabaseManager: Sendable {
         ON geogarage_download (layer_id, download_timestamp_unix DESC)
       """)
     }
-    
+
+    migrator.registerMigration("v7") { _ in }
+
     return migrator
   }
 }

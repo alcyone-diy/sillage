@@ -12,34 +12,49 @@ import Foundation
 import Observation
 import OSLog
 
-/// Manages the presentation state and business filtering for active checklists in the main overlay.
+/// Manages the presentation state and observation for checklist sessions in the main overlay.
 @Observable
 @MainActor
 public final class ChecklistOverlayViewModel {
-  /// Uncompleted checklist sessions with active progress (`completedCount > 0`).
+  /// All tracked checklist sessions (both in-progress and completed).
   public private(set) var activeSessions: [ChecklistSession] = []
 
-  /// Whether any active checklist session is currently in progress.
+  /// Sessions that are currently in progress.
+  public var inProgressSessions: [ChecklistSession] {
+    activeSessions.filter { $0.status == .inProgress }
+  }
+
+  /// Sessions that have been completed.
+  public var completedSessions: [ChecklistSession] {
+    activeSessions.filter { $0.status == .completed }
+  }
+
+  /// Whether any checklist session is currently active or completed.
   public var hasActiveChecklists: Bool {
     !activeSessions.isEmpty
   }
 
-  /// Single active session if exactly one checklist is in progress.
+  /// Single active session if exactly one checklist is in progress or present.
   public var singleActiveSession: ChecklistSession? {
-    activeSessions.count == 1 ? activeSessions.first : nil
+    if inProgressSessions.count == 1 {
+      return inProgressSessions.first
+    } else if activeSessions.count == 1 {
+      return activeSessions.first
+    }
+    return nil
   }
 
-  /// Total number of completed steps across all in-progress checklist sessions.
+  /// Total number of completed steps across all tracked checklist sessions.
   public var completedStepsCount: Int {
     activeSessions.reduce(0) { $0 + $1.completedCount }
   }
 
-  /// Total number of steps across all in-progress checklist sessions.
+  /// Total number of steps across all tracked checklist sessions.
   public var totalStepsCount: Int {
     activeSessions.reduce(0) { $0 + $1.totalCount }
   }
 
-  /// Ratio of completed steps over total steps across in-progress checklist sessions (between 0.0 and 1.0).
+  /// Ratio of completed steps over total steps across tracked checklist sessions (between 0.0 and 1.0).
   public var progressRatio: Double {
     guard totalStepsCount > 0 else { return 0.0 }
     return Double(completedStepsCount) / Double(totalStepsCount)
@@ -54,11 +69,13 @@ public final class ChecklistOverlayViewModel {
   public init() {}
 
   /// Handles tap on the active checklist button:
-  /// - If exactly 1 checklist is in progress, opens that checklist directly.
-  /// - If more than 1 checklist is in progress, opens the list of active checklists.
+  /// - If exactly 1 checklist is in progress (or present), opens that checklist directly.
+  /// - If more than 1 checklist is present, opens the list of active checklists.
   public func openActiveChecklists() {
     isSheetPresented = true
-    if let single = singleActiveSession {
+    if inProgressSessions.count == 1, let single = inProgressSessions.first {
+      navigationPath = [single.id]
+    } else if activeSessions.count == 1, let single = activeSessions.first {
       navigationPath = [single.id]
     } else {
       navigationPath = []
@@ -78,24 +95,13 @@ public final class ChecklistOverlayViewModel {
     navigationPath.removeAll()
   }
 
-  /// Observes active checklist sessions continuously using structured concurrency.
+  /// Observes checklist sessions continuously using structured concurrency.
   /// Cancellation is handled automatically by the caller's asynchronous context (e.g. SwiftUI `.task`).
   public func observe(service: any ChecklistServiceProtocol) async {
     do {
-      for try await sessions in service.observeActiveSessions() {
+      for try await sessions in service.observeSessions() {
         if Task.isCancelled { break }
-        let inProgressSessions = sessions.filter {
-          $0.status == .inProgress && $0.completedCount > 0
-        }
-        self.activeSessions = inProgressSessions
-        if inProgressSessions.isEmpty {
-          self.isSheetPresented = false
-          self.navigationPath.removeAll()
-        } else {
-          self.navigationPath = self.navigationPath.filter { id in
-            inProgressSessions.contains(where: { $0.id == id })
-          }
-        }
+        self.activeSessions = sessions
       }
     } catch {
       if !Task.isCancelled {

@@ -100,6 +100,9 @@ public protocol ChecklistServiceProtocol: Sendable {
 
   // MARK: - Reactive Observation
 
+  /// Observes all checklist sessions (both in-progress and completed) in real-time.
+  func observeSessions() -> AsyncThrowingStream<[ChecklistSession], any Error>
+
   /// Observes all currently active in-progress checklist sessions in real-time.
   func observeActiveSessions() -> AsyncThrowingStream<[ChecklistSession], any Error>
 

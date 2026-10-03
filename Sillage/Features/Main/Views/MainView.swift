@@ -286,7 +286,10 @@ struct ContentView: View {
     .sheet(isPresented: $checklistOverlayViewModel.isSheetPresented) {
       if let checklistService {
         NavigationStack(path: $checklistOverlayViewModel.navigationPath) {
-          ActiveChecklistListView(viewModel: checklistOverlayViewModel)
+          ActiveChecklistListView(
+            viewModel: checklistOverlayViewModel,
+            checklistService: checklistService
+          )
             .navigationDestination(for: UUID.self) { sessionId in
               ChecklistSessionView(
                 sessionId: sessionId,

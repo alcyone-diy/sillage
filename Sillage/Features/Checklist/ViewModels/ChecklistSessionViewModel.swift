@@ -84,7 +84,7 @@ public final class ChecklistSessionViewModel {
 
   public var canReset: Bool {
     guard let session else { return false }
-    return session.status == .inProgress && session.completedCount > 0
+    return session.completedCount > 0 || session.status == .completed
   }
 
   /// Loads the session and its parent template metadata.
@@ -106,23 +106,18 @@ public final class ChecklistSessionViewModel {
     }
   }
 
-  /// Subscribes asynchronously to active sessions stream to drive UI reactively from the database.
+  /// Subscribes asynchronously to sessions stream to drive UI reactively from the database.
   public func observe() async {
     do {
-      for try await activeSessions in checklistService.observeActiveSessions() {
+      for try await sessions in checklistService.observeSessions() {
         if Task.isCancelled { break }
-        if let matching = activeSessions.first(where: { $0.id == sessionId }) {
+        if let matching = sessions.first(where: { $0.id == sessionId }) {
           self.session = matching
-        } else if session?.status == .inProgress {
-          // It may have been completed by another caller or completed locally
-          if let finished = try await checklistService.fetchSession(id: sessionId) {
-            self.session = finished
-          }
         }
       }
     } catch {
       if !Task.isCancelled {
-        Logger.checklist.error("Error observing active checklist sessions: \(error.localizedDescription, privacy: .public)")
+        Logger.checklist.error("Error observing checklist sessions: \(error.localizedDescription, privacy: .public)")
       }
     }
   }
@@ -150,6 +145,10 @@ public final class ChecklistSessionViewModel {
   }
 
   /// Marks the active session as fully completed.
+  ///
+  /// Note: This method deliberately does NOT trigger screen dismissal.
+  /// Keeping the session open gives the skipper immediate confirmation and allows
+  /// reviewing, unchecking, or restarting without disorienting navigation glitches.
   public func complete() async {
     guard let currentSession = session, canComplete, !isPerformingAction else { return }
     isPerformingAction = true

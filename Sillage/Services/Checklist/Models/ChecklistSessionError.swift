@@ -27,7 +27,7 @@ public enum ChecklistSessionError: Error, Sendable, LocalizedError, Equatable {
     case .sessionNotFound(let id):
       return "Checklist session '\(id)' not found."
     case .sessionAlreadyFinished(let id):
-      return "Checklist session '\(id)' is already finished or archived."
+      return "Checklist session '\(id)' is already finished."
     case .itemNotFound(let id):
       return "Checklist item '\(id)' not found in session."
     case .templateHasExistingSessions(let id):
