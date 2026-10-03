@@ -126,9 +126,9 @@ struct SillageApp: App {
 
 struct MainAppView: View {
   @Environment(AppViewModel.self) private var appViewModel
-  
+
   @AppStorage("hasAcceptedDisclaimer") private var hasAcceptedDisclaimer = false
-  
+
   var body: some View {
     Group {
       if hasAcceptedDisclaimer {

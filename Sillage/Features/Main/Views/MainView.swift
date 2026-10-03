@@ -22,7 +22,9 @@ struct ContentView: View {
   @Environment(PermissionService.self) private var permissionService
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(\.checklistService) private var checklistService
 
+  @State private var checklistOverlayViewModel = ChecklistOverlayViewModel()
   @State private var panelManagerViewModel = PanelManagerViewModel()
   @State private var localSheetPresented: Bool = false
   @State private var permissionGateType: PermissionGateType? = nil
@@ -121,10 +123,18 @@ struct ContentView: View {
             Spacer()
 
             if !chartViewModel.isActionConfirmationCardActive {
-              // Command Panel Button (NEVER DISPLAYED when an action confirmation card is active)
-              CommandButtonView()
-                .padding()
-                .padding(.bottom, MarineTheme.Spacing.fabBottomDefault)
+              VStack(spacing: MarineTheme.Spacing.medium) {
+                if checklistOverlayViewModel.hasActiveChecklists {
+                  ActiveChecklistButtonView()
+                    .transition(.scale.combined(with: .opacity))
+                }
+
+                // Command Panel Button (NEVER DISPLAYED when an action confirmation card is active)
+                CommandButtonView()
+              }
+              .animation(.easeInOut(duration: 0.25), value: checklistOverlayViewModel.hasActiveChecklists)
+              .padding()
+              .padding(.bottom, MarineTheme.Spacing.fabBottomDefault)
             }
           }
         }
@@ -287,6 +297,10 @@ struct ContentView: View {
         break
       }
       appViewModel.pendingNotificationIntent = nil
+    }
+    .task {
+      guard let checklistService else { return }
+      await checklistOverlayViewModel.observe(service: checklistService)
     }
   }
 
