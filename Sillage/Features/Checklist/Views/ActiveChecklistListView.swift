@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import OSLog
 
 /// Displays the list of ongoing checklist sessions with active progress.
 @MainActor
@@ -31,6 +32,23 @@ public struct ActiveChecklistListView: View {
             NavigationLink(value: ChecklistOverlayDestination.session(ChecklistSessionRoute(id: session.id, snapshot: session))) {
               ActiveChecklistRowView(session: session)
             }
+            // From the mariner's perspective, this action is a "Reset" (clearing execution to restart fresh;
+            // the checklist template itself is not deleted). Under the hood, resetting is achieved by physically deleting
+            // the active session record from SQLite (`deleteSession`), completely removing it from active observation.
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+              Button(role: .destructive) {
+                Task {
+                  do {
+                    try await checklistService?.deleteSession(sessionId: session.id)
+                  } catch {
+                    Logger.checklist.error("Failed to delete session '\(session.id.uuidString, privacy: .public)' from swipe action: \(error.localizedDescription, privacy: .public)")
+                  }
+                }
+              } label: {
+                Label("Reset", systemImage: "arrow.counterclockwise")
+              }
+              .tint(.red)
+            }
             .marineListCell()
           }
         } header: {
@@ -46,6 +64,22 @@ public struct ActiveChecklistListView: View {
           ForEach(viewModel.completedSessions) { session in
             NavigationLink(value: ChecklistOverlayDestination.session(ChecklistSessionRoute(id: session.id, snapshot: session))) {
               ActiveChecklistRowView(session: session)
+            }
+            // From the mariner's perspective, this action resets the completed session so it can be restarted from scratch.
+            // Under the hood, this physically deletes the completed session record via `deleteSession`.
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+              Button(role: .destructive) {
+                Task {
+                  do {
+                    try await checklistService?.deleteSession(sessionId: session.id)
+                  } catch {
+                    Logger.checklist.error("Failed to delete session '\(session.id.uuidString, privacy: .public)' from swipe action: \(error.localizedDescription, privacy: .public)")
+                  }
+                }
+              } label: {
+                Label("Reset", systemImage: "arrow.counterclockwise")
+              }
+              .tint(.red)
             }
             .marineListCell()
           }

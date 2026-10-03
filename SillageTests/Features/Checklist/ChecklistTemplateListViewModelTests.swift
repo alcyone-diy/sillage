@@ -122,12 +122,12 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     XCTAssertTrue(vm.hasActiveSession(for: template.id))
     XCTAssertEqual(vm.activeSession(for: template.id)?.id, session.id)
 
-    // Reset session (clears all checks)
-    _ = try await service.resetSession(sessionId: session.id)
+    // Delete session
+    try await service.deleteSession(sessionId: session.id)
 
     try await Task.sleep(nanoseconds: 50_000_000)
 
-    // After reset, completedCount is 0, so it returns to "Start"
+    // After deletion, session is removed, so it returns to "Start"
     XCTAssertFalse(vm.hasActiveSession(for: template.id))
     XCTAssertNil(vm.activeSession(for: template.id))
 

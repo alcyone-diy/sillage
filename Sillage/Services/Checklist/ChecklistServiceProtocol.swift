@@ -83,8 +83,8 @@ public protocol ChecklistServiceProtocol: Sendable {
     coordinate: CLLocationCoordinate2D?
   ) async throws(ChecklistSessionError) -> ChecklistSession
 
-  /// Resets an active session, clearing checked states and coordinates.
-  func resetSession(sessionId: UUID) async throws(ChecklistSessionError) -> ChecklistSession
+  /// Deletes the specified active session and all its associated items.
+  func deleteSession(sessionId: UUID) async throws(ChecklistSessionError)
 
   /// Marks an in-progress session as completed.
   func completeSession(sessionId: UUID, notes: String?) async throws(ChecklistSessionError) -> ChecklistSession

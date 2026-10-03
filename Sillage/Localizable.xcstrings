@@ -1261,10 +1261,10 @@
     "This will delete all temporary data and force the network to reload." : {
 
     },
-    "This will replace the active GeoGarage token with an invalid test token." : {
+    "This will delete the current checklist session." : {
 
     },
-    "This will uncheck all items in this checklist session." : {
+    "This will replace the active GeoGarage token with an invalid test token." : {
 
     },
     "Time" : {

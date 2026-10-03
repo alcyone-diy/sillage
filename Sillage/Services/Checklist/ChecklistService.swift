@@ -575,39 +575,20 @@ public final class ChecklistService: ChecklistServiceProtocol {
     }
   }
 
-  public func resetSession(sessionId: UUID) async throws(ChecklistSessionError) -> ChecklistSession {
+  public func deleteSession(sessionId: UUID) async throws(ChecklistSessionError) {
     do {
-      return try await databaseManager.write { db in
-        guard var sessionRecord = try ChecklistSessionRecord.fetchOne(db, key: sessionId.uuidString) else {
+      try await databaseManager.write { db in
+        guard let sessionRecord = try ChecklistSessionRecord.fetchOne(db, key: sessionId.uuidString) else {
           throw ChecklistSessionError.sessionNotFound(sessionId)
         }
-        guard sessionRecord.status == ChecklistSessionStatus.inProgress.rawValue ||
-              sessionRecord.status == ChecklistSessionStatus.completed.rawValue else {
-          throw ChecklistSessionError.sessionAlreadyFinished(sessionId)
-        }
 
-        try db.execute(
-          sql: """
-          UPDATE \(ChecklistSessionItemRecord.databaseTableName)
-          SET is_checked = 0, checked_at = NULL, latitude_deg = NULL, longitude_deg = NULL
-          WHERE execution_id = ?
-          """,
-          arguments: [sessionId.uuidString]
-        )
-
-        sessionRecord.status = ChecklistSessionStatus.inProgress.rawValue
-        sessionRecord.completed_at = nil
-        sessionRecord.notes = nil
-        try sessionRecord.update(db)
-
-        let allItems = try ChecklistSessionItemRecord
+        try ChecklistSessionItemRecord
           .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
-          .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
-          .fetchAll(db)
+          .deleteAll(db)
 
-        let category = try Self.fetchCategory(for: sessionRecord.template_id, in: db)
-        Logger.checklist.info("Reset checklist session '\(sessionId.uuidString, privacy: .public)'")
-        return try Self.mapSession(record: sessionRecord, itemRecords: allItems, category: category)
+        try sessionRecord.delete(db)
+
+        Logger.checklist.info("Deleted checklist session '\(sessionId.uuidString, privacy: .public)'")
       }
     } catch let error as ChecklistSessionError {
       throw error

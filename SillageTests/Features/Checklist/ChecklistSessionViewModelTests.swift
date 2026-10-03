@@ -174,13 +174,12 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.canComplete)
     XCTAssertTrue(viewModel.canReset)
 
-    await viewModel.reset()
-    XCTAssertFalse(viewModel.isCompleted)
-    XCTAssertEqual(viewModel.completedCount, 0)
-    XCTAssertFalse(viewModel.canReset)
+    await viewModel.delete()
+    XCTAssertNil(viewModel.session)
+    XCTAssertTrue(viewModel.isSessionDeleted)
   }
 
-  func testResetClearsChecks() async {
+  func testDeleteRemovesSession() async {
     await viewModel.load()
 
     guard let firstItem = viewModel.items.first else {
@@ -191,9 +190,9 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     await viewModel.toggleItem(firstItem)
     XCTAssertEqual(viewModel.completedCount, 1)
 
-    await viewModel.reset()
-    XCTAssertEqual(viewModel.completedCount, 0)
-    XCTAssertFalse(viewModel.canReset)
+    await viewModel.delete()
+    XCTAssertNil(viewModel.session)
+    XCTAssertTrue(viewModel.isSessionDeleted)
   }
 
   func testTemplateDeletionMarksSessionAsDeleted() async throws {

@@ -77,12 +77,12 @@ public struct ChecklistSessionView: View {
     ) {
       Button("Reset", role: .destructive) {
         Task {
-          await viewModel.reset()
+          await viewModel.delete()
         }
       }
       Button("Cancel", role: .cancel) { }
     } message: {
-      Text("This will uncheck all items in this checklist session.")
+      Text("This will delete the current checklist session.")
     }
     .alert(
       "Error",

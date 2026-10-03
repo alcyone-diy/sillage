@@ -182,17 +182,18 @@ public final class ChecklistSessionViewModel {
     }
   }
 
-  /// Resets all items in the active session.
-  public func reset() async {
+  /// Deletes the active session and its associated items.
+  public func delete() async {
     guard let currentSession = session, !isPerformingAction else { return }
     isPerformingAction = true
     defer { isPerformingAction = false }
 
     do {
-      let updated = try await checklistService.resetSession(sessionId: currentSession.id)
-      self.session = updated
+      try await checklistService.deleteSession(sessionId: currentSession.id)
+      self.session = nil
+      self.isSessionDeleted = true
     } catch {
-      Logger.checklist.error("Failed to reset checklist session '\(currentSession.id.uuidString, privacy: .public)': \(error.localizedDescription, privacy: .public)")
+      Logger.checklist.error("Failed to delete checklist session '\(currentSession.id.uuidString, privacy: .public)': \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription
     }
   }

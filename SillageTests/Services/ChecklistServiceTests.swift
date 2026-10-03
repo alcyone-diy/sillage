@@ -355,7 +355,7 @@ final class ChecklistServiceTests: XCTestCase {
     XCTAssertNil(uncheckedItem?.coordinate)
   }
 
-  func testResetSession() async throws {
+  func testDeleteSession() async throws {
     let template = try await checklistService.createCustomTemplate(
       title: "Reset Test",
       description: nil,
@@ -374,20 +374,22 @@ final class ChecklistServiceTests: XCTestCase {
       coordinate: nil
     )
 
-    let resetSession = try await checklistService.resetSession(sessionId: session.id)
-    XCTAssertEqual(resetSession.completedCount, 0)
-    XCTAssertEqual(resetSession.status, .inProgress)
-    XCTAssertTrue(resetSession.items.allSatisfy { !$0.isChecked && $0.checkedAt == nil })
+    try await checklistService.deleteSession(sessionId: session.id)
+    let fetched = try await checklistService.fetchSession(id: session.id)
+    XCTAssertNil(fetched)
 
-    // Complete session then reset again
-    _ = try await checklistService.setItemChecked(sessionId: session.id, itemId: session.items[0].id, isChecked: true)
-    _ = try await checklistService.setItemChecked(sessionId: session.id, itemId: session.items[1].id, isChecked: true)
-    _ = try await checklistService.completeSession(sessionId: session.id, notes: nil)
+    let activeSession = try await checklistService.fetchActiveSession(for: template.id)
+    XCTAssertNil(activeSession)
 
-    let resetCompleted = try await checklistService.resetSession(sessionId: session.id)
-    XCTAssertEqual(resetCompleted.status, .inProgress)
-    XCTAssertEqual(resetCompleted.completedCount, 0)
-    XCTAssertNil(resetCompleted.completedAt)
+    // Complete session then delete again
+    let session2 = try await checklistService.startSession(templateId: template.id)
+    _ = try await checklistService.setItemChecked(sessionId: session2.id, itemId: session2.items[0].id, isChecked: true)
+    _ = try await checklistService.setItemChecked(sessionId: session2.id, itemId: session2.items[1].id, isChecked: true)
+    _ = try await checklistService.completeSession(sessionId: session2.id, notes: nil)
+
+    try await checklistService.deleteSession(sessionId: session2.id)
+    let fetchedCompleted = try await checklistService.fetchSession(id: session2.id)
+    XCTAssertNil(fetchedCompleted)
   }
 
   func testCompleteSession() async throws {

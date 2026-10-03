@@ -90,12 +90,12 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     )
     try await waitUntil { vm.completedStepsCount == 1 }
 
-    // Resetting the session clears checks to 0 -> session must remain in list!
-    _ = try await service.resetSession(sessionId: session.id)
-    try await waitUntil { vm.completedStepsCount == 0 }
-    XCTAssertTrue(vm.hasActiveChecklists)
-    XCTAssertEqual(vm.activeSessions.count, 1)
-    XCTAssertEqual(vm.singleActiveSession?.id, session.id)
+    // Deleting the session removes it -> session must no longer be in the list!
+    try await service.deleteSession(sessionId: session.id)
+    try await waitUntil { !vm.hasActiveChecklists && vm.activeSessions.isEmpty }
+    XCTAssertFalse(vm.hasActiveChecklists)
+    XCTAssertEqual(vm.activeSessions.count, 0)
+    XCTAssertNil(vm.singleActiveSession)
   }
 
   func testObserveActiveSessionsPreservesSessionsWhenCompleted() async throws {
