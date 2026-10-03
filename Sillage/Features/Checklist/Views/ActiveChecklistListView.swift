@@ -42,14 +42,13 @@ public struct ActiveChecklistListView: View {
     .navigationTitle(String(localized: "Active Checklists"))
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
-      ToolbarItem(placement: .cancellationAction) {
+      ToolbarItem(placement: .navigationBarTrailing) {
         Button {
           viewModel.dismiss()
         } label: {
-          Image(marineIcon: .close)
-            .foregroundStyle(marineTheme.colors.textSecondary)
-            .padding(8)
-            .contentShape(Rectangle())
+          Image(marineIcon: .cancelAction)
+            .foregroundStyle(.tertiary)
+            .font(.title2)
         }
         .accessibilityLabel(String(localized: "Close"))
       }

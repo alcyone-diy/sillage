@@ -76,6 +76,7 @@ struct CommandPanelView: View {
                 .foregroundStyle(.tertiary)
                 .font(.title2)
             }
+            .accessibilityLabel(String(localized: "Close"))
           }
         }
       }
