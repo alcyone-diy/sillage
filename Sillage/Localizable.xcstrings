@@ -91,6 +91,16 @@
     "%lld." : {
 
     },
+    "%lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
     "%lld%%" : {
 
     },
@@ -353,6 +363,9 @@
 
     },
     "Clear text" : {
+
+    },
+    "Close" : {
 
     },
     "COG" : {
@@ -735,6 +748,9 @@
     "In progress" : {
 
     },
+    "In Progress" : {
+
+    },
     "Incomplete Checklist" : {
 
     },
@@ -1112,6 +1128,9 @@
     "Sensor Offset" : {
 
     },
+    "Service Unavailable" : {
+
+    },
     "Settings" : {
 
     },
@@ -1161,6 +1180,9 @@
 
     },
     "Start Time" : {
+
+    },
+    "Started %@" : {
 
     },
     "Started %@ • %lld/%lld checked" : {

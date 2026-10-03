@@ -23,6 +23,7 @@ struct ContentView: View {
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.checklistService) private var checklistService
+  @Environment(AppEnvironment.self) private var appEnvironment: AppEnvironment?
 
   @State private var checklistOverlayViewModel = ChecklistOverlayViewModel()
   @State private var panelManagerViewModel = PanelManagerViewModel()
@@ -125,8 +126,10 @@ struct ContentView: View {
             if !chartViewModel.isActionConfirmationCardActive {
               VStack(spacing: MarineTheme.Spacing.medium) {
                 if checklistOverlayViewModel.hasActiveChecklists {
-                  ActiveChecklistButtonView()
-                    .transition(.scale.combined(with: .opacity))
+                  ActiveChecklistButtonView {
+                    checklistOverlayViewModel.openActiveChecklists()
+                  }
+                  .transition(.scale.combined(with: .opacity))
                 }
 
                 // Command Panel Button (NEVER DISPLAYED when an action confirmation card is active)
@@ -280,6 +283,43 @@ struct ContentView: View {
       }
     }
     .environment(panelManagerViewModel)
+    .sheet(item: $checklistOverlayViewModel.destination) { destination in
+      if let checklistService {
+        NavigationStack {
+          switch destination {
+          case .single(let session):
+            ChecklistSessionView(
+              sessionId: session.id,
+              checklistService: checklistService,
+              locationProvider: {
+                appEnvironment?.lastKnownLocation
+              }
+            )
+            .toolbar {
+              ToolbarItem(placement: .cancellationAction) {
+                Button {
+                  checklistOverlayViewModel.dismiss()
+                } label: {
+                  Image(marineIcon: .close)
+                    .foregroundStyle(marineTheme.colors.textSecondary)
+                    .padding(8)
+                    .contentShape(Rectangle())
+                }
+                .accessibilityLabel(String(localized: "Close"))
+              }
+            }
+          case .list:
+            ActiveChecklistListView(viewModel: checklistOverlayViewModel)
+          }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+      } else {
+        Text("Service Unavailable")
+          .marineFont(.body)
+          .padding()
+      }
+    }
     .onChange(of: appViewModel.pendingNotificationIntent) { _, intent in
       guard let intent else { return }
       switch intent {

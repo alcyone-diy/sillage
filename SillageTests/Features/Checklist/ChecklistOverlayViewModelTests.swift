@@ -161,4 +161,155 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     try await waitUntil { vm.hasActiveChecklists && vm.activeSessions.count == 2 }
     XCTAssertNil(vm.singleActiveSession)
   }
+
+  func testPresentationControls() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let vm = try XCTUnwrap(viewModel)
+
+    observationTask = Task { [weak vm, weak service] in
+      guard let vm, let service else { return }
+      await vm.observe(service: service)
+    }
+
+    let template = try await service.createCustomTemplate(
+      title: "Engine Check",
+      description: nil,
+      category: .engineTechnical,
+      items: [("Check oil", nil)]
+    )
+
+    let session = try await service.startSession(templateId: template.id)
+    _ = try await service.setItemChecked(
+      sessionId: session.id,
+      itemId: session.items[0].id,
+      isChecked: true
+    )
+
+    try await waitUntil { vm.singleActiveSession != nil }
+    let activeSession = try XCTUnwrap(vm.singleActiveSession)
+
+    XCTAssertNil(vm.destination)
+
+    vm.selectSession(activeSession)
+    XCTAssertEqual(vm.destination, .single(activeSession))
+
+    vm.dismiss()
+    XCTAssertNil(vm.destination)
+  }
+
+  func testAutoDismissWhenSessionCompletes() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let vm = try XCTUnwrap(viewModel)
+
+    observationTask = Task { [weak vm, weak service] in
+      guard let vm, let service else { return }
+      await vm.observe(service: service)
+    }
+
+    let template = try await service.createCustomTemplate(
+      title: "Pre-departure Check",
+      description: nil,
+      category: .routine,
+      items: [("Check bilge", nil)]
+    )
+
+    let session = try await service.startSession(templateId: template.id)
+    _ = try await service.setItemChecked(
+      sessionId: session.id,
+      itemId: session.items[0].id,
+      isChecked: true
+    )
+
+    try await waitUntil { vm.singleActiveSession != nil }
+    let activeSession = try XCTUnwrap(vm.singleActiveSession)
+
+    // Open session in sheet
+    vm.selectSession(activeSession)
+    XCTAssertEqual(vm.destination, .single(activeSession))
+
+    // Complete session in service
+    _ = try await service.completeSession(sessionId: session.id)
+
+    // Automatically dismissed via reactive synchronization
+    try await waitUntil { vm.destination == nil }
+    XCTAssertNil(vm.destination)
+  }
+
+  func testOpenActiveChecklistsRoutesToSingleWhenOnlyOneActive() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let vm = try XCTUnwrap(viewModel)
+
+    observationTask = Task { [weak vm, weak service] in
+      guard let vm, let service else { return }
+      await vm.observe(service: service)
+    }
+
+    let template = try await service.createCustomTemplate(
+      title: "Solo Check",
+      description: nil,
+      category: .routine,
+      items: [("Check mast", nil)]
+    )
+
+    let session = try await service.startSession(templateId: template.id)
+    _ = try await service.setItemChecked(
+      sessionId: session.id,
+      itemId: session.items[0].id,
+      isChecked: true
+    )
+
+    try await waitUntil { vm.singleActiveSession != nil }
+    let activeSession = try XCTUnwrap(vm.singleActiveSession)
+
+    vm.openActiveChecklists()
+    XCTAssertEqual(vm.destination, .single(activeSession))
+
+    vm.dismiss()
+    XCTAssertNil(vm.destination)
+  }
+
+  func testOpenActiveChecklistsRoutesToListWhenMultipleActive() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let vm = try XCTUnwrap(viewModel)
+
+    observationTask = Task { [weak vm, weak service] in
+      guard let vm, let service else { return }
+      await vm.observe(service: service)
+    }
+
+    let template1 = try await service.createCustomTemplate(
+      title: "Check 1",
+      description: nil,
+      category: .routine,
+      items: [("Item 1", nil)]
+    )
+    let template2 = try await service.createCustomTemplate(
+      title: "Check 2",
+      description: nil,
+      category: .routine,
+      items: [("Item 2", nil)]
+    )
+
+    let session1 = try await service.startSession(templateId: template1.id)
+    let session2 = try await service.startSession(templateId: template2.id)
+
+    _ = try await service.setItemChecked(sessionId: session1.id, itemId: session1.items[0].id, isChecked: true)
+    _ = try await service.setItemChecked(sessionId: session2.id, itemId: session2.items[0].id, isChecked: true)
+
+    try await waitUntil { vm.activeSessions.count == 2 }
+
+    vm.openActiveChecklists()
+    XCTAssertEqual(vm.destination, .list)
+
+    // Complete first session -> 1 session left, list remains open
+    _ = try await service.completeSession(sessionId: session1.id)
+    try await waitUntil { vm.activeSessions.count == 1 }
+    XCTAssertEqual(vm.destination, .list)
+
+    // Complete second session -> 0 sessions left -> auto-dismisses
+    _ = try await service.completeSession(sessionId: session2.id)
+    try await waitUntil { vm.activeSessions.isEmpty }
+    try await waitUntil { vm.destination == nil }
+    XCTAssertNil(vm.destination)
+  }
 }
