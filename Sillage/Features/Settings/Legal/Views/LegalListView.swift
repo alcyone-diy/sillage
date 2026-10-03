@@ -25,6 +25,7 @@ struct LegalListView: View {
         documentRow(for: sillageLicenseDocument)
       } header: {
         Text(AppConstants.appName)
+          .marineSectionHeader()
       }
       Section {
         ForEach(thirdPartyLicenseDocuments) { document in
@@ -32,6 +33,7 @@ struct LegalListView: View {
         }
       } header: {
         Text("Third-Party Licenses")
+          .marineSectionHeader()
       }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)

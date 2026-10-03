@@ -22,7 +22,7 @@ struct TrackControlView: View {
   var body: some View {
     @Bindable var bindableActiveTrackViewModel = activeTrackViewModel
     
-    Section(header: Text("Active Track")) {
+    Section(header: Text("Active Track").marineSectionHeader()) {
       HStack {
         Text("Recording Status")
         Spacer()

@@ -15,7 +15,7 @@ struct VersionInfoView: View {
   
   var body: some View {
     Form {
-      Section(header: Text("App Information")) {
+      Section(header: Text("App Information").marineSectionHeader()) {
         HStack {
           Text("Version")
             .marineFont(.body)

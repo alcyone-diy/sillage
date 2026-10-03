@@ -25,7 +25,7 @@ struct TrackListView: View {
   
   var body: some View {
     Section(
-      header: Text("Saved Tracks")
+      header: Text("Saved Tracks").marineSectionHeader()
     ) {
       if viewModel.sessions.isEmpty {
         Text("No saved tracks yet")

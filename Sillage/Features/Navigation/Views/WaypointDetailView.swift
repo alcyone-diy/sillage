@@ -60,7 +60,7 @@ struct WaypointDetailView: View {
           }
         }
         
-        Section(header: Text("Display")) {
+        Section(header: Text("Display").marineSectionHeader()) {
           ColorPicker("Color", selection: $viewModel.color, supportsOpacity: false)
             .marineFont(.body)
             .marineListCell()
@@ -80,7 +80,7 @@ struct WaypointDetailView: View {
         }
         
         Section(
-          header: Text("Location"),
+          header: Text("Location").marineSectionHeader(),
           footer: VStack(alignment: .leading, spacing: MarineTheme.Spacing.medium) {
             Text("Format: N/S Degrees Minutes.")
             

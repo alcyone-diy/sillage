@@ -82,7 +82,7 @@ struct OfflineChartDetailView: View {
         }
 
         // MARK: - Package Characteristics
-        Section(header: Text("Characteristics")) {
+        Section(header: Text("Characteristics").marineSectionHeader()) {
           HStack {
             Text("Format")
               .marineFont(.body)
@@ -149,7 +149,7 @@ struct OfflineChartDetailView: View {
 
         // MARK: - Geographic Coverage
         Section(
-          header: Text("Geographic Coverage"),
+          header: Text("Geographic Coverage").marineSectionHeader(),
           footer: Group {
             if viewModel.isEditing {
               Button(action: {

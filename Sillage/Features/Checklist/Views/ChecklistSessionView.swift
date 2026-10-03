@@ -160,7 +160,7 @@ public struct ChecklistSessionView: View {
 
   @ViewBuilder
   private var itemsSection: some View {
-    Section("Items") {
+    Section(header: Text("Items").marineSectionHeader()) {
       ForEach(viewModel.items, id: \.stableId) { item in
         let isCurrent = (item.stableId == viewModel.currentItemId)
         ChecklistSessionItemRowView(

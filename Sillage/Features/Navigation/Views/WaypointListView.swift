@@ -25,7 +25,7 @@ struct WaypointListView: View {
   
   var body: some View {
     List {
-      Section(header: Text("Saved Waypoints")) {
+      Section(header: Text("Saved Waypoints").marineSectionHeader()) {
         if viewModel.waypoints.isEmpty {
           Text("No saved waypoints yet")
             .foregroundStyle(.secondary)

@@ -29,7 +29,7 @@ struct DebugView: View {
   
   var body: some View {
     Form {
-      Section(header: Text("System Information")) {
+      Section(header: Text("System Information").marineSectionHeader()) {
         HStack {
           Text("Startup Time")
             .marineFont(.body)
@@ -41,7 +41,7 @@ struct DebugView: View {
         .marineListCell()
       }
       
-      Section(header: Text("GPS Information")) {
+      Section(header: Text("GPS Information").marineSectionHeader()) {
         HStack {
           Text("Position")
             .marineFont(.body)
@@ -101,7 +101,7 @@ struct DebugView: View {
         }
       }
       
-      Section(header: Text("Kinematics & Telemetry (COG / SOG)")) {
+      Section(header: Text("Kinematics & Telemetry (COG / SOG)").marineSectionHeader()) {
         HStack {
           Text("COG")
             .marineFont(.body)
@@ -214,7 +214,7 @@ struct DebugView: View {
         }
       }
       
-      Section(header: Text("Map Cache")) {
+      Section(header: Text("Map Cache").marineSectionHeader()) {
         Button(role: .destructive) {
           showClearCacheConfirmation = true
         } label: {
@@ -248,7 +248,7 @@ struct DebugView: View {
         }
       }
       
-      Section(header: Text("GeoGarage Testing")) {
+      Section(header: Text("GeoGarage Testing").marineSectionHeader()) {
         Button(role: .destructive) {
           showCorruptTokenConfirmation = true
         } label: {
@@ -269,7 +269,7 @@ struct DebugView: View {
         }
       }
       
-      Section(header: Text("Notification Testing")) {
+      Section(header: Text("Notification Testing").marineSectionHeader()) {
         Button {
           Task {
             if case .ready(let container) = appEnvironment.state {
@@ -312,7 +312,7 @@ struct DebugView: View {
       }
 
       if case .ready = appEnvironment.state {
-        Section(header: Text("Developer Environment")) {
+        Section(header: Text("Developer Environment").marineSectionHeader()) {
           Button(role: .destructive) {
             viewModel.resetDeveloperSettings(appEnvironment: appEnvironment)
           } label: {

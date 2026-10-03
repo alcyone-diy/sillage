@@ -65,7 +65,7 @@ struct TrackDetailView: View {
         
         // Metrics Section (Static)
         Section(
-          header: Text("Details"),
+          header: Text("Details").marineSectionHeader(),
           footer: Group {
             if viewModel.isEditing {
               Button(action: {

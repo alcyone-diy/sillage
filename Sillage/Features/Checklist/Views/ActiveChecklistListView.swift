@@ -32,8 +32,7 @@ public struct ActiveChecklistListView: View {
         }
       } header: {
         Text("In Progress")
-          .marineFont(.caption)
-          .foregroundStyle(marineTheme.colors.textSecondary)
+          .marineSectionHeader()
       }
     }
     .listStyle(.insetGrouped)

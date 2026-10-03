@@ -99,8 +99,8 @@ public struct ChecklistTemplateListView: View {
               Image(systemName: section.category.systemImage)
                 .foregroundStyle(section.category.color(for: marineTheme))
               Text(section.category.title)
+                .marineSectionHeader()
             }
-            .marineFont(.caption)
           }
         }
       }

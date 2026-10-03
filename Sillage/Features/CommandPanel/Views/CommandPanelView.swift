@@ -111,7 +111,7 @@ struct CommandPanelView: View {
   private var quickActionsSection: some View {
     @Bindable var bindableAppViewModel = appViewModel
 
-    Section(header: Text("Quick Actions")) {
+    Section(header: Text("Quick Actions").marineSectionHeader()) {
       HStack(spacing: MarineTheme.Spacing.medium) {
         Toggle("Glove Mode", isOn: $bindableAppViewModel.isGloveModeEnabled)
           .toggleStyle(.marine(icon: .gloveMode))
@@ -146,7 +146,7 @@ struct CommandPanelView: View {
 
   @ViewBuilder
   private var navigationSection: some View {
-    Section(header: Text("Navigation")) {
+    Section(header: Text("Navigation").marineSectionHeader()) {
       NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
         Label {
           Text("Tracks").foregroundStyle(.primary)
@@ -195,7 +195,7 @@ struct CommandPanelView: View {
 
   @ViewBuilder
   private var safetySection: some View {
-    Section(header: Text("Safety")) {
+    Section(header: Text("Safety").marineSectionHeader()) {
       AnchorCommandRowView(permissionGateType: $permissionGateType)
       BarometerCommandRowView(permissionGateType: $permissionGateType)
       NavigationLink(value: PanelManagerViewModel.CommandDestination.checklists) {
@@ -212,7 +212,7 @@ struct CommandPanelView: View {
 
   @ViewBuilder
   private var systemSection: some View {
-    Section(header: Text("System")) {
+    Section(header: Text("System").marineSectionHeader()) {
       NavigationLink(value: PanelManagerViewModel.CommandDestination.settings) {
         Label("Settings", systemImage: MarineIcon.settings.rawValue)
           .marineFont(.body)

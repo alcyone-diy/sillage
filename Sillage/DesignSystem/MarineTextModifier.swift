@@ -64,4 +64,11 @@ extension View {
   func marineFont(_ style: MarineTextStyle) -> some View {
     self.modifier(MarineTextModifier(style: style))
   }
+
+  func marineSectionHeader() -> some View {
+    self
+      .marineFont(.footnote)
+      .foregroundStyle(.secondary)
+      .textCase(.uppercase)
+  }
 }

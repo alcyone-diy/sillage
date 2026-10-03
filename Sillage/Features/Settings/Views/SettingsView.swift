@@ -19,7 +19,7 @@ struct SettingsView: View {
   
   var body: some View {
     Form {
-      Section(header: Text("General")) {
+      Section(header: Text("General").marineSectionHeader()) {
         Toggle(isOn: Bindable(appViewModel).isGloveModeEnabled) {
           Label("Glove Mode", systemImage: "hand.raised.fill")
             .marineFont(.body)
@@ -33,7 +33,7 @@ struct SettingsView: View {
         .marineListCell()
       }
       
-      Section(header: Text("Navigation")) {
+      Section(header: Text("Navigation").marineSectionHeader()) {
         NavigationLink(destination: COGPreferencesView()) {
           Label("Predictor Vector", systemImage: "location.north.line.fill")
             .marineFont(.body)
@@ -41,7 +41,7 @@ struct SettingsView: View {
         .marineListCell()
       }
       
-      Section(header: Text("Safety & Legal")) {
+      Section(header: Text("Safety & Legal").marineSectionHeader()) {
         NavigationLink(
           destination: LegalListView(
             navigationWarningDocument: viewModel.navigationWarningDocument,
@@ -55,7 +55,7 @@ struct SettingsView: View {
         .marineListCell()
       }
       
-      Section(header: Text("About")) {
+      Section(header: Text("About").marineSectionHeader()) {
         NavigationLink(destination: VersionInfoView()) {
           HStack {
             Label("Version", systemImage: "info.circle")
@@ -83,7 +83,7 @@ struct SettingsView: View {
       }
       
 #if DEBUG
-      Section(header: Text("Debug")) {
+      Section(header: Text("Debug").marineSectionHeader()) {
         NavigationLink(destination: DebugView()) {
           Label("Debug Menu", systemImage: "ladybug")
             .marineFont(.body)

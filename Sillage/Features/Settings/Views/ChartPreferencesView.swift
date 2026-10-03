@@ -62,7 +62,7 @@ struct ChartPreferencesView: View {
     
     Form {
       // MARK: - Map Sources Section
-      Section(header: Text("Map Sources").marineFont(.headline)) {
+      Section(header: Text("Map Sources").marineSectionHeader()) {
 
         // Free OpenSeaMap source (Default Fallback)
         Button(action: {
@@ -133,7 +133,7 @@ struct ChartPreferencesView: View {
       // MARK: - Accounts & Services
       // Note: Value-based navigation in the Command Panel stack must use `CommandDestination` cases
       // resolved at the root level in `CommandPanelView.swift` (do not define local navigation enums or child .navigationDestination).
-      Section(header: Text("Accounts & Services").marineFont(.headline)) {
+      Section(header: Text("Accounts & Services").marineSectionHeader()) {
         NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin(
           context: chartViewModel.isGeoGarageAuthenticated ? .reauthentication : .initialSetup
         )) {
