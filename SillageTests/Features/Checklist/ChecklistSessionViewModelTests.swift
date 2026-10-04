@@ -255,4 +255,29 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     XCTAssertTrue(viewModel.isSessionDeleted)
     XCTAssertNil(viewModel.session)
   }
+
+  func testToggleItemIgnoredWhenSessionIsCompleted() async {
+    await viewModel.load()
+
+    for item in viewModel.items {
+      await viewModel.toggleItem(item)
+    }
+
+    await viewModel.complete()
+    XCTAssertTrue(viewModel.isCompleted)
+    XCTAssertNil(viewModel.errorMessage)
+
+    guard let firstItem = viewModel.items.first else {
+      XCTFail("Items should not be empty")
+      return
+    }
+
+    // Tapping on an item when completed must be ignored: no state change, no error message
+    await viewModel.toggleItem(firstItem)
+    XCTAssertTrue(viewModel.isCompleted)
+    XCTAssertNil(viewModel.errorMessage)
+    XCTAssertEqual(viewModel.completedCount, 3)
+    let rechecked = viewModel.items.first(where: { $0.id == firstItem.id })
+    XCTAssertTrue(rechecked?.isChecked == true)
+  }
 }

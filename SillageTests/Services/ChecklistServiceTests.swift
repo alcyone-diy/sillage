@@ -431,6 +431,34 @@ final class ChecklistServiceTests: XCTestCase {
     }
   }
 
+  func testSetItemCheckedFailsOnCompletedSession() async throws {
+    let template = try await checklistService.createCustomTemplate(
+      title: "Completed Session Mutability Check",
+      description: nil,
+      category: .routine,
+      items: [("Task 1", nil)]
+    )
+
+    let session = try await checklistService.startSession(templateId: template.id)
+    _ = try await checklistService.setItemChecked(
+      sessionId: session.id,
+      itemId: session.items[0].id,
+      isChecked: true
+    )
+    _ = try await checklistService.completeSession(sessionId: session.id)
+
+    do {
+      _ = try await checklistService.setItemChecked(
+        sessionId: session.id,
+        itemId: session.items[0].id,
+        isChecked: false
+      )
+      XCTFail("Expected sessionAlreadyFinished error when mutating completed session")
+    } catch ChecklistSessionError.sessionAlreadyFinished {
+      // Expected
+    }
+  }
+
   func testAbandonSession() async throws {
     let template = try await checklistService.createCustomTemplate(
       title: "Abandon Test",

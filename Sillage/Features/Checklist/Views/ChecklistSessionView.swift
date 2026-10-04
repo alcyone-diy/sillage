@@ -187,6 +187,7 @@ public struct ChecklistSessionView: View {
           ChecklistSessionItemRowView(
             item: item,
             isCurrentItem: isCurrent,
+            isCompletedSession: viewModel.isCompleted,
             isPerformingAction: viewModel.isPerformingAction,
             onToggle: {
               Task {
@@ -260,6 +261,7 @@ private struct ChecklistSessionItemRowView: View {
   @Environment(\.marineTheme) private var marineTheme
   let item: ChecklistSessionItem
   let isCurrentItem: Bool
+  let isCompletedSession: Bool
   let isPerformingAction: Bool
   let onToggle: @MainActor () -> Void
 
@@ -309,7 +311,7 @@ private struct ChecklistSessionItemRowView: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .disabled(isPerformingAction)
+    .disabled(isPerformingAction || isCompletedSession)
     .accessibilityLabel("\(item.title), \(item.isChecked ? String(localized: "Checked") : String(localized: "Unchecked"))")
   }
 }

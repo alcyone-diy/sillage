@@ -484,8 +484,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         guard let sessionRecord = try ChecklistSessionRecord.fetchOne(db, key: sessionId.uuidString) else {
           throw ChecklistSessionError.sessionNotFound(sessionId)
         }
-        guard sessionRecord.status == ChecklistSessionStatus.inProgress.rawValue ||
-              sessionRecord.status == ChecklistSessionStatus.completed.rawValue else {
+        guard sessionRecord.status == ChecklistSessionStatus.inProgress.rawValue else {
           throw ChecklistSessionError.sessionAlreadyFinished(sessionId)
         }
         guard var itemRecord = try ChecklistSessionItemRecord.fetchOne(db, key: itemId.uuidString) else {
@@ -514,13 +513,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
         try itemRecord.update(db)
 
         // When checking the first item, update started_at to now.
-        // If toggling on a completed session, reopen it to in-progress.
         var updatedSessionRecord = sessionRecord
-        if sessionRecord.status == ChecklistSessionStatus.completed.rawValue && !isChecked {
-          updatedSessionRecord.status = ChecklistSessionStatus.inProgress.rawValue
-          updatedSessionRecord.completed_at = nil
-          try updatedSessionRecord.update(db)
-        } else if isChecked && previouslyCheckedCount == 0 {
+        if isChecked && previouslyCheckedCount == 0 {
           let now = Date()
           updatedSessionRecord.started_at = now
           try updatedSessionRecord.update(db)

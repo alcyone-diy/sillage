@@ -143,8 +143,9 @@ public final class ChecklistSessionViewModel {
 
   /// Toggles the checked status of a checklist item with GPS audit coordinate.
   public func toggleItem(_ item: ChecklistSessionItem) async {
-    // Drop simultaneous parasitic touches on the same item without locking the entire UI
-    guard !isPerformingAction, !togglingItemIds.contains(item.id), let currentSession = session else { return }
+    // Drop simultaneous parasitic touches on the same item without locking the entire UI,
+    // and ignore interaction completely if the session is already completed.
+    guard !isPerformingAction, !isCompleted, !togglingItemIds.contains(item.id), let currentSession = session else { return }
     togglingItemIds.insert(item.id)
     defer { togglingItemIds.remove(item.id) }
 
