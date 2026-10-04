@@ -1166,6 +1166,100 @@ final class ChartViewModelTests: XCTestCase {
 
     XCTAssertEqual(viewModel.trackingMode, .free, "chartInteractedByUser must switch tracking mode to .free")
     XCTAssertEqual(preferencesService.savedTrackingMode, .courseUp, "chartInteractedByUser must persist previous tracking mode in preferences")
+    XCTAssertEqual(preferencesService.lastMapTrackingMode, .free, "chartInteractedByUser must persist .free in lastMapTrackingMode")
+  }
+
+  func testTrackingMode_RestoredFromPreferencesOnInit() {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    // Test 1: courseUp restoration
+    preferencesService.lastMapTrackingMode = .courseUp
+    let vmCourseUp = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+    XCTAssertEqual(vmCourseUp.trackingMode, .courseUp, "ChartViewModel must restore .courseUp tracking mode from preferences on init")
+
+    // Test 2: northUp restoration
+    preferencesService.lastMapTrackingMode = .northUp
+    let vmNorthUp = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+    XCTAssertEqual(vmNorthUp.trackingMode, .northUp, "ChartViewModel must restore .northUp tracking mode from preferences on init")
+
+    // Test 3: free (rien) restoration
+    preferencesService.lastMapTrackingMode = .free
+    let vmFree = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+    XCTAssertEqual(vmFree.trackingMode, .free, "ChartViewModel must restore .free tracking mode from preferences on init")
+  }
+
+  func testToggleTrackingMode_CyclesCorrectlyAndPersistsPreferences() {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    preferencesService.savedTrackingMode = .northUp
+    preferencesService.lastMapTrackingMode = .northUp
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    XCTAssertEqual(viewModel.trackingMode, .northUp)
+
+    // North Up -> Course Up
+    viewModel.toggleTrackingMode()
+    XCTAssertEqual(viewModel.trackingMode, .courseUp)
+    XCTAssertEqual(preferencesService.savedTrackingMode, .courseUp)
+    XCTAssertEqual(preferencesService.lastMapTrackingMode, .courseUp)
+
+    // User interacts with map -> switches to free, but preferences retain .courseUp
+    viewModel.chartInteractedByUser()
+    XCTAssertEqual(viewModel.trackingMode, .free)
+    XCTAssertEqual(preferencesService.savedTrackingMode, .courseUp)
+    XCTAssertEqual(preferencesService.lastMapTrackingMode, .free)
+
+    // Free -> Restores saved mode (.courseUp)
+    viewModel.toggleTrackingMode()
+    XCTAssertEqual(viewModel.trackingMode, .courseUp)
+    XCTAssertEqual(preferencesService.savedTrackingMode, .courseUp)
+    XCTAssertEqual(preferencesService.lastMapTrackingMode, .courseUp)
+
+    // Course Up -> North Up
+    viewModel.toggleTrackingMode()
+    XCTAssertEqual(viewModel.trackingMode, .northUp)
+    XCTAssertEqual(preferencesService.savedTrackingMode, .northUp)
+    XCTAssertEqual(preferencesService.lastMapTrackingMode, .northUp)
   }
 
   func testAutoCenteringOnGPS_SuspendedWhileMapIsMoving() async throws {

@@ -340,6 +340,7 @@ final class ChartViewModel {
     self.trackRecordingService = trackRecordingService
     self.messageService = messageService
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
+    self.trackingMode = self.preferencesService.lastMapTrackingMode
     
     loadSavedChartSource()
     setupInstrumentTask()
@@ -477,6 +478,7 @@ final class ChartViewModel {
     self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
     self.updateBearingLine(state: self.instrumentDampingService.state)
     self.trackingMode = .free
+    self.preferencesService.lastMapTrackingMode = .free
     
     // 4. Emit the event
     let event: CameraMoveEvent
@@ -1052,6 +1054,7 @@ final class ChartViewModel {
     guard trackingMode != .free else { return }
     
     preferencesService.savedTrackingMode = trackingMode
+    preferencesService.lastMapTrackingMode = .free
     trackingMode = .free
   }
   
@@ -1067,6 +1070,8 @@ final class ChartViewModel {
       trackingMode = .northUp
       preferencesService.savedTrackingMode = .northUp
     }
+    
+    preferencesService.lastMapTrackingMode = trackingMode
     
     if trackingMode != .free, let coordinate = instrumentDampingService.state?.coordinate {
       let heading = (trackingMode == .courseUp) ? instrumentDampingService.state?.smoothedCOG : nil
@@ -1096,6 +1101,7 @@ final class ChartViewModel {
   /// while preserving the current map zoom level intact (`zoom: nil`).
   func centerOnAnchor(coordinate: CLLocationCoordinate2D) {
     self.trackingMode = .free
+    self.preferencesService.lastMapTrackingMode = .free
     let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
@@ -1105,6 +1111,7 @@ final class ChartViewModel {
   /// Centers the chart camera on the specified coordinate while strictly preserving the current zoom level.
   func centerCamera(on coordinate: CLLocationCoordinate2D) {
     self.trackingMode = .free
+    self.preferencesService.lastMapTrackingMode = .free
     let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
@@ -1150,6 +1157,7 @@ final class ChartViewModel {
       right: MarineTheme.Spacing.extraLarge
     )
     self.trackingMode = .free
+    self.preferencesService.lastMapTrackingMode = .free
     let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: resolvedPadding)
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
@@ -1167,6 +1175,7 @@ final class ChartViewModel {
     // Switch to free tracking mode when viewing a saved track
     if centerOnTrack {
       trackingMode = .free
+      preferencesService.lastMapTrackingMode = .free
     }
     
     let points = try await trackService.fetchTrackPoints(for: sessionID)

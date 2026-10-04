@@ -170,6 +170,7 @@ final class MockPreferencesService: PreferencesServiceProtocol {
   var savedZoom: Double?
   var savedDirection: Double?
   var savedTrackingMode: ChartTrackingMode = .northUp
+  var lastMapTrackingMode: ChartTrackingMode = .northUp
   var gloveModeEnabled: Bool = false
   var hasAcceptedDisclaimer: Bool = false
   var isOpenSeaMapOverlayEnabled: Bool = false
