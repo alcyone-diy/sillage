@@ -58,7 +58,7 @@ struct ActiveChecklistButtonView: View {
       }
       .padding(ringOffset)
     }
-    .accessibilityLabel(String(localized: "Active Checklists"))
+    .accessibilityLabel(String(localized: "Checklists In Progress"))
     .accessibilityValue("\(Int((min(max(progress, 0.0), 1.0) * 100).rounded()))%")
   }
 }

@@ -131,7 +131,7 @@ public struct ChecklistTemplateListView: View {
       await viewModel.observeCompletedSessions()
     }
     .alert(
-      "Confirmation",
+      "Delete Checklist?",
       isPresented: Binding(
         get: { templateToDelete != nil },
         set: { if !$0 { templateToDelete = nil } }

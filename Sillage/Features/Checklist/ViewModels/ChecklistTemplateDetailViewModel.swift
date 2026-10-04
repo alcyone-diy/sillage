@@ -186,8 +186,8 @@ public final class ChecklistTemplateDetailViewModel {
       self.activeSession = try await checklistService.fetchActiveSession(for: templateId)
       self.latestCompletionDate = try await checklistService.fetchLatestCompletionDate(for: templateId)
     } catch {
-      Logger.checklist.error("Failed to load checklist template \(templateId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to load checklist template \(templateId.uuidString, privacy: .public): \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
     }
   }
 
@@ -219,7 +219,7 @@ public final class ChecklistTemplateDetailViewModel {
       }
     } catch {
       if !Task.isCancelled {
-        Logger.checklist.error("Error observing active sessions: \(error.localizedDescription, privacy: .public)")
+        Logger.checklist.error("Error observing active sessions: \(String(reflecting: error), privacy: .public)")
       }
     }
   }
@@ -234,7 +234,7 @@ public final class ChecklistTemplateDetailViewModel {
       }
     } catch {
       if !Task.isCancelled {
-        Logger.checklist.error("Error observing completed sessions: \(error.localizedDescription, privacy: .public)")
+        Logger.checklist.error("Error observing completed sessions: \(String(reflecting: error), privacy: .public)")
       }
     }
   }
@@ -275,8 +275,8 @@ public final class ChecklistTemplateDetailViewModel {
       self.activeSession = session
       return session.id
     } catch {
-      Logger.checklist.error("Failed to start or resume checklist session: \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to start or resume checklist session: \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
       return nil
     }
   }
@@ -290,8 +290,8 @@ public final class ChecklistTemplateDetailViewModel {
       Logger.checklist.info("Successfully deleted custom template: \(templateId.uuidString, privacy: .public)")
       return true
     } catch {
-      Logger.checklist.error("Failed to delete custom template: \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to delete custom template: \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
       return false
     }
   }
@@ -407,8 +407,8 @@ public final class ChecklistTemplateDetailViewModel {
       self.isEditable = false
       return saved
     } catch {
-      Logger.checklist.error("Failed to save checklist template: \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to save checklist template: \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
       return nil
     }
   }

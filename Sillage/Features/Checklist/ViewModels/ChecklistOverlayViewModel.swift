@@ -111,7 +111,7 @@ public final class ChecklistOverlayViewModel {
       }
     } catch {
       if !Task.isCancelled {
-        Logger.checklist.error("Failed to observe active checklist sessions: \(error.localizedDescription, privacy: .public)")
+        Logger.checklist.error("Failed to observe active checklist sessions: \(String(reflecting: error), privacy: .public)")
       }
     }
   }

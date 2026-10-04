@@ -148,7 +148,7 @@ public struct ChecklistTemplateDetailView: View {
       await viewModel.startObserving()
     }
     .alert(
-      "Delete Template?",
+      "Delete Checklist?",
       isPresented: $showDeleteConfirmation
     ) {
       Button("Delete", role: .destructive) {
@@ -440,7 +440,7 @@ public struct ChecklistTemplateDetailView: View {
           }) {
             HStack {
               Image(marineIcon: .delete)
-              Text("Delete")
+              Text("Delete Checklist")
             }
           }
           .buttonStyle(MarineButtonStyle(.destructive))

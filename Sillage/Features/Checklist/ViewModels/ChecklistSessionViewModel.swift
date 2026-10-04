@@ -111,11 +111,11 @@ public final class ChecklistSessionViewModel {
       } else {
         self.session = nil
         self.isSessionDeleted = true
-        errorMessage = String(localized: "Checklist session not found.")
+        errorMessage = String(localized: "This checklist is no longer available.")
       }
     } catch {
-      Logger.checklist.error("Failed to load checklist session '\(self.sessionId.uuidString, privacy: .public)': \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to load checklist session '\(self.sessionId.uuidString, privacy: .public)': \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
     }
   }
 
@@ -136,7 +136,7 @@ public final class ChecklistSessionViewModel {
       }
     } catch {
       if !Task.isCancelled {
-        Logger.checklist.error("Error observing checklist sessions: \(error.localizedDescription, privacy: .public)")
+        Logger.checklist.error("Error observing checklist sessions: \(String(reflecting: error), privacy: .public)")
       }
     }
   }
@@ -158,8 +158,8 @@ public final class ChecklistSessionViewModel {
       )
       self.session = updated
     } catch {
-      Logger.checklist.error("Failed to toggle checklist item '\(item.id.uuidString, privacy: .public)': \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to toggle checklist item '\(item.id.uuidString, privacy: .public)': \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
     }
   }
 
@@ -180,8 +180,8 @@ public final class ChecklistSessionViewModel {
       )
       self.session = completedSession
     } catch {
-      Logger.checklist.error("Failed to complete checklist session '\(currentSession.id.uuidString, privacy: .public)': \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to complete checklist session '\(currentSession.id.uuidString, privacy: .public)': \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
     }
   }
 
@@ -196,8 +196,8 @@ public final class ChecklistSessionViewModel {
       self.session = nil
       self.isSessionDeleted = true
     } catch {
-      Logger.checklist.error("Failed to delete checklist session '\(currentSession.id.uuidString, privacy: .public)': \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to delete checklist session '\(currentSession.id.uuidString, privacy: .public)': \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
     }
   }
 

@@ -72,7 +72,7 @@ public struct ChecklistSessionView: View {
       await viewModel.observe()
     }
     .alert(
-      viewModel.isCompleted ? Text("Delete Checklist?") : Text("Reset Checklist?"),
+      viewModel.isCompleted ? Text("Delete Log Entry?") : Text("Reset Progress?"),
       isPresented: $viewModel.showResetConfirmation
     ) {
       Button(role: .destructive) {
@@ -84,7 +84,7 @@ public struct ChecklistSessionView: View {
       }
       Button("Cancel", role: .cancel) { }
     } message: {
-      Text(viewModel.isCompleted ? "This will delete the completed checklist session." : "This will delete the current checklist session.")
+      Text(viewModel.isCompleted ? "This will permanently delete this log entry." : "This will clear your current progress.")
     }
     .alert(
       "Error",
@@ -146,7 +146,7 @@ public struct ChecklistSessionView: View {
 
         VStack(spacing: MarineTheme.Spacing.small) {
           HStack {
-            Text("\(viewModel.completedCount) of \(viewModel.totalCount) completed")
+            Text("\(viewModel.completedCount) of \(viewModel.totalCount) checked")
               .marineFont(.caption)
               .foregroundStyle(marineTheme.colors.textSecondary)
 
@@ -177,7 +177,7 @@ public struct ChecklistSessionView: View {
   private var itemsSection: some View {
     Section {
       if viewModel.items.isEmpty {
-        Text("No items in checklist")
+        Text("No steps in this checklist.")
           .marineFont(.body)
           .foregroundStyle(marineTheme.colors.textSecondary)
           .marineListCell()
@@ -198,7 +198,7 @@ public struct ChecklistSessionView: View {
         }
       }
     } header: {
-      Text("Items")
+      Text("Steps")
         .marineSectionHeader()
     } footer: {
       actionsFooter
@@ -228,7 +228,7 @@ public struct ChecklistSessionView: View {
           } label: {
             HStack(spacing: MarineTheme.Spacing.small) {
               Image(systemName: "arrow.counterclockwise")
-              Text("Reset Checklist")
+              Text("Reset Progress")
             }
           }
           .buttonStyle(MarineButtonStyle(.destructive))
@@ -241,7 +241,7 @@ public struct ChecklistSessionView: View {
           } label: {
             HStack(spacing: MarineTheme.Spacing.small) {
               Image(systemName: MarineIcon.delete.rawValue)
-              Text("Delete")
+              Text("Delete Log Entry")
             }
           }
           .buttonStyle(MarineButtonStyle(.destructive))

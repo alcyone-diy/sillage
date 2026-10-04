@@ -46,8 +46,8 @@ public final class ChecklistTemplateListViewModel {
     do {
       templates = try await checklistService.fetchTemplates()
     } catch {
-      Logger.checklist.error("Failed to load checklist templates: \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to load checklist templates: \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
     }
   }
 
@@ -60,7 +60,7 @@ public final class ChecklistTemplateListViewModel {
       }
     } catch {
       if !Task.isCancelled {
-        Logger.checklist.error("Error observing active sessions: \(error.localizedDescription, privacy: .public)")
+        Logger.checklist.error("Error observing active sessions: \(String(reflecting: error), privacy: .public)")
       }
     }
   }
@@ -90,8 +90,8 @@ public final class ChecklistTemplateListViewModel {
       let session = try await checklistService.startSession(templateId: templateId)
       return session
     } catch {
-      Logger.checklist.error("Failed to start or resume session for template \(templateId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to start or resume session for template \(templateId.uuidString, privacy: .public): \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
       return nil
     }
   }
@@ -105,7 +105,7 @@ public final class ChecklistTemplateListViewModel {
       }
     } catch {
       if !Task.isCancelled {
-        Logger.checklist.error("Error observing completed sessions: \(error.localizedDescription, privacy: .public)")
+        Logger.checklist.error("Error observing completed sessions: \(String(reflecting: error), privacy: .public)")
       }
     }
   }
@@ -122,8 +122,8 @@ public final class ChecklistTemplateListViewModel {
       await loadTemplates()
       return true
     } catch {
-      Logger.checklist.error("Failed to delete custom template \(id.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-      errorMessage = error.localizedDescription
+      Logger.checklist.error("Failed to delete custom template \(id.uuidString, privacy: .public): \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
       return false
     }
   }

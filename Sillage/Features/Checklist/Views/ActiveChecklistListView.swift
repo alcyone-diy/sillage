@@ -27,6 +27,15 @@ public struct ActiveChecklistListView: View {
       }
     }
 
+    var alertTitle: LocalizedStringKey {
+      switch self {
+      case .reset:
+        return "Reset Progress?"
+      case .delete:
+        return "Delete Log Entry?"
+      }
+    }
+
     var actionTitle: LocalizedStringKey {
       switch self {
       case .reset:
@@ -39,9 +48,9 @@ public struct ActiveChecklistListView: View {
     var message: LocalizedStringKey {
       switch self {
       case .reset(let session):
-        return "This will delete the current progress and reset \"\(session.templateTitleSnapshot)\"."
+        return "This will clear your current progress on \"\(session.templateTitleSnapshot)\"."
       case .delete(let session):
-        return "Are you sure you want to delete this completed session for \"\(session.templateTitleSnapshot)\"? This action cannot be undone."
+        return "Are you sure you want to delete this log entry for \"\(session.templateTitleSnapshot)\"? This action cannot be undone."
       }
     }
 
@@ -116,7 +125,7 @@ public struct ActiveChecklistListView: View {
 
       if viewModel.activeSessions.isEmpty {
         Section {
-          Text("No active or completed checklists")
+          Text("No checklists in progress or log entries.")
             .marineFont(.body)
             .foregroundStyle(marineTheme.colors.textSecondary)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -128,7 +137,7 @@ public struct ActiveChecklistListView: View {
     .listStyle(.insetGrouped)
     .marineListBackground()
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-    .navigationTitle(String(localized: "Checklists"))
+    .navigationTitle(String(localized: "Checklist Activity"))
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .navigationBarTrailing) {
@@ -143,7 +152,7 @@ public struct ActiveChecklistListView: View {
       }
     }
     .alert(
-      "Confirmation",
+      pendingAction?.alertTitle ?? "",
       isPresented: Binding(
         get: { pendingAction != nil },
         set: { if !$0 { pendingAction = nil } }
@@ -156,7 +165,7 @@ public struct ActiveChecklistListView: View {
           do {
             try await checklistService?.deleteSession(sessionId: sessionId)
           } catch {
-            Logger.checklist.error("Failed to delete session '\(sessionId.uuidString, privacy: .public)' from swipe action: \(error.localizedDescription, privacy: .public)")
+            Logger.checklist.error("Failed to delete session '\(sessionId.uuidString, privacy: .public)' from swipe action: \(String(reflecting: error), privacy: .public)")
           }
         }
       }
