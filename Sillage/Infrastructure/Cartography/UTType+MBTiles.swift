@@ -13,8 +13,8 @@ import UniformTypeIdentifiers
 extension UTType {
   /// Custom Uniform Type Identifier for `.mbtiles` files
   static var mbtiles: UTType {
-    // "com.alcyone.sillage.mbtiles" should be registered in Info.plist
+    // "com.alcyone-sillage.sillage.mbtiles" should be registered in Info.plist
     // conforming to "public.data" with the extension "mbtiles".
-    UTType(exportedAs: "com.alcyone-sillage.app.mbtiles")
+    UTType(exportedAs: "com.alcyone-sillage.sillage.mbtiles")
   }
 }
