@@ -53,5 +53,4 @@ public struct ChecklistTemplateRecord: Codable, FetchableRecord, PersistableReco
 
   public static let items = hasMany(ChecklistTemplateItemRecord.self)
   public static let sessions = hasMany(ChecklistSessionRecord.self)
-  public static let executions = sessions
 }

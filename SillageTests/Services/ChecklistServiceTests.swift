@@ -129,7 +129,7 @@ final class ChecklistServiceTests: XCTestCase {
     let sessionIdString = session.id.uuidString
     let remainingSessionItems = try await databaseManager.reader.read { db in
       try ChecklistSessionItemRecord
-        .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionIdString)
+        .filter(ChecklistSessionItemRecord.Columns.session_id == sessionIdString)
         .fetchCount(db)
     }
     XCTAssertEqual(remainingSessionItems, 0)

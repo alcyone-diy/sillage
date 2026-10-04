@@ -306,7 +306,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         try updatedSession.update(db)
 
         let existingSessionItems = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == activeSession.id)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == activeSession.id)
           .fetchAll(db)
 
         var existingBySourceId: [String: ChecklistSessionItemRecord] = [:]
@@ -319,7 +319,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         }
 
         try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == activeSession.id)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == activeSession.id)
           .deleteAll(db)
 
         for (index, domainItem) in domainItems.enumerated() {
@@ -327,7 +327,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
           let prior = existingBySourceId[sourceId] ?? existingByTitle[domainItem.title]
           let sessionItemRecord = ChecklistSessionItemRecord(
             id: prior?.id ?? UUID().uuidString,
-            execution_id: activeSession.id,
+            session_id: activeSession.id,
             source_template_item_id: sourceId,
             sort_order: index,
             title: domainItem.title,
@@ -398,7 +398,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
           )
           let category = try Self.fetchCategory(for: templateId.uuidString, in: db)
           let existingItems = try ChecklistSessionItemRecord
-            .filter(ChecklistSessionItemRecord.Columns.execution_id == existingRecord.id)
+            .filter(ChecklistSessionItemRecord.Columns.session_id == existingRecord.id)
             .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
             .fetchAll(db)
           return try Self.mapSession(record: existingRecord, itemRecords: existingItems, category: category)
@@ -432,7 +432,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         for item in templateItems {
           let itemRecord = ChecklistSessionItemRecord(
             id: UUID().uuidString,
-            execution_id: sessionId.uuidString,
+            session_id: sessionId.uuidString,
             source_template_item_id: item.id,
             sort_order: item.sort_order,
             title: item.title,
@@ -495,7 +495,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         // 2. Strict Idempotency: Return immediately with 0 disk write if state is identical
         if itemRecord.is_checked == isChecked {
           let allItems = try ChecklistSessionItemRecord
-            .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
+            .filter(ChecklistSessionItemRecord.Columns.session_id == sessionId.uuidString)
             .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
             .fetchAll(db)
           return try Self.mapSession(record: sessionRecord, itemRecords: allItems)
@@ -503,7 +503,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
 
         // Count previously checked items before updating this item
         let previouslyCheckedCount = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == sessionId.uuidString)
           .filter(ChecklistSessionItemRecord.Columns.is_checked == true)
           .fetchCount(db)
 
@@ -527,7 +527,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         }
 
         let allItems = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == sessionId.uuidString)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
@@ -555,7 +555,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         }
 
         let allItems = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == sessionId.uuidString)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
@@ -583,7 +583,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         }
 
         try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == sessionId.uuidString)
           .deleteAll(db)
 
         try sessionRecord.delete(db)
@@ -612,7 +612,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         try sessionRecord.update(db)
 
         let allItems = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == sessionId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == sessionId.uuidString)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
@@ -637,7 +637,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
       }
 
       let items = try ChecklistSessionItemRecord
-        .filter(ChecklistSessionItemRecord.Columns.execution_id == record.id)
+        .filter(ChecklistSessionItemRecord.Columns.session_id == record.id)
         .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
         .fetchAll(db)
 
@@ -653,7 +653,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
       }
 
       let items = try ChecklistSessionItemRecord
-        .filter(ChecklistSessionItemRecord.Columns.execution_id == record.id)
+        .filter(ChecklistSessionItemRecord.Columns.session_id == record.id)
         .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
         .fetchAll(db)
 
@@ -676,7 +676,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
 
       return try records.map { record in
         let items = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == record.id)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == record.id)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
         let category = categoryByTemplateId[record.template_id] ?? .routine
@@ -747,7 +747,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
 
       return try records.map { record in
         let items = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == record.id)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == record.id)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
         let category = categoryByTemplateId[record.template_id] ?? .routine
@@ -786,7 +786,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
 
       return try records.map { record in
         let items = try ChecklistSessionItemRecord
-          .filter(ChecklistSessionItemRecord.Columns.execution_id == record.id)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == record.id)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
         let category = categoryByTemplateId[record.template_id] ?? .routine

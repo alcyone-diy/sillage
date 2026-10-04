@@ -641,6 +641,18 @@ public final class DatabaseManager: Sendable {
 
     migrator.registerMigration("v7") { _ in }
 
+    migrator.registerMigration("v8") { db in
+      try db.alter(table: "checklist_session_item") { t in
+        t.rename(column: "execution_id", to: "session_id")
+      }
+      try db.drop(index: "idx_checklist_session_item_execution_order")
+      try db.create(
+        index: "idx_checklist_session_item_session_order",
+        on: "checklist_session_item",
+        columns: ["session_id", "sort_order"]
+      )
+    }
+
     return migrator
   }
 }

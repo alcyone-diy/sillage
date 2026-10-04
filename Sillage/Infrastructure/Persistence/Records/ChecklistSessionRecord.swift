@@ -51,6 +51,6 @@ public struct ChecklistSessionRecord: Codable, FetchableRecord, PersistableRecor
     case notes
   }
 
-  public static let items = hasMany(ChecklistSessionItemRecord.self)
+  public static let items = hasMany(ChecklistSessionItemRecord.self, using: ForeignKey(["session_id"]))
   public static let template = belongsTo(ChecklistTemplateRecord.self)
 }

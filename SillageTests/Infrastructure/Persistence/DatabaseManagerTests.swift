@@ -761,6 +761,116 @@ final class DatabaseManagerTests {
     }
   }
 
+  @Test("Migration v8 renames checklist_session_item.execution_id to session_id and updates index")
+  func testMigrationRenamesExecutionIdToSessionId() throws {
+    let queue = try DatabaseQueue()
+
+    let templateId = UUID().uuidString
+    let sessionId = UUID().uuidString
+    let itemId = UUID().uuidString
+
+    // 1. Setup pre-migration database state (at v7) with execution_id
+    try queue.write { db in
+      try db.execute(sql: """
+        CREATE TABLE grdb_migrations (
+          identifier TEXT NOT NULL PRIMARY KEY
+        );
+        INSERT INTO grdb_migrations VALUES ('v1'), ('v2'), ('v3'), ('v4'), ('v5'), ('v6'), ('v7');
+      """)
+
+      try db.create(table: "checklist_template") { t in
+        t.column("id", .text).primaryKey()
+        t.column("title", .text).notNull()
+        t.column("category", .text).notNull()
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+
+      try db.create(table: "checklist_session") { t in
+        t.column("id", .text).primaryKey()
+        t.column("template_id", .text)
+          .notNull()
+          .references("checklist_template", column: "id", onDelete: .cascade)
+        t.column("template_title_snapshot", .text).notNull()
+        t.column("status", .text).notNull()
+        t.column("started_at", .datetime).notNull()
+      }
+
+      try db.create(table: "checklist_session_item") { t in
+        t.column("id", .text).primaryKey()
+        t.column("execution_id", .text)
+          .notNull()
+          .references("checklist_session", column: "id", onDelete: .cascade)
+        t.column("source_template_item_id", .text)
+        t.column("sort_order", .integer).notNull()
+        t.column("title", .text).notNull()
+        t.column("detail", .text)
+        t.column("is_checked", .boolean).notNull().defaults(to: false)
+        t.column("checked_at", .datetime)
+        t.column("latitude_deg", .double)
+        t.column("longitude_deg", .double)
+      }
+
+      try db.create(
+        index: "idx_checklist_session_item_execution_order",
+        on: "checklist_session_item",
+        columns: ["execution_id", "sort_order"]
+      )
+
+      try db.execute(
+        sql: "INSERT INTO checklist_template (id, title, category, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        arguments: [templateId, "Safety Briefing", "safety", 0, Date(), Date()]
+      )
+      try db.execute(
+        sql: "INSERT INTO checklist_session (id, template_id, template_title_snapshot, status, started_at) VALUES (?, ?, ?, ?, ?)",
+        arguments: [sessionId, templateId, "Safety Briefing", "in_progress", Date()]
+      )
+      try db.execute(
+        sql: """
+        INSERT INTO checklist_session_item (id, execution_id, sort_order, title, is_checked)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        arguments: [itemId, sessionId, 0, "Lifejackets Fitted", true]
+      )
+    }
+
+    // 2. Run migrations (v8 will execute)
+    let migrator = DatabaseManager.migrator
+    try migrator.migrate(queue)
+
+    // 3. Verify column was renamed to session_id and data is readable
+    try queue.read { db in
+      let columns = try db.columns(in: "checklist_session_item")
+      let columnNames = Set(columns.map(\.name))
+
+      #expect(columnNames.contains("session_id"))
+      #expect(!columnNames.contains("execution_id"))
+
+      let indexes = try db.indexes(on: "checklist_session_item")
+      let indexNames = Set(indexes.map(\.name))
+      #expect(indexNames.contains("idx_checklist_session_item_session_order"))
+      #expect(!indexNames.contains("idx_checklist_session_item_execution_order"))
+
+      let item = try ChecklistSessionItemRecord.fetchOne(db, key: itemId)
+      #expect(item?.session_id == sessionId)
+      #expect(item?.title == "Lifejackets Fitted")
+      #expect(item?.is_checked == true)
+
+      // Verify association join via explicit ForeignKey works
+      if let sessionRecord = try ChecklistSessionRecord.fetchOne(db, key: sessionId) {
+        let itemsFromSession = try sessionRecord.request(for: ChecklistSessionRecord.items).fetchAll(db)
+        #expect(itemsFromSession.count == 1)
+        #expect(itemsFromSession.first?.id == itemId)
+      } else {
+        Issue.record("Expected sessionRecord to exist")
+      }
+
+      let fkViolations = try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
+      #expect(fkViolations.isEmpty)
+    }
+  }
+
   // MARK: - Helpers
   
   private func makeTrackPoint(sessionID: String, timestamp: Date, segmentIndex: Int = 0) -> TrackPointRecord {

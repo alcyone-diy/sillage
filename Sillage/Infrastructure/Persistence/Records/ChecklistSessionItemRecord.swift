@@ -16,7 +16,7 @@ public struct ChecklistSessionItemRecord: Codable, FetchableRecord, PersistableR
   public static let databaseTableName = "checklist_session_item"
 
   public var id: String
-  public var execution_id: String
+  public var session_id: String
   public var source_template_item_id: String?
   public var sort_order: Int
   public var title: String
@@ -28,7 +28,7 @@ public struct ChecklistSessionItemRecord: Codable, FetchableRecord, PersistableR
 
   public init(
     id: String,
-    execution_id: String,
+    session_id: String,
     source_template_item_id: String? = nil,
     sort_order: Int,
     title: String,
@@ -39,7 +39,7 @@ public struct ChecklistSessionItemRecord: Codable, FetchableRecord, PersistableR
     longitude_deg: Double? = nil
   ) {
     self.id = id
-    self.execution_id = execution_id
+    self.session_id = session_id
     self.source_template_item_id = source_template_item_id
     self.sort_order = sort_order
     self.title = title
@@ -52,7 +52,7 @@ public struct ChecklistSessionItemRecord: Codable, FetchableRecord, PersistableR
 
   public enum Columns: String, ColumnExpression {
     case id
-    case execution_id
+    case session_id
     case source_template_item_id
     case sort_order
     case title
@@ -63,6 +63,5 @@ public struct ChecklistSessionItemRecord: Codable, FetchableRecord, PersistableR
     case longitude_deg
   }
 
-  public static let session = belongsTo(ChecklistSessionRecord.self)
-  public static let execution = session
+  public static let session = belongsTo(ChecklistSessionRecord.self, using: ForeignKey(["session_id"]))
 }
