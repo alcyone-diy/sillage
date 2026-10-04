@@ -1,5 +1,5 @@
 //
-//  ChecklistSessionRoute.swift
+//  ChecklistSessionPayload.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-10-03.
@@ -10,13 +10,13 @@
 
 import Foundation
 
-/// Encapsulates routing parameters for presenting an active or completed checklist session.
+/// Encapsulates navigation parameters for presenting an active or completed checklist session.
 ///
-/// Route identity (`Equatable` and `Hashable`) is defined exclusively by the immutable session `id`.
+/// Payload identity (`Equatable` and `Hashable`) is defined exclusively by the immutable session `id`.
 /// The optional `snapshot` acts solely as a transient fast-path payload to eliminate initial UI latency,
 /// ensuring that live in-memory mutations (e.g. checking items, updating progress) do not alter the
-/// navigation stack identity or trigger unexpected route invalidations in SwiftUI.
-public struct ChecklistSessionRoute: Hashable, Sendable {
+/// navigation stack identity or trigger unexpected destination invalidations in SwiftUI.
+public struct ChecklistSessionPayload: Hashable, Sendable {
   public let id: UUID
   public let snapshot: ChecklistSession?
 
@@ -30,7 +30,7 @@ public struct ChecklistSessionRoute: Hashable, Sendable {
     self.snapshot = session
   }
 
-  public static func == (lhs: ChecklistSessionRoute, rhs: ChecklistSessionRoute) -> Bool {
+  public static func == (lhs: ChecklistSessionPayload, rhs: ChecklistSessionPayload) -> Bool {
     lhs.id == rhs.id
   }
 

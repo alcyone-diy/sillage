@@ -43,7 +43,7 @@ public final class PanelManagerViewModel {
     case checklists
     case checklistTemplateDetail(templateId: UUID? = nil, template: ChecklistTemplate? = nil, startEditable: Bool = false)
     /// Active checklist session execution view.
-    case activeSession(ChecklistSessionRoute)
+    case activeSession(ChecklistSessionPayload)
   }
 
   /// The currently active panel visible to the user.

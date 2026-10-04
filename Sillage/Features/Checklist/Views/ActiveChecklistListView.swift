@@ -67,7 +67,7 @@ public struct ActiveChecklistListView: View {
       if !viewModel.inProgressSessions.isEmpty {
         Section {
           ForEach(viewModel.inProgressSessions) { session in
-            NavigationLink(value: ChecklistOverlayDestination.session(ChecklistSessionRoute(id: session.id, snapshot: session))) {
+            NavigationLink(value: ChecklistOverlayDestination.session(ChecklistSessionPayload(id: session.id, snapshot: session))) {
               ActiveChecklistRowView(session: session)
             }
             // From the mariner's perspective, this action is a "Reset" (clearing execution to restart fresh;
@@ -94,7 +94,7 @@ public struct ActiveChecklistListView: View {
       if !viewModel.completedSessions.isEmpty {
         Section {
           ForEach(viewModel.completedSessions) { session in
-            NavigationLink(value: ChecklistOverlayDestination.session(ChecklistSessionRoute(id: session.id, snapshot: session))) {
+            NavigationLink(value: ChecklistOverlayDestination.session(ChecklistSessionPayload(id: session.id, snapshot: session))) {
               ActiveChecklistRowView(session: session)
             }
             // Deletes the completed session record from SQLite.
