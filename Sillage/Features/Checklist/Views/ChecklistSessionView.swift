@@ -54,7 +54,7 @@ public struct ChecklistSessionView: View {
     .navigationTitle(viewModel.title.isEmpty ? String(localized: "Checklist") : viewModel.title)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
-      if let templateId = viewModel.session?.templateId ?? viewModel.template?.id {
+      if !viewModel.isCompleted, let templateId = viewModel.session?.templateId ?? viewModel.template?.id {
         ToolbarItem(placement: .primaryAction) {
           NavigationLink(value: ChecklistOverlayDestination.templateDetail(templateId: templateId, startEditable: true)) {
             Text("Edit")
@@ -72,17 +72,19 @@ public struct ChecklistSessionView: View {
       await viewModel.observe()
     }
     .alert(
-      "Reset Checklist?",
+      viewModel.isCompleted ? Text("Delete Checklist?") : Text("Reset Checklist?"),
       isPresented: $viewModel.showResetConfirmation
     ) {
-      Button("Reset", role: .destructive) {
+      Button(role: .destructive) {
         Task {
           await viewModel.delete()
         }
+      } label: {
+        Text(viewModel.isCompleted ? "Delete" : "Reset")
       }
       Button("Cancel", role: .cancel) { }
     } message: {
-      Text("This will delete the current checklist session.")
+      Text(viewModel.isCompleted ? "This will delete the completed checklist session." : "This will delete the current checklist session.")
     }
     .alert(
       "Error",
@@ -233,26 +235,13 @@ public struct ChecklistSessionView: View {
           .disabled(viewModel.isPerformingAction)
         }
       } else {
-        // Intentionally do not dismiss the editor automatically upon completion.
-        // It remains open so the mariner can review completed items, make adjustments,
-        // or restart the checklist from scratch without unexpected screen dismissals.
-        Button {
-          dismiss()
-        } label: {
-          HStack(spacing: MarineTheme.Spacing.small) {
-            Image(systemName: "checkmark.circle.fill")
-            Text("Done")
-          }
-        }
-        .buttonStyle(MarineButtonStyle(.secondary))
-
         if viewModel.canReset {
           Button(role: .destructive) {
             viewModel.showResetConfirmation = true
           } label: {
             HStack(spacing: MarineTheme.Spacing.small) {
-              Image(systemName: "arrow.counterclockwise")
-              Text("Restart Checklist")
+              Image(systemName: MarineIcon.delete.rawValue)
+              Text("Delete")
             }
           }
           .buttonStyle(MarineButtonStyle(.destructive))

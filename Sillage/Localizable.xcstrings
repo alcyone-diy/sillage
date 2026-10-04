@@ -1087,9 +1087,6 @@
     "Reset Debug Settings to Defaults" : {
 
     },
-    "Restart Checklist" : {
-
-    },
     "Retry" : {
 
     },
@@ -1265,6 +1262,9 @@
 
     },
     "This will delete all temporary data and force the network to reload." : {
+
+    },
+    "This will delete the completed checklist session." : {
 
     },
     "This will delete the current checklist session." : {
