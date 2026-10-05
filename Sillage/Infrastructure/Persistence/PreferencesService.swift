@@ -142,7 +142,6 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let isOpenSeaMapOverlayEnabledKey = "isOpenSeaMapOverlayEnabled"
   @ObservationIgnored private let geoGarageUsernameKey = "geogarage_username"
   @ObservationIgnored private let geoGarageCustomerIDKey = "geogarage_customer_id"
-  @ObservationIgnored private let pendingCAASDownloadKey = "pendingCAASDownload"
   @ObservationIgnored private let pendingCAASDownloadsKey = "pendingCAASDownloads"
 
   @ObservationIgnored private let isCOGVectorEnabledKey = "isCOGVectorEnabled"
@@ -334,16 +333,8 @@ class PreferencesService: PreferencesServiceProtocol {
     self.geoGarageUsername = defaults.string(forKey: geoGarageUsernameKey)
     self.geoGarageCustomerID = defaults.string(forKey: geoGarageCustomerIDKey)
 
-    // One-shot migration: Migrate legacy single pendingCAASDownload to pendingCAASDownloads array and purge old key
-    if let oldData = defaults.data(forKey: pendingCAASDownloadKey),
-       let oldPending = try? JSONDecoder().decode(PendingCAASDownload.self, from: oldData) {
-      self.pendingCAASDownloads = [oldPending]
-      defaults.removeObject(forKey: pendingCAASDownloadKey)
-      if let data = try? JSONEncoder().encode([oldPending]) {
-        defaults.set(data, forKey: pendingCAASDownloadsKey)
-      }
-    } else if let data = defaults.data(forKey: pendingCAASDownloadsKey),
-              let list = try? JSONDecoder().decode([PendingCAASDownload].self, from: data) {
+    if let data = defaults.data(forKey: pendingCAASDownloadsKey),
+       let list = try? JSONDecoder().decode([PendingCAASDownload].self, from: data) {
       self.pendingCAASDownloads = list
     } else {
       self.pendingCAASDownloads = []

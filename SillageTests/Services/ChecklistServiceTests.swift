@@ -33,7 +33,7 @@ final class ChecklistServiceTests: XCTestCase {
     try await super.tearDown()
   }
 
-  // MARK: - Migration & Seeding Tests
+  // MARK: - Seeding Tests
 
   func testDefaultSeeding() async throws {
     try await checklistService.seedDefaultTemplatesIfNeeded()

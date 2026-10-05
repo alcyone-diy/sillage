@@ -82,22 +82,12 @@ final class DeveloperSettingsService {
     set { rawPausesLocationUpdatesAutomatically = newValue }
   }
 
-  private let noiseMultiplierMigrationKey = "developer_noise_multiplier_migrated_v035"
-
   init(defaults: UserDefaults? = nil) {
     let resolvedDefaults = defaults ?? UserDefaults(suiteName: "com.alcyonesillage.debug") ?? .standard
     self.defaults = resolvedDefaults
 
     self.rawCOGSOGCalculationSource = resolvedDefaults.string(forKey: cogSogCalculationSourceKey) ?? COGSOGCalculationSource.sillage.rawValue
-
-    let hasMigrated = resolvedDefaults.bool(forKey: noiseMultiplierMigrationKey)
-    if !hasMigrated {
-      // Migrate old default 1.0 (or unset) to optimal 0.35
-      self.rawNoiseMultiplier = 0.35
-      resolvedDefaults.set(true, forKey: noiseMultiplierMigrationKey)
-    } else {
-      self.rawNoiseMultiplier = resolvedDefaults.object(forKey: noiseMultiplierKey) as? Double ?? 0.35
-    }
+    self.rawNoiseMultiplier = resolvedDefaults.object(forKey: noiseMultiplierKey) as? Double ?? 0.35
 
     self.rawVelocityWindowDuration = resolvedDefaults.object(forKey: velocityWindowDurationKey) as? Double ?? 4.0
     self.rawCOGDampingDuration = resolvedDefaults.object(forKey: cogDampingDurationKey) as? Double ?? 4.0

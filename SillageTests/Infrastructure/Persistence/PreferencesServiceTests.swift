@@ -116,49 +116,5 @@ final class PreferencesServiceTests: XCTestCase {
       defaults.removeObject(forKey: key)
     }
   }
-
-  func testOneShotMigrationFromLegacyKey() throws {
-    let defaults = UserDefaults.standard
-    let legacyKey = "pendingCAASDownload"
-    let newKey = "pendingCAASDownloads"
-
-    let backupLegacy = defaults.object(forKey: legacyKey)
-    let backupNew = defaults.object(forKey: newKey)
-
-    defaults.removeObject(forKey: newKey)
-
-    // Write a legacy single object to UserDefaults
-    let legacyID = UUID()
-    let legacyPending = PendingCAASDownload(
-      id: legacyID,
-      packageID: legacyID,
-      layerID: "shom_legacy",
-      layerName: "SHOM Legacy",
-      boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
-      zoomMax: 14,
-      createdAt: Date(timeIntervalSince1970: 1_737_900_000)
-    )
-
-    let legacyData = try JSONEncoder().encode(legacyPending)
-    defaults.set(legacyData, forKey: legacyKey)
-
-    // Initializing PreferencesService should perform the one-shot migration
-    let service = PreferencesService()
-
-    XCTAssertEqual(service.pendingCAASDownloads.count, 1)
-    XCTAssertEqual(service.pendingCAASDownloads.first?.id, legacyID)
-    XCTAssertEqual(service.pendingCAASDownloads.first?.layerName, "SHOM Legacy")
-
-    // The legacy key must be removed immediately
-    XCTAssertNil(defaults.data(forKey: legacyKey), "Legacy pendingCAASDownload key must be deleted after one-shot migration")
-
-    // The new key must now contain the data
-    XCTAssertNotNil(defaults.data(forKey: newKey), "New pendingCAASDownloads key must be set after migration")
-
-    // Cleanup
-    defaults.removeObject(forKey: legacyKey)
-    defaults.removeObject(forKey: newKey)
-    if let backupLegacy { defaults.set(backupLegacy, forKey: legacyKey) }
-    if let backupNew { defaults.set(backupNew, forKey: newKey) }
-  }
 }
+

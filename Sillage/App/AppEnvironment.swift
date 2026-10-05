@@ -175,12 +175,6 @@ final class AppEnvironment {
       let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService, session: authSession)
       await geoGarageAuthService.bootstrap()
 
-      do {
-        let legacyMigrator = GeoGarageLegacyDataMigrator(databaseManager: databaseManager)
-        try await legacyMigrator.migrateIfNeeded()
-      } catch {
-        Logger.storage.error("Failed to migrate legacy GeoGarage downloads: \(error, privacy: .public)")
-      }
 
       let geoGarageDownloadRepository = GeoGarageDownloadRepository(databaseManager: databaseManager)
       await geoGarageDownloadRepository.load()
