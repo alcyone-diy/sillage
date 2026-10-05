@@ -1143,9 +1143,12 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(AppConstants.Map.trackingBreakGloveThreshold, 60.0, "Glove Mode tracking break margin must be 60 points")
   }
 
-  func testChartInteractedByUser_SwitchesToFreeModeAndSavesPreviousMode() {
+  func testChartInteractedByUser_SwitchesToFreeModeAndSavesPreviousMode() throws {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let suiteName = "testChartInteractedByUser_\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let preferencesService = PreferencesService(defaults: defaults)
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -1169,14 +1172,28 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(preferencesService.lastMapTrackingMode, .free, "chartInteractedByUser must persist .free in lastMapTrackingMode")
   }
 
-  func testTrackingMode_RestoredFromPreferencesOnInit() {
+  func testTrackingMode_RestoredFromPreferencesOnInit() throws {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let suiteName = "testTrackingMode_RestoredFromPreferencesOnInit_\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let preferencesService = PreferencesService(defaults: defaults)
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    // Test 0: default on first launch without saved preferences (mode rien / .free)
+    let vmDefault = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+    XCTAssertEqual(vmDefault.trackingMode, .free, "ChartViewModel must default to .free tracking mode on first launch")
 
     // Test 1: courseUp restoration
     preferencesService.lastMapTrackingMode = .courseUp
@@ -1215,9 +1232,12 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(vmFree.trackingMode, .free, "ChartViewModel must restore .free tracking mode from preferences on init")
   }
 
-  func testToggleTrackingMode_CyclesCorrectlyAndPersistsPreferences() {
+  func testToggleTrackingMode_CyclesCorrectlyAndPersistsPreferences() throws {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let suiteName = "testToggleTrackingMode_\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let preferencesService = PreferencesService(defaults: defaults)
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)

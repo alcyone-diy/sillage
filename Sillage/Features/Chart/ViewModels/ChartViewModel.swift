@@ -340,7 +340,7 @@ final class ChartViewModel {
     self.trackRecordingService = trackRecordingService
     self.messageService = messageService
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
-    self.trackingMode = self.preferencesService.lastMapTrackingMode
+    self.trackingMode = self.preferencesService.lastMapTrackingMode ?? .free
     
     loadSavedChartSource()
     setupInstrumentTask()
@@ -1066,7 +1066,7 @@ final class ChartViewModel {
   func toggleTrackingMode() {
     switch trackingMode {
     case .free:
-      trackingMode = preferencesService.savedTrackingMode
+      trackingMode = preferencesService.savedTrackingMode ?? .northUp
     case .northUp:
       trackingMode = .courseUp
       preferencesService.savedTrackingMode = .courseUp

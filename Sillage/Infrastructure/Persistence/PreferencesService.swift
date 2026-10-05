@@ -86,8 +86,8 @@ protocol PreferencesServiceProtocol: AnyObject {
   var savedLongitude: Double? { get set }
   var savedZoom: Double? { get set }
   var savedDirection: Double? { get set }
-  var savedTrackingMode: ChartTrackingMode { get set }
-  var lastMapTrackingMode: ChartTrackingMode { get set }
+  var savedTrackingMode: ChartTrackingMode? { get set }
+  var lastMapTrackingMode: ChartTrackingMode? { get set }
   var gloveModeEnabled: Bool { get set }
   var hasAcceptedDisclaimer: Bool { get set }
   var isOpenSeaMapOverlayEnabled: Bool { get set }
@@ -158,7 +158,7 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let hudEditOpenCountKey = "sillage.prefs.hudEditOpenCount"
   @ObservationIgnored private let gpsAccuracyModeKey = "gpsAccuracyMode"
 
-  @ObservationIgnored private let defaults = UserDefaults.standard
+  @ObservationIgnored private let defaults: UserDefaults
 
   var savedChartSource: String? {
     didSet { defaults.set(savedChartSource, forKey: chartSourceKey) }
@@ -184,12 +184,24 @@ class PreferencesService: PreferencesServiceProtocol {
     didSet { defaults.set(savedDirection, forKey: savedDirectionKey) }
   }
 
-  var savedTrackingMode: ChartTrackingMode = .northUp {
-    didSet { defaults.set(savedTrackingMode.rawValue, forKey: savedTrackingModeKey) }
+  var savedTrackingMode: ChartTrackingMode? {
+    didSet {
+      if let value = savedTrackingMode {
+        defaults.set(value.rawValue, forKey: savedTrackingModeKey)
+      } else {
+        defaults.removeObject(forKey: savedTrackingModeKey)
+      }
+    }
   }
 
-  var lastMapTrackingMode: ChartTrackingMode = .northUp {
-    didSet { defaults.set(lastMapTrackingMode.rawValue, forKey: lastMapTrackingModeKey) }
+  var lastMapTrackingMode: ChartTrackingMode? {
+    didSet {
+      if let value = lastMapTrackingMode {
+        defaults.set(value.rawValue, forKey: lastMapTrackingModeKey)
+      } else {
+        defaults.removeObject(forKey: lastMapTrackingModeKey)
+      }
+    }
   }
 
   var gloveModeEnabled: Bool {
@@ -312,21 +324,16 @@ class PreferencesService: PreferencesServiceProtocol {
     set { rawGPSAccuracyMode = newValue.rawValue }
   }
 
-  init() {
+  init(defaults: UserDefaults = .standard) {
+    self.defaults = defaults
     self.savedChartSource = defaults.string(forKey: chartSourceKey)
     self.savedGeoGarageLayerID = defaults.string(forKey: savedGeoGarageLayerIDKey)
     self.savedLatitude = defaults.object(forKey: savedLatitudeKey) as? Double
     self.savedLongitude = defaults.object(forKey: savedLongitudeKey) as? Double
     self.savedZoom = defaults.object(forKey: savedZoomKey) as? Double
     self.savedDirection = defaults.object(forKey: savedDirectionKey) as? Double
-    if let rawTrackingMode = defaults.string(forKey: savedTrackingModeKey),
-       let mode = ChartTrackingMode(rawValue: rawTrackingMode) {
-      self.savedTrackingMode = mode
-    }
-    if let rawLastMode = defaults.string(forKey: lastMapTrackingModeKey),
-       let mode = ChartTrackingMode(rawValue: rawLastMode) {
-      self.lastMapTrackingMode = mode
-    }
+    self.savedTrackingMode = defaults.string(forKey: savedTrackingModeKey).flatMap { ChartTrackingMode(rawValue: $0) }
+    self.lastMapTrackingMode = defaults.string(forKey: lastMapTrackingModeKey).flatMap { ChartTrackingMode(rawValue: $0) }
     self.gloveModeEnabled = defaults.bool(forKey: gloveModeEnabledKey)
     self.hasAcceptedDisclaimer = defaults.bool(forKey: hasAcceptedDisclaimerKey)
     self.isOpenSeaMapOverlayEnabled = defaults.bool(forKey: isOpenSeaMapOverlayEnabledKey)
