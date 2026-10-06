@@ -273,7 +273,11 @@ struct CommandPanelView: View {
     case .anchorAlarm:
       AnchorAlarmView()
     case .geoGarageLogin(let context):
-      GeoGarageLoginView(offlineMapManager: appEnvironment.offlineMapManager, context: context)
+      GeoGarageLoginView(
+        offlineMapManager: appEnvironment.offlineMapManager,
+        partnerSecretService: appEnvironment.geoGaragePartnerSecretService,
+        context: context
+      )
     case .offlineCharts:
       OfflineRegionsManagerView()
     case .offlineChartDetail(let id):
