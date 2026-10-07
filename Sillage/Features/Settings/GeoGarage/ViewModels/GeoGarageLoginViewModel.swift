@@ -60,6 +60,10 @@ final class GeoGarageLoginViewModel {
     authService.accountManagementURL
   }
 
+  func createAccountURL(authService: GeoGarageAuthServiceProtocol) -> URL? {
+    authService.createAccountURL
+  }
+
   var isAuthenticated: Bool {
     KeychainManager.shared.retrieveTokenSync(for: "geogarage_access_token") != nil
   }

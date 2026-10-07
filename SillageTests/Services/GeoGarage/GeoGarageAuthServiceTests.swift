@@ -472,4 +472,10 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     let access = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
     XCTAssertNil(access)
   }
+
+  func testURLs() {
+    XCTAssertEqual(service.discoverURL, URL(string: "https://geogarage.com/"))
+    XCTAssertEqual(service.accountManagementURL, URL(string: "https://accounts.geogarage.com/"))
+    XCTAssertEqual(service.createAccountURL, URL(string: "https://accounts.geogarage.com/"))
+  }
 }

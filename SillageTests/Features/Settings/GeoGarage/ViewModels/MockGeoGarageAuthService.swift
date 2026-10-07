@@ -19,6 +19,7 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
   var authError: Error?
   var discoverURL: URL? { URL(string: "https://geogarage.com/") }
   var accountManagementURL: URL? { URL(string: "https://accounts.geogarage.com/") }
+  var createAccountURL: URL? { URL(string: "https://accounts.geogarage.com/") }
   var shouldFailAuthenticate = false
   var authErrorToThrow: AuthError?
   var shouldFailFetchAccountSettings = false

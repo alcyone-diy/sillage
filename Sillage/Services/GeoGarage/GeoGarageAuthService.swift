@@ -19,6 +19,7 @@ protocol GeoGarageAuthServiceProtocol: AnyObject {
   var authError: Error? { get set }
   var discoverURL: URL? { get }
   var accountManagementURL: URL? { get }
+  var createAccountURL: URL? { get }
   func bootstrap() async
   /// Authorization code + PKCE sign-in: opens the GeoGarage page via `presenter`, exchanges the
   /// code on /o/token/ and stores both tokens in the Keychain.
@@ -45,6 +46,9 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     URL(string: "https://geogarage.com/")
   }
   var accountManagementURL: URL? {
+    URL(string: "https://accounts.geogarage.com/")
+  }
+  var createAccountURL: URL? {
     URL(string: "https://accounts.geogarage.com/")
   }
 

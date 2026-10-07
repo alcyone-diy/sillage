@@ -350,4 +350,13 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
 
     XCTAssertFalse(success)
   }
+
+  func testURLs() {
+    let mockAuthService = MockGeoGarageAuthService()
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    XCTAssertEqual(viewModel.discoverURL(authService: mockAuthService), URL(string: "https://geogarage.com/"))
+    XCTAssertEqual(viewModel.accountManagementURL(authService: mockAuthService), URL(string: "https://accounts.geogarage.com/"))
+    XCTAssertEqual(viewModel.createAccountURL(authService: mockAuthService), URL(string: "https://accounts.geogarage.com/"))
+  }
 }

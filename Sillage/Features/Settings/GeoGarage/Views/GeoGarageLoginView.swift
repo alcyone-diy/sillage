@@ -154,12 +154,20 @@ struct GeoGarageLoginView: View {
 
         signInButton()
 
-        if let discoverURL = viewModel.discoverURL(authService: authService) {
-          Link("Discover GeoGarage", destination: discoverURL)
-            .buttonStyle(.borderless)
-            .tint(marineTheme.colors.primary)
-            .padding(.top, MarineTheme.Spacing.large)
+        VStack(spacing: MarineTheme.Spacing.medium) {
+          if let createAccountURL = viewModel.createAccountURL(authService: authService) {
+            Link("Create a GeoGarage Account", destination: createAccountURL)
+              .buttonStyle(.borderless)
+              .tint(marineTheme.colors.primary)
+          }
+
+          if let discoverURL = viewModel.discoverURL(authService: authService) {
+            Link("Discover GeoGarage", destination: discoverURL)
+              .buttonStyle(.borderless)
+              .tint(marineTheme.colors.primary)
+          }
         }
+        .padding(.top, MarineTheme.Spacing.large)
       }
     }.padding(.top, MarineTheme.Spacing.small)
   }
