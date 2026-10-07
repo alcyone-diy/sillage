@@ -458,6 +458,61 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     XCTAssertEqual(vm.activeSessions.count, 3)
   }
 
+  func testSessionsSortedAlphabetically() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let vm = try XCTUnwrap(viewModel)
+
+    observationTask = Task { [weak vm, weak service] in
+      guard let vm, let service else { return }
+      await vm.observe(service: service)
+    }
+
+    let templateZ = try await service.createCustomTemplate(
+      title: "Zulu Checklist",
+      description: nil,
+      category: .routine,
+      items: [("Z1", nil)]
+    )
+    let templateA = try await service.createCustomTemplate(
+      title: "Alpha Checklist",
+      description: nil,
+      category: .routine,
+      items: [("A1", nil)]
+    )
+    let templateB = try await service.createCustomTemplate(
+      title: "Bravo Checklist",
+      description: nil,
+      category: .routine,
+      items: [("B1", nil)]
+    )
+
+    let sessionZ = try await service.startSession(templateId: templateZ.id)
+    let sessionA = try await service.startSession(templateId: templateA.id)
+    let sessionB = try await service.startSession(templateId: templateB.id)
+
+    _ = try await service.setItemChecked(sessionId: sessionZ.id, itemId: sessionZ.items[0].id, isChecked: true)
+    _ = try await service.setItemChecked(sessionId: sessionA.id, itemId: sessionA.items[0].id, isChecked: true)
+    _ = try await service.setItemChecked(sessionId: sessionB.id, itemId: sessionB.items[0].id, isChecked: true)
+
+    try await waitUntil { vm.inProgressSessions.count == 3 }
+
+    XCTAssertEqual(
+      vm.inProgressSessions.map(\.templateTitleSnapshot),
+      ["Alpha Checklist", "Bravo Checklist", "Zulu Checklist"]
+    )
+
+    // Complete session Z and session A
+    _ = try await service.completeSession(sessionId: sessionZ.id)
+    _ = try await service.completeSession(sessionId: sessionA.id)
+
+    try await waitUntil { vm.completedSessions.count == 2 && vm.inProgressSessions.count == 1 }
+
+    XCTAssertEqual(
+      vm.completedSessions.map(\.templateTitleSnapshot),
+      ["Alpha Checklist", "Zulu Checklist"]
+    )
+  }
+
   func testTemplateDeletionUpdatesSessionsAndActiveChecklists() async throws {
     let service = try XCTUnwrap(checklistService)
     let vm = try XCTUnwrap(viewModel)

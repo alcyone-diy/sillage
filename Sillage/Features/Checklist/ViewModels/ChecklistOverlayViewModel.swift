@@ -26,14 +26,18 @@ public final class ChecklistOverlayViewModel {
   /// All tracked checklist sessions (both in-progress and completed).
   public private(set) var activeSessions: [ChecklistSession] = []
 
-  /// Sessions that are currently in progress.
+  /// Sessions that are currently in progress, sorted alphabetically by title.
   public var inProgressSessions: [ChecklistSession] {
-    activeSessions.filter { $0.status == .inProgress }
+    activeSessions
+      .filter { $0.status == .inProgress }
+      .sorted(by: ChecklistSession.inProgressAlphabeticalComparator)
   }
 
-  /// Sessions that have been completed.
+  /// Sessions that have been completed, sorted alphabetically by title.
   public var completedSessions: [ChecklistSession] {
-    activeSessions.filter { $0.status == .completed }
+    activeSessions
+      .filter { $0.status == .completed }
+      .sorted(by: ChecklistSession.completedAlphabeticalComparator)
   }
 
   /// Whether any checklist session is currently in progress.
@@ -114,5 +118,29 @@ public final class ChecklistOverlayViewModel {
         Logger.checklist.error("Failed to observe active checklist sessions: \(String(reflecting: error), privacy: .public)")
       }
     }
+  }
+}
+
+extension ChecklistSession {
+  /// Compares two in-progress sessions alphabetically by template title snapshot,
+  /// falling back to started date (most recent first).
+  public static func inProgressAlphabeticalComparator(_ lhs: ChecklistSession, _ rhs: ChecklistSession) -> Bool {
+    let comparison = lhs.templateTitleSnapshot.localizedStandardCompare(rhs.templateTitleSnapshot)
+    if comparison == .orderedSame {
+      return lhs.startedAt > rhs.startedAt
+    }
+    return comparison == .orderedAscending
+  }
+
+  /// Compares two completed sessions alphabetically by template title snapshot,
+  /// falling back to completion date (most recent first).
+  public static func completedAlphabeticalComparator(_ lhs: ChecklistSession, _ rhs: ChecklistSession) -> Bool {
+    let comparison = lhs.templateTitleSnapshot.localizedStandardCompare(rhs.templateTitleSnapshot)
+    if comparison == .orderedSame {
+      let lhsDate = lhs.completedAt ?? lhs.startedAt
+      let rhsDate = rhs.completedAt ?? rhs.startedAt
+      return lhsDate > rhsDate
+    }
+    return comparison == .orderedAscending
   }
 }

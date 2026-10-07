@@ -29,7 +29,7 @@ public final class ChecklistTemplateListViewModel {
     let grouped = Dictionary(grouping: templates, by: \.category)
     return ChecklistCategory.allCases.compactMap { category in
       guard let list = grouped[category], !list.isEmpty else { return nil }
-      return (category: category, templates: list.sorted { $0.sortOrder < $1.sortOrder })
+      return (category: category, templates: list)
     }
   }
 
@@ -37,14 +37,15 @@ public final class ChecklistTemplateListViewModel {
     self.checklistService = checklistService
   }
 
-  /// Loads available checklist templates from the database.
+  /// Loads available checklist templates from the database, sorted alphabetically.
   public func loadTemplates() async {
     isLoading = true
     defer { isLoading = false }
     errorMessage = nil
 
     do {
-      templates = try await checklistService.fetchTemplates()
+      let fetched = try await checklistService.fetchTemplates()
+      templates = fetched.sorted(by: ChecklistTemplate.standardComparator)
     } catch {
       Logger.checklist.error("Failed to load checklist templates: \(String(reflecting: error), privacy: .public)")
       errorMessage = ChecklistSessionError.userMessage(for: error)
@@ -126,5 +127,15 @@ public final class ChecklistTemplateListViewModel {
       errorMessage = ChecklistSessionError.userMessage(for: error)
       return false
     }
+  }
+}
+
+extension ChecklistTemplate {
+  /// Compares two templates primarily by manual sort order, falling back to alphabetical sorting by title.
+  public static func standardComparator(_ lhs: ChecklistTemplate, _ rhs: ChecklistTemplate) -> Bool {
+    if lhs.sortOrder != rhs.sortOrder {
+      return lhs.sortOrder < rhs.sortOrder
+    }
+    return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
   }
 }

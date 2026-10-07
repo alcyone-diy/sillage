@@ -9,6 +9,7 @@
 //
 
 import XCTest
+import GRDB
 @testable import Sillage
 
 @MainActor
@@ -71,6 +72,104 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     XCTAssertEqual(vm.templates.count, 2)
     XCTAssertEqual(vm.groupedTemplates.count, 2)
     XCTAssertNil(vm.errorMessage)
+  }
+
+  func testTemplatesSortedAlphabeticallyWhenSameSortOrder() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let vm = try XCTUnwrap(viewModel)
+
+    // createCustomTemplate assigns sort_order = 0 to each custom template,
+    // so this tests the alphabetical fallback when sortOrder is identical.
+    _ = try await service.createCustomTemplate(
+      title: "Zebra Checklist",
+      description: nil,
+      category: .routine,
+      items: [("Z1", nil)]
+    )
+    _ = try await service.createCustomTemplate(
+      title: "Alpha Checklist",
+      description: nil,
+      category: .routine,
+      items: [("A1", nil)]
+    )
+    _ = try await service.createCustomTemplate(
+      title: "Beta Checklist",
+      description: nil,
+      category: .routine,
+      items: [("B1", nil)]
+    )
+
+    await vm.loadTemplates()
+
+    XCTAssertEqual(vm.templates.map(\.title), ["Alpha Checklist", "Beta Checklist", "Zebra Checklist"])
+
+    let routineSection = try XCTUnwrap(vm.groupedTemplates.first(where: { $0.category == .routine }))
+    XCTAssertEqual(routineSection.templates.map(\.title), ["Alpha Checklist", "Beta Checklist", "Zebra Checklist"])
+  }
+
+  func testTemplatesSortedByManualSortOrderOverridesAlphabetical() async throws {
+    let dbManager = try XCTUnwrap(databaseManager)
+    let vm = try XCTUnwrap(viewModel)
+
+    // Insert templates directly with explicit, distinct sort_order values
+    try await dbManager.write { db in
+      try ChecklistTemplateRecord(
+        id: UUID().uuidString,
+        title: "Zulu Checklist",
+        description: nil,
+        category: ChecklistCategory.routine.rawValue,
+        sort_order: 1,
+        created_at: Date(),
+        updated_at: Date()
+      ).insert(db)
+
+      try ChecklistTemplateRecord(
+        id: UUID().uuidString,
+        title: "Alpha Checklist",
+        description: nil,
+        category: ChecklistCategory.routine.rawValue,
+        sort_order: 2,
+        created_at: Date(),
+        updated_at: Date()
+      ).insert(db)
+    }
+
+    await vm.loadTemplates()
+
+    // sort_order 1 ("Zulu Checklist") MUST precede sort_order 2 ("Alpha Checklist")
+    XCTAssertEqual(vm.templates.map(\.title), ["Zulu Checklist", "Alpha Checklist"])
+
+    let routineSection = try XCTUnwrap(vm.groupedTemplates.first(where: { $0.category == .routine }))
+    XCTAssertEqual(routineSection.templates.map(\.title), ["Zulu Checklist", "Alpha Checklist"])
+  }
+
+  func testStandardComparatorUnitLogic() {
+    let zuluOrder1 = ChecklistTemplate(
+      id: UUID(),
+      title: "Zulu",
+      category: .routine,
+      sortOrder: 1
+    )
+    let alphaOrder2 = ChecklistTemplate(
+      id: UUID(),
+      title: "Alpha",
+      category: .routine,
+      sortOrder: 2
+    )
+    let betaOrder2 = ChecklistTemplate(
+      id: UUID(),
+      title: "Beta",
+      category: .routine,
+      sortOrder: 2
+    )
+
+    // Primary: sortOrder takes precedence over alphabetical
+    XCTAssertTrue(ChecklistTemplate.standardComparator(zuluOrder1, alphaOrder2))
+    XCTAssertFalse(ChecklistTemplate.standardComparator(alphaOrder2, zuluOrder1))
+
+    // Fallback: alphabetical takes precedence when sortOrder is identical
+    XCTAssertTrue(ChecklistTemplate.standardComparator(alphaOrder2, betaOrder2))
+    XCTAssertFalse(ChecklistTemplate.standardComparator(betaOrder2, alphaOrder2))
   }
 
   // MARK: - Active Sessions Observation Tests
