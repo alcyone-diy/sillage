@@ -322,7 +322,10 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
       return
     }
     creationVM.items[0].title = "Step 1"
-    creationVM.addItem(title: "Step 2", detail: "Step 2 detail")
+    let addedItem = creationVM.addItem(title: "Step 2", detail: "Step 2 detail")
+    XCTAssertEqual(addedItem.title, "Step 2")
+    XCTAssertEqual(addedItem.detail, "Step 2 detail")
+    XCTAssertEqual(creationVM.items.last?.id, addedItem.id)
     creationVM.addItem(title: "Step 3")
     XCTAssertEqual(creationVM.items.count, 3)
 

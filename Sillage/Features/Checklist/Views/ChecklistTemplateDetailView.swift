@@ -23,6 +23,7 @@ public struct ChecklistTemplateDetailView: View {
   @State private var viewModel: ChecklistTemplateDetailViewModel
   @State private var editMode: EditMode = .inactive
   @State private var showDeleteConfirmation: Bool = false
+  @FocusState private var focusedItemId: UUID?
   public var onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)?
 
   public init(
@@ -47,22 +48,24 @@ public struct ChecklistTemplateDetailView: View {
 
   public var body: some View {
     VStack(spacing: 0) {
-      Form {
-        if viewModel.isLoading && viewModel.template == nil {
-          loadingSection
-        } else if viewModel.isEditable {
-          generalEditSection
-          stepsEditSection
-        } else {
-          generalConsultationSection
-          stepsConsultationSection
+      ScrollViewReader { proxy in
+        Form {
+          if viewModel.isLoading && viewModel.template == nil {
+            loadingSection
+          } else if viewModel.isEditable {
+            generalEditSection
+            stepsEditSection(proxy: proxy)
+          } else {
+            generalConsultationSection
+            stepsConsultationSection
+          }
         }
-      }
-      .marineListBackground()
-      .environment(\.editMode, $editMode)
-      .onChange(of: viewModel.items.count) { _, newCount in
-        if newCount <= 1 && editMode == .active {
-          editMode = .inactive
+        .marineListBackground()
+        .environment(\.editMode, $editMode)
+        .onChange(of: viewModel.items.count) { _, newCount in
+          if newCount <= 1 && editMode == .active {
+            editMode = .inactive
+          }
         }
       }
 
@@ -308,7 +311,7 @@ public struct ChecklistTemplateDetailView: View {
   }
 
   @ViewBuilder
-  private var stepsEditSection: some View {
+  private func stepsEditSection(proxy: ScrollViewProxy) -> some View {
     Section {
       if viewModel.items.isEmpty {
         Text("No steps added yet")
@@ -331,6 +334,7 @@ public struct ChecklistTemplateDetailView: View {
 
               TextField("Step title", text: $item.title)
                 .marineFont(.body)
+                .focused($focusedItemId, equals: item.id)
 
               if editMode == .active {
                 HStack(spacing: MarineTheme.Spacing.tiny) {
@@ -374,13 +378,23 @@ public struct ChecklistTemplateDetailView: View {
           }
           .padding(.vertical, 6)
           .marineListCell()
+          .id(item.id)
         }
         .onDelete(perform: viewModel.removeItems)
         .onMove(perform: viewModel.moveItems)
       }
 
       Button {
-        viewModel.addItem()
+        let newItem = withAnimation {
+          viewModel.addItem()
+        }
+        Task {
+          withAnimation {
+            proxy.scrollTo(newItem.id, anchor: .bottom)
+          }
+          try? await Task.sleep(for: .milliseconds(150))
+          focusedItemId = newItem.id
+        }
       } label: {
         HStack(spacing: MarineTheme.Spacing.small) {
           Image(marineIcon: .add)

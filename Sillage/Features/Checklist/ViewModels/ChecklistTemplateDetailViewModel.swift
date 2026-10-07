@@ -299,14 +299,18 @@ public final class ChecklistTemplateDetailViewModel {
   // MARK: - Editing Actions
 
   /// Appends a new draft step to the checklist.
+  /// - Returns: The newly created draft step.
+  @discardableResult
   public func addItem(
     title: String = "",
     detail: String = ""
-  ) {
-    items.append(ChecklistItemDraft(
+  ) -> ChecklistItemDraft {
+    let item = ChecklistItemDraft(
       title: title,
       detail: detail
-    ))
+    )
+    items.append(item)
+    return item
   }
 
   /// Removes steps at the specified offsets.
