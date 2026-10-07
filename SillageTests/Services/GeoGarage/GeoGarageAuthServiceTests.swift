@@ -123,19 +123,20 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     let tokens = try await service.authenticate(presenter: presenter)
 
     XCTAssertEqual(tokens.access_token, "new-access")
-    XCTAssertEqual(presenter.lastCallbackScheme, "com.alcyone-sillage.app")
+    XCTAssertEqual(presenter.lastCallbackHost, "alcyone-sillage.com")
+    XCTAssertEqual(presenter.lastCallbackPath, "/oauth2/callback")
     let authorizeURL = try XCTUnwrap(presenter.lastAuthorizeURL)
     XCTAssertEqual(authorizeURL.path, "/o/authorize")  // URL.path drops the trailing "/"
     let authorizeQuery = Dictionary(uniqueKeysWithValues: (URLComponents(url: authorizeURL, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
     XCTAssertEqual(authorizeQuery["code_challenge_method"], "S256")
-    XCTAssertEqual(authorizeQuery["redirect_uri"], "com.alcyone-sillage.app://oauth2/callback")
+    XCTAssertEqual(authorizeQuery["redirect_uri"], "https://alcyone-sillage.com/oauth2/callback")
 
     let tokenRequest = try XCTUnwrap(log.requests.first { $0.url?.path == "/o/token" })
     XCTAssertEqual(tokenRequest.httpMethod, "POST")
     let body = Self.formBody(of: tokenRequest)
     XCTAssertEqual(body["grant_type"], "authorization_code")
     XCTAssertEqual(body["code"], "code-123")
-    XCTAssertEqual(body["redirect_uri"], "com.alcyone-sillage.app://oauth2/callback")
+    XCTAssertEqual(body["redirect_uri"], "https://alcyone-sillage.com/oauth2/callback")
     XCTAssertEqual(body["client_id"], AppConfiguration.shared.geoGarageClientID)
     let verifier = try XCTUnwrap(body["code_verifier"])
     XCTAssertEqual(GeoGaragePKCE.codeChallenge(for: verifier), authorizeQuery["code_challenge"], "the code_verifier sent must match the authorization code_challenge")
@@ -170,7 +171,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   func testAuthenticateRejectsCallbackWithWrongState() async throws {
     let log = RequestLog()
     installPortalHandler(log: log)
-    presenter.behaviour = .returnRawCallback(try XCTUnwrap(URL(string: "com.alcyone-sillage.app://oauth2/callback?code=stolen&state=forged")))
+    presenter.behaviour = .returnRawCallback(try XCTUnwrap(URL(string: "https://alcyone-sillage.com/oauth2/callback?code=stolen&state=forged")))
 
     do {
       _ = try await service.authenticate(presenter: presenter)

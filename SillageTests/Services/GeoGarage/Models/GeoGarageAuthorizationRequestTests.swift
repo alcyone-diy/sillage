@@ -39,7 +39,7 @@ final class GeoGarageAuthorizationRequestTests: XCTestCase {
     let query = queryItems(of: url)
     XCTAssertEqual(query["response_type"], "code")
     XCTAssertEqual(query["client_id"], "client-abc")
-    XCTAssertEqual(query["redirect_uri"], "com.alcyone-sillage.app://oauth2/callback")
+    XCTAssertEqual(query["redirect_uri"], "https://alcyone-sillage.com/oauth2/callback")
     XCTAssertEqual(query["scope"], "write read")
     XCTAssertEqual(query["state"], "state-xyz")
     XCTAssertEqual(query["code_challenge"], "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
@@ -48,40 +48,40 @@ final class GeoGarageAuthorizationRequestTests: XCTestCase {
   }
 
   func testAuthorizationCodeIsExtractedWhenStateMatches() throws {
-    let callback = try XCTUnwrap(URL(string: "com.alcyone-sillage.app://oauth2/callback?code=abc123&state=state-xyz"))
+    let callback = try XCTUnwrap(URL(string: "https://alcyone-sillage.com/oauth2/callback?code=abc123&state=state-xyz"))
     XCTAssertEqual(try GeoGarageAuthorizationRequest.authorizationCode(from: callback, expectedState: "state-xyz"), "abc123")
   }
 
   func testStateMismatchIsRejectedEvenWithACode() throws {
-    let callback = try XCTUnwrap(URL(string: "com.alcyone-sillage.app://oauth2/callback?code=abc123&state=other"))
+    let callback = try XCTUnwrap(URL(string: "https://alcyone-sillage.com/oauth2/callback?code=abc123&state=other"))
     XCTAssertThrowsError(try GeoGarageAuthorizationRequest.authorizationCode(from: callback, expectedState: "state-xyz")) { error in
       XCTAssertEqual(error as? AuthorizationCallbackError, .stateMismatch)
     }
   }
 
   func testMissingStateIsRejected() throws {
-    let callback = try XCTUnwrap(URL(string: "com.alcyone-sillage.app://oauth2/callback?code=abc123"))
+    let callback = try XCTUnwrap(URL(string: "https://alcyone-sillage.com/oauth2/callback?code=abc123"))
     XCTAssertThrowsError(try GeoGarageAuthorizationRequest.authorizationCode(from: callback, expectedState: "state-xyz")) { error in
       XCTAssertEqual(error as? AuthorizationCallbackError, .stateMismatch)
     }
   }
 
   func testAccessDeniedIsReported() throws {
-    let callback = try XCTUnwrap(URL(string: "com.alcyone-sillage.app://oauth2/callback?error=access_denied&state=state-xyz"))
+    let callback = try XCTUnwrap(URL(string: "https://alcyone-sillage.com/oauth2/callback?error=access_denied&state=state-xyz"))
     XCTAssertThrowsError(try GeoGarageAuthorizationRequest.authorizationCode(from: callback, expectedState: "state-xyz")) { error in
       XCTAssertEqual(error as? AuthorizationCallbackError, .accessDenied)
     }
   }
 
   func testOtherServerErrorIsReportedWithItsCode() throws {
-    let callback = try XCTUnwrap(URL(string: "com.alcyone-sillage.app://oauth2/callback?error=unauthorized_client&state=state-xyz"))
+    let callback = try XCTUnwrap(URL(string: "https://alcyone-sillage.com/oauth2/callback?error=unauthorized_client&state=state-xyz"))
     XCTAssertThrowsError(try GeoGarageAuthorizationRequest.authorizationCode(from: callback, expectedState: "state-xyz")) { error in
       XCTAssertEqual(error as? AuthorizationCallbackError, .serverError("unauthorized_client"))
     }
   }
 
   func testCallbackWithoutCodeNorErrorIsRejected() throws {
-    let callback = try XCTUnwrap(URL(string: "com.alcyone-sillage.app://oauth2/callback?state=state-xyz"))
+    let callback = try XCTUnwrap(URL(string: "https://alcyone-sillage.com/oauth2/callback?state=state-xyz"))
     XCTAssertThrowsError(try GeoGarageAuthorizationRequest.authorizationCode(from: callback, expectedState: "state-xyz")) { error in
       XCTAssertEqual(error as? AuthorizationCallbackError, .missingCode)
     }

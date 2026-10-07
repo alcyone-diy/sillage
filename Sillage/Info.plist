@@ -15,19 +15,6 @@
 			</array>
 		</dict>
 	</array>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLName</key>
-			<string>com.alcyone-sillage.app.oauth2</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.alcyone-sillage.app</string>
-			</array>
-		</dict>
-	</array>
 	<key>GEOGARAGE_CLIENT_ID</key>
 	<string>$(GEOGARAGE_CLIENT_ID)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

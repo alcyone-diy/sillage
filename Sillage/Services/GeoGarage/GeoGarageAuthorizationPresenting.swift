@@ -11,9 +11,9 @@
 import Foundation
 
 /// Opens the GeoGarage authorization page in the system browser and returns the callback URL
-/// (`callbackScheme://…?code=…&state=…`). Abstracts ASWebAuthenticationSession so the Services
+/// (`https://callbackHost/callbackPath?code=…&state=…`). Abstracts ASWebAuthenticationSession so the Services
 /// layer and the tests do not depend on AuthenticationServices.
 /// A user cancellation must be thrown as `AuthError.cancelled`.
 protocol GeoGarageAuthorizationPresenting {
-  func authorize(url: URL, callbackScheme: String) async throws -> URL
+  func authorize(url: URL, callbackHost: String, callbackPath: String) async throws -> URL
 }

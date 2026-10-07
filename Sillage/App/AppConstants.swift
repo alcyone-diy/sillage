@@ -63,13 +63,19 @@ public enum AppConstants {
     nonisolated public static let trackingBreakGloveThreshold: CGFloat = 60.0
   }
 
-  /// GeoGarage sign-in over OAuth2 authorization code + PKCE. The private scheme is declared in
-  /// Info.plist (CFBundleURLTypes) and registered verbatim as the callback on accounts.geogarage.com:
-  /// the three values must stay aligned, the portal rejects any other redirect_uri.
+  /// GeoGarage sign-in over OAuth2 authorization code + PKCE using HTTPS callback with Associated Domains.
+  /// The callback URL is registered verbatim on accounts.geogarage.com and verified via
+  /// the apple-app-site-association file on alcyone-sillage.com.
+  ///
+  /// - Warning: The `apple-app-site-association` file hosted on the production server MUST include
+  ///   both the production Bundle ID (`<TEAM_ID>.com.alcyone-sillage.sillage`) and the development
+  ///   Bundle ID with the `.debug` suffix (`<TEAM_ID>.com.alcyone-sillage.sillage.debug`) under the
+  ///   `webcredentials` service dictionary, or authentication will fail to intercept the callback.
   public struct GeoGarage {
     nonisolated public static let accountsBaseURLString = "https://accounts.geogarage.com"
-    nonisolated public static let oauthCallbackScheme = "com.alcyone-sillage.app"
-    nonisolated public static let oauthRedirectURI = "com.alcyone-sillage.app://oauth2/callback"
+    nonisolated public static let oauthCallbackHost = "alcyone-sillage.com"
+    nonisolated public static let oauthCallbackPath = "/oauth2/callback"
+    nonisolated public static let oauthRedirectURI = "https://\(oauthCallbackHost)\(oauthCallbackPath)"
     /// "write read" order: the one the portal issues; a broader scope would ask for consent again.
     nonisolated public static let oauthScope = "write read"
   }

@@ -24,20 +24,22 @@ final class MockGeoGarageAuthorizationPresenter: GeoGarageAuthorizationPresentin
 
   var behaviour: Behaviour = .returnCode("code-123")
   private(set) var lastAuthorizeURL: URL?
-  private(set) var lastCallbackScheme: String?
+  private(set) var lastCallbackHost: String?
+  private(set) var lastCallbackPath: String?
   private(set) var callCount = 0
 
-  func authorize(url: URL, callbackScheme: String) async throws -> URL {
+  func authorize(url: URL, callbackHost: String, callbackPath: String) async throws -> URL {
     callCount += 1
     lastAuthorizeURL = url
-    lastCallbackScheme = callbackScheme
+    lastCallbackHost = callbackHost
+    lastCallbackPath = callbackPath
     let state = URLComponents(url: url, resolvingAgainstBaseURL: false)?
       .queryItems?.first { $0.name == "state" }?.value ?? ""
     switch behaviour {
     case .returnCode(let code):
-      return try callback("code=\(code)&state=\(state)", scheme: callbackScheme)
+      return try callback("code=\(code)&state=\(state)", host: callbackHost, path: callbackPath)
     case .returnQuery(let query):
-      return try callback("\(query)&state=\(state)", scheme: callbackScheme)
+      return try callback("\(query)&state=\(state)", host: callbackHost, path: callbackPath)
     case .returnRawCallback(let url):
       return url
     case .throwError(let error):
@@ -45,8 +47,8 @@ final class MockGeoGarageAuthorizationPresenter: GeoGarageAuthorizationPresentin
     }
   }
 
-  private func callback(_ query: String, scheme: String) throws -> URL {
-    guard let url = URL(string: "\(scheme)://oauth2/callback?\(query)") else {
+  private func callback(_ query: String, host: String, path: String) throws -> URL {
+    guard let url = URL(string: "https://\(host)\(path)?\(query)") else {
       throw AuthError.invalidResponse
     }
     return url

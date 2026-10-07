@@ -17,14 +17,14 @@ import AuthenticationServices
 struct WebAuthenticationSessionPresenter: GeoGarageAuthorizationPresenting {
   let session: WebAuthenticationSession
 
-  func authorize(url: URL, callbackScheme: String) async throws -> URL {
+  func authorize(url: URL, callbackHost: String, callbackPath: String) async throws -> URL {
     do {
       // `.shared`: cookies are shared with Safari, so an existing GeoGarage session is reused and the
       // portal's automatic consent asks nothing on later sign-ins. iOS shows its one-time
       // "wants to use accounts.geogarage.com to sign in" prompt: expected.
       return try await session.authenticate(
         using: url,
-        callback: .customScheme(callbackScheme),
+        callback: .https(host: callbackHost, path: callbackPath),
         preferredBrowserSession: .shared,
         additionalHeaderFields: [:]
       )

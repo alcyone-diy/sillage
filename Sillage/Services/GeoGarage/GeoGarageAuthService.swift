@@ -130,7 +130,11 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
 
     let callbackURL: URL
     do {
-      callbackURL = try await presenter.authorize(url: authorizeURL, callbackScheme: AppConstants.GeoGarage.oauthCallbackScheme)
+      callbackURL = try await presenter.authorize(
+        url: authorizeURL,
+        callbackHost: AppConstants.GeoGarage.oauthCallbackHost,
+        callbackPath: AppConstants.GeoGarage.oauthCallbackPath
+      )
     } catch AuthError.cancelled {
       // Deliberate dismissal: leave authError untouched.
       throw AuthError.cancelled

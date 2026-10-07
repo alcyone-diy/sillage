@@ -14,17 +14,11 @@ import XCTest
 @MainActor
 final class OAuthCallbackURLSchemeTests: XCTestCase {
 
-  func testInfoPlistDeclaresTheOAuthCallbackScheme() {
-    let urlTypes = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] ?? []
-    let schemes = urlTypes.flatMap { ($0["CFBundleURLSchemes"] as? [String]) ?? [] }
-    XCTAssertTrue(schemes.contains(AppConstants.GeoGarage.oauthCallbackScheme), "schemes: \(schemes)")
-  }
-
-  func testRedirectURIUsesTheDeclaredScheme() throws {
+  func testRedirectURIUsesHTTPSCallback() throws {
     let redirect = try XCTUnwrap(URL(string: AppConstants.GeoGarage.oauthRedirectURI))
-    XCTAssertEqual(redirect.scheme, AppConstants.GeoGarage.oauthCallbackScheme)
-    XCTAssertEqual(redirect.host, "oauth2")
-    XCTAssertEqual(redirect.path, "/callback")
+    XCTAssertEqual(redirect.scheme, "https")
+    XCTAssertEqual(redirect.host, AppConstants.GeoGarage.oauthCallbackHost)
+    XCTAssertEqual(redirect.path, AppConstants.GeoGarage.oauthCallbackPath)
   }
 
   func testOAuthCallbackURLIsIgnoredByChartImport() throws {
@@ -33,5 +27,12 @@ final class OAuthCallbackURLSchemeTests: XCTestCase {
     viewModel.handleIncomingURL(url)
     XCTAssertFalse(viewModel.showImportError)
     XCTAssertNil(viewModel.importError)
+  }
+
+  func testNonHTTPSCallbackURLIsNotIgnoredByChartImport() throws {
+    let viewModel = AppViewModel(preferencesService: PreferencesService())
+    let url = try XCTUnwrap(URL(string: "http://\(AppConstants.GeoGarage.oauthCallbackHost)\(AppConstants.GeoGarage.oauthCallbackPath)?code=abc&state=xyz"))
+    viewModel.handleIncomingURL(url)
+    XCTAssertTrue(viewModel.showImportError)
   }
 }
