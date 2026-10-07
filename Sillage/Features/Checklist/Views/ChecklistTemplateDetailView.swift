@@ -18,12 +18,17 @@ public struct ChecklistTemplateDetailView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(PanelManagerViewModel.self) private var panelManager: PanelManagerViewModel?
 
+  private enum FieldFocus: Hashable {
+    case title
+    case item(UUID)
+  }
+
   let templateId: UUID?
   private let startEditable: Bool
   @State private var viewModel: ChecklistTemplateDetailViewModel
   @State private var editMode: EditMode = .inactive
   @State private var showDeleteConfirmation: Bool = false
-  @FocusState private var focusedItemId: UUID?
+  @FocusState private var focusedField: FieldFocus?
   public var onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)?
 
   public init(
@@ -285,6 +290,19 @@ public struct ChecklistTemplateDetailView: View {
           .foregroundStyle(marineTheme.colors.textSecondary)
         TextField("Checklist Title", text: $viewModel.title)
           .marineFont(.body)
+          .focused($focusedField, equals: .title)
+          .task {
+            if viewModel.isNew {
+              do {
+                try await Task.sleep(for: .milliseconds(150))
+                if focusedField == nil {
+                  focusedField = .title
+                }
+              } catch {
+                // Task was cancelled (e.g. view dismissed before timeout)
+              }
+            }
+          }
       }
       .marineListCell()
 
@@ -334,7 +352,7 @@ public struct ChecklistTemplateDetailView: View {
 
               TextField("Step title", text: $item.title)
                 .marineFont(.body)
-                .focused($focusedItemId, equals: item.id)
+                .focused($focusedField, equals: .item(item.id))
 
               if editMode == .active {
                 HStack(spacing: MarineTheme.Spacing.tiny) {
@@ -393,7 +411,7 @@ public struct ChecklistTemplateDetailView: View {
             proxy.scrollTo(newItem.id, anchor: .bottom)
           }
           try? await Task.sleep(for: .milliseconds(150))
-          focusedItemId = newItem.id
+          focusedField = .item(newItem.id)
         }
       } label: {
         HStack(spacing: MarineTheme.Spacing.small) {
