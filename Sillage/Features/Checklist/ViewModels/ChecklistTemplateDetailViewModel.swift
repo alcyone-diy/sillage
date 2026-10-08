@@ -58,7 +58,13 @@ public final class ChecklistTemplateDetailViewModel {
   public var title: String = ""
   public var descriptionText: String = ""
   private var fallbackCategory: ChecklistCategory = .routine
-  public var categoryId: String = ChecklistCategory.routine.rawValue
+  public var categoryId: String = ChecklistCategory.routine.rawValue {
+    didSet {
+      if let builtIn = ChecklistCategory(rawValue: categoryId) {
+        fallbackCategory = builtIn
+      }
+    }
+  }
   public var category: ChecklistCategory {
     get {
       ChecklistCategory(rawValue: categoryId) ?? fallbackCategory

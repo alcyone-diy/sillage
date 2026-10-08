@@ -129,7 +129,14 @@ public struct ChecklistSessionView: View {
   private var headerSection: some View {
     Section {
       VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-        if let category = viewModel.category {
+        if let categoryItem = viewModel.categoryItem {
+          HStack(spacing: MarineTheme.Spacing.small) {
+            Image(systemName: categoryItem.displaySystemImage)
+            Text(LocalizedStringKey(categoryItem.name))
+          }
+          .marineFont(.caption)
+          .foregroundStyle(categoryItem.color(for: marineTheme))
+        } else if let category = viewModel.category {
           HStack(spacing: MarineTheme.Spacing.small) {
             Image(systemName: category.systemImage)
             Text(category.title)

@@ -37,6 +37,7 @@ public struct ChecklistTemplateDetailView: View {
     checklistService: any ChecklistServiceProtocol,
     startEditable: Bool = false,
     initialCategory: ChecklistCategory = .routine,
+    initialCategoryId: String? = nil,
     onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)? = nil
   ) {
     self.templateId = templateId ?? template?.id
@@ -47,7 +48,8 @@ public struct ChecklistTemplateDetailView: View {
       template: template,
       checklistService: checklistService,
       startEditable: startEditable,
-      initialCategory: initialCategory
+      initialCategory: initialCategory,
+      initialCategoryId: initialCategoryId
     ))
   }
 
@@ -208,11 +210,19 @@ public struct ChecklistTemplateDetailView: View {
           .foregroundStyle(marineTheme.colors.textPrimary)
         Spacer()
         HStack(spacing: MarineTheme.Spacing.small) {
-          Image(systemName: viewModel.category.systemImage)
-            .foregroundStyle(viewModel.category.color(for: marineTheme))
-          Text(viewModel.category.title)
-            .marineFont(.body)
-            .foregroundStyle(marineTheme.colors.textSecondary)
+          if let categoryItem = viewModel.selectedCategoryItem {
+            Image(systemName: categoryItem.displaySystemImage)
+              .foregroundStyle(categoryItem.color(for: marineTheme))
+            Text(LocalizedStringKey(categoryItem.name))
+              .marineFont(.body)
+              .foregroundStyle(marineTheme.colors.textSecondary)
+          } else {
+            Image(systemName: viewModel.category.systemImage)
+              .foregroundStyle(viewModel.category.color(for: marineTheme))
+            Text(viewModel.category.title)
+              .marineFont(.body)
+              .foregroundStyle(marineTheme.colors.textSecondary)
+          }
         }
       }
       .marineListCell()
@@ -306,9 +316,17 @@ public struct ChecklistTemplateDetailView: View {
       }
       .marineListCell()
 
-      Picker("Category", selection: $viewModel.category) {
-        ForEach(ChecklistCategory.allCases, id: \.self) { category in
-          Label(category.title, systemImage: category.systemImage).tag(category)
+      Picker("Category", selection: $viewModel.categoryId) {
+        if viewModel.availableCategories.isEmpty {
+          ForEach(ChecklistCategory.allCases, id: \.rawValue) { category in
+            Label(LocalizedStringKey(category.title), systemImage: category.systemImage)
+              .tag(category.rawValue)
+          }
+        } else {
+          ForEach(viewModel.availableCategories) { cat in
+            Label(LocalizedStringKey(cat.name), systemImage: cat.displaySystemImage)
+              .tag(cat.id)
+          }
         }
       }
       .pickerStyle(.menu)

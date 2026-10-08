@@ -26,4 +26,35 @@ final class ChecklistCategoryUITests: XCTestCase {
     XCTAssertEqual(ChecklistCategory.engineTechnical.color(for: theme), theme.colors.textSecondary)
     XCTAssertEqual(ChecklistCategory.winteringMaintenance.color(for: theme), theme.colors.inactive)
   }
+
+  func testCategoryItemColorAndSystemImage() {
+    let theme = MarineTheme(
+      minTouchTarget: 44,
+      isGloveMode: false,
+      colors: MarineTheme.dayColors
+    )
+
+    let builtInItem = ChecklistCategoryItem(
+      id: "safety_emergency",
+      name: "Safety & Emergency",
+      icon: "exclamationmark.shield.fill"
+    )
+    XCTAssertEqual(builtInItem.color(for: theme), theme.colors.warning)
+    XCTAssertEqual(builtInItem.displaySystemImage, "exclamationmark.shield.fill")
+
+    let customItem = ChecklistCategoryItem(
+      id: "custom_electronics",
+      name: "Electronics",
+      icon: "antenna.radiowaves.left.and.right"
+    )
+    XCTAssertEqual(customItem.color(for: theme), theme.colors.accent)
+    XCTAssertEqual(customItem.displaySystemImage, "antenna.radiowaves.left.and.right")
+
+    let customWithoutIcon = ChecklistCategoryItem(
+      id: "custom_other",
+      name: "Other"
+    )
+    XCTAssertEqual(customWithoutIcon.color(for: theme), theme.colors.accent)
+    XCTAssertEqual(customWithoutIcon.displaySystemImage, "checklist")
+  }
 }

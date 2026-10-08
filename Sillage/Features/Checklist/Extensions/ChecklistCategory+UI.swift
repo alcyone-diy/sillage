@@ -26,3 +26,22 @@ extension ChecklistCategory {
     }
   }
 }
+
+extension ChecklistCategoryItem {
+  func color(for theme: MarineTheme) -> Color {
+    if let builtIn = builtInEnum {
+      return builtIn.color(for: theme)
+    }
+    return theme.colors.accent
+  }
+
+  var displaySystemImage: String {
+    if let icon, !icon.isEmpty {
+      return icon
+    }
+    if let builtIn = builtInEnum {
+      return builtIn.systemImage
+    }
+    return "checklist"
+  }
+}

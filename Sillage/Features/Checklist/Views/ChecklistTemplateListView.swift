@@ -58,7 +58,7 @@ public struct ChecklistTemplateListView: View {
           .marineListCell()
         }
       } else {
-        ForEach(viewModel.groupedTemplates, id: \.category) { section in
+        ForEach(viewModel.groupedByCategoryItem, id: \.category.id) { section in
           Section {
             ForEach(section.templates) { template in
               NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistTemplateDetail(templateId: template.id, template: template)) {
@@ -96,9 +96,9 @@ public struct ChecklistTemplateListView: View {
             }
           } header: {
             HStack(spacing: MarineTheme.Spacing.small) {
-              Image(systemName: section.category.systemImage)
+              Image(systemName: section.category.displaySystemImage)
                 .foregroundStyle(section.category.color(for: marineTheme))
-              Text(section.category.title)
+              Text(LocalizedStringKey(section.category.name))
                 .marineSectionHeader()
             }
           }
