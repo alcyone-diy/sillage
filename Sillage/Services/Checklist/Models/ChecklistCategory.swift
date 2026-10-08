@@ -18,7 +18,7 @@ public enum ChecklistCategory: String, Codable, Sendable, CaseIterable {
   case engineTechnical = "engine_technical"
   case winteringMaintenance = "wintering_maintenance"
 
-  public var title: String {
+  nonisolated public var title: String {
     switch self {
     case .safetyEmergency:
       return "Safety & Emergency"
@@ -33,7 +33,7 @@ public enum ChecklistCategory: String, Codable, Sendable, CaseIterable {
     }
   }
 
-  public var systemImage: String {
+  nonisolated public var systemImage: String {
     switch self {
     case .safetyEmergency:
       return "exclamationmark.shield.fill"

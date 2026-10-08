@@ -19,6 +19,7 @@ public struct ChecklistTemplateRecord: Codable, FetchableRecord, PersistableReco
   public var title: String
   public var description: String?
   public var category: String
+  public var category_id: String
   public var sort_order: Int
   public var created_at: Date
   public var updated_at: Date
@@ -28,6 +29,7 @@ public struct ChecklistTemplateRecord: Codable, FetchableRecord, PersistableReco
     title: String,
     description: String? = nil,
     category: String,
+    category_id: String? = nil,
     sort_order: Int = 0,
     created_at: Date,
     updated_at: Date
@@ -36,6 +38,7 @@ public struct ChecklistTemplateRecord: Codable, FetchableRecord, PersistableReco
     self.title = title
     self.description = description
     self.category = category
+    self.category_id = category_id ?? category
     self.sort_order = sort_order
     self.created_at = created_at
     self.updated_at = updated_at
@@ -46,11 +49,13 @@ public struct ChecklistTemplateRecord: Codable, FetchableRecord, PersistableReco
     case title
     case description
     case category
+    case category_id
     case sort_order
     case created_at
     case updated_at
   }
 
+  public static let categoryRecord = belongsTo(ChecklistCategoryRecord.self, using: ForeignKey(["category_id"]))
   public static let items = hasMany(ChecklistTemplateItemRecord.self)
   public static let sessions = hasMany(ChecklistSessionRecord.self)
 }

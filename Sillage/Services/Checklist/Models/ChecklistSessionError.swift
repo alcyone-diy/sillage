@@ -20,6 +20,8 @@ public enum ChecklistSessionError: Error, Sendable, LocalizedError, CustomDebugS
   case sessionAlreadyFinished(UUID)
   case itemNotFound(UUID)
   case templateHasExistingSessions(UUID)
+  case categoryNotFound(String)
+  case categoryHasAssociatedTemplates(String)
   case databaseInconsistency(String)
   case databaseFailure(String)
 
@@ -35,6 +37,10 @@ public enum ChecklistSessionError: Error, Sendable, LocalizedError, CustomDebugS
       return String(localized: "This step no longer exists in the checklist.")
     case .templateHasExistingSessions:
       return String(localized: "This checklist cannot be deleted because it has log entries.")
+    case .categoryNotFound:
+      return String(localized: "This checklist category no longer exists.")
+    case .categoryHasAssociatedTemplates:
+      return String(localized: "This category cannot be deleted because it contains checklists.")
     case .databaseInconsistency, .databaseFailure:
       return Self.storageFailureMessage
     }
@@ -52,6 +58,10 @@ public enum ChecklistSessionError: Error, Sendable, LocalizedError, CustomDebugS
       return "Checklist item '\(id)' not found in session."
     case .templateHasExistingSessions(let id):
       return "Cannot delete template '\(id)' because it has associated historical sessions."
+    case .categoryNotFound(let id):
+      return "Checklist category '\(id)' not found."
+    case .categoryHasAssociatedTemplates(let id):
+      return "Cannot delete category '\(id)' because it has associated checklist templates."
     case .databaseInconsistency(let reason):
       return "Critical database inconsistency: \(reason)"
     case .databaseFailure(let msg):

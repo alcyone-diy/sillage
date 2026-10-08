@@ -290,6 +290,78 @@ public final class DatabaseManager: Sendable {
       """)
     }
 
+    migrator.registerMigration("v2") { db in
+      // 1. Checklist Category table
+      try db.create(table: "checklist_category") { t in
+        t.column("id", .text).primaryKey()
+        t.column("name", .text).notNull()
+        t.column("icon", .text)
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+      try db.create(
+        index: "idx_checklist_category_sort_order",
+        on: "checklist_category",
+        columns: ["sort_order"]
+      )
+
+      // 2. Pre-populate initial categories with immutable snapshot data
+      let initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] = [
+        ("safety_emergency", "Safety & Emergency", "exclamationmark.shield.fill", 0),
+        ("navigation_maneuver", "Navigation & Maneuver", "steeringwheel", 1),
+        ("routine", "Routine", "checklist", 2),
+        ("engine_technical", "Engine & Technical", "wrench.and.screwdriver.fill", 3),
+        ("wintering_maintenance", "Wintering & Maintenance", "snowflake", 4)
+      ]
+
+      let now = Date()
+      for cat in initialCategories {
+        try db.execute(
+          sql: """
+          INSERT OR IGNORE INTO checklist_category (id, name, icon, sort_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+          """,
+          arguments: [cat.id, cat.name, cat.icon, cat.sortOrder, now, now]
+        )
+      }
+
+      // 3. Ensure any existing custom categories in checklist_template are seeded
+      let existingCustomCategories = try String.fetchAll(
+        db,
+        sql: "SELECT DISTINCT category FROM checklist_template"
+      )
+      for customCat in existingCustomCategories {
+        try db.execute(
+          sql: """
+          INSERT OR IGNORE INTO checklist_category (id, name, icon, sort_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+          """,
+          arguments: [customCat, customCat.capitalized, nil, 999, now, now]
+        )
+      }
+
+      // 4. Add category_id column to checklist_template referencing checklist_category with ON DELETE RESTRICT
+      try db.alter(table: "checklist_template") { t in
+        t.add(column: "category_id", .text)
+          .references("checklist_category", column: "id", onDelete: .restrict)
+      }
+
+      // 5. Populate category_id from category for existing templates
+      try db.execute(sql: """
+        UPDATE checklist_template
+        SET category_id = category
+        WHERE category_id IS NULL
+      """)
+
+      // 6. Create index on category_id
+      try db.create(
+        index: "idx_checklist_template_category_id",
+        on: "checklist_template",
+        columns: ["category_id"]
+      )
+    }
+
     return migrator
   }
 }

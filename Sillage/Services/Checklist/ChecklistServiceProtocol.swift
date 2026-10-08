@@ -29,12 +29,31 @@ public protocol ChecklistServiceProtocol: Sendable {
     items: [(title: String, detail: String?)]
   ) async throws -> ChecklistTemplate
 
+  /// Creates a checklist template with optional explicit category ID.
+  func createTemplate(
+    title: String,
+    description: String?,
+    category: ChecklistCategory,
+    categoryId: String?,
+    items: [(title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate
+
   /// Updates an existing checklist template and its items.
   func updateTemplate(
     id: UUID,
     title: String,
     description: String?,
     category: ChecklistCategory,
+    items: [(id: UUID?, title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate
+
+  /// Updates an existing checklist template with optional explicit category ID.
+  func updateTemplate(
+    id: UUID,
+    title: String,
+    description: String?,
+    category: ChecklistCategory,
+    categoryId: String?,
     items: [(id: UUID?, title: String, detail: String?)]
   ) async throws -> ChecklistTemplate
 
@@ -60,6 +79,33 @@ public protocol ChecklistServiceProtocol: Sendable {
 
   /// Deletes a custom template and its associated sessions.
   func deleteCustomTemplate(id: UUID) async throws
+
+  // MARK: - Categories
+
+  /// Fetches all checklist categories ordered by sort position.
+  func fetchCategories() async throws -> [ChecklistCategoryItem]
+
+  /// Fetches a specific category by its identifier.
+  func fetchCategory(id: String) async throws -> ChecklistCategoryItem?
+
+  /// Creates a checklist category.
+  func createCategory(
+    id: String?,
+    name: String,
+    icon: String?,
+    sortOrder: Int?
+  ) async throws -> ChecklistCategoryItem
+
+  /// Updates an existing checklist category.
+  func updateCategory(
+    id: String,
+    name: String,
+    icon: String?,
+    sortOrder: Int?
+  ) async throws -> ChecklistCategoryItem
+
+  /// Deletes a checklist category if no templates reference it.
+  func deleteCategory(id: String) async throws
 
   // MARK: - Sessions (Get-or-Create pattern)
 

@@ -40,11 +40,10 @@ public final class ChecklistService: ChecklistServiceProtocol {
   }
 
   nonisolated private static func fetchCategory(for templateId: String, in db: Database) throws -> ChecklistCategory {
-    guard let record = try ChecklistTemplateRecord.fetchOne(db, key: templateId),
-          let cat = ChecklistCategory(rawValue: record.category) else {
+    guard let record = try ChecklistTemplateRecord.fetchOne(db, key: templateId) else {
       return .routine
     }
-    return cat
+    return ChecklistCategory(rawValue: record.category) ?? ChecklistCategory(rawValue: record.category_id) ?? .routine
   }
 
   nonisolated public static func mapSession(
@@ -120,7 +119,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .order(ChecklistTemplateItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
-        guard let category = ChecklistCategory(rawValue: tRecord.category) else {
+        guard let category = ChecklistCategory(rawValue: tRecord.category) ?? ChecklistCategory(rawValue: tRecord.category_id) else {
           throw ChecklistSessionError.databaseInconsistency("Unknown checklist category: \(tRecord.category)")
         }
 
@@ -139,6 +138,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
           title: tRecord.title,
           description: tRecord.description,
           category: category,
+          categoryId: tRecord.category_id,
           sortOrder: tRecord.sort_order,
           createdAt: tRecord.created_at,
           updatedAt: tRecord.updated_at,
@@ -159,7 +159,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         .order(ChecklistTemplateItemRecord.Columns.sort_order.asc)
         .fetchAll(db)
 
-      guard let category = ChecklistCategory(rawValue: tRecord.category) else {
+      guard let category = ChecklistCategory(rawValue: tRecord.category) ?? ChecklistCategory(rawValue: tRecord.category_id) else {
         throw ChecklistSessionError.databaseInconsistency("Unknown checklist category: \(tRecord.category)")
       }
 
@@ -178,6 +178,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         title: tRecord.title,
         description: tRecord.description,
         category: category,
+        categoryId: tRecord.category_id,
         sortOrder: tRecord.sort_order,
         createdAt: tRecord.created_at,
         updatedAt: tRecord.updated_at,
@@ -192,15 +193,38 @@ public final class ChecklistService: ChecklistServiceProtocol {
     category: ChecklistCategory,
     items: [(title: String, detail: String?)]
   ) async throws -> ChecklistTemplate {
+    try await createTemplate(
+      title: title,
+      description: description,
+      category: category,
+      categoryId: nil,
+      items: items
+    )
+  }
+
+  public func createTemplate(
+    title: String,
+    description: String? = nil,
+    category: ChecklistCategory,
+    categoryId: String?,
+    items: [(title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate {
     try await databaseManager.write { db in
       let templateId = UUID()
       let now = Date()
+      let resolvedCategoryId = categoryId ?? category.rawValue
+
+      // Ensure category exists in checklist_category
+      guard try ChecklistCategoryRecord.fetchOne(db, key: resolvedCategoryId) != nil else {
+        throw ChecklistSessionError.categoryNotFound(resolvedCategoryId)
+      }
 
       let templateRecord = ChecklistTemplateRecord(
         id: templateId.uuidString,
         title: title,
         description: description,
         category: category.rawValue,
+        category_id: resolvedCategoryId,
         sort_order: 0,
         created_at: now,
         updated_at: now
@@ -233,6 +257,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         title: title,
         description: description,
         category: category,
+        categoryId: resolvedCategoryId,
         sortOrder: 0,
         createdAt: now,
         updatedAt: now,
@@ -247,7 +272,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
     category: ChecklistCategory,
     items: [(title: String, detail: String?)]
   ) async throws -> ChecklistTemplate {
-    try await createTemplate(title: title, description: description, category: category, items: items)
+    try await createTemplate(title: title, description: description, category: category, categoryId: nil, items: items)
   }
 
   public func updateTemplate(
@@ -257,9 +282,32 @@ public final class ChecklistService: ChecklistServiceProtocol {
     category: ChecklistCategory,
     items: [(id: UUID?, title: String, detail: String?)]
   ) async throws -> ChecklistTemplate {
+    try await updateTemplate(
+      id: id,
+      title: title,
+      description: description,
+      category: category,
+      categoryId: nil,
+      items: items
+    )
+  }
+
+  public func updateTemplate(
+    id: UUID,
+    title: String,
+    description: String? = nil,
+    category: ChecklistCategory,
+    categoryId: String?,
+    items: [(id: UUID?, title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate {
     try await databaseManager.write { db in
       guard let templateRecord = try ChecklistTemplateRecord.fetchOne(db, key: id.uuidString) else {
         throw ChecklistSessionError.templateNotFound(id)
+      }
+
+      let resolvedCategoryId = categoryId ?? category.rawValue
+      guard try ChecklistCategoryRecord.fetchOne(db, key: resolvedCategoryId) != nil else {
+        throw ChecklistSessionError.categoryNotFound(resolvedCategoryId)
       }
 
       let now = Date()
@@ -267,6 +315,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
       updatedTemplateRecord.title = title
       updatedTemplateRecord.description = description
       updatedTemplateRecord.category = category.rawValue
+      updatedTemplateRecord.category_id = resolvedCategoryId
       updatedTemplateRecord.updated_at = now
       try updatedTemplateRecord.update(db)
 
@@ -325,6 +374,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         for (index, domainItem) in domainItems.enumerated() {
           let sourceId = domainItem.id.uuidString
           let prior = existingBySourceId[sourceId] ?? existingByTitle[domainItem.title]
+
           let sessionItemRecord = ChecklistSessionItemRecord(
             id: prior?.id ?? UUID().uuidString,
             session_id: activeSession.id,
@@ -348,6 +398,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
         title: title,
         description: description,
         category: category,
+        categoryId: resolvedCategoryId,
         sortOrder: templateRecord.sort_order,
         createdAt: templateRecord.created_at,
         updatedAt: now,
@@ -363,7 +414,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
     category: ChecklistCategory,
     items: [(id: UUID?, title: String, detail: String?)]
   ) async throws -> ChecklistTemplate {
-    try await updateTemplate(id: id, title: title, description: description, category: category, items: items)
+    try await updateTemplate(id: id, title: title, description: description, category: category, categoryId: nil, items: items)
   }
 
   public func deleteTemplate(id: UUID) async throws {
@@ -379,6 +430,120 @@ public final class ChecklistService: ChecklistServiceProtocol {
 
   public func deleteCustomTemplate(id: UUID) async throws {
     try await deleteTemplate(id: id)
+  }
+
+  // MARK: - Category Operations
+
+  public func fetchCategories() async throws -> [ChecklistCategoryItem] {
+    try await databaseManager.reader.read { db in
+      let records = try ChecklistCategoryRecord
+        .order(ChecklistCategoryRecord.Columns.sort_order.asc)
+        .fetchAll(db)
+      return records.map {
+        ChecklistCategoryItem(
+          id: $0.id,
+          name: $0.name,
+          icon: $0.icon,
+          sortOrder: $0.sort_order,
+          createdAt: $0.created_at,
+          updatedAt: $0.updated_at
+        )
+      }
+    }
+  }
+
+  public func fetchCategory(id: String) async throws -> ChecklistCategoryItem? {
+    try await databaseManager.reader.read { db in
+      guard let record = try ChecklistCategoryRecord.fetchOne(db, key: id) else {
+        return nil
+      }
+      return ChecklistCategoryItem(
+        id: record.id,
+        name: record.name,
+        icon: record.icon,
+        sortOrder: record.sort_order,
+        createdAt: record.created_at,
+        updatedAt: record.updated_at
+      )
+    }
+  }
+
+  public func createCategory(
+    id: String? = nil,
+    name: String,
+    icon: String? = nil,
+    sortOrder: Int? = nil
+  ) async throws -> ChecklistCategoryItem {
+    try await databaseManager.write { db in
+      let categoryId = id ?? UUID().uuidString
+      let now = Date()
+      let order = try sortOrder ?? ChecklistCategoryRecord.fetchCount(db)
+      let record = ChecklistCategoryRecord(
+        id: categoryId,
+        name: name,
+        icon: icon,
+        sort_order: order,
+        created_at: now,
+        updated_at: now
+      )
+      try record.insert(db)
+      Logger.checklist.info("Successfully created category '\(categoryId, privacy: .public)'")
+      return ChecklistCategoryItem(
+        id: categoryId,
+        name: name,
+        icon: icon,
+        sortOrder: order,
+        createdAt: now,
+        updatedAt: now
+      )
+    }
+  }
+
+  public func updateCategory(
+    id: String,
+    name: String,
+    icon: String? = nil,
+    sortOrder: Int? = nil
+  ) async throws -> ChecklistCategoryItem {
+    try await databaseManager.write { db in
+      guard let existing = try ChecklistCategoryRecord.fetchOne(db, key: id) else {
+        throw ChecklistSessionError.categoryNotFound(id)
+      }
+      let now = Date()
+      var updated = existing
+      updated.name = name
+      updated.icon = icon
+      if let sortOrder = sortOrder {
+        updated.sort_order = sortOrder
+      }
+      updated.updated_at = now
+      try updated.update(db)
+      Logger.checklist.info("Successfully updated category '\(id, privacy: .public)'")
+      return ChecklistCategoryItem(
+        id: updated.id,
+        name: updated.name,
+        icon: updated.icon,
+        sortOrder: updated.sort_order,
+        createdAt: updated.created_at,
+        updatedAt: updated.updated_at
+      )
+    }
+  }
+
+  public func deleteCategory(id: String) async throws {
+    try await databaseManager.write { db in
+      guard let category = try ChecklistCategoryRecord.fetchOne(db, key: id) else {
+        throw ChecklistSessionError.categoryNotFound(id)
+      }
+      let associatedCount = try ChecklistTemplateRecord
+        .filter(ChecklistTemplateRecord.Columns.category_id == id || ChecklistTemplateRecord.Columns.category == id)
+        .fetchCount(db)
+      guard associatedCount == 0 else {
+        throw ChecklistSessionError.categoryHasAssociatedTemplates(id)
+      }
+      try category.delete(db)
+      Logger.checklist.info("Successfully deleted category '\(id, privacy: .public)'")
+    }
   }
 
   // MARK: - Session Lifecycle (Get-or-Create)
@@ -723,7 +888,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
     let observation = ValueObservation.tracking { db in
       let templates = try ChecklistTemplateRecord.fetchAll(db)
       let categoryByTemplateId = Dictionary(uniqueKeysWithValues: templates.compactMap { t in
-        ChecklistCategory(rawValue: t.category).map { (t.id, $0) }
+        (ChecklistCategory(rawValue: t.category) ?? ChecklistCategory(rawValue: t.category_id)).map { (t.id, $0) }
       })
 
       let statusCol = ChecklistSessionRecord.Columns.status
@@ -770,7 +935,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
     let observation = ValueObservation.tracking { db in
       let templates = try ChecklistTemplateRecord.fetchAll(db)
       let categoryByTemplateId = Dictionary(uniqueKeysWithValues: templates.compactMap { t in
-        ChecklistCategory(rawValue: t.category).map { (t.id, $0) }
+        (ChecklistCategory(rawValue: t.category) ?? ChecklistCategory(rawValue: t.category_id)).map { (t.id, $0) }
       })
 
       let records = try ChecklistSessionRecord

@@ -14,7 +14,22 @@ import OSLog
 
 /// Seeds essential built-in maritime checklist templates into the database.
 public struct ChecklistSeeder: Sendable {
+  nonisolated public static func seedDefaultCategoriesIfNeeded(in db: Database) throws {
+    let now = Date()
+    for (index, category) in ChecklistCategory.allCases.enumerated() {
+      try db.execute(
+        sql: """
+        INSERT OR IGNORE INTO \(ChecklistCategoryRecord.databaseTableName) (id, name, icon, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        arguments: [category.rawValue, category.title, category.systemImage, index, now, now]
+      )
+    }
+  }
+
   nonisolated public static func seedDefaultTemplatesIfNeeded(in db: Database) throws {
+    try seedDefaultCategoriesIfNeeded(in: db)
+
     try db.create(table: "checklist_seeding_state", ifNotExists: true) { t in
       t.column("id", .text).primaryKey()
       t.column("seeded_at", .datetime).notNull()
@@ -40,6 +55,7 @@ public struct ChecklistSeeder: Sendable {
       title: "Pre-Departure Checklist",
       description: "Essential vessel and crew safety checks before leaving the berth or mooring.",
       category: ChecklistCategory.routine.rawValue,
+      category_id: ChecklistCategory.routine.rawValue,
       sort_order: 0,
       created_at: now,
       updated_at: now
@@ -74,6 +90,7 @@ public struct ChecklistSeeder: Sendable {
       title: "Anchoring Checklist",
       description: "Standard anchoring procedure and safety radius verification.",
       category: ChecklistCategory.navigationManeuver.rawValue,
+      category_id: ChecklistCategory.navigationManeuver.rawValue,
       sort_order: 1,
       created_at: now,
       updated_at: now
@@ -106,6 +123,7 @@ public struct ChecklistSeeder: Sendable {
       title: "Man Overboard (MOB)",
       description: "Critical emergency procedure for crew recovery at sea.",
       category: ChecklistCategory.safetyEmergency.rawValue,
+      category_id: ChecklistCategory.safetyEmergency.rawValue,
       sort_order: 2,
       created_at: now,
       updated_at: now
@@ -138,6 +156,7 @@ public struct ChecklistSeeder: Sendable {
       title: "Heavy Weather & Reefing",
       description: "Safety measures and sail plan reduction for rising sea state and squalls.",
       category: ChecklistCategory.navigationManeuver.rawValue,
+      category_id: ChecklistCategory.navigationManeuver.rawValue,
       sort_order: 3,
       created_at: now,
       updated_at: now
