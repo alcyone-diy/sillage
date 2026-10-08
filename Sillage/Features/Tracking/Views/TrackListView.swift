@@ -24,9 +24,7 @@ struct TrackListView: View {
   @State private var sessionToDelete: TrackSession?
   
   var body: some View {
-    Section(
-      header: Text("Saved Tracks").marineSectionHeader()
-    ) {
+    Section {
       if viewModel.sessions.isEmpty {
         Text("No saved tracks yet")
           .foregroundStyle(.secondary)
@@ -81,6 +79,8 @@ struct TrackListView: View {
           .marineListCell()
         }
       }
+    } header: {
+      Text("Saved Tracks").marineSectionHeader()
     }
     .alert(
       "Delete Track?",

@@ -15,7 +15,7 @@ struct VersionInfoView: View {
   
   var body: some View {
     Form {
-      Section(header: Text("App Information").marineSectionHeader()) {
+      Section {
         HStack {
           Text("Version")
             .marineFont(.body)
@@ -57,6 +57,8 @@ struct VersionInfoView: View {
           }
           .marineListCell()
         }
+      } header: {
+        Text("App Information").marineSectionHeader()
       }
     }
     .navigationTitle("Version")

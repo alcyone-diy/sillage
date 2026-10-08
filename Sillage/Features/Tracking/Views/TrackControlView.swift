@@ -22,7 +22,7 @@ struct TrackControlView: View {
   var body: some View {
     @Bindable var bindableActiveTrackViewModel = activeTrackViewModel
     
-    Section(header: Text("Active Track").marineSectionHeader()) {
+    Section {
       HStack {
         Text("Recording Status")
         Spacer()
@@ -71,6 +71,8 @@ struct TrackControlView: View {
         .marineFont(.body)
         .transition(.move(edge: .top).combined(with: .opacity))
       }
+    } header: {
+      Text("Active Track").marineSectionHeader()
     }
     .alert(
       "Track Recording",

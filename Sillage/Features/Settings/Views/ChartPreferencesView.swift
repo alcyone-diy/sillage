@@ -62,7 +62,7 @@ struct ChartPreferencesView: View {
     
     Form {
       // MARK: - Map Sources Section
-      Section(header: Text("Map Sources").marineSectionHeader()) {
+      Section {
 
         // Free OpenSeaMap source (Default Fallback)
         Button(action: {
@@ -128,12 +128,14 @@ struct ChartPreferencesView: View {
             .buttonStyle(.plain)
           }
         }
+      } header: {
+        Text("Map Sources").marineSectionHeader()
       }
 
       // MARK: - Accounts & Services
       // Note: Value-based navigation in the Command Panel stack must use `CommandDestination` cases
       // resolved at the root level in `CommandPanelView.swift` (do not define local navigation enums or child .navigationDestination).
-      Section(header: Text("Accounts & Services").marineSectionHeader()) {
+      Section {
         NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin(
           context: chartViewModel.isGeoGarageAuthenticated ? .reauthentication : .initialSetup
         )) {
@@ -149,6 +151,8 @@ struct ChartPreferencesView: View {
         .marineFont(.body)
         .foregroundColor(.primary)
         .marineListCell()
+      } header: {
+        Text("Accounts & Services").marineSectionHeader()
       }
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)

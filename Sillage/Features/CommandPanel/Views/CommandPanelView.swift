@@ -111,7 +111,7 @@ struct CommandPanelView: View {
   private var quickActionsSection: some View {
     @Bindable var bindableAppViewModel = appViewModel
 
-    Section(header: Text("Quick Actions").marineSectionHeader()) {
+    Section {
       HStack(spacing: MarineTheme.Spacing.medium) {
         Toggle("Glove Mode", isOn: $bindableAppViewModel.isGloveModeEnabled)
           .toggleStyle(.marine(icon: .gloveMode))
@@ -141,12 +141,14 @@ struct CommandPanelView: View {
       }
       .listRowBackground(Color.clear)
       .listRowInsets(EdgeInsets())
+    } header: {
+      Text("Quick Actions").marineSectionHeader()
     }
   }
 
   @ViewBuilder
   private var navigationSection: some View {
-    Section(header: Text("Navigation").marineSectionHeader()) {
+    Section {
       NavigationLink(value: PanelManagerViewModel.CommandDestination.tracks) {
         Label {
           Text("Tracks").foregroundStyle(.primary)
@@ -190,12 +192,14 @@ struct CommandPanelView: View {
       }
       .animation(.default, value: appEnvironment.offlineChartsDownloadProgress != nil)
       .marineListCell()
+    } header: {
+      Text("Navigation").marineSectionHeader()
     }
   }
 
   @ViewBuilder
   private var safetySection: some View {
-    Section(header: Text("Safety").marineSectionHeader()) {
+    Section {
       AnchorCommandRowView(permissionGateType: $permissionGateType)
       BarometerCommandRowView(permissionGateType: $permissionGateType)
       NavigationLink(value: PanelManagerViewModel.CommandDestination.checklists) {
@@ -207,17 +211,21 @@ struct CommandPanelView: View {
         .marineFont(.body)
       }
       .marineListCell()
+    } header: {
+      Text("Safety").marineSectionHeader()
     }
   }
 
   @ViewBuilder
   private var systemSection: some View {
-    Section(header: Text("System").marineSectionHeader()) {
+    Section {
       NavigationLink(value: PanelManagerViewModel.CommandDestination.settings) {
         Label("Settings", systemImage: MarineIcon.settings.rawValue)
           .marineFont(.body)
       }
       .marineListCell()
+    } header: {
+      Text("System").marineSectionHeader()
     }
   }
 

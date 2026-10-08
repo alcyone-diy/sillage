@@ -60,7 +60,7 @@ struct WaypointDetailView: View {
           }
         }
         
-        Section(header: Text("Display").marineSectionHeader()) {
+        Section {
           ColorPicker("Color", selection: $viewModel.color, supportsOpacity: false)
             .marineFont(.body)
             .marineListCell()
@@ -77,27 +77,11 @@ struct WaypointDetailView: View {
                 }
               }
             }
+        } header: {
+          Text("Display").marineSectionHeader()
         }
         
-        Section(
-          header: Text("Location").marineSectionHeader(),
-          footer: VStack(alignment: .leading, spacing: MarineTheme.Spacing.medium) {
-            Text("Format: N/S Degrees Minutes.")
-            
-            if let _ = viewModel.editingWaypointID, viewModel.isEditable {
-              Button(action: {
-                showDeleteConfirmation = true
-              }) {
-                HStack {
-                  Image(marineIcon: .delete)
-                  Text("Delete Waypoint")
-                }
-              }
-              .buttonStyle(MarineButtonStyle(.destructive))
-              .textCase(nil)
-            }
-          }
-        ) {
+        Section {
           VStack(alignment: .leading, spacing: 4) {
             CoordinateInputView(
               title: "Latitude",
@@ -131,6 +115,25 @@ struct WaypointDetailView: View {
             }
           }
           .marineListCell()
+        } header: {
+          Text("Location").marineSectionHeader()
+        } footer: {
+          VStack(alignment: .leading, spacing: MarineTheme.Spacing.medium) {
+            Text("Format: N/S Degrees Minutes.")
+            
+            if let _ = viewModel.editingWaypointID, viewModel.isEditable {
+              Button(action: {
+                showDeleteConfirmation = true
+              }) {
+                HStack {
+                  Image(marineIcon: .delete)
+                  Text("Delete Waypoint")
+                }
+              }
+              .buttonStyle(MarineButtonStyle(.destructive))
+              .textCase(nil)
+            }
+          }
         }
         .disabled(!viewModel.isEditable)
       }

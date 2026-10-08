@@ -82,7 +82,7 @@ struct OfflineChartDetailView: View {
         }
 
         // MARK: - Package Characteristics
-        Section(header: Text("Characteristics").marineSectionHeader()) {
+        Section {
           HStack {
             Text("Format")
               .marineFont(.body)
@@ -145,28 +145,12 @@ struct OfflineChartDetailView: View {
             )
             .marineListCell()
           }
+        } header: {
+          Text("Characteristics").marineSectionHeader()
         }
 
         // MARK: - Geographic Coverage
-        Section(
-          header: Text("Geographic Coverage").marineSectionHeader(),
-          footer: Group {
-            if viewModel.isEditing {
-              Button(action: {
-                showDeleteConfirmation = true
-              }) {
-                HStack {
-                  Image(marineIcon: .delete)
-                  Text("Delete Chart")
-                }
-              }
-              .buttonStyle(MarineButtonStyle(.destructive))
-              .disabled(viewModel.isDeleting)
-              .textCase(nil)
-              .padding(.top, MarineTheme.Spacing.medium)
-            }
-          }
-        ) {
+        Section {
           if let area = viewModel.geographicArea {
             DetailRow(
               label: "Surface Area",
@@ -197,6 +181,23 @@ struct OfflineChartDetailView: View {
               value: ne
             )
             .marineListCell()
+          }
+        } header: {
+          Text("Geographic Coverage").marineSectionHeader()
+        } footer: {
+          if viewModel.isEditing {
+            Button(action: {
+              showDeleteConfirmation = true
+            }) {
+              HStack {
+                Image(marineIcon: .delete)
+                Text("Delete Chart")
+              }
+            }
+            .buttonStyle(MarineButtonStyle(.destructive))
+            .disabled(viewModel.isDeleting)
+            .textCase(nil)
+            .padding(.top, MarineTheme.Spacing.medium)
           }
         }
       }

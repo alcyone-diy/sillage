@@ -248,7 +248,7 @@ public struct ChecklistTemplateDetailView: View {
 
   @ViewBuilder
   private var stepsConsultationSection: some View {
-    Section(header: Text("Steps").marineSectionHeader()) {
+    Section {
       if viewModel.items.isEmpty {
         Text("No steps added yet")
           .marineFont(.body)
@@ -263,6 +263,8 @@ public struct ChecklistTemplateDetailView: View {
           )
         }
       }
+    } header: {
+      Text("Steps").marineSectionHeader()
     }
   }
 
@@ -291,7 +293,7 @@ public struct ChecklistTemplateDetailView: View {
 
   @ViewBuilder
   private var generalEditSection: some View {
-    Section(header: Text("Information").marineSectionHeader()) {
+    Section {
       VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
         Text("Title")
           .marineFont(.caption)
@@ -339,6 +341,8 @@ public struct ChecklistTemplateDetailView: View {
         )
       }
       .marineListCell()
+    } header: {
+      Text("Information").marineSectionHeader()
     }
   }
 

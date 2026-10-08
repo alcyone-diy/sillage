@@ -24,7 +24,7 @@ public struct BarometerAlarmView: View {
   public var body: some View {
     Form {
       // MARK: - Vital Information (Socle)
-      Section(header: Text("Pressure").marineSectionHeader()) {
+      Section {
         VStack(spacing: MarineTheme.Spacing.medium) {
           HStack {
             VStack(alignment: .leading) {
@@ -61,11 +61,13 @@ public struct BarometerAlarmView: View {
             .frame(height: 175)
         }
         .padding(.vertical, MarineTheme.Spacing.small)
+      } header: {
+        Text("Pressure").marineSectionHeader()
       }
       .listRowBackground(marineTheme.colors.surfaceBackground)
       
       // MARK: - Settings
-      Section(header: Text("Configuration").marineSectionHeader()) {
+      Section {
         Toggle("Weather Alarms", isOn: Binding(
           get: { viewModel.isAlarmEnabled },
           set: { newValue in
@@ -111,6 +113,8 @@ public struct BarometerAlarmView: View {
           }
         }
         .padding(.vertical, 4)
+      } header: {
+        Text("Configuration").marineSectionHeader()
       }
       .listRowBackground(marineTheme.colors.surfaceBackground)
     }

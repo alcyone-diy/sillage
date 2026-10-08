@@ -29,7 +29,7 @@ struct DebugView: View {
   
   var body: some View {
     Form {
-      Section(header: Text("System Information").marineSectionHeader()) {
+      Section {
         HStack {
           Text("Startup Time")
             .marineFont(.body)
@@ -39,9 +39,11 @@ struct DebugView: View {
             .foregroundColor(.secondary)
         }
         .marineListCell()
+      } header: {
+        Text("System Information").marineSectionHeader()
       }
       
-      Section(header: Text("GPS Information").marineSectionHeader()) {
+      Section {
         HStack {
           Text("Position")
             .marineFont(.body)
@@ -99,9 +101,11 @@ struct DebugView: View {
           }
           .marineListCell()
         }
+      } header: {
+        Text("GPS Information").marineSectionHeader()
       }
       
-      Section(header: Text("Kinematics & Telemetry (COG / SOG)").marineSectionHeader()) {
+      Section {
         HStack {
           Text("COG")
             .marineFont(.body)
@@ -212,9 +216,11 @@ struct DebugView: View {
           }
           .marineListCell()
         }
+      } header: {
+        Text("Kinematics & Telemetry (COG / SOG)").marineSectionHeader()
       }
       
-      Section(header: Text("Map Cache").marineSectionHeader()) {
+      Section {
         Button(role: .destructive) {
           showClearCacheConfirmation = true
         } label: {
@@ -246,9 +252,11 @@ struct DebugView: View {
         } message: {
           Text("This will delete all temporary data and force the network to reload.")
         }
+      } header: {
+        Text("Map Cache").marineSectionHeader()
       }
       
-      Section(header: Text("GeoGarage Testing").marineSectionHeader()) {
+      Section {
         Button(role: .destructive) {
           showCorruptTokenConfirmation = true
         } label: {
@@ -267,9 +275,11 @@ struct DebugView: View {
         } message: {
           Text("This will replace the active GeoGarage token with an invalid test token.")
         }
+      } header: {
+        Text("GeoGarage Testing").marineSectionHeader()
       }
       
-      Section(header: Text("Notification Testing").marineSectionHeader()) {
+      Section {
         Button {
           Task {
             if case .ready(let container) = appEnvironment.state {
@@ -309,10 +319,12 @@ struct DebugView: View {
             .marineFont(.body)
         }
         .marineListCell()
+      } header: {
+        Text("Notification Testing").marineSectionHeader()
       }
 
       if case .ready = appEnvironment.state {
-        Section(header: Text("Developer Environment").marineSectionHeader()) {
+        Section {
           Button(role: .destructive) {
             viewModel.resetDeveloperSettings(appEnvironment: appEnvironment)
           } label: {
@@ -324,6 +336,8 @@ struct DebugView: View {
             }
           }
           .marineListCell()
+        } header: {
+          Text("Developer Environment").marineSectionHeader()
         }
       }
 

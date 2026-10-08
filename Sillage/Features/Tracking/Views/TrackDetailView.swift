@@ -64,25 +64,7 @@ struct TrackDetailView: View {
         }
         
         // Metrics Section (Static)
-        Section(
-          header: Text("Details").marineSectionHeader(),
-          footer: Group {
-            if viewModel.isEditing {
-              Button(action: {
-                showDeleteConfirmation = true
-              }) {
-                HStack {
-                  Image(marineIcon: .delete)
-                  Text("Delete")
-                }
-              }
-              .buttonStyle(MarineButtonStyle(.destructive))
-              .disabled(!viewModel.canDelete)
-              .textCase(nil)
-              .padding(.top, MarineTheme.Spacing.medium)
-            }
-          }
-        ) {
+        Section {
           DetailRow(
             label: "Start Time",
             value: viewModel.session?.startTime.formatted(date: .abbreviated, time: .shortened) ?? "—"
@@ -130,6 +112,23 @@ struct TrackDetailView: View {
             value: viewModel.totalAverageSpeedOverGround?.marineFormatted ?? "—"
           )
           .marineListCell()
+        } header: {
+          Text("Details").marineSectionHeader()
+        } footer: {
+          if viewModel.isEditing {
+            Button(action: {
+              showDeleteConfirmation = true
+            }) {
+              HStack {
+                Image(marineIcon: .delete)
+                Text("Delete")
+              }
+            }
+            .buttonStyle(MarineButtonStyle(.destructive))
+            .disabled(!viewModel.canDelete)
+            .textCase(nil)
+            .padding(.top, MarineTheme.Spacing.medium)
+          }
         }
       }
       .listStyle(.insetGrouped)

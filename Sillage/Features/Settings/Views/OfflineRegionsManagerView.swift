@@ -84,7 +84,7 @@ struct OfflineRegionsManagerView: View {
 
           // Charts sections grouped by GeoGarage chart type
           ForEach(groupedCharts) { group in
-            Section(header: Text(group.title).marineSectionHeader()) {
+            Section {
               ForEach(group.items) { item in
                 let isEnabled = isMatchingChartSelected(for: item)
                 OfflineChartItemRowView(item: item)
@@ -108,6 +108,8 @@ struct OfflineRegionsManagerView: View {
                     .tint(.red)
                   }
               }
+            } header: {
+              Text(group.title).marineSectionHeader()
             }
           }
         }
