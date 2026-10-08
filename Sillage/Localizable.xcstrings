@@ -817,6 +817,9 @@
     "Kinematics & Telemetry (COG / SOG)" : {
 
     },
+    "Legal" : {
+
+    },
     "Legal & Licenses" : {
 
     },
@@ -1115,9 +1118,6 @@
       "comment" : "South cardinal point"
     },
     "Safety" : {
-
-    },
-    "Safety & Legal" : {
 
     },
     "Safety radius exceeded (%@ / %@)" : {

@@ -52,7 +52,7 @@ struct SettingsView: View {
         }
         .marineListCell()
       } header: {
-        Text("Checklists").marineSectionHeader()
+        Text("Safety").marineSectionHeader()
       }
       
       Section {
@@ -68,7 +68,7 @@ struct SettingsView: View {
         }
         .marineListCell()
       } header: {
-        Text("Safety & Legal").marineSectionHeader()
+        Text("Legal").marineSectionHeader()
       }
       
       Section {
