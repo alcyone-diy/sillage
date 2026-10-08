@@ -421,10 +421,10 @@
     "Could not create the Charts directory." : {
 
     },
-    "Create Checklist" : {
+    "Create a GeoGarage Account" : {
 
     },
-    "Create a GeoGarage Account" : {
+    "Create Checklist" : {
 
     },
     "Create Waypoint…" : {
@@ -1273,7 +1273,13 @@
     "Third-Party Licenses" : {
 
     },
+    "This category cannot be deleted because it contains checklists." : {
+
+    },
     "This checklist cannot be deleted because it has log entries." : {
+
+    },
+    "This checklist category no longer exists." : {
 
     },
     "This checklist is already finished." : {
