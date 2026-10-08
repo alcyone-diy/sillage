@@ -23,6 +23,7 @@ public final class ChecklistSessionViewModel {
 
   public private(set) var session: ChecklistSession?
   public private(set) var template: ChecklistTemplate?
+  public private(set) var categoryItem: ChecklistCategoryItem?
   public private(set) var isLoading: Bool = false
   public private(set) var isPerformingAction: Bool = false
   public private(set) var isSessionDeleted: Bool = false
@@ -60,7 +61,15 @@ public final class ChecklistSessionViewModel {
   }
 
   public var category: ChecklistCategory? {
-    template?.category
+    session?.category ?? template?.category
+  }
+
+  public var categoryId: String? {
+    session?.categoryId ?? template?.categoryId
+  }
+
+  public var categoryName: String {
+    categoryItem?.name ?? category?.title ?? ""
   }
 
   public var items: [ChecklistSessionItem] {
@@ -108,6 +117,8 @@ public final class ChecklistSessionViewModel {
       if let fetchedSession = try await checklistService.fetchSession(id: sessionId) {
         self.session = fetchedSession
         self.template = try await checklistService.fetchTemplate(id: fetchedSession.templateId)
+        let resolvedCatId = fetchedSession.categoryId
+        self.categoryItem = try await checklistService.fetchCategory(id: resolvedCatId)
       } else {
         self.session = nil
         self.isSessionDeleted = true
@@ -127,6 +138,9 @@ public final class ChecklistSessionViewModel {
         if let matching = sessions.first(where: { $0.id == sessionId }) {
           if self.session != matching {
             self.session = matching
+            if matching.categoryId != self.categoryItem?.id {
+              self.categoryItem = try? await checklistService.fetchCategory(id: matching.categoryId)
+            }
           }
         } else if session != nil {
           // The session previously existed but was deleted (e.g. template deleted)

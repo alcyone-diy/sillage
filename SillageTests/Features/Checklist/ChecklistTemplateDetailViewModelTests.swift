@@ -9,6 +9,7 @@
 //
 
 import XCTest
+import GRDB
 @testable import Sillage
 
 @MainActor
@@ -435,5 +436,67 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     let reloaded = try await checklistService.fetchTemplate(id: existing.id)
     XCTAssertEqual(reloaded?.title, "Updated Title")
     XCTAssertEqual(reloaded?.items.count, 3)
+  }
+
+  // MARK: - Category Support Tests
+
+  func testAvailableCategoriesLoadedOnLoad() async {
+    await viewModel.load()
+    XCTAssertFalse(viewModel.availableCategories.isEmpty)
+    XCTAssertNotNil(viewModel.selectedCategoryItem)
+    XCTAssertEqual(viewModel.categoryId, ChecklistCategory.safetyEmergency.rawValue)
+    XCTAssertEqual(viewModel.selectedCategoryItem?.id, ChecklistCategory.safetyEmergency.rawValue)
+  }
+
+  func testCategoryAndCategoryIdBidirectionalSynchronization() {
+    let vm = ChecklistTemplateDetailViewModel(
+      checklistService: checklistService,
+      initialCategory: .routine
+    )
+    XCTAssertEqual(vm.category, .routine)
+    XCTAssertEqual(vm.categoryId, ChecklistCategory.routine.rawValue)
+
+    // Updating category updates categoryId
+    vm.category = .safetyEmergency
+    XCTAssertEqual(vm.categoryId, ChecklistCategory.safetyEmergency.rawValue)
+
+    // Updating categoryId with a built-in id updates category
+    vm.categoryId = ChecklistCategory.navigationManeuver.rawValue
+    XCTAssertEqual(vm.category, .navigationManeuver)
+
+    // Updating categoryId with custom id retains category as fallback
+    vm.categoryId = "custom_rigging"
+    XCTAssertEqual(vm.categoryId, "custom_rigging")
+
+    // Helper selectCategory
+    vm.selectCategory(.engineTechnical)
+    XCTAssertEqual(vm.category, .engineTechnical)
+    XCTAssertEqual(vm.categoryId, ChecklistCategory.engineTechnical.rawValue)
+  }
+
+  func testSaveTemplateWithCustomCategory() async throws {
+    let customCategory = try await checklistService.createCategory(
+      id: "custom_electronics",
+      name: "Marine Electronics",
+      icon: "antenna.radiowaves.left.and.right",
+      sortOrder: 5
+    )
+
+    let creationVM = ChecklistTemplateDetailViewModel(
+      checklistService: checklistService,
+      initialCategoryId: customCategory.id
+    )
+    XCTAssertEqual(creationVM.categoryId, "custom_electronics")
+
+    creationVM.title = "NMEA Instruments Check"
+    creationVM.items[0].title = "Check GPS antenna fix"
+    creationVM.addItem(title: "Calibrate wind sensor")
+
+    let saved = await creationVM.save()
+    let savedTemplate = try XCTUnwrap(saved)
+    XCTAssertEqual(savedTemplate.categoryId, "custom_electronics")
+
+    let reloaded = try await checklistService.fetchTemplate(id: savedTemplate.id)
+    XCTAssertEqual(reloaded?.categoryId, "custom_electronics")
   }
 }

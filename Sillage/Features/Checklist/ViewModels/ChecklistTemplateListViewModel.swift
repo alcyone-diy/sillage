@@ -19,6 +19,7 @@ public final class ChecklistTemplateListViewModel {
   private let checklistService: any ChecklistServiceProtocol
 
   public private(set) var templates: [ChecklistTemplate] = []
+  public private(set) var categories: [ChecklistCategoryItem] = []
   public private(set) var activeSessions: [ChecklistSession] = []
   public private(set) var latestCompletionDates: [UUID: Date] = [:]
   public private(set) var isLoading: Bool = false
@@ -33,22 +34,105 @@ public final class ChecklistTemplateListViewModel {
     }
   }
 
+  /// Templates grouped dynamically by checklist category items in defined sort order.
+  public var groupedByCategoryItem: [(category: ChecklistCategoryItem, templates: [ChecklistTemplate])] {
+    let grouped = Dictionary(grouping: templates, by: \.categoryId)
+    var result: [(category: ChecklistCategoryItem, templates: [ChecklistTemplate])] = []
+    var processedCategoryIds = Set<String>()
+
+    for cat in categories {
+      processedCategoryIds.insert(cat.id)
+      if let list = grouped[cat.id], !list.isEmpty {
+        result.append((category: cat, templates: list))
+      }
+    }
+
+    let remainingIds = Set(grouped.keys).subtracting(processedCategoryIds)
+    for remainingId in remainingIds.sorted() {
+      if let list = grouped[remainingId], !list.isEmpty {
+        let fallback = ChecklistCategoryItem(
+          id: remainingId,
+          name: ChecklistCategory(rawValue: remainingId)?.title ?? remainingId,
+          icon: ChecklistCategory(rawValue: remainingId)?.systemImage ?? "checklist"
+        )
+        result.append((category: fallback, templates: list))
+      }
+    }
+
+    return result
+  }
+
   public init(checklistService: any ChecklistServiceProtocol) {
     self.checklistService = checklistService
   }
 
-  /// Loads available checklist templates from the database, sorted alphabetically.
+  /// Loads available checklist templates and categories from the database.
   public func loadTemplates() async {
     isLoading = true
     defer { isLoading = false }
     errorMessage = nil
 
     do {
-      let fetched = try await checklistService.fetchTemplates()
-      templates = fetched.sorted(by: ChecklistTemplate.standardComparator)
+      async let fetchedTemplates = checklistService.fetchTemplates()
+      async let fetchedCategories = checklistService.fetchCategories()
+      let (templatesList, categoriesList) = try await (fetchedTemplates, fetchedCategories)
+      templates = templatesList.sorted(by: ChecklistTemplate.standardComparator)
+      categories = categoriesList
     } catch {
       Logger.checklist.error("Failed to load checklist templates: \(String(reflecting: error), privacy: .public)")
       errorMessage = ChecklistSessionError.userMessage(for: error)
+    }
+  }
+
+  /// Loads available categories from the database.
+  public func loadCategories() async {
+    do {
+      categories = try await checklistService.fetchCategories()
+    } catch {
+      Logger.checklist.error("Failed to load checklist categories: \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
+    }
+  }
+
+  /// Returns the category item for the given identifier, if loaded.
+  public func category(for id: String) -> ChecklistCategoryItem? {
+    categories.first { $0.id == id }
+  }
+
+  /// Creates a new checklist category.
+  /// - Returns: The created `ChecklistCategoryItem`, or `nil` on failure.
+  public func createCategory(
+    name: String,
+    icon: String? = nil,
+    sortOrder: Int? = nil
+  ) async -> ChecklistCategoryItem? {
+    do {
+      let created = try await checklistService.createCategory(
+        id: nil,
+        name: name,
+        icon: icon,
+        sortOrder: sortOrder
+      )
+      await loadCategories()
+      return created
+    } catch {
+      Logger.checklist.error("Failed to create checklist category '\(name, privacy: .public)': \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
+      return nil
+    }
+  }
+
+  /// Deletes a checklist category if no templates reference it.
+  /// - Returns: `true` if deletion succeeded, `false` otherwise.
+  public func deleteCategory(id: String) async -> Bool {
+    do {
+      try await checklistService.deleteCategory(id: id)
+      await loadCategories()
+      return true
+    } catch {
+      Logger.checklist.error("Failed to delete checklist category '\(id, privacy: .public)': \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistSessionError.userMessage(for: error)
+      return false
     }
   }
 

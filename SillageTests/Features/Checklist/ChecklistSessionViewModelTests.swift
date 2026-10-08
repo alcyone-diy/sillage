@@ -280,4 +280,44 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     let rechecked = viewModel.items.first(where: { $0.id == firstItem.id })
     XCTAssertTrue(rechecked?.isChecked == true)
   }
+
+  // MARK: - Category Support Tests
+
+  func testLoadFetchesCategoryItem() async {
+    await viewModel.load()
+
+    XCTAssertNotNil(viewModel.categoryItem)
+    XCTAssertEqual(viewModel.categoryId, ChecklistCategory.engineTechnical.rawValue)
+    XCTAssertEqual(viewModel.categoryName, "Engine & Technical")
+  }
+
+  func testCategoryItemResolvesForCustomCategory() async throws {
+    let customCategory = try await checklistService.createCategory(
+      id: "custom_hull",
+      name: "Hull & Keel",
+      icon: "shield",
+      sortOrder: 15
+    )
+
+    let customTemplate = try await checklistService.createCustomTemplate(
+      title: "Hull Inspection",
+      description: "Thru-hulls and zincs",
+      category: .routine,
+      categoryId: customCategory.id,
+      items: [("Check seacocks", nil)]
+    )
+
+    let customSession = try await checklistService.startSession(templateId: customTemplate.id)
+
+    let customVM = ChecklistSessionViewModel(
+      sessionId: customSession.id,
+      checklistService: checklistService
+    )
+
+    await customVM.load()
+
+    XCTAssertEqual(customVM.categoryId, "custom_hull")
+    XCTAssertEqual(customVM.categoryItem?.id, "custom_hull")
+    XCTAssertEqual(customVM.categoryName, "Hull & Keel")
+  }
 }

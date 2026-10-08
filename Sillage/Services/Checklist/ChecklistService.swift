@@ -39,17 +39,19 @@ public final class ChecklistService: ChecklistServiceProtocol {
     return status
   }
 
-  nonisolated private static func fetchCategory(for templateId: String, in db: Database) throws -> ChecklistCategory {
+  nonisolated private static func fetchCategoryInfo(for templateId: String, in db: Database) throws -> (category: ChecklistCategory, categoryId: String) {
     guard let record = try ChecklistTemplateRecord.fetchOne(db, key: templateId) else {
-      return .routine
+      return (.routine, ChecklistCategory.routine.rawValue)
     }
-    return ChecklistCategory(rawValue: record.category) ?? ChecklistCategory(rawValue: record.category_id) ?? .routine
+    let category = ChecklistCategory(rawValue: record.category) ?? ChecklistCategory(rawValue: record.category_id) ?? .routine
+    return (category, record.category_id)
   }
 
   nonisolated public static func mapSession(
     record: ChecklistSessionRecord,
     itemRecords: [ChecklistSessionItemRecord],
-    category: ChecklistCategory = .routine
+    category: ChecklistCategory = .routine,
+    categoryId: String? = nil
   ) throws(ChecklistSessionError) -> ChecklistSession {
     let sessionId = try parseUUID(record.id, fieldName: "session.id")
     let templateId = try parseUUID(record.template_id, fieldName: "session.template_id")
@@ -97,6 +99,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
       templateId: templateId,
       templateTitleSnapshot: record.template_title_snapshot,
       category: category,
+      categoryId: categoryId ?? category.rawValue,
       status: status,
       startedAt: record.started_at,
       completedAt: record.completed_at,
@@ -275,6 +278,16 @@ public final class ChecklistService: ChecklistServiceProtocol {
     try await createTemplate(title: title, description: description, category: category, categoryId: nil, items: items)
   }
 
+  public func createCustomTemplate(
+    title: String,
+    description: String? = nil,
+    category: ChecklistCategory,
+    categoryId: String?,
+    items: [(title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate {
+    try await createTemplate(title: title, description: description, category: category, categoryId: categoryId, items: items)
+  }
+
   public func updateTemplate(
     id: UUID,
     title: String,
@@ -415,6 +428,17 @@ public final class ChecklistService: ChecklistServiceProtocol {
     items: [(id: UUID?, title: String, detail: String?)]
   ) async throws -> ChecklistTemplate {
     try await updateTemplate(id: id, title: title, description: description, category: category, categoryId: nil, items: items)
+  }
+
+  public func updateCustomTemplate(
+    id: UUID,
+    title: String,
+    description: String? = nil,
+    category: ChecklistCategory,
+    categoryId: String?,
+    items: [(id: UUID?, title: String, detail: String?)]
+  ) async throws -> ChecklistTemplate {
+    try await updateTemplate(id: id, title: title, description: description, category: category, categoryId: categoryId, items: items)
   }
 
   public func deleteTemplate(id: UUID) async throws {
@@ -561,12 +585,12 @@ public final class ChecklistService: ChecklistServiceProtocol {
           Logger.checklist.info(
             "Resuming existing active session for template '\(templateId.uuidString, privacy: .public)'"
           )
-          let category = try Self.fetchCategory(for: templateId.uuidString, in: db)
+          let catInfo = try Self.fetchCategoryInfo(for: templateId.uuidString, in: db)
           let existingItems = try ChecklistSessionItemRecord
             .filter(ChecklistSessionItemRecord.Columns.session_id == existingRecord.id)
             .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
             .fetchAll(db)
-          return try Self.mapSession(record: existingRecord, itemRecords: existingItems, category: category)
+          return try Self.mapSession(record: existingRecord, itemRecords: existingItems, category: catInfo.category, categoryId: catInfo.categoryId)
         }
 
         // 2. Normal path: Instantiate new session from template snapshot
@@ -611,9 +635,12 @@ public final class ChecklistService: ChecklistServiceProtocol {
           itemRecords.append(itemRecord)
         }
 
-        let category = ChecklistCategory(rawValue: templateRecord.category) ?? .routine
+        let catInfo = (
+          category: ChecklistCategory(rawValue: templateRecord.category) ?? ChecklistCategory(rawValue: templateRecord.category_id) ?? .routine,
+          categoryId: templateRecord.category_id
+        )
         Logger.checklist.info("Started new checklist session '\(sessionId.uuidString, privacy: .public)'")
-        return try Self.mapSession(record: sessionRecord, itemRecords: itemRecords, category: category)
+        return try Self.mapSession(record: sessionRecord, itemRecords: itemRecords, category: catInfo.category, categoryId: catInfo.categoryId)
       }
     } catch let error as ChecklistSessionError {
       throw error
@@ -662,7 +689,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
             .filter(ChecklistSessionItemRecord.Columns.session_id == sessionId.uuidString)
             .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
             .fetchAll(db)
-          return try Self.mapSession(record: sessionRecord, itemRecords: allItems)
+          let catInfo = try Self.fetchCategoryInfo(for: sessionRecord.template_id, in: db)
+          return try Self.mapSession(record: sessionRecord, itemRecords: allItems, category: catInfo.category, categoryId: catInfo.categoryId)
         }
 
         // Count previously checked items before updating this item
@@ -690,8 +718,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
-        let category = try Self.fetchCategory(for: sessionRecord.template_id, in: db)
-        return try Self.mapSession(record: updatedSessionRecord, itemRecords: allItems, category: category)
+        let catInfo = try Self.fetchCategoryInfo(for: sessionRecord.template_id, in: db)
+        return try Self.mapSession(record: updatedSessionRecord, itemRecords: allItems, category: catInfo.category, categoryId: catInfo.categoryId)
       }
     } catch let error as ChecklistSessionError {
       throw error
@@ -723,9 +751,9 @@ public final class ChecklistService: ChecklistServiceProtocol {
         sessionRecord.notes = notes
         try sessionRecord.update(db)
 
-        let category = try Self.fetchCategory(for: sessionRecord.template_id, in: db)
+        let catInfo = try Self.fetchCategoryInfo(for: sessionRecord.template_id, in: db)
         Logger.checklist.info("Completed checklist session '\(sessionId.uuidString, privacy: .public)'")
-        return try Self.mapSession(record: sessionRecord, itemRecords: allItems, category: category)
+        return try Self.mapSession(record: sessionRecord, itemRecords: allItems, category: catInfo.category, categoryId: catInfo.categoryId)
       }
     } catch let error as ChecklistSessionError {
       throw error
@@ -775,9 +803,9 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
-        let category = try Self.fetchCategory(for: sessionRecord.template_id, in: db)
+        let catInfo = try Self.fetchCategoryInfo(for: sessionRecord.template_id, in: db)
         Logger.checklist.info("Abandoned checklist session '\(sessionId.uuidString, privacy: .public)'")
-        return try Self.mapSession(record: sessionRecord, itemRecords: allItems, category: category)
+        return try Self.mapSession(record: sessionRecord, itemRecords: allItems, category: catInfo.category, categoryId: catInfo.categoryId)
       }
     } catch let error as ChecklistSessionError {
       throw error
@@ -800,8 +828,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
         .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
         .fetchAll(db)
 
-      let category = try Self.fetchCategory(for: record.template_id, in: db)
-      return try Self.mapSession(record: record, itemRecords: items, category: category)
+      let catInfo = try Self.fetchCategoryInfo(for: record.template_id, in: db)
+      return try Self.mapSession(record: record, itemRecords: items, category: catInfo.category, categoryId: catInfo.categoryId)
     }
   }
 
@@ -816,16 +844,16 @@ public final class ChecklistService: ChecklistServiceProtocol {
         .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
         .fetchAll(db)
 
-      let category = try Self.fetchCategory(for: record.template_id, in: db)
-      return try Self.mapSession(record: record, itemRecords: items, category: category)
+      let catInfo = try Self.fetchCategoryInfo(for: record.template_id, in: db)
+      return try Self.mapSession(record: record, itemRecords: items, category: catInfo.category, categoryId: catInfo.categoryId)
     }
   }
 
   public func fetchRecentSessions(limit: Int) async throws -> [ChecklistSession] {
     try await databaseManager.reader.read { db in
       let templates = try ChecklistTemplateRecord.fetchAll(db)
-      let categoryByTemplateId = Dictionary(uniqueKeysWithValues: templates.compactMap { t in
-        ChecklistCategory(rawValue: t.category).map { (t.id, $0) }
+      let categoryInfoByTemplateId = Dictionary(uniqueKeysWithValues: templates.map { t in
+        (t.id, (category: ChecklistCategory(rawValue: t.category) ?? ChecklistCategory(rawValue: t.category_id) ?? .routine, categoryId: t.category_id))
       })
 
       let records = try ChecklistSessionRecord
@@ -838,8 +866,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .filter(ChecklistSessionItemRecord.Columns.session_id == record.id)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
-        let category = categoryByTemplateId[record.template_id] ?? .routine
-        return try Self.mapSession(record: record, itemRecords: items, category: category)
+        let info = categoryInfoByTemplateId[record.template_id] ?? (.routine, ChecklistCategory.routine.rawValue)
+        return try Self.mapSession(record: record, itemRecords: items, category: info.category, categoryId: info.categoryId)
       }
     }
   }
@@ -887,8 +915,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
 
     let observation = ValueObservation.tracking { db in
       let templates = try ChecklistTemplateRecord.fetchAll(db)
-      let categoryByTemplateId = Dictionary(uniqueKeysWithValues: templates.compactMap { t in
-        (ChecklistCategory(rawValue: t.category) ?? ChecklistCategory(rawValue: t.category_id)).map { (t.id, $0) }
+      let categoryInfoByTemplateId = Dictionary(uniqueKeysWithValues: templates.map { t in
+        (t.id, (category: ChecklistCategory(rawValue: t.category) ?? ChecklistCategory(rawValue: t.category_id) ?? .routine, categoryId: t.category_id))
       })
 
       let statusCol = ChecklistSessionRecord.Columns.status
@@ -909,8 +937,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .filter(ChecklistSessionItemRecord.Columns.session_id == record.id)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
-        let category = categoryByTemplateId[record.template_id] ?? .routine
-        return try Self.mapSession(record: record, itemRecords: items, category: category)
+        let info = categoryInfoByTemplateId[record.template_id] ?? (.routine, ChecklistCategory.routine.rawValue)
+        return try Self.mapSession(record: record, itemRecords: items, category: info.category, categoryId: info.categoryId)
       }
     }
 
@@ -934,8 +962,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
   public func observeActiveSessions() -> AsyncThrowingStream<[ChecklistSession], any Error> {
     let observation = ValueObservation.tracking { db in
       let templates = try ChecklistTemplateRecord.fetchAll(db)
-      let categoryByTemplateId = Dictionary(uniqueKeysWithValues: templates.compactMap { t in
-        (ChecklistCategory(rawValue: t.category) ?? ChecklistCategory(rawValue: t.category_id)).map { (t.id, $0) }
+      let categoryInfoByTemplateId = Dictionary(uniqueKeysWithValues: templates.map { t in
+        (t.id, (category: ChecklistCategory(rawValue: t.category) ?? ChecklistCategory(rawValue: t.category_id) ?? .routine, categoryId: t.category_id))
       })
 
       let records = try ChecklistSessionRecord
@@ -948,8 +976,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
           .filter(ChecklistSessionItemRecord.Columns.session_id == record.id)
           .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
-        let category = categoryByTemplateId[record.template_id] ?? .routine
-        return try Self.mapSession(record: record, itemRecords: items, category: category)
+        let info = categoryInfoByTemplateId[record.template_id] ?? (.routine, ChecklistCategory.routine.rawValue)
+        return try Self.mapSession(record: record, itemRecords: items, category: info.category, categoryId: info.categoryId)
       }
     }
 

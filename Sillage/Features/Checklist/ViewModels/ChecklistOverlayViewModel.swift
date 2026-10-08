@@ -40,6 +40,26 @@ public final class ChecklistOverlayViewModel {
       .sorted(by: ChecklistSession.completedAlphabeticalComparator)
   }
 
+  /// In-progress sessions belonging to a specific category ID.
+  public func inProgressSessions(for categoryId: String) -> [ChecklistSession] {
+    inProgressSessions.filter { $0.categoryId == categoryId }
+  }
+
+  /// In-progress sessions belonging to a specific built-in category.
+  public func inProgressSessions(for category: ChecklistCategory) -> [ChecklistSession] {
+    inProgressSessions.filter { $0.category == category }
+  }
+
+  /// Completed sessions belonging to a specific category ID.
+  public func completedSessions(for categoryId: String) -> [ChecklistSession] {
+    completedSessions.filter { $0.categoryId == categoryId }
+  }
+
+  /// Completed sessions belonging to a specific built-in category.
+  public func completedSessions(for category: ChecklistCategory) -> [ChecklistSession] {
+    completedSessions.filter { $0.category == category }
+  }
+
   /// Whether any checklist session is currently in progress.
   /// When all checklists are completed (even if retained in activeSessions for 48h),
   /// the floating button must disappear from the main map overlay.

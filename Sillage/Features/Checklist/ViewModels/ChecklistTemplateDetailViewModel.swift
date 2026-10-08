@@ -53,10 +53,27 @@ public final class ChecklistTemplateDetailViewModel {
   public var alertTitle: String = "Error"
   public var errorMessage: String?
 
+  public private(set) var availableCategories: [ChecklistCategoryItem] = []
+
   public var title: String = ""
   public var descriptionText: String = ""
-  public var category: ChecklistCategory = .routine
+  private var fallbackCategory: ChecklistCategory = .routine
+  public var categoryId: String = ChecklistCategory.routine.rawValue
+  public var category: ChecklistCategory {
+    get {
+      ChecklistCategory(rawValue: categoryId) ?? fallbackCategory
+    }
+    set {
+      fallbackCategory = newValue
+      categoryId = newValue.rawValue
+    }
+  }
   public var items: [ChecklistItemDraft] = []
+
+  /// The currently resolved category item from availableCategories, if found.
+  public var selectedCategoryItem: ChecklistCategoryItem? {
+    availableCategories.first { $0.id == categoryId }
+  }
 
   public var description: String? {
     let trimmed = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -149,7 +166,8 @@ public final class ChecklistTemplateDetailViewModel {
     template: ChecklistTemplate? = nil,
     checklistService: any ChecklistServiceProtocol,
     startEditable: Bool = false,
-    initialCategory: ChecklistCategory = .routine
+    initialCategory: ChecklistCategory = .routine,
+    initialCategoryId: String? = nil
   ) {
     self.templateId = templateId ?? template?.id
     self.checklistService = checklistService
@@ -159,13 +177,21 @@ public final class ChecklistTemplateDetailViewModel {
       self.template = template
       populate(from: template)
     } else if templateId == nil {
-      self.category = initialCategory
+      let resolvedCategoryId = initialCategoryId ?? initialCategory.rawValue
+      self.categoryId = resolvedCategoryId
+      self.fallbackCategory = ChecklistCategory(rawValue: resolvedCategoryId) ?? initialCategory
       self.items = [ChecklistItemDraft()]
     }
   }
 
-  /// Loads the checklist template and any currently active session.
+  /// Loads the checklist template, available categories, and any currently active session.
   public func load() async {
+    do {
+      self.availableCategories = try await checklistService.fetchCategories()
+    } catch {
+      Logger.checklist.error("Failed to load checklist categories: \(String(reflecting: error), privacy: .public)")
+    }
+
     guard let templateId else {
       if items.isEmpty {
         items = [ChecklistItemDraft()]
@@ -242,7 +268,8 @@ public final class ChecklistTemplateDetailViewModel {
   private func populate(from template: ChecklistTemplate) {
     self.title = template.title
     self.descriptionText = template.description ?? ""
-    self.category = template.category
+    self.categoryId = template.categoryId
+    self.fallbackCategory = template.category
     let mapped = template.items.sorted { $0.sortOrder < $1.sortOrder }.map { item in
       ChecklistItemDraft(
         id: item.id,
@@ -261,7 +288,8 @@ public final class ChecklistTemplateDetailViewModel {
     } else {
       title = ""
       descriptionText = ""
-      category = .routine
+      fallbackCategory = .routine
+      categoryId = ChecklistCategory.routine.rawValue
       items = [ChecklistItemDraft()]
     }
   }
@@ -384,6 +412,7 @@ public final class ChecklistTemplateDetailViewModel {
           title: trimmedTitle,
           description: desc,
           category: category,
+          categoryId: categoryId,
           items: serviceItems
         )
         Logger.checklist.info("Successfully updated custom checklist template: \(saved.id.uuidString, privacy: .public)")
@@ -400,6 +429,7 @@ public final class ChecklistTemplateDetailViewModel {
           title: trimmedTitle,
           description: desc,
           category: category,
+          categoryId: categoryId,
           items: serviceItems
         )
         Logger.checklist.info("Successfully created custom checklist template: \(saved.id.uuidString, privacy: .public)")
@@ -414,6 +444,29 @@ public final class ChecklistTemplateDetailViewModel {
       Logger.checklist.error("Failed to save checklist template: \(String(reflecting: error), privacy: .public)")
       errorMessage = ChecklistSessionError.userMessage(for: error)
       return nil
+    }
+  }
+
+  // MARK: - Category Selection Helpers
+
+  /// Selects a category by its built-in enum, keeping category and categoryId in sync.
+  public func selectCategory(_ category: ChecklistCategory) {
+    self.category = category
+  }
+
+  /// Selects a category from a category item, keeping category and categoryId in sync.
+  public func selectCategoryItem(_ item: ChecklistCategoryItem) {
+    self.categoryId = item.id
+    if let builtIn = item.builtInEnum {
+      self.fallbackCategory = builtIn
+    }
+  }
+
+  /// Selects a category by its unique identifier.
+  public func selectCategoryId(_ id: String) {
+    self.categoryId = id
+    if let builtIn = ChecklistCategory(rawValue: id) {
+      self.fallbackCategory = builtIn
     }
   }
 }

@@ -300,4 +300,58 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
 
     observeTask.cancel()
   }
+
+  // MARK: - Category Management Tests
+
+  func testCategoriesLoadedAndGroupedByCategoryItem() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let vm = try XCTUnwrap(viewModel)
+
+    let customCategory = try await service.createCategory(
+      id: "custom_moorings",
+      name: "Moorings & Anchoring",
+      icon: "anchor",
+      sortOrder: 10
+    )
+
+    _ = try await service.createCustomTemplate(
+      title: "Anchorage Check",
+      description: "Depth and swing radius",
+      category: .routine,
+      categoryId: customCategory.id,
+      items: [("Set anchor", nil)]
+    )
+
+    await vm.loadTemplates()
+
+    XCTAssertFalse(vm.categories.isEmpty)
+    XCTAssertTrue(vm.categories.contains(where: { $0.id == "custom_moorings" }))
+
+    let customGroup = vm.groupedByCategoryItem.first(where: { $0.category.id == "custom_moorings" })
+    XCTAssertNotNil(customGroup)
+    XCTAssertEqual(customGroup?.templates.count, 1)
+    XCTAssertEqual(customGroup?.templates.first?.title, "Anchorage Check")
+  }
+
+  func testCreateAndDeleteCategoryViaViewModel() async throws {
+    let vm = try XCTUnwrap(viewModel)
+
+    await vm.loadCategories()
+    let initialCount = vm.categories.count
+
+    let created = await vm.createCategory(
+      name: "Diving Operations",
+      icon: "figure.open.water.swim",
+      sortOrder: 20
+    )
+    let createdCategory = try XCTUnwrap(created)
+    XCTAssertEqual(createdCategory.name, "Diving Operations")
+    XCTAssertEqual(vm.categories.count, initialCount + 1)
+    XCTAssertEqual(vm.category(for: createdCategory.id)?.name, "Diving Operations")
+
+    let deleted = await vm.deleteCategory(id: createdCategory.id)
+    XCTAssertTrue(deleted)
+    XCTAssertEqual(vm.categories.count, initialCount)
+    XCTAssertNil(vm.category(for: createdCategory.id))
+  }
 }
