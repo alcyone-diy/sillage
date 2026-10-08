@@ -41,6 +41,7 @@ public final class PanelManagerViewModel {
     case offlineChartDetail(id: UUID)
     case chartPreferences
     case checklists
+    case checklistCategories
     case checklistTemplateDetail(templateId: UUID? = nil, template: ChecklistTemplate? = nil, startEditable: Bool = false)
     /// Active checklist session execution view.
     case activeSession(ChecklistSessionPayload)

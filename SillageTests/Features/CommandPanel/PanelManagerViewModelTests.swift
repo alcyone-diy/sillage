@@ -111,11 +111,16 @@ final class PanelManagerViewModelTests: XCTestCase {
       .geoGarageLogin(context: .initialSetup),
       .offlineCharts,
       .offlineChartDetail(id: UUID()),
-      .chartPreferences
+      .chartPreferences,
+      .checklists,
+      .checklistCategories,
+      .checklistTemplateDetail(templateId: UUID(), template: nil, startEditable: false),
+      .activeSession(ChecklistSessionPayload(id: UUID()))
     ]
 
     let set = Set(destinations)
     XCTAssertEqual(set.count, destinations.count, "Each CommandDestination case must be uniquely hashable")
+    XCTAssertEqual(destinations.count, 15, "All 15 CommandDestination enum cases must be tested for uniqueness")
   }
 
   // MARK: - Navigation Path Stack Operations

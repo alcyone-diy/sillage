@@ -294,6 +294,14 @@ struct CommandPanelView: View {
     case .checklists:
       if let service = checklistService ?? appEnvironment.checklistService {
         ChecklistTemplateListView(checklistService: service)
+      } else {
+        checklistServiceUnavailableView(for: "Checklists")
+      }
+    case .checklistCategories:
+      if let service = checklistService ?? appEnvironment.checklistService {
+        ChecklistCategoryListView(checklistService: service)
+      } else {
+        checklistServiceUnavailableView(for: "Checklist Categories")
       }
     case .checklistTemplateDetail(let templateId, let template, let startEditable):
       if let service = checklistService ?? appEnvironment.checklistService {
@@ -303,6 +311,8 @@ struct CommandPanelView: View {
           checklistService: service,
           startEditable: startEditable
         )
+      } else {
+        checklistServiceUnavailableView(for: "Checklist Template Detail")
       }
     case .activeSession(let route):
       if let service = checklistService ?? appEnvironment.checklistService {
@@ -314,7 +324,24 @@ struct CommandPanelView: View {
             appEnvironment.lastKnownLocation
           }
         )
+      } else {
+        checklistServiceUnavailableView(for: "Active Checklist Session")
       }
+    }
+  }
+
+  @ViewBuilder
+  private func checklistServiceUnavailableView(for feature: String) -> some View {
+    ContentUnavailableView {
+      Label("Service Unavailable", systemImage: "exclamationmark.triangle.fill")
+        .foregroundStyle(marineTheme.colors.warning)
+    } description: {
+      Text("Checklist Service Unavailable")
+        .marineFont(.body)
+    }
+    .marineListBackground()
+    .onAppear {
+      Logger.checklist.fault("ChecklistService is unavailable when navigating to \(feature, privacy: .public)")
     }
   }
 }
