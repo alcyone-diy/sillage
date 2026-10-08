@@ -62,10 +62,12 @@ final class ChecklistCategoryTests: XCTestCase {
     XCTAssertEqual(template.categoryId, "engine_technical")
 
     // Direct database verification
-    try await databaseManager.reader.read { db in
-      let record = try XCTUnwrap(ChecklistTemplateRecord.fetchOne(db, key: template.id.uuidString))
-      XCTAssertEqual(record.category_id, "engine_technical")
+    let templateId = template.id.uuidString
+    let record = try await databaseManager.reader.read { db in
+      try ChecklistTemplateRecord.fetchOne(db, key: templateId)
     }
+    let unwrappedRecord = try XCTUnwrap(record)
+    XCTAssertEqual(unwrappedRecord.category_id, "engine_technical")
   }
 
   func testCannotDeleteCategoryWithAssociatedTemplatesViaService() async throws {

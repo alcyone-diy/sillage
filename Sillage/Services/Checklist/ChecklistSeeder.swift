@@ -14,7 +14,7 @@ import OSLog
 
 /// Seeds essential built-in maritime checklist templates into the database.
 public struct ChecklistSeeder: Sendable {
-  public static let initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] = [
+  nonisolated public static let initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] = [
     ("safety_emergency", "Safety & Emergency", "exclamationmark.shield.fill", 0),
     ("navigation_maneuver", "Navigation & Maneuver", "steeringwheel", 1),
     ("routine", "Routine", "checklist", 2),
