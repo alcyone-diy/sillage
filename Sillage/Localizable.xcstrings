@@ -592,6 +592,9 @@
     "Error" : {
 
     },
+    "Error Loading Categories" : {
+
+    },
     "Error loading document" : {
 
     },
@@ -929,6 +932,12 @@
 
     },
     "No active recording to stop." : {
+
+    },
+    "No Categories" : {
+
+    },
+    "No categories available" : {
 
     },
     "No chart layer available for download. Please select a valid layer." : {
@@ -1365,6 +1374,9 @@
     },
     "Triggers on drops ≥ 5.0 hPa within 3h. Recommended offshore to avoid alarm fatigue." : {
       "comment" : "Low sensitivity explanation"
+    },
+    "Unable to load checklist categories. Please try again." : {
+
     },
     "Unavailable" : {
 

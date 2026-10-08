@@ -19,7 +19,7 @@ struct SettingsView: View {
   
   var body: some View {
     Form {
-      Section(header: Text("General").marineSectionHeader()) {
+      Section {
         Toggle(isOn: Bindable(appViewModel).isGloveModeEnabled) {
           Label("Glove Mode", systemImage: "hand.raised.fill")
             .marineFont(.body)
@@ -31,17 +31,31 @@ struct SettingsView: View {
             .marineFont(.body)
         }
         .marineListCell()
+      } header: {
+        Text("General").marineSectionHeader()
       }
       
-      Section(header: Text("Navigation").marineSectionHeader()) {
+      Section {
         NavigationLink(destination: COGPreferencesView()) {
           Label("Predictor Vector", systemImage: "location.north.line.fill")
             .marineFont(.body)
         }
         .marineListCell()
+      } header: {
+        Text("Navigation").marineSectionHeader()
       }
       
-      Section(header: Text("Safety & Legal").marineSectionHeader()) {
+      Section {
+        NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistCategories) {
+          Label("Checklist Categories", systemImage: "tag")
+            .marineFont(.body)
+        }
+        .marineListCell()
+      } header: {
+        Text("Checklists").marineSectionHeader()
+      }
+      
+      Section {
         NavigationLink(
           destination: LegalListView(
             navigationWarningDocument: viewModel.navigationWarningDocument,
@@ -53,9 +67,11 @@ struct SettingsView: View {
             .marineFont(.body)
         }
         .marineListCell()
+      } header: {
+        Text("Safety & Legal").marineSectionHeader()
       }
       
-      Section(header: Text("About").marineSectionHeader()) {
+      Section {
         NavigationLink(destination: VersionInfoView()) {
           HStack {
             Label("Version", systemImage: "info.circle")
@@ -80,15 +96,19 @@ struct SettingsView: View {
         }
         .tint(.primary)
         .marineListCell()
+      } header: {
+        Text("About").marineSectionHeader()
       }
       
 #if DEBUG
-      Section(header: Text("Debug").marineSectionHeader()) {
+      Section {
         NavigationLink(destination: DebugView()) {
           Label("Debug Menu", systemImage: "ladybug")
             .marineFont(.body)
         }
         .marineListCell()
+      } header: {
+        Text("Debug").marineSectionHeader()
       }
 #endif
     }
