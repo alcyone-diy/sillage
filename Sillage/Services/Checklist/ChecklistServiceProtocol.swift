@@ -25,16 +25,7 @@ public protocol ChecklistServiceProtocol: Sendable {
   func createTemplate(
     title: String,
     description: String?,
-    category: ChecklistCategory,
-    items: [(title: String, detail: String?)]
-  ) async throws -> ChecklistTemplate
-
-  /// Creates a checklist template with optional explicit category ID.
-  func createTemplate(
-    title: String,
-    description: String?,
-    category: ChecklistCategory,
-    categoryId: String?,
+    categoryId: String,
     items: [(title: String, detail: String?)]
   ) async throws -> ChecklistTemplate
 
@@ -43,17 +34,7 @@ public protocol ChecklistServiceProtocol: Sendable {
     id: UUID,
     title: String,
     description: String?,
-    category: ChecklistCategory,
-    items: [(id: UUID?, title: String, detail: String?)]
-  ) async throws -> ChecklistTemplate
-
-  /// Updates an existing checklist template with optional explicit category ID.
-  func updateTemplate(
-    id: UUID,
-    title: String,
-    description: String?,
-    category: ChecklistCategory,
-    categoryId: String?,
+    categoryId: String,
     items: [(id: UUID?, title: String, detail: String?)]
   ) async throws -> ChecklistTemplate
 
@@ -64,16 +45,7 @@ public protocol ChecklistServiceProtocol: Sendable {
   func createCustomTemplate(
     title: String,
     description: String?,
-    category: ChecklistCategory,
-    items: [(title: String, detail: String?)]
-  ) async throws -> ChecklistTemplate
-
-  /// Creates a custom user-defined checklist template with optional explicit category ID.
-  func createCustomTemplate(
-    title: String,
-    description: String?,
-    category: ChecklistCategory,
-    categoryId: String?,
+    categoryId: String,
     items: [(title: String, detail: String?)]
   ) async throws -> ChecklistTemplate
 
@@ -82,17 +54,7 @@ public protocol ChecklistServiceProtocol: Sendable {
     id: UUID,
     title: String,
     description: String?,
-    category: ChecklistCategory,
-    items: [(id: UUID?, title: String, detail: String?)]
-  ) async throws -> ChecklistTemplate
-
-  /// Updates an existing custom checklist template with optional explicit category ID.
-  func updateCustomTemplate(
-    id: UUID,
-    title: String,
-    description: String?,
-    category: ChecklistCategory,
-    categoryId: String?,
+    categoryId: String,
     items: [(id: UUID?, title: String, detail: String?)]
   ) async throws -> ChecklistTemplate
 
@@ -181,33 +143,13 @@ extension ChecklistServiceProtocol {
     id: UUID,
     title: String,
     description: String?,
-    category: ChecklistCategory,
+    categoryId: String,
     items: [(title: String, detail: String?)]
   ) async throws -> ChecklistTemplate {
     try await updateCustomTemplate(
       id: id,
       title: title,
       description: description,
-      category: category,
-      categoryId: nil,
-      items: items.map { (id: nil, title: $0.title, detail: $0.detail) }
-    )
-  }
-
-  /// Updates an existing custom checklist template with explicit category ID and simple item tuples.
-  public func updateCustomTemplate(
-    id: UUID,
-    title: String,
-    description: String?,
-    category: ChecklistCategory,
-    categoryId: String?,
-    items: [(title: String, detail: String?)]
-  ) async throws -> ChecklistTemplate {
-    try await updateCustomTemplate(
-      id: id,
-      title: title,
-      description: description,
-      category: category,
       categoryId: categoryId,
       items: items.map { (id: nil, title: $0.title, detail: $0.detail) }
     )

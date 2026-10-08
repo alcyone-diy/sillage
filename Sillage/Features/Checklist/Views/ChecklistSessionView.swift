@@ -136,13 +136,13 @@ public struct ChecklistSessionView: View {
           }
           .marineFont(.caption)
           .foregroundStyle(categoryItem.color(for: marineTheme))
-        } else if let category = viewModel.category {
+        } else if let categoryId = viewModel.categoryId {
           HStack(spacing: MarineTheme.Spacing.small) {
-            Image(systemName: category.systemImage)
-            Text(category.title)
+            Image(systemName: "checklist")
+            Text(LocalizedStringKey(categoryId.capitalized))
           }
           .marineFont(.caption)
-          .foregroundStyle(category.color(for: marineTheme))
+          .foregroundStyle(marineTheme.colors.accent)
         }
 
         if let description = viewModel.description {

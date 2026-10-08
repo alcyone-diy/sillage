@@ -60,16 +60,12 @@ public final class ChecklistSessionViewModel {
     return trimmed.isEmpty ? nil : trimmed
   }
 
-  public var category: ChecklistCategory? {
-    session?.category ?? template?.category
-  }
-
   public var categoryId: String? {
     session?.categoryId ?? template?.categoryId
   }
 
   public var categoryName: String {
-    categoryItem?.name ?? category?.title ?? ""
+    categoryItem?.name ?? categoryId?.capitalized ?? ""
   }
 
   public var items: [ChecklistSessionItem] {

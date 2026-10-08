@@ -25,15 +25,6 @@ public final class ChecklistTemplateListViewModel {
   public private(set) var isLoading: Bool = false
   public var errorMessage: String?
 
-  /// Templates grouped by category in defined order.
-  public var groupedTemplates: [(category: ChecklistCategory, templates: [ChecklistTemplate])] {
-    let grouped = Dictionary(grouping: templates, by: \.category)
-    return ChecklistCategory.allCases.compactMap { category in
-      guard let list = grouped[category], !list.isEmpty else { return nil }
-      return (category: category, templates: list)
-    }
-  }
-
   /// Templates grouped dynamically by checklist category items in defined sort order.
   public var groupedByCategoryItem: [(category: ChecklistCategoryItem, templates: [ChecklistTemplate])] {
     let grouped = Dictionary(grouping: templates, by: \.categoryId)
@@ -52,8 +43,8 @@ public final class ChecklistTemplateListViewModel {
       if let list = grouped[remainingId], !list.isEmpty {
         let fallback = ChecklistCategoryItem(
           id: remainingId,
-          name: ChecklistCategory(rawValue: remainingId)?.title ?? remainingId,
-          icon: ChecklistCategory(rawValue: remainingId)?.systemImage ?? "checklist"
+          name: remainingId.capitalized,
+          icon: "checklist"
         )
         result.append((category: fallback, templates: list))
       }

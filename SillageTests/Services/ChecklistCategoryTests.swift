@@ -36,16 +36,17 @@ final class ChecklistCategoryTests: XCTestCase {
 
   func testDefaultCategoriesPrepopulatedInV2() async throws {
     let categories = try await checklistService.fetchCategories()
-    XCTAssertEqual(categories.count, ChecklistCategory.allCases.count)
+    let expectedIds = ["safety_emergency", "navigation_maneuver", "routine", "engine_technical", "wintering_maintenance"]
+    XCTAssertEqual(categories.count, expectedIds.count)
 
     let ids = Set(categories.map(\.id))
-    for expectedCase in ChecklistCategory.allCases {
-      XCTAssertTrue(ids.contains(expectedCase.rawValue))
+    for expectedId in expectedIds {
+      XCTAssertTrue(ids.contains(expectedId))
     }
 
-    let routine = try XCTUnwrap(categories.first(where: { $0.id == ChecklistCategory.routine.rawValue }))
-    XCTAssertEqual(routine.name, ChecklistCategory.routine.title)
-    XCTAssertEqual(routine.icon, ChecklistCategory.routine.systemImage)
+    let routine = try XCTUnwrap(categories.first(where: { $0.id == "routine" }))
+    XCTAssertEqual(routine.name, "Routine")
+    XCTAssertEqual(routine.icon, "checklist")
   }
 
   // MARK: - Association & Relationship Tests
@@ -54,18 +55,16 @@ final class ChecklistCategoryTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Engine Pre-Start",
       description: "Checks before starting engine",
-      category: .engineTechnical,
+      categoryId: "engine_technical",
       items: [("Check oil", "Dipstick")]
     )
 
-    XCTAssertEqual(template.category, .engineTechnical)
-    XCTAssertEqual(template.categoryId, ChecklistCategory.engineTechnical.rawValue)
+    XCTAssertEqual(template.categoryId, "engine_technical")
 
     // Direct database verification
     try await databaseManager.reader.read { db in
       let record = try XCTUnwrap(ChecklistTemplateRecord.fetchOne(db, key: template.id.uuidString))
-      XCTAssertEqual(record.category, ChecklistCategory.engineTechnical.rawValue)
-      XCTAssertEqual(record.category_id, ChecklistCategory.engineTechnical.rawValue)
+      XCTAssertEqual(record.category_id, "engine_technical")
     }
   }
 
@@ -73,15 +72,15 @@ final class ChecklistCategoryTests: XCTestCase {
     _ = try await checklistService.createCustomTemplate(
       title: "Routine Morning Check",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Deck inspection", nil)]
     )
 
     do {
-      try await checklistService.deleteCategory(id: ChecklistCategory.routine.rawValue)
+      try await checklistService.deleteCategory(id: "routine")
       XCTFail("Expected categoryHasAssociatedTemplates error")
     } catch let error as ChecklistSessionError {
-      XCTAssertEqual(error, .categoryHasAssociatedTemplates(ChecklistCategory.routine.rawValue))
+      XCTAssertEqual(error, .categoryHasAssociatedTemplates("routine"))
     }
   }
 
@@ -89,7 +88,7 @@ final class ChecklistCategoryTests: XCTestCase {
     _ = try await checklistService.createCustomTemplate(
       title: "Safety Gear Check",
       description: nil,
-      category: .safetyEmergency,
+      categoryId: "safety_emergency",
       items: [("Flares", nil)]
     )
 
@@ -97,7 +96,7 @@ final class ChecklistCategoryTests: XCTestCase {
       try await databaseManager.write { db in
         try db.execute(
           sql: "DELETE FROM checklist_category WHERE id = ?",
-          arguments: [ChecklistCategory.safetyEmergency.rawValue]
+          arguments: ["safety_emergency"]
         )
       }
       XCTFail("Expected SQLite foreign key RESTRICT constraint to fail")
@@ -133,7 +132,6 @@ final class ChecklistCategoryTests: XCTestCase {
           id: UUID().uuidString,
           title: "Ghost Category Template",
           description: nil,
-          category: "non_existent_category",
           category_id: "non_existent_category",
           sort_order: 0,
           created_at: now,
@@ -283,5 +281,80 @@ final class ChecklistCategoryTests: XCTestCase {
     try await checklistService.deleteCategory(id: "docking")
     let afterDelete = try await checklistService.fetchCategory(id: "docking")
     XCTAssertNil(afterDelete)
+  }
+
+  // MARK: - Migration v2 to v3 Test
+
+  func testMigrationFromV2ToV3DropsCategoryColumn() async throws {
+    let queue = try DatabaseQueue()
+
+    // 1. Run migrations v1 and v2
+    var v2Migrator = DatabaseMigrator()
+    v2Migrator.registerMigration("v1") { db in
+      try db.create(table: "checklist_template") { t in
+        t.column("id", .text).primaryKey()
+        t.column("title", .text).notNull()
+        t.column("description", .text)
+        t.column("category", .text).notNull()
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+      try db.create(index: "idx_checklist_template_category", on: "checklist_template", columns: ["category"])
+    }
+    v2Migrator.registerMigration("v2") { db in
+      try db.create(table: "checklist_category") { t in
+        t.column("id", .text).primaryKey()
+        t.column("name", .text).notNull()
+        t.column("icon", .text)
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+      try db.alter(table: "checklist_template") { t in
+        t.add(column: "category_id", .text)
+          .references("checklist_category", column: "id", onDelete: .restrict)
+      }
+      try db.execute(sql: "UPDATE checklist_template SET category_id = category WHERE category_id IS NULL")
+    }
+    try v2Migrator.migrate(queue)
+
+    // 2. Insert data in v2 schema
+    let now = Date()
+    try await queue.write { db in
+      try db.execute(
+        sql: "INSERT INTO checklist_category (id, name, sort_order, created_at, updated_at) VALUES ('routine', 'Routine', 0, ?, ?)",
+        arguments: [now, now]
+      )
+      try db.execute(
+        sql: """
+        INSERT INTO checklist_template (id, title, description, category, category_id, sort_order, created_at, updated_at)
+        VALUES ('tpl-clean', 'Clean Category', 'Desc', 'routine', 'routine', 0, ?, ?)
+        """,
+        arguments: [now, now]
+      )
+    }
+
+    // 3. Migrate with v3
+    var fullMigrator = DatabaseMigrator()
+    fullMigrator.registerMigration("v1") { _ in }
+    fullMigrator.registerMigration("v2") { _ in }
+    fullMigrator.registerMigration("v3") { db in
+      try db.execute(sql: "DROP INDEX IF EXISTS idx_checklist_template_category")
+      try db.alter(table: "checklist_template") { t in
+        t.drop(column: "category")
+      }
+    }
+    try fullMigrator.migrate(queue)
+
+    // 4. Verify category column is gone and category_id remains
+    try await queue.read { db in
+      let columns = try db.columns(in: "checklist_template").map(\.name)
+      XCTAssertFalse(columns.contains("category"))
+      XCTAssertTrue(columns.contains("category_id"))
+
+      let row = try XCTUnwrap(Row.fetchOne(db, sql: "SELECT category_id FROM checklist_template WHERE id = 'tpl-clean'"))
+      XCTAssertEqual(row["category_id"], "routine")
+    }
   }
 }

@@ -38,7 +38,6 @@ public struct ChecklistTemplate: Identifiable, Hashable, Sendable {
   public let id: UUID
   public let title: String
   public let description: String?
-  public let category: ChecklistCategory
   public let categoryId: String
   public let sortOrder: Int
   public let createdAt: Date
@@ -49,8 +48,7 @@ public struct ChecklistTemplate: Identifiable, Hashable, Sendable {
     id: UUID = UUID(),
     title: String,
     description: String? = nil,
-    category: ChecklistCategory,
-    categoryId: String? = nil,
+    categoryId: String,
     sortOrder: Int = 0,
     createdAt: Date = Date(),
     updatedAt: Date = Date(),
@@ -59,8 +57,7 @@ public struct ChecklistTemplate: Identifiable, Hashable, Sendable {
     self.id = id
     self.title = title
     self.description = description
-    self.category = category
-    self.categoryId = categoryId ?? category.rawValue
+    self.categoryId = categoryId
     self.sortOrder = sortOrder
     self.createdAt = createdAt
     self.updatedAt = updatedAt

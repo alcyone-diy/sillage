@@ -45,19 +45,9 @@ public final class ChecklistOverlayViewModel {
     inProgressSessions.filter { $0.categoryId == categoryId }
   }
 
-  /// In-progress sessions belonging to a specific built-in category.
-  public func inProgressSessions(for category: ChecklistCategory) -> [ChecklistSession] {
-    inProgressSessions.filter { $0.category == category }
-  }
-
   /// Completed sessions belonging to a specific category ID.
   public func completedSessions(for categoryId: String) -> [ChecklistSession] {
     completedSessions.filter { $0.categoryId == categoryId }
-  }
-
-  /// Completed sessions belonging to a specific built-in category.
-  public func completedSessions(for category: ChecklistCategory) -> [ChecklistSession] {
-    completedSessions.filter { $0.category == category }
   }
 
   /// Whether any checklist session is currently in progress.

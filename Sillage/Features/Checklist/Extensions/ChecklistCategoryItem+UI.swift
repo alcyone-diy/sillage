@@ -1,5 +1,5 @@
 //
-//  ChecklistCategory+UI.swift
+//  ChecklistCategoryItem+UI.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-10-01.
@@ -10,37 +10,27 @@
 
 import SwiftUI
 
-extension ChecklistCategory {
-  func color(for theme: MarineTheme) -> Color {
-    switch self {
-    case .safetyEmergency:
-      return theme.colors.warning
-    case .navigationManeuver:
-      return theme.colors.accent
-    case .routine:
-      return theme.colors.primary
-    case .engineTechnical:
-      return theme.colors.textSecondary
-    case .winteringMaintenance:
-      return theme.colors.inactive
-    }
-  }
-}
-
 extension ChecklistCategoryItem {
   func color(for theme: MarineTheme) -> Color {
-    if let builtIn = builtInEnum {
-      return builtIn.color(for: theme)
+    switch id {
+    case "safety_emergency":
+      return theme.colors.warning
+    case "navigation_maneuver":
+      return theme.colors.accent
+    case "routine":
+      return theme.colors.primary
+    case "engine_technical":
+      return theme.colors.textSecondary
+    case "wintering_maintenance":
+      return theme.colors.inactive
+    default:
+      return theme.colors.accent
     }
-    return theme.colors.accent
   }
 
   var displaySystemImage: String {
     if let icon, !icon.isEmpty {
       return icon
-    }
-    if let builtIn = builtInEnum {
-      return builtIn.systemImage
     }
     return "checklist"
   }

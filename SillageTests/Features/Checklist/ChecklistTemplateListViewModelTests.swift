@@ -45,7 +45,7 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     XCTAssertTrue(vm.activeSessions.isEmpty)
     XCTAssertFalse(vm.isLoading)
     XCTAssertNil(vm.errorMessage)
-    XCTAssertTrue(vm.groupedTemplates.isEmpty)
+    XCTAssertTrue(vm.groupedByCategoryItem.isEmpty)
   }
 
   // MARK: - Loading Templates Tests
@@ -57,20 +57,20 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     _ = try await service.createCustomTemplate(
       title: "Routine Check",
       description: "Routine items",
-      category: .routine,
+      categoryId: "routine",
       items: [("Item 1", "Detail 1")]
     )
     _ = try await service.createCustomTemplate(
       title: "Safety Brief",
       description: "Emergency equipment",
-      category: .safetyEmergency,
+      categoryId: "safety_emergency",
       items: [("Lifejackets", "On deck")]
     )
 
     await vm.loadTemplates()
 
     XCTAssertEqual(vm.templates.count, 2)
-    XCTAssertEqual(vm.groupedTemplates.count, 2)
+    XCTAssertEqual(vm.groupedByCategoryItem.count, 2)
     XCTAssertNil(vm.errorMessage)
   }
 
@@ -83,19 +83,19 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     _ = try await service.createCustomTemplate(
       title: "Zebra Checklist",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Z1", nil)]
     )
     _ = try await service.createCustomTemplate(
       title: "Alpha Checklist",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("A1", nil)]
     )
     _ = try await service.createCustomTemplate(
       title: "Beta Checklist",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("B1", nil)]
     )
 
@@ -103,7 +103,7 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
 
     XCTAssertEqual(vm.templates.map(\.title), ["Alpha Checklist", "Beta Checklist", "Zebra Checklist"])
 
-    let routineSection = try XCTUnwrap(vm.groupedTemplates.first(where: { $0.category == .routine }))
+    let routineSection = try XCTUnwrap(vm.groupedByCategoryItem.first(where: { $0.category.id == "routine" }))
     XCTAssertEqual(routineSection.templates.map(\.title), ["Alpha Checklist", "Beta Checklist", "Zebra Checklist"])
   }
 
@@ -117,7 +117,7 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
         id: UUID().uuidString,
         title: "Zulu Checklist",
         description: nil,
-        category: ChecklistCategory.routine.rawValue,
+        category_id: "routine",
         sort_order: 1,
         created_at: Date(),
         updated_at: Date()
@@ -127,7 +127,7 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
         id: UUID().uuidString,
         title: "Alpha Checklist",
         description: nil,
-        category: ChecklistCategory.routine.rawValue,
+        category_id: "routine",
         sort_order: 2,
         created_at: Date(),
         updated_at: Date()
@@ -139,7 +139,7 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     // sort_order 1 ("Zulu Checklist") MUST precede sort_order 2 ("Alpha Checklist")
     XCTAssertEqual(vm.templates.map(\.title), ["Zulu Checklist", "Alpha Checklist"])
 
-    let routineSection = try XCTUnwrap(vm.groupedTemplates.first(where: { $0.category == .routine }))
+    let routineSection = try XCTUnwrap(vm.groupedByCategoryItem.first(where: { $0.category.id == "routine" }))
     XCTAssertEqual(routineSection.templates.map(\.title), ["Zulu Checklist", "Alpha Checklist"])
   }
 
@@ -147,19 +147,19 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     let zuluOrder1 = ChecklistTemplate(
       id: UUID(),
       title: "Zulu",
-      category: .routine,
+      categoryId: "routine",
       sortOrder: 1
     )
     let alphaOrder2 = ChecklistTemplate(
       id: UUID(),
       title: "Alpha",
-      category: .routine,
+      categoryId: "routine",
       sortOrder: 2
     )
     let betaOrder2 = ChecklistTemplate(
       id: UUID(),
       title: "Beta",
-      category: .routine,
+      categoryId: "routine",
       sortOrder: 2
     )
 
@@ -181,7 +181,7 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     let template = try await service.createCustomTemplate(
       title: "Navigation Prep",
       description: nil,
-      category: .navigationManeuver,
+      categoryId: "navigation_maneuver",
       items: [("Check charts", nil)]
     )
 
@@ -242,7 +242,7 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     let template = try await service.createCustomTemplate(
       title: "Quick Check",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Step 1", nil)]
     )
 
@@ -263,7 +263,7 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     let template = try await service.createCustomTemplate(
       title: "Departure Checklist",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Check bilge", nil), ("Stow gear", nil)]
     )
 
@@ -317,7 +317,6 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
     _ = try await service.createCustomTemplate(
       title: "Anchorage Check",
       description: "Depth and swing radius",
-      category: .routine,
       categoryId: customCategory.id,
       items: [("Set anchor", nil)]
     )

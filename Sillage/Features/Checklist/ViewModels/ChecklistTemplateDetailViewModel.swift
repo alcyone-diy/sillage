@@ -57,23 +57,7 @@ public final class ChecklistTemplateDetailViewModel {
 
   public var title: String = ""
   public var descriptionText: String = ""
-  private var fallbackCategory: ChecklistCategory = .routine
-  public var categoryId: String = ChecklistCategory.routine.rawValue {
-    didSet {
-      if let builtIn = ChecklistCategory(rawValue: categoryId) {
-        fallbackCategory = builtIn
-      }
-    }
-  }
-  public var category: ChecklistCategory {
-    get {
-      ChecklistCategory(rawValue: categoryId) ?? fallbackCategory
-    }
-    set {
-      fallbackCategory = newValue
-      categoryId = newValue.rawValue
-    }
-  }
+  public var categoryId: String = "routine"
   public var items: [ChecklistItemDraft] = []
 
   /// The currently resolved category item from availableCategories, if found.
@@ -172,8 +156,7 @@ public final class ChecklistTemplateDetailViewModel {
     template: ChecklistTemplate? = nil,
     checklistService: any ChecklistServiceProtocol,
     startEditable: Bool = false,
-    initialCategory: ChecklistCategory = .routine,
-    initialCategoryId: String? = nil
+    initialCategoryId: String = "routine"
   ) {
     self.templateId = templateId ?? template?.id
     self.checklistService = checklistService
@@ -183,9 +166,7 @@ public final class ChecklistTemplateDetailViewModel {
       self.template = template
       populate(from: template)
     } else if templateId == nil {
-      let resolvedCategoryId = initialCategoryId ?? initialCategory.rawValue
-      self.categoryId = resolvedCategoryId
-      self.fallbackCategory = ChecklistCategory(rawValue: resolvedCategoryId) ?? initialCategory
+      self.categoryId = initialCategoryId
       self.items = [ChecklistItemDraft()]
     }
   }
@@ -275,7 +256,6 @@ public final class ChecklistTemplateDetailViewModel {
     self.title = template.title
     self.descriptionText = template.description ?? ""
     self.categoryId = template.categoryId
-    self.fallbackCategory = template.category
     let mapped = template.items.sorted { $0.sortOrder < $1.sortOrder }.map { item in
       ChecklistItemDraft(
         id: item.id,
@@ -294,8 +274,7 @@ public final class ChecklistTemplateDetailViewModel {
     } else {
       title = ""
       descriptionText = ""
-      fallbackCategory = .routine
-      categoryId = ChecklistCategory.routine.rawValue
+      categoryId = "routine"
       items = [ChecklistItemDraft()]
     }
   }
@@ -417,7 +396,6 @@ public final class ChecklistTemplateDetailViewModel {
           id: templateId,
           title: trimmedTitle,
           description: desc,
-          category: category,
           categoryId: categoryId,
           items: serviceItems
         )
@@ -434,7 +412,6 @@ public final class ChecklistTemplateDetailViewModel {
         saved = try await checklistService.createCustomTemplate(
           title: trimmedTitle,
           description: desc,
-          category: category,
           categoryId: categoryId,
           items: serviceItems
         )
@@ -455,24 +432,13 @@ public final class ChecklistTemplateDetailViewModel {
 
   // MARK: - Category Selection Helpers
 
-  /// Selects a category by its built-in enum, keeping category and categoryId in sync.
-  public func selectCategory(_ category: ChecklistCategory) {
-    self.category = category
-  }
-
-  /// Selects a category from a category item, keeping category and categoryId in sync.
+  /// Selects a category from a category item.
   public func selectCategoryItem(_ item: ChecklistCategoryItem) {
     self.categoryId = item.id
-    if let builtIn = item.builtInEnum {
-      self.fallbackCategory = builtIn
-    }
   }
 
   /// Selects a category by its unique identifier.
   public func selectCategoryId(_ id: String) {
     self.categoryId = id
-    if let builtIn = ChecklistCategory(rawValue: id) {
-      self.fallbackCategory = builtIn
-    }
   }
 }

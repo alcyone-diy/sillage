@@ -40,9 +40,4 @@ public struct ChecklistCategoryItem: Identifiable, Hashable, Sendable {
 
   /// Convenience systemImage matching icon.
   public var systemImage: String? { icon }
-
-  /// Maps to built-in enum if matching standard cases.
-  public var builtInEnum: ChecklistCategory? {
-    ChecklistCategory(rawValue: id)
-  }
 }

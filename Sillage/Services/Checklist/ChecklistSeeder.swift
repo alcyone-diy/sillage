@@ -14,15 +14,23 @@ import OSLog
 
 /// Seeds essential built-in maritime checklist templates into the database.
 public struct ChecklistSeeder: Sendable {
+  public static let initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] = [
+    ("safety_emergency", "Safety & Emergency", "exclamationmark.shield.fill", 0),
+    ("navigation_maneuver", "Navigation & Maneuver", "steeringwheel", 1),
+    ("routine", "Routine", "checklist", 2),
+    ("engine_technical", "Engine & Technical", "wrench.and.screwdriver.fill", 3),
+    ("wintering_maintenance", "Wintering & Maintenance", "snowflake", 4)
+  ]
+
   nonisolated public static func seedDefaultCategoriesIfNeeded(in db: Database) throws {
     let now = Date()
-    for (index, category) in ChecklistCategory.allCases.enumerated() {
+    for category in initialCategories {
       try db.execute(
         sql: """
         INSERT OR IGNORE INTO \(ChecklistCategoryRecord.databaseTableName) (id, name, icon, sort_order, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        arguments: [category.rawValue, category.title, category.systemImage, index, now, now]
+        arguments: [category.id, category.name, category.icon, category.sortOrder, now, now]
       )
     }
   }
@@ -54,8 +62,7 @@ public struct ChecklistSeeder: Sendable {
       id: departureId.uuidString,
       title: "Pre-Departure Checklist",
       description: "Essential vessel and crew safety checks before leaving the berth or mooring.",
-      category: ChecklistCategory.routine.rawValue,
-      category_id: ChecklistCategory.routine.rawValue,
+      category_id: "routine",
       sort_order: 0,
       created_at: now,
       updated_at: now
@@ -89,8 +96,7 @@ public struct ChecklistSeeder: Sendable {
       id: anchorId.uuidString,
       title: "Anchoring Checklist",
       description: "Standard anchoring procedure and safety radius verification.",
-      category: ChecklistCategory.navigationManeuver.rawValue,
-      category_id: ChecklistCategory.navigationManeuver.rawValue,
+      category_id: "navigation_maneuver",
       sort_order: 1,
       created_at: now,
       updated_at: now
@@ -122,8 +128,7 @@ public struct ChecklistSeeder: Sendable {
       id: mobId.uuidString,
       title: "Man Overboard (MOB)",
       description: "Critical emergency procedure for crew recovery at sea.",
-      category: ChecklistCategory.safetyEmergency.rawValue,
-      category_id: ChecklistCategory.safetyEmergency.rawValue,
+      category_id: "safety_emergency",
       sort_order: 2,
       created_at: now,
       updated_at: now
@@ -155,8 +160,7 @@ public struct ChecklistSeeder: Sendable {
       id: weatherId.uuidString,
       title: "Heavy Weather & Reefing",
       description: "Safety measures and sail plan reduction for rising sea state and squalls.",
-      category: ChecklistCategory.navigationManeuver.rawValue,
-      category_id: ChecklistCategory.navigationManeuver.rawValue,
+      category_id: "navigation_maneuver",
       sort_order: 3,
       created_at: now,
       updated_at: now

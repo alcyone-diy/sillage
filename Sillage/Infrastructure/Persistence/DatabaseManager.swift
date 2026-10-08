@@ -362,6 +362,16 @@ public final class DatabaseManager: Sendable {
       )
     }
 
+    migrator.registerMigration("v3") { db in
+      // 1. Drop index on legacy 'category' column if it exists before dropping the column itself
+      try db.execute(sql: "DROP INDEX IF EXISTS idx_checklist_template_category")
+
+      // 2. Drop legacy 'category' column from checklist_template table
+      try db.alter(table: "checklist_template") { t in
+        t.drop(column: "category")
+      }
+    }
+
     return migrator
   }
 }

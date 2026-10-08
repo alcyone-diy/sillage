@@ -30,7 +30,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     template = try await checklistService.createCustomTemplate(
       title: "Pre-Sail Brief",
       description: "Safety walkaround",
-      category: .safetyEmergency,
+      categoryId: "safety_emergency",
       items: [
         (title: "Lifejackets", detail: "Count matches crew"),
         (title: "EPIRB check", detail: "Battery valid")
@@ -64,7 +64,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.errorMessage)
     XCTAssertEqual(viewModel.title, "")
     XCTAssertNil(viewModel.description)
-    XCTAssertEqual(viewModel.category, .routine)
+    XCTAssertEqual(viewModel.categoryId, "routine")
     XCTAssertTrue(viewModel.items.isEmpty)
     XCTAssertFalse(viewModel.hasActiveSession)
     XCTAssertFalse(viewModel.isEditable)
@@ -78,7 +78,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertNotNil(viewModel.template)
     XCTAssertEqual(viewModel.title, "Pre-Sail Brief")
     XCTAssertEqual(viewModel.description, "Safety walkaround")
-    XCTAssertEqual(viewModel.category, .safetyEmergency)
+    XCTAssertEqual(viewModel.categoryId, "safety_emergency")
     guard viewModel.items.count == 2 else {
       XCTFail("Expected 2 items after loading")
       return
@@ -269,7 +269,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   func testCreationInitialState() {
     let creationVM = ChecklistTemplateDetailViewModel(
       checklistService: checklistService,
-      initialCategory: .routine
+      initialCategoryId: "routine"
     )
 
     XCTAssertNil(creationVM.templateId)
@@ -278,7 +278,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertTrue(creationVM.isNew)
     XCTAssertEqual(creationVM.title, "")
     XCTAssertEqual(creationVM.descriptionText, "")
-    XCTAssertEqual(creationVM.category, .routine)
+    XCTAssertEqual(creationVM.categoryId, "routine")
     XCTAssertEqual(creationVM.items.count, 1)
     XCTAssertEqual(creationVM.items.first?.title, "")
     XCTAssertFalse(creationVM.canDelete)
@@ -376,7 +376,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     let creationVM = ChecklistTemplateDetailViewModel(checklistService: checklistService)
     creationVM.title = "Passage Prep"
     creationVM.descriptionText = "Pre-passage safety checklist"
-    creationVM.category = .safetyEmergency
+    creationVM.categoryId = "safety_emergency"
     guard !creationVM.items.isEmpty else {
       XCTFail("Expected items to not be empty")
       return
@@ -389,7 +389,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertNotNil(saved)
     XCTAssertEqual(saved?.title, "Passage Prep")
     XCTAssertEqual(saved?.description, "Pre-passage safety checklist")
-    XCTAssertEqual(saved?.category, .safetyEmergency)
+    XCTAssertEqual(saved?.categoryId, "safety_emergency")
     XCTAssertEqual(saved?.items.count, 2)
     XCTAssertFalse(creationVM.isSaving)
     XCTAssertFalse(creationVM.isEditable)
@@ -400,7 +400,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     let existing = try await checklistService.createCustomTemplate(
       title: "Original Title",
       description: "Original description",
-      category: .routine,
+      categoryId: "routine",
       items: [
         (title: "Original Step 1", detail: "Detail 1"),
         (title: "Original Step 2", detail: "Detail 2")
@@ -444,34 +444,30 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     await viewModel.load()
     XCTAssertFalse(viewModel.availableCategories.isEmpty)
     XCTAssertNotNil(viewModel.selectedCategoryItem)
-    XCTAssertEqual(viewModel.categoryId, ChecklistCategory.safetyEmergency.rawValue)
-    XCTAssertEqual(viewModel.selectedCategoryItem?.id, ChecklistCategory.safetyEmergency.rawValue)
+    XCTAssertEqual(viewModel.categoryId, "safety_emergency")
+    XCTAssertEqual(viewModel.selectedCategoryItem?.id, "safety_emergency")
   }
 
-  func testCategoryAndCategoryIdBidirectionalSynchronization() {
+  func testCategoryIdSelectionAndHelpers() {
     let vm = ChecklistTemplateDetailViewModel(
       checklistService: checklistService,
-      initialCategory: .routine
+      initialCategoryId: "routine"
     )
-    XCTAssertEqual(vm.category, .routine)
-    XCTAssertEqual(vm.categoryId, ChecklistCategory.routine.rawValue)
+    XCTAssertEqual(vm.categoryId, "routine")
 
-    // Updating category updates categoryId
-    vm.category = .safetyEmergency
-    XCTAssertEqual(vm.categoryId, ChecklistCategory.safetyEmergency.rawValue)
+    vm.categoryId = "safety_emergency"
+    XCTAssertEqual(vm.categoryId, "safety_emergency")
 
-    // Updating categoryId with a built-in id updates category
-    vm.categoryId = ChecklistCategory.navigationManeuver.rawValue
-    XCTAssertEqual(vm.category, .navigationManeuver)
+    vm.selectCategoryId("navigation_maneuver")
+    XCTAssertEqual(vm.categoryId, "navigation_maneuver")
 
-    // Updating categoryId with custom id retains category as fallback
-    vm.categoryId = "custom_rigging"
+    let customItem = ChecklistCategoryItem(
+      id: "custom_rigging",
+      name: "Rigging",
+      icon: "rope"
+    )
+    vm.selectCategoryItem(customItem)
     XCTAssertEqual(vm.categoryId, "custom_rigging")
-
-    // Helper selectCategory
-    vm.selectCategory(.engineTechnical)
-    XCTAssertEqual(vm.category, .engineTechnical)
-    XCTAssertEqual(vm.categoryId, ChecklistCategory.engineTechnical.rawValue)
   }
 
   func testSaveTemplateWithCustomCategory() async throws {

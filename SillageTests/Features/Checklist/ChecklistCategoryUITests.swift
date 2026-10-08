@@ -13,18 +13,18 @@ import XCTest
 
 @MainActor
 final class ChecklistCategoryUITests: XCTestCase {
-  func testCategoryColor() {
+  func testCategoryItemColors() {
     let theme = MarineTheme(
       minTouchTarget: 44,
       isGloveMode: false,
       colors: MarineTheme.dayColors
     )
 
-    XCTAssertEqual(ChecklistCategory.safetyEmergency.color(for: theme), theme.colors.warning)
-    XCTAssertEqual(ChecklistCategory.navigationManeuver.color(for: theme), theme.colors.accent)
-    XCTAssertEqual(ChecklistCategory.routine.color(for: theme), theme.colors.primary)
-    XCTAssertEqual(ChecklistCategory.engineTechnical.color(for: theme), theme.colors.textSecondary)
-    XCTAssertEqual(ChecklistCategory.winteringMaintenance.color(for: theme), theme.colors.inactive)
+    XCTAssertEqual(ChecklistCategoryItem(id: "safety_emergency", name: "").color(for: theme), theme.colors.warning)
+    XCTAssertEqual(ChecklistCategoryItem(id: "navigation_maneuver", name: "").color(for: theme), theme.colors.accent)
+    XCTAssertEqual(ChecklistCategoryItem(id: "routine", name: "").color(for: theme), theme.colors.primary)
+    XCTAssertEqual(ChecklistCategoryItem(id: "engine_technical", name: "").color(for: theme), theme.colors.textSecondary)
+    XCTAssertEqual(ChecklistCategoryItem(id: "wintering_maintenance", name: "").color(for: theme), theme.colors.inactive)
   }
 
   func testCategoryItemColorAndSystemImage() {

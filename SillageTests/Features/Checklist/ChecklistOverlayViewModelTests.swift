@@ -68,7 +68,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let template = try await service.createCustomTemplate(
       title: "Engine Check",
       description: nil,
-      category: .engineTechnical,
+      categoryId: "engine_technical",
       items: [("Check oil", nil)]
     )
 
@@ -110,7 +110,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let template = try await service.createCustomTemplate(
       title: "Mooring Prep",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Prepare lines", nil), ("Fenders out", nil)]
     )
 
@@ -157,13 +157,13 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let template1 = try await service.createCustomTemplate(
       title: "Checklist 1",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Item 1", nil)]
     )
     let template2 = try await service.createCustomTemplate(
       title: "Checklist 2",
       description: nil,
-      category: .safetyEmergency,
+      categoryId: "safety_emergency",
       items: [("Item A", nil)]
     )
 
@@ -190,7 +190,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let template = try await service.createCustomTemplate(
       title: "Engine Check",
       description: nil,
-      category: .engineTechnical,
+      categoryId: "engine_technical",
       items: [("Check oil", nil)]
     )
 
@@ -228,7 +228,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let template = try await service.createCustomTemplate(
       title: "Pre-departure Check",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Check bilge", nil)]
     )
 
@@ -268,7 +268,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let template = try await service.createCustomTemplate(
       title: "Solo Check",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Check mast", nil)]
     )
 
@@ -303,13 +303,13 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let template1 = try await service.createCustomTemplate(
       title: "Check 1",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Item 1", nil)]
     )
     let template2 = try await service.createCustomTemplate(
       title: "Check 2",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Item 2", nil)]
     )
 
@@ -361,13 +361,13 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let template1 = try await service.createCustomTemplate(
       title: "Check 1",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Item 1A", nil), ("Item 1B", nil), ("Item 1C", nil), ("Item 1D", nil)]
     )
     let template2 = try await service.createCustomTemplate(
       title: "Check 2",
       description: nil,
-      category: .navigationManeuver,
+      categoryId: "navigation_maneuver",
       items: [("Item 2A", nil), ("Item 2B", nil)]
     )
 
@@ -411,21 +411,21 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let routineTemplate = try await service.createCustomTemplate(
       title: "Routine Checklist",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Task 1", nil)]
     )
 
     let engineTemplate = try await service.createCustomTemplate(
       title: "Engine Checklist",
       description: nil,
-      category: .engineTechnical,
+      categoryId: "engine_technical",
       items: [("Task 2", nil)]
     )
 
     let safetyTemplate = try await service.createCustomTemplate(
       title: "Safety Checklist",
       description: nil,
-      category: .safetyEmergency,
+      categoryId: "safety_emergency",
       items: [("Task 3", nil)]
     )
 
@@ -470,19 +470,19 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let templateZ = try await service.createCustomTemplate(
       title: "Zulu Checklist",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Z1", nil)]
     )
     let templateA = try await service.createCustomTemplate(
       title: "Alpha Checklist",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("A1", nil)]
     )
     let templateB = try await service.createCustomTemplate(
       title: "Bravo Checklist",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("B1", nil)]
     )
 
@@ -525,7 +525,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     let template = try await service.createCustomTemplate(
       title: "Temporary Checklist",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Step 1", nil)]
     )
 
@@ -551,7 +551,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       id: sessionId,
       templateId: templateId,
       templateTitleSnapshot: "Safety Briefing",
-      category: .safetyEmergency,
+      categoryId: "safety_emergency",
       status: .inProgress,
       items: [
         ChecklistSessionItem(
@@ -568,7 +568,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       id: sessionId,
       templateId: templateId,
       templateTitleSnapshot: "Safety Briefing",
-      category: .safetyEmergency,
+      categoryId: "safety_emergency",
       status: .completed,
       items: [
         ChecklistSessionItem(

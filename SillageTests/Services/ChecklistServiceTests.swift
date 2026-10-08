@@ -58,12 +58,12 @@ final class ChecklistServiceTests: XCTestCase {
     let created = try await checklistService.createCustomTemplate(
       title: "Night Sailing Prep",
       description: "Night passage checklist",
-      category: .routine,
+      categoryId: "routine",
       items: items
     )
 
     XCTAssertEqual(created.title, "Night Sailing Prep")
-    XCTAssertEqual(created.category, .routine)
+    XCTAssertEqual(created.categoryId, "routine")
     XCTAssertEqual(created.items.count, 2)
     XCTAssertEqual(created.items[0].title, "Check fuel tank")
 
@@ -77,7 +77,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Temporary Checklist",
       description: nil,
-      category: .engineTechnical,
+      categoryId: "engine_technical",
       items: [("Check belt", nil)]
     )
 
@@ -147,7 +147,7 @@ final class ChecklistServiceTests: XCTestCase {
       id: template.id,
       title: "Modified Checklist",
       description: "User customized",
-      category: .routine,
+      categoryId: "routine",
       items: [(id: nil, title: "Custom Step 1", detail: "Custom Detail")]
     )
 
@@ -182,7 +182,7 @@ final class ChecklistServiceTests: XCTestCase {
         id: UUID(),
         title: "Ghost",
         description: nil,
-        category: .routine,
+        categoryId: "routine",
         items: [("Ghost step", nil)]
       )
       XCTFail("Expected error when updating non-existent template")
@@ -195,7 +195,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Pre-Sail",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Check rigging", nil)]
     )
 
@@ -206,7 +206,7 @@ final class ChecklistServiceTests: XCTestCase {
       id: template.id,
       title: "Pre-Sail Rigging Check",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Check rigging thoroughly", nil)]
     )
 
@@ -219,7 +219,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Pre-Sail",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [
         ("Check bilges", nil),
         ("Check engine oil", nil),
@@ -253,7 +253,7 @@ final class ChecklistServiceTests: XCTestCase {
       id: template.id,
       title: "Pre-Sail Reordered",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: reorderedItems
     )
 
@@ -281,7 +281,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Engine Start",
       description: nil,
-      category: .engineTechnical,
+      categoryId: "engine_technical",
       items: [
         ("Open seacock", nil),
         ("Check oil", nil)
@@ -305,7 +305,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Anchor Procedure",
       description: nil,
-      category: .navigationManeuver,
+      categoryId: "navigation_maneuver",
       items: [
         ("Drop anchor", "Record coordinates"),
         ("Set snubber", nil)
@@ -359,7 +359,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Reset Test",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [
         ("Step 1", nil),
         ("Step 2", nil)
@@ -396,7 +396,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Completion Test",
       description: nil,
-      category: .safetyEmergency,
+      categoryId: "safety_emergency",
       items: [
         ("Step 1", nil),
         ("Step 2", nil)
@@ -435,7 +435,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Completed Session Mutability Check",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Task 1", nil)]
     )
 
@@ -463,7 +463,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Abandon Test",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Task 1", nil)]
     )
 
@@ -493,7 +493,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "History Protected",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Item", nil)]
     )
 
@@ -513,7 +513,7 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "Observation Test",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Step", nil)]
     )
 
@@ -540,14 +540,14 @@ final class ChecklistServiceTests: XCTestCase {
     let template = try await checklistService.createCustomTemplate(
       title: "All Sessions Observation Test",
       description: nil,
-      category: .routine,
+      categoryId: "routine",
       items: [("Step", nil)]
     )
 
     let secondTemplate = try await checklistService.createCustomTemplate(
       title: "Second Checklist",
       description: nil,
-      category: .safetyEmergency,
+      categoryId: "safety_emergency",
       items: [("Check", nil)]
     )
 
@@ -570,7 +570,7 @@ final class ChecklistServiceTests: XCTestCase {
     XCTAssertEqual(afterComplete?.count, 1)
     XCTAssertEqual(afterComplete?.first?.id, session.id)
     XCTAssertEqual(afterComplete?.first?.status, .completed)
-    XCTAssertEqual(afterComplete?.first?.category, .routine)
+    XCTAssertEqual(afterComplete?.first?.categoryId, "routine")
 
     // 4. Age completed session past retention threshold (e.g. 49h ago) -> excluded by frozen threshold
     let sessionIdString = session.id.uuidString

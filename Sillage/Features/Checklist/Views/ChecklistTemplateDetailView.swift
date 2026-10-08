@@ -36,8 +36,7 @@ public struct ChecklistTemplateDetailView: View {
     template: ChecklistTemplate? = nil,
     checklistService: any ChecklistServiceProtocol,
     startEditable: Bool = false,
-    initialCategory: ChecklistCategory = .routine,
-    initialCategoryId: String? = nil,
+    initialCategoryId: String = "routine",
     onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)? = nil
   ) {
     self.templateId = templateId ?? template?.id
@@ -48,7 +47,6 @@ public struct ChecklistTemplateDetailView: View {
       template: template,
       checklistService: checklistService,
       startEditable: startEditable,
-      initialCategory: initialCategory,
       initialCategoryId: initialCategoryId
     ))
   }
@@ -217,9 +215,9 @@ public struct ChecklistTemplateDetailView: View {
               .marineFont(.body)
               .foregroundStyle(marineTheme.colors.textSecondary)
           } else {
-            Image(systemName: viewModel.category.systemImage)
-              .foregroundStyle(viewModel.category.color(for: marineTheme))
-            Text(viewModel.category.title)
+            Image(systemName: "checklist")
+              .foregroundStyle(marineTheme.colors.accent)
+            Text(LocalizedStringKey(viewModel.categoryId.capitalized))
               .marineFont(.body)
               .foregroundStyle(marineTheme.colors.textSecondary)
           }
@@ -318,10 +316,8 @@ public struct ChecklistTemplateDetailView: View {
 
       Picker("Category", selection: $viewModel.categoryId) {
         if viewModel.availableCategories.isEmpty {
-          ForEach(ChecklistCategory.allCases, id: \.rawValue) { category in
-            Label(LocalizedStringKey(category.title), systemImage: category.systemImage)
-              .tag(category.rawValue)
-          }
+          Text(LocalizedStringKey(viewModel.categoryId.capitalized))
+            .tag(viewModel.categoryId)
         } else {
           ForEach(viewModel.availableCategories) { cat in
             Label(LocalizedStringKey(cat.name), systemImage: cat.displaySystemImage)

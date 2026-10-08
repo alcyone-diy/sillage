@@ -63,7 +63,6 @@ public struct ChecklistSession: Identifiable, Equatable, Hashable, Sendable {
   public let id: UUID
   public let templateId: UUID
   public let templateTitleSnapshot: String
-  public let category: ChecklistCategory
   public let categoryId: String
   public let status: ChecklistSessionStatus
   public let startedAt: Date
@@ -75,8 +74,7 @@ public struct ChecklistSession: Identifiable, Equatable, Hashable, Sendable {
     id: UUID = UUID(),
     templateId: UUID,
     templateTitleSnapshot: String,
-    category: ChecklistCategory = .routine,
-    categoryId: String? = nil,
+    categoryId: String = "routine",
     status: ChecklistSessionStatus = .inProgress,
     startedAt: Date = Date(),
     completedAt: Date? = nil,
@@ -86,8 +84,7 @@ public struct ChecklistSession: Identifiable, Equatable, Hashable, Sendable {
     self.id = id
     self.templateId = templateId
     self.templateTitleSnapshot = templateTitleSnapshot
-    self.category = category
-    self.categoryId = categoryId ?? category.rawValue
+    self.categoryId = categoryId
     self.status = status
     self.startedAt = startedAt
     self.completedAt = completedAt

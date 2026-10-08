@@ -33,7 +33,7 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     template = try await checklistService.createCustomTemplate(
       title: "Engine Check",
       description: "Pre-departure engine inspection",
-      category: .engineTechnical,
+      categoryId: "engine_technical",
       items: [
         (title: "Check oil level", detail: "Dipstick between MIN and MAX"),
         (title: "Check raw water strainer", detail: "Free of weed and debris"),
@@ -89,7 +89,7 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     XCTAssertNotNil(viewModel.template)
     XCTAssertEqual(viewModel.title, "Engine Check")
     XCTAssertEqual(viewModel.description, "Pre-departure engine inspection")
-    XCTAssertEqual(viewModel.category, .engineTechnical)
+    XCTAssertEqual(viewModel.categoryId, "engine_technical")
     XCTAssertEqual(viewModel.items.count, 3)
     XCTAssertEqual(viewModel.completedCount, 0)
     XCTAssertEqual(viewModel.totalCount, 3)
@@ -287,7 +287,7 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     await viewModel.load()
 
     XCTAssertNotNil(viewModel.categoryItem)
-    XCTAssertEqual(viewModel.categoryId, ChecklistCategory.engineTechnical.rawValue)
+    XCTAssertEqual(viewModel.categoryId, "engine_technical")
     XCTAssertEqual(viewModel.categoryName, "Engine & Technical")
   }
 
@@ -302,7 +302,6 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     let customTemplate = try await checklistService.createCustomTemplate(
       title: "Hull Inspection",
       description: "Thru-hulls and zincs",
-      category: .routine,
       categoryId: customCategory.id,
       items: [("Check seacocks", nil)]
     )
