@@ -129,8 +129,12 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
       codeChallenge: GeoGaragePKCE.codeChallenge(for: verifier)
     )
     guard let authorizeURL = authorization.url else {
+      Logger.network.error("GeoGarage authorization URL creation failed for endpoint: \(authorizeEndpoint.absoluteString, privacy: .public)")
       throw AuthError.invalidResponse
     }
+
+    Logger.network.info("GeoGarage opening authorization URL: \(authorizeURL.absoluteString, privacy: .public)")
+    Logger.network.info("GeoGarage redirect_uri configured: \(AppConstants.GeoGarage.oauthRedirectURI, privacy: .public)")
 
     let callbackURL: URL
     do {
@@ -139,6 +143,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
         callbackHost: AppConstants.GeoGarage.oauthCallbackHost,
         callbackPath: AppConstants.GeoGarage.oauthCallbackPath
       )
+      Logger.network.info("GeoGarage authorization callback received: \(callbackURL.absoluteString, privacy: .public)")
     } catch AuthError.cancelled {
       // Deliberate dismissal: leave authError untouched.
       throw AuthError.cancelled

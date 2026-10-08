@@ -10,6 +10,7 @@
 
 import SwiftUI
 import AuthenticationServices
+import OSLog
 
 /// Presents the GeoGarage page through `WebAuthenticationSession` (the `ASWebAuthenticationSession`
 /// exposed to SwiftUI by the `\.webAuthenticationSession` environment): system browser, never a
@@ -18,22 +19,30 @@ struct WebAuthenticationSessionPresenter: GeoGarageAuthorizationPresenting {
   let session: WebAuthenticationSession
 
   func authorize(url: URL, callbackHost: String, callbackPath: String) async throws -> URL {
+    Logger.network.info("WebAuthenticationSessionPresenter: authenticating with URL: \(url.absoluteString, privacy: .public), expected callback host: \(callbackHost, privacy: .public), path: \(callbackPath, privacy: .public)")
     do {
       // `.shared`: cookies are shared with Safari, so an existing GeoGarage session is reused and the
       // portal's automatic consent asks nothing on later sign-ins. iOS shows its one-time
       // "wants to use accounts.geogarage.com to sign in" prompt: expected.
-      return try await session.authenticate(
+      let callbackURL = try await session.authenticate(
         using: url,
         callback: .https(host: callbackHost, path: callbackPath),
         preferredBrowserSession: .shared,
         additionalHeaderFields: [:]
       )
+      Logger.network.info("WebAuthenticationSessionPresenter: received callback URL: \(callbackURL.absoluteString, privacy: .public)")
+      return callbackURL
     } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
+      Logger.network.info("WebAuthenticationSessionPresenter: login canceled by user.")
       throw AuthError.cancelled
     } catch is CancellationError {
       // Sign-in task cancelled by the caller (Cancel button, screen dismissed): same silent outcome
       // as the user closing the page.
+      Logger.network.info("WebAuthenticationSessionPresenter: task canceled by caller.")
       throw AuthError.cancelled
+    } catch {
+      Logger.network.error("WebAuthenticationSessionPresenter: session failed with error: \(error.localizedDescription, privacy: .public)")
+      throw error
     }
   }
 }
