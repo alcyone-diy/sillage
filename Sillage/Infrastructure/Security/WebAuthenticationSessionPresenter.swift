@@ -21,13 +21,13 @@ struct WebAuthenticationSessionPresenter: GeoGarageAuthorizationPresenting {
   func authorize(url: URL, callbackHost: String, callbackPath: String) async throws -> URL {
     Logger.network.info("WebAuthenticationSessionPresenter: authenticating with URL: \(url.absoluteString, privacy: .public), expected callback host: \(callbackHost, privacy: .public), path: \(callbackPath, privacy: .public)")
     do {
-      // `.shared`: cookies are shared with Safari, so an existing GeoGarage session is reused and the
-      // portal's automatic consent asks nothing on later sign-ins. iOS shows its one-time
-      // "wants to use accounts.geogarage.com to sign in" prompt: expected.
+      // `.ephemeral`: cookies are not shared with Safari, ensuring that after a logout or when
+      // switching accounts, the GeoGarage login screen is presented cleanly instead of auto-logging
+      // into the previously cached Safari session. Also avoids the system permission prompt.
       let callbackURL = try await session.authenticate(
         using: url,
         callback: .https(host: callbackHost, path: callbackPath),
-        preferredBrowserSession: .shared,
+        preferredBrowserSession: .ephemeral,
         additionalHeaderFields: [:]
       )
       Logger.network.info("WebAuthenticationSessionPresenter: received callback URL: \(callbackURL.absoluteString, privacy: .public)")
