@@ -87,17 +87,29 @@ struct OfflineRegionsManagerView: View {
             Section {
               ForEach(group.items) { item in
                 let isEnabled = isMatchingChartSelected(for: item)
-                OfflineChartItemRowView(item: item)
-                  .swipeActions(edge: .leading, allowsFullSwipe: isEnabled) {
-                    Button {
-                      if isEnabled {
-                        showOnChart(item)
+                let isVisible = chartViewModel.highlightedOfflineRegion?.id == item.id
+                OfflineChartItemRowView(item: item, isVisible: isVisible)
+                  .swipeActions(edge: .leading, allowsFullSwipe: isEnabled && !isVisible) {
+                    if isVisible {
+                      Button {
+                        withAnimation {
+                          chartViewModel.clearOfflineRegionHighlight()
+                        }
+                      } label: {
+                        Label("Hide from Chart", systemImage: MarineIcon.visibilityOff.rawValue)
                       }
-                    } label: {
-                      Label("Show on chart", systemImage: MarineIcon.offlineChart.rawValue)
+                      .tint(marineTheme.colors.cancelAction)
+                    } else {
+                      Button {
+                        if isEnabled {
+                          showOnChart(item)
+                        }
+                      } label: {
+                        Label("Show on Chart", systemImage: MarineIcon.visibilityOn.rawValue)
+                      }
+                      .tint(isEnabled ? .blue : Color(uiColor: .systemGray3))
+                      .disabled(!isEnabled)
                     }
-                    .tint(isEnabled ? .blue : Color(uiColor: .systemGray3))
-                    .disabled(!isEnabled)
                   }
                   .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
@@ -218,22 +230,46 @@ private struct OfflineRegionsHeaderView: View {
 
 private struct OfflineChartItemRowView: View {
   let item: OfflineChartItem
+  var isVisible: Bool = false
 
   var body: some View {
     switch item {
     case .downloaded(let download):
       NavigationLink(value: PanelManagerViewModel.CommandDestination.offlineChartDetail(id: download.id)) {
-        OfflineDownloadRowView(download: download)
+        OfflineDownloadRowView(download: download, isVisible: isVisible)
       }
       .marineListCell()
+      .accessibilityLabel(accessibilityLabel(for: download))
     case .inProgress(let pending, let phase):
       OfflineInProgressRowView(pending: pending, phase: phase)
     }
+  }
+
+  private func accessibilityLabel(for download: OfflineChartDownload) -> Text {
+    let title: String
+    if let custom = download.customName, !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      title = custom.trimmingCharacters(in: .whitespacesAndNewlines)
+    } else {
+      title = download.layerName.isEmpty ? download.downloadDate.formatted(date: .abbreviated, time: .shortened) : download.layerName
+    }
+    let date = download.downloadDate.formatted(date: .abbreviated, time: .shortened)
+    let size = download.fileSize?.marineFormatted
+
+    let components: [String?] = [
+      title,
+      date,
+      size,
+      isVisible ? String(localized: "Visible on chart") : nil
+    ]
+    let labelString = components.compactMap { $0 }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.joined(separator: ", ")
+    return Text(labelString)
   }
 }
 
 private struct OfflineDownloadRowView: View {
   let download: OfflineChartDownload
+  var isVisible: Bool = false
+  @Environment(\.marineTheme) private var marineTheme
 
   private var title: String {
     if let custom = download.customName, !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -266,6 +302,13 @@ private struct OfflineDownloadRowView: View {
       }
 
       Spacer()
+
+      if isVisible {
+        Image(marineIcon: .visibilityOn)
+          .marineFont(.body)
+          .foregroundStyle(marineTheme.colors.primary)
+          .accessibilityHidden(true)
+      }
     }
   }
 }

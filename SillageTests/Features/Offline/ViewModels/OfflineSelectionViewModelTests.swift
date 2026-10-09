@@ -973,7 +973,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       return
     }
 
-    XCTAssertEqual(firstItem.id, downloadID.uuidString, "Item ID must match pending download ID for stable SwiftUI identity")
+    XCTAssertEqual(firstItem.id, downloadID, "Item ID must match pending download ID for stable SwiftUI identity")
     XCTAssertEqual(firstItem.layerID, "ukho")
     XCTAssertEqual(firstItem.layerName, "UKHO Solent")
 
@@ -1013,7 +1013,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let groups = sut.groupedCharts
     XCTAssertEqual(groups.count, 1)
     XCTAssertEqual(groups.first?.layerID, "shom")
-    XCTAssertEqual(groups.first?.items.first?.id, downloadID.uuidString)
+    XCTAssertEqual(groups.first?.items.first?.id, downloadID)
   }
 
   func testDeleteItem_whenDownloaded_deletesFromRepository() async throws {
@@ -1109,8 +1109,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(groups.first?.items.count, 2)
 
     // Most recent item (inProgressSHOM with createdAt == now) should come first
-    XCTAssertEqual(groups.first?.items[0].id, inProgressSHOM.id.uuidString)
-    XCTAssertEqual(groups.first?.items[1].id, oldDownloadedSHOM.id.uuidString)
+    XCTAssertEqual(groups.first?.items[0].id, inProgressSHOM.id)
+    XCTAssertEqual(groups.first?.items[1].id, oldDownloadedSHOM.id)
   }
 
   // MARK: - Queueing & Concurrency Limit Tests

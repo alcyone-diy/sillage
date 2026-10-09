@@ -392,12 +392,12 @@ enum OfflineChartItem: Identifiable, Equatable, Sendable {
   case downloaded(OfflineChartDownload)
   case inProgress(PendingCAASDownload, phase: GeoGarageDownloadPhaseState)
 
-  var id: String {
+  var id: UUID {
     switch self {
     case .downloaded(let download):
-      return download.id.uuidString
+      return download.id
     case .inProgress(let pending, _):
-      return pending.id.uuidString
+      return pending.id
     }
   }
 

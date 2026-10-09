@@ -208,19 +208,34 @@ struct OfflineChartDetailView: View {
       // MARK: - Footer (Normal Mode)
       if !viewModel.isEditing {
         let isEnabled = viewModel.geographicBounds != nil && chartViewModel.isGeoGarageLayerActive(viewModel.layerID)
+        let isVisible = chartViewModel.highlightedOfflineRegion?.id == viewModel.chartID
         VStack(spacing: MarineTheme.Spacing.small) {
-          Button(action: {
-            if isEnabled {
-              viewModel.showOnChart(using: chartViewModel, panelManager: panelManagerViewModel)
+          if isVisible {
+            Button(action: {
+              withAnimation {
+                chartViewModel.clearOfflineRegionHighlight()
+              }
+            }) {
+              HStack {
+                Image(marineIcon: .visibilityOff)
+                Text("Hide from Chart")
+              }
             }
-          }) {
-            HStack {
-              Image(marineIcon: .offlineChart)
-              Text("Show on Chart")
+            .buttonStyle(MarineButtonStyle(.secondary))
+          } else {
+            Button(action: {
+              if isEnabled {
+                viewModel.showOnChart(using: chartViewModel, panelManager: panelManagerViewModel)
+              }
+            }) {
+              HStack {
+                Image(marineIcon: .visibilityOn)
+                Text("Show on Chart")
+              }
             }
+            .buttonStyle(MarineButtonStyle(.primary))
+            .disabled(!isEnabled)
           }
-          .buttonStyle(MarineButtonStyle(.primary))
-          .disabled(!isEnabled)
         }
         .padding(MarineTheme.Spacing.medium)
         .background(marineTheme.colors.surfaceBackground)

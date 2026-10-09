@@ -13,11 +13,11 @@ import Foundation
 
 /// Represents an offline chart package currently highlighted on the map for user inspection.
 public struct HighlightedOfflineRegion: Sendable, Equatable {
-  public let id: String
+  public let id: UUID
   public let name: String
   public let bounds: GeographicBoundingBox
 
-  public init(id: String, name: String, bounds: GeographicBoundingBox) {
+  public init(id: UUID, name: String, bounds: GeographicBoundingBox) {
     self.id = id
     self.name = name
     self.bounds = bounds

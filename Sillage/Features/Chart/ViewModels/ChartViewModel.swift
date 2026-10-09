@@ -1170,7 +1170,7 @@ final class ChartViewModel {
   }
 
   /// Highlights a specific offline chart package boundary on the map and fits the viewport to its bounds.
-  func highlightOfflineRegion(id: String, name: String, bounds: GeographicBoundingBox) {
+  func highlightOfflineRegion(id: UUID, name: String, bounds: GeographicBoundingBox) {
     self.highlightedOfflineRegion = HighlightedOfflineRegion(id: id, name: name, bounds: bounds)
     fitBounds(bounds)
   }

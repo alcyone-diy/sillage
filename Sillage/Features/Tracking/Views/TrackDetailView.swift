@@ -162,11 +162,11 @@ struct TrackDetailView: View {
             }
           }) {
             HStack {
-              Image(marineIcon: .track)
-              Text(isVisible ? "Hide" : "Show")
+              Image(marineIcon: isVisible ? .visibilityOff : .visibilityOn)
+              Text(isVisible ? "Hide from Chart" : "Show on Chart")
             }
           }
-          .buttonStyle(MarineButtonStyle(isVisible ? .cancel : .primary))
+          .buttonStyle(MarineButtonStyle(isVisible ? .secondary : .primary))
         }
         .padding(MarineTheme.Spacing.medium)
         .background(marineTheme.colors.surfaceBackground)

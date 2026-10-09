@@ -33,20 +33,22 @@ struct TrackListView: View {
           .marineListCell()
       } else {
         ForEach(viewModel.sessions) { session in
+          let isVisible = chartViewModel.displayedTrackSessionID == session.id
           NavigationLink(value: PanelManagerViewModel.CommandDestination.sessionDetail(sessionID: session.id, session: session)) {
             TrackRowView(
               session: session,
               subtitle: viewModel.subtitle(for: session),
-              isSelected: chartViewModel.displayedTrackSessionID == session.id
+              isSelected: isVisible
             )
           }
-          .swipeActions(edge: .leading) {
-            let isVisible = chartViewModel.displayedTrackSessionID == session.id
+          .marineListCell()
+          .accessibilityLabel(accessibilityLabel(for: session, isVisible: isVisible))
+          .swipeActions(edge: .leading, allowsFullSwipe: !isVisible) {
             if isVisible {
               Button {
                 chartViewModel.clearSavedTrack()
               } label: {
-                Label("Hide", systemImage: MarineIcon.track.rawValue)
+                Label("Hide from Chart", systemImage: MarineIcon.visibilityOff.rawValue)
               }
               .tint(marineTheme.colors.cancelAction)
             } else {
@@ -61,7 +63,7 @@ struct TrackListView: View {
                   }
                 }
               } label: {
-                Label("Show", systemImage: MarineIcon.track.rawValue)
+                Label("Show on Chart", systemImage: MarineIcon.visibilityOn.rawValue)
               }
               .tint(.blue)
             }
@@ -122,6 +124,19 @@ struct TrackListView: View {
       }
     }
   }
+
+  private func accessibilityLabel(for session: TrackSession, isVisible: Bool) -> Text {
+    let title = session.name ?? session.startTime.formatted(date: .complete, time: .shortened)
+    let subtitle = viewModel.subtitle(for: session)
+
+    let components: [String?] = [
+      title,
+      subtitle,
+      isVisible ? String(localized: "Visible on chart") : nil
+    ]
+    let labelString = components.compactMap { $0 }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.joined(separator: ", ")
+    return Text(labelString)
+  }
 }
 
 @MainActor
@@ -129,6 +144,7 @@ struct TrackRowView: View {
   let session: TrackSession
   let subtitle: String?
   let isSelected: Bool
+  @Environment(\.marineTheme) private var marineTheme
   
   var body: some View {
     HStack {
@@ -162,8 +178,10 @@ struct TrackRowView: View {
       Spacer()
       
       if isSelected {
-        Image(marineIcon: .track)
-          .foregroundColor(.blue)
+        Image(marineIcon: .visibilityOn)
+          .marineFont(.body)
+          .foregroundStyle(marineTheme.colors.primary)
+          .accessibilityHidden(true)
       }
     }
   }
