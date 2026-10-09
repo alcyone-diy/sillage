@@ -4,7 +4,7 @@
 <dict>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>webcredentials:alcyone-sillage.com?mode=developer</string>
+		<string>webcredentials:alcyone-sillage.com</string>
 	</array>
 </dict>
 </plist>
