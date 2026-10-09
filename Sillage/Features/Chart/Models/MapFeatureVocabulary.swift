@@ -34,4 +34,5 @@ enum MapFeatureType: String {
   case waypoint = "waypoint"
   case offlineMask = "offlineMask"
   case offlineRegionsBorder = "offlineRegionsBorder"
+  case offlineHighlight = "offlineHighlight"
 }

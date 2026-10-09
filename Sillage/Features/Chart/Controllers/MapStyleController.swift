@@ -19,6 +19,8 @@ enum MapLayerIdentifier: String, CaseIterable, Comparable {
   case seamarkOverlay = "seamark-overlay-layer"
   case offlineMask = "offline-mask-layer"
   case offlineRegionsBorder = "offline-regions-border-layer"
+  case offlineHighlightFill = "offline-highlight-fill-layer"
+  case offlineHighlightBorder = "offline-highlight-border-layer"
   case gpsAccuracyFill = "gps-accuracy-layer"
   case gpsAccuracyStroke = "gps-accuracy-stroke-layer"
   case savedTrack = "saved-track-layer"
@@ -53,6 +55,7 @@ enum MapSourceIdentifier: String, CaseIterable {
   case seamarkOverlay = "openseamap_source"
   case offlineMask = "offline-mask-source"
   case offlineRegionsBorder = "offline-regions-border-source"
+  case offlineHighlight = "offline-highlight-source"
   case gpsAccuracy = "gps-accuracy-source"
   case savedTrack = "saved-track-source"
   case activeTrack = "active-track-source"
@@ -167,63 +170,108 @@ struct MapStyleController {
     }
   }
 
+  // MARK: - Generic Region Layers Helpers
+
+  /// Ensures that fill and dashed outline border sources and layers exist for displaying geographic regions.
+  private static func ensureRegionLayersExist(
+    sourceID: MapSourceIdentifier,
+    fillLayerID: MapLayerIdentifier,
+    fillColor: UIColor,
+    fillOpacity: Double,
+    borderSourceID: MapSourceIdentifier? = nil,
+    borderLayerID: MapLayerIdentifier,
+    borderColor: UIColor,
+    borderWidth: Double,
+    borderOpacity: Double,
+    dashPattern: [Double],
+    in style: MLNStyle
+  ) {
+    let fillSource: MLNShapeSource
+    if let existing = style.source(withIdentifier: sourceID.rawValue) as? MLNShapeSource {
+      fillSource = existing
+    } else {
+      let newSource = MLNShapeSource(identifier: sourceID.rawValue, shape: nil, options: nil)
+      style.addSource(newSource)
+      fillSource = newSource
+    }
+
+    if style.layer(withIdentifier: fillLayerID.rawValue) == nil {
+      let fillLayer = MLNFillStyleLayer(identifier: fillLayerID.rawValue, source: fillSource)
+      fillLayer.fillColor = NSExpression(forConstantValue: fillColor)
+      fillLayer.fillOpacity = NSExpression(forConstantValue: fillOpacity)
+      insertLayer(fillLayer, identifier: fillLayerID, into: style)
+    }
+
+    let borderSource: MLNShapeSource
+    if let borderSourceID {
+      if let existing = style.source(withIdentifier: borderSourceID.rawValue) as? MLNShapeSource {
+        borderSource = existing
+      } else {
+        let newSource = MLNShapeSource(identifier: borderSourceID.rawValue, shape: nil, options: nil)
+        style.addSource(newSource)
+        borderSource = newSource
+      }
+    } else {
+      borderSource = fillSource
+    }
+
+    if style.layer(withIdentifier: borderLayerID.rawValue) == nil {
+      let borderLayer = MLNLineStyleLayer(identifier: borderLayerID.rawValue, source: borderSource)
+      borderLayer.lineColor = NSExpression(forConstantValue: borderColor)
+      borderLayer.lineWidth = NSExpression(forConstantValue: borderWidth)
+      borderLayer.lineOpacity = NSExpression(forConstantValue: borderOpacity)
+      borderLayer.lineDashPattern = NSExpression(forConstantValue: dashPattern)
+      insertLayer(borderLayer, identifier: borderLayerID, into: style)
+    }
+  }
+
+  /// Completely removes specified layers and sources cleanly from the style stack.
+  static func removeLayersAndSources(
+    layers: [MapLayerIdentifier],
+    sources: [MapSourceIdentifier],
+    from style: MLNStyle
+  ) {
+    for layerID in layers {
+      if let layer = style.layer(withIdentifier: layerID.rawValue) {
+        style.removeLayer(layer)
+        Logger.mapStyle.debug("Removed layer: \(layerID.rawValue, privacy: .public)")
+      }
+    }
+    for sourceID in sources {
+      if let source = style.source(withIdentifier: sourceID.rawValue) {
+        style.removeSource(source)
+        Logger.mapStyle.debug("Removed source: \(sourceID.rawValue, privacy: .public)")
+      }
+    }
+  }
+
   // MARK: - Offline Mask (Unsaved Map Dimming)
 
   /// Ensures offline mask fill and border sources/layers exist in the MapLibre style.
   static func ensureOfflineMaskLayersExist(in style: MLNStyle, theme: MarineTheme) {
-    let maskSource: MLNShapeSource
-    if let existing = style.source(withIdentifier: MapSourceIdentifier.offlineMask.rawValue) as? MLNShapeSource {
-      maskSource = existing
-    } else {
-      let newSource = MLNShapeSource(identifier: MapSourceIdentifier.offlineMask.rawValue, shape: nil, options: nil)
-      style.addSource(newSource)
-      maskSource = newSource
-    }
-
-    if style.layer(withIdentifier: MapLayerIdentifier.offlineMask.rawValue) == nil {
-      let maskFillLayer = MLNFillStyleLayer(identifier: MapLayerIdentifier.offlineMask.rawValue, source: maskSource)
-      maskFillLayer.fillColor = NSExpression(forConstantValue: UIColor(theme.colors.overlay))
-      maskFillLayer.fillOpacity = NSExpression(forConstantValue: MarineTheme.ChartMetrics.offlineMaskFillOpacity)
-      insertLayer(maskFillLayer, identifier: .offlineMask, into: style)
-    }
-
-    let borderSource: MLNShapeSource
-    if let existing = style.source(withIdentifier: MapSourceIdentifier.offlineRegionsBorder.rawValue) as? MLNShapeSource {
-      borderSource = existing
-    } else {
-      let newSource = MLNShapeSource(identifier: MapSourceIdentifier.offlineRegionsBorder.rawValue, shape: nil, options: nil)
-      style.addSource(newSource)
-      borderSource = newSource
-    }
-
-    if style.layer(withIdentifier: MapLayerIdentifier.offlineRegionsBorder.rawValue) == nil {
-      let borderLayer = MLNLineStyleLayer(identifier: MapLayerIdentifier.offlineRegionsBorder.rawValue, source: borderSource)
-      borderLayer.lineColor = NSExpression(forConstantValue: UIColor(theme.colors.accent))
-      borderLayer.lineWidth = NSExpression(forConstantValue: MarineTheme.ChartMetrics.offlineRegionsBorderLineWidth)
-      borderLayer.lineOpacity = NSExpression(forConstantValue: MarineTheme.ChartMetrics.offlineRegionsBorderOpacity)
-      borderLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 3.0])
-      insertLayer(borderLayer, identifier: .offlineRegionsBorder, into: style)
-    }
+    ensureRegionLayersExist(
+      sourceID: .offlineMask,
+      fillLayerID: .offlineMask,
+      fillColor: UIColor(theme.colors.overlay),
+      fillOpacity: MarineTheme.ChartMetrics.offlineMaskFillOpacity,
+      borderSourceID: .offlineRegionsBorder,
+      borderLayerID: .offlineRegionsBorder,
+      borderColor: UIColor(theme.colors.accent),
+      borderWidth: MarineTheme.ChartMetrics.offlineRegionsBorderLineWidth,
+      borderOpacity: MarineTheme.ChartMetrics.offlineRegionsBorderOpacity,
+      dashPattern: [4.0, 3.0],
+      in: style
+    )
   }
 
   /// Completely removes all offline mask and border layers and sources from the style stack.
   /// Guarantees no ghost layers or unused shape sources remain when selection mode is deactivated.
   static func removeOfflineMaskLayers(from style: MLNStyle) {
-    let layerIDs: [MapLayerIdentifier] = [.offlineRegionsBorder, .offlineMask]
-    for layerID in layerIDs {
-      if let layer = style.layer(withIdentifier: layerID.rawValue) {
-        style.removeLayer(layer)
-        Logger.mapStyle.debug("Removed offline mask layer: \(layerID.rawValue, privacy: .public)")
-      }
-    }
-
-    let sourceIDs: [MapSourceIdentifier] = [.offlineRegionsBorder, .offlineMask]
-    for sourceID in sourceIDs {
-      if let source = style.source(withIdentifier: sourceID.rawValue) {
-        style.removeSource(source)
-        Logger.mapStyle.debug("Removed offline mask source: \(sourceID.rawValue, privacy: .public)")
-      }
-    }
+    removeLayersAndSources(
+      layers: [.offlineRegionsBorder, .offlineMask],
+      sources: [.offlineRegionsBorder, .offlineMask],
+      from: style
+    )
   }
 
   /// Updates the offline mask and region borders on the MapLibre style.
@@ -242,6 +290,48 @@ struct MapStyleController {
 
     if let borderSource = style.source(withIdentifier: MapSourceIdentifier.offlineRegionsBorder.rawValue) as? MLNShapeSource {
       borderSource.shape = MapLibreFeatureFactory.createOfflineRegionsBorderFeature(from: state)
+    }
+  }
+
+  // MARK: - Highlighted Offline Region Preview
+
+  /// Ensures highlighted offline region fill and border sources/layers exist in the MapLibre style.
+  static func ensureOfflineHighlightLayersExist(in style: MLNStyle, theme: MarineTheme) {
+    ensureRegionLayersExist(
+      sourceID: .offlineHighlight,
+      fillLayerID: .offlineHighlightFill,
+      fillColor: UIColor(theme.colors.accent),
+      fillOpacity: 0.12,
+      borderLayerID: .offlineHighlightBorder,
+      borderColor: UIColor(theme.colors.accent),
+      borderWidth: 2.5,
+      borderOpacity: 0.9,
+      dashPattern: [6.0, 3.0],
+      in: style
+    )
+  }
+
+  /// Completely removes all highlighted offline region layers and source from the style stack.
+  static func removeOfflineHighlightLayers(from style: MLNStyle) {
+    removeLayersAndSources(
+      layers: [.offlineHighlightBorder, .offlineHighlightFill],
+      sources: [.offlineHighlight],
+      from: style
+    )
+  }
+
+  /// Updates the highlighted offline region on the MapLibre style.
+  /// If region is nil, cleanly removes all highlight layers and sources.
+  static func updateOfflineHighlight(region: HighlightedOfflineRegion?, in style: MLNStyle, theme: MarineTheme) {
+    guard let region else {
+      removeOfflineHighlightLayers(from: style)
+      return
+    }
+
+    ensureOfflineHighlightLayersExist(in: style, theme: theme)
+
+    if let source = style.source(withIdentifier: MapSourceIdentifier.offlineHighlight.rawValue) as? MLNShapeSource {
+      source.shape = MapLibreFeatureFactory.createOfflineHighlightFeature(from: region.bounds)
     }
   }
 

@@ -181,7 +181,7 @@ struct OfflineRegionsManagerView: View {
       Logger.offline.warning("Cannot show offline chart on map: bounds are missing.")
       return
     }
-    chartViewModel.fitBounds(bounds)
+    chartViewModel.highlightOfflineRegion(id: item.id, name: item.displayName, bounds: bounds)
     panelManagerViewModel.closePanel()
   }
 

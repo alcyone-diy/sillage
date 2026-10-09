@@ -248,8 +248,8 @@ final class OfflineChartDetailViewModel {
       return
     }
 
-    // Execute map camera movement on @MainActor and close the panel smoothly
-    chartViewModel.fitBounds(bounds)
+    // Highlight the chart boundary on the map, fit the camera, and close the panel smoothly
+    chartViewModel.highlightOfflineRegion(id: chartID.uuidString, name: chartName, bounds: bounds)
     panelManager.closePanel()
   }
 

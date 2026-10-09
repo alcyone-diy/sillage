@@ -228,6 +228,13 @@ struct MapLibreView: UIViewRepresentable {
         )
       }
 
+      // Highlighted offline region update
+      let currentHighlight = viewModel.highlightedOfflineRegion
+      if currentHighlight != context.coordinator.lastHighlightedOfflineRegion {
+        context.coordinator.lastHighlightedOfflineRegion = currentHighlight
+        MapStyleController.updateOfflineHighlight(region: currentHighlight, in: style, theme: marineTheme)
+      }
+
       // Data Stale state update (Opacity)
       if isDataStale != context.coordinator.lastDataStale {
         MapStyleController.updateDataStaleState(isStale: isDataStale, in: style)
@@ -341,6 +348,7 @@ struct MapLibreView: UIViewRepresentable {
     private var lastPanUpdateTime: CFTimeInterval = 0
     var lastAnchorVisualState: AnchorVisualState?
     var lastOfflineMaskVisualState: OfflineMaskVisualState?
+    var lastHighlightedOfflineRegion: HighlightedOfflineRegion?
     
     var lastActiveTrackCount: Int?
     var lastActiveTrackTimestamp: Date?
@@ -776,6 +784,11 @@ struct MapLibreView: UIViewRepresentable {
       let maskState = parent.viewModel.offlineMaskVisualState
       MapStyleController.updateOfflineMask(state: maskState, in: style, theme: parent.marineTheme)
       lastOfflineMaskVisualState = maskState
+
+      // Highlighted offline region preview initialization
+      let highlightRegion = parent.viewModel.highlightedOfflineRegion
+      MapStyleController.updateOfflineHighlight(region: highlightRegion, in: style, theme: parent.marineTheme)
+      lastHighlightedOfflineRegion = highlightRegion
 
       let isStale = parent.viewModel.isDataStale
       MapStyleController.updateDataStaleState(isStale: isStale, in: style)

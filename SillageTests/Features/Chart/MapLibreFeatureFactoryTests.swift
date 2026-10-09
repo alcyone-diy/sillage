@@ -177,4 +177,17 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     XCTAssertEqual(multiPolyline?.polylines.count, 2)
     XCTAssertEqual(multiPolyline?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineRegionsBorder.rawValue)
   }
+
+  func testCreateOfflineHighlightFeature_returnsPolygonFeatureWithOfflineHighlightType() {
+    let bounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      northEast: CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0)
+    )
+    let shape = MapLibreFeatureFactory.createOfflineHighlightFeature(from: bounds)
+
+    XCTAssertTrue(shape is MLNPolygonFeature)
+    let polygon = shape as? MLNPolygonFeature
+    XCTAssertEqual(polygon?.pointCount, 5)
+    XCTAssertEqual(polygon?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineHighlight.rawValue)
+  }
 }

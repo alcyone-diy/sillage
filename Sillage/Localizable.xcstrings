@@ -753,6 +753,9 @@
     "Hide" : {
 
     },
+    "Hide offline chart frame" : {
+
+    },
     "High" : {
       "comment" : "High sensitivity"
     },
@@ -1073,6 +1076,9 @@
 
     },
     "Raw sensor: %@" : {
+
+    },
+    "Recenter on offline chart: %@" : {
 
     },
     "RECIPROCAL" : {

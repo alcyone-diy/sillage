@@ -222,22 +222,24 @@ enum MapLibreFeatureFactory {
     }
   }
 
-  /// Creates polygon features representing the filled areas of all saved offline regions.
-  static func createOfflineMaskFeature(from state: OfflineMaskVisualState?) -> MLNShape? {
-    guard let state, state.isActive, !state.savedOfflinePolygons.isEmpty else { return nil }
+  // MARK: - Generic Region Shape Builders
 
-    if state.savedOfflinePolygons.count == 1 {
-      var coords = state.savedOfflinePolygons[0]
+  /// Creates a polygon shape (`MLNPolygonFeature` or `MLNShapeCollectionFeature`) from closed coordinate rings.
+  static func createPolygonShape(from rings: [[CLLocationCoordinate2D]], featureType: MapFeatureType) -> MLNShape? {
+    guard !rings.isEmpty else { return nil }
+
+    if rings.count == 1 {
+      var coords = rings[0]
       guard coords.count >= 3 else { return nil }
       let feature = MLNPolygonFeature(coordinates: &coords, count: UInt(coords.count))
-      feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineMask.rawValue]
+      feature.attributes = [MapFeatureKey.type.rawValue: featureType.rawValue]
       return feature
     } else {
-      let polygonFeatures = state.savedOfflinePolygons.compactMap { ring -> MLNPolygonFeature? in
+      let polygonFeatures = rings.compactMap { ring -> MLNPolygonFeature? in
         guard ring.count >= 3 else { return nil }
         var mutableRing = ring
         let feature = MLNPolygonFeature(coordinates: &mutableRing, count: UInt(mutableRing.count))
-        feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineMask.rawValue]
+        feature.attributes = [MapFeatureKey.type.rawValue: featureType.rawValue]
         return feature
       }
       guard !polygonFeatures.isEmpty else { return nil }
@@ -245,27 +247,46 @@ enum MapLibreFeatureFactory {
     }
   }
 
-  /// Creates polyline features delineating the boundaries of all saved offline regions.
-  static func createOfflineRegionsBorderFeature(from state: OfflineMaskVisualState?) -> MLNShape? {
-    guard let state, state.isActive, !state.savedOfflinePolygons.isEmpty else { return nil }
+  /// Creates a polyline shape (`MLNPolylineFeature` or `MLNMultiPolylineFeature`) from coordinate rings.
+  static func createPolylineShape(from rings: [[CLLocationCoordinate2D]], featureType: MapFeatureType) -> MLNShape? {
+    guard !rings.isEmpty else { return nil }
 
-    if state.savedOfflinePolygons.count == 1 {
-      var coords = state.savedOfflinePolygons[0]
+    if rings.count == 1 {
+      var coords = rings[0]
       guard coords.count >= 2 else { return nil }
       let feature = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
-      feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineRegionsBorder.rawValue]
+      feature.attributes = [MapFeatureKey.type.rawValue: featureType.rawValue]
       return feature
     } else {
-      let polylines = state.savedOfflinePolygons.compactMap { ring -> MLNPolyline? in
+      let polylines = rings.compactMap { ring -> MLNPolyline? in
         guard ring.count >= 2 else { return nil }
         var mutableRing = ring
         return MLNPolyline(coordinates: &mutableRing, count: UInt(mutableRing.count))
       }
       guard !polylines.isEmpty else { return nil }
       let feature = MLNMultiPolylineFeature(polylines: polylines)
-      feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineRegionsBorder.rawValue]
+      feature.attributes = [MapFeatureKey.type.rawValue: featureType.rawValue]
       return feature
     }
+  }
+
+  // MARK: - Offline Regions & Masks
+
+  /// Creates polygon features representing the filled areas of all saved offline regions.
+  static func createOfflineMaskFeature(from state: OfflineMaskVisualState?) -> MLNShape? {
+    guard let state, state.isActive else { return nil }
+    return createPolygonShape(from: state.savedOfflinePolygons, featureType: .offlineMask)
+  }
+
+  /// Creates polyline features delineating the boundaries of all saved offline regions.
+  static func createOfflineRegionsBorderFeature(from state: OfflineMaskVisualState?) -> MLNShape? {
+    guard let state, state.isActive else { return nil }
+    return createPolylineShape(from: state.savedOfflinePolygons, featureType: .offlineRegionsBorder)
+  }
+
+  /// Creates a polygon feature representing the boundary and coverage area of a highlighted offline chart.
+  static func createOfflineHighlightFeature(from bounds: GeographicBoundingBox) -> MLNShape? {
+    createPolygonShape(from: [bounds.polygonCoordinates], featureType: .offlineHighlight)
   }
 }
 

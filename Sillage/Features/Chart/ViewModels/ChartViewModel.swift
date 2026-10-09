@@ -148,6 +148,7 @@ final class ChartViewModel {
   var anchorVisualState: AnchorVisualState?
   var offlineMaskVisualState: OfflineMaskVisualState?
   var offlineRegionScreenLabels: [OfflineRegionScreenLabel] = []
+  var highlightedOfflineRegion: HighlightedOfflineRegion?
   var displayedTrackSessionID: String? {
     didSet {
       preferencesService.displayedTrackSessionID = displayedTrackSessionID
@@ -1166,6 +1167,17 @@ final class ChartViewModel {
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
     }
+  }
+
+  /// Highlights a specific offline chart package boundary on the map and fits the viewport to its bounds.
+  func highlightOfflineRegion(id: String, name: String, bounds: GeographicBoundingBox) {
+    self.highlightedOfflineRegion = HighlightedOfflineRegion(id: id, name: name, bounds: bounds)
+    fitBounds(bounds)
+  }
+
+  /// Clears the active offline chart highlight and removes its frame from the map.
+  func clearOfflineRegionHighlight() {
+    self.highlightedOfflineRegion = nil
   }
 
   // MARK: - Saved Tracks

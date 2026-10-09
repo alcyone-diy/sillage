@@ -76,6 +76,24 @@ struct ContentView: View {
             .transition(.opacity)
         }
 
+        if let highlight = chartViewModel.highlightedOfflineRegion, !chartViewModel.isActionConfirmationCardActive {
+          OfflineHighlightHUD(
+            region: highlight,
+            onRecenter: {
+              chartViewModel.fitBounds(highlight.bounds)
+            },
+            onDismiss: {
+              withAnimation {
+                chartViewModel.clearOfflineRegionHighlight()
+              }
+            }
+          )
+          .padding(.horizontal)
+          .padding(.top, 80)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+          .transition(.move(edge: .top).combined(with: .opacity))
+        }
+
         // UI Overlay (Focus Mode during Action Confirmation Cards: Top Dashboard & Command Panel Button hidden; Location Button remains visible elevated above the card)
         VStack {
           if !chartViewModel.isActionConfirmationCardActive {
