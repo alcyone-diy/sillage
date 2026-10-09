@@ -387,6 +387,88 @@ final class DatabaseManagerTests {
     }
   }
 
+  @Test("Database migration from v8 to v9 creates checklist_category and migrates templates")
+  func testMigration_fromV8ToV9_createsChecklistCategoryAndMigratesTemplates() async throws {
+    let queue = try DatabaseQueue()
+
+    // Simulate an existing database that was migrated up to v8 in earlier TestFlight versions
+    try queue.write { db in
+      // 1. Create grdb_migrations table and simulate applied migrations v1..v8
+      try db.execute(sql: """
+        CREATE TABLE grdb_migrations (identifier TEXT NOT NULL PRIMARY KEY)
+      """)
+      for v in 1...8 {
+        try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)", arguments: ["v\(v)"])
+      }
+
+      // 2. Create legacy checklist_template table as it was in v8 (with 'category' column, no 'category_id')
+      try db.execute(sql: """
+        CREATE TABLE checklist_template (
+          id TEXT PRIMARY KEY NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          category TEXT NOT NULL,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at DATETIME NOT NULL,
+          updated_at DATETIME NOT NULL
+        )
+      """)
+
+      // 3. Insert a template with a custom category
+      let now = Date()
+      try db.execute(
+        sql: """
+        INSERT INTO checklist_template (id, title, description, category, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        arguments: ["tpl-1", "Rigging Check", "Visual rigging inspection", "rigging_custom", 0, now, now]
+      )
+    }
+
+    // Now execute current migrator (should trigger v9)
+    try DatabaseManager.migrator.migrate(queue)
+
+    try await queue.read { db in
+      // Verify checklist_category table exists
+      #expect(try db.tableExists("checklist_category"))
+
+      // Verify default categories exist
+      let defaultCategoriesCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM checklist_category WHERE id = 'safety_emergency'")
+      #expect(defaultCategoriesCount == 1)
+
+      // Verify custom category was created
+      let customCategoryExists = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM checklist_category WHERE id = 'rigging_custom'")
+      #expect(customCategoryExists == 1)
+
+      // Verify checklist_template has category_id column and legacy column was removed
+      let columns = try db.columns(in: "checklist_template").map { $0.name }
+      #expect(columns.contains("category_id"))
+      #expect(!columns.contains("category"))
+
+      // Verify template's category_id was correctly populated
+      let categoryId = try String.fetchOne(db, sql: "SELECT category_id FROM checklist_template WHERE id = 'tpl-1'")
+      #expect(categoryId == "rigging_custom")
+    }
+  }
+
+  @Test("Fresh database migration creates all tables and categories")
+  func testMigration_freshDatabase_createsAllTablesAndCategories() async throws {
+    let queue = try DatabaseQueue()
+    try DatabaseManager.migrator.migrate(queue)
+
+    try await queue.read { db in
+      #expect(try db.tableExists("checklist_category"))
+      #expect(try db.tableExists("checklist_template"))
+
+      let columns = try db.columns(in: "checklist_template").map { $0.name }
+      #expect(columns.contains("category_id"))
+      #expect(!columns.contains("category"))
+
+      let categoryCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM checklist_category")
+      #expect((categoryCount ?? 0) >= 5)
+    }
+  }
+
   // MARK: - Helpers
   
   private func makeTrackPoint(sessionID: String, timestamp: Date, segmentIndex: Int = 0) -> TrackPointRecord {

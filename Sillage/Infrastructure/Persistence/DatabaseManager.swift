@@ -291,6 +291,8 @@ public final class DatabaseManager: Sendable {
     }
 
     migrator.registerMigration("v2") { db in
+      guard try !db.tableExists("checklist_category") else { return }
+
       // 1. Checklist Category table
       try db.create(table: "checklist_category") { t in
         t.column("id", .text).primaryKey()
@@ -363,12 +365,119 @@ public final class DatabaseManager: Sendable {
     }
 
     migrator.registerMigration("v3") { db in
+      let templateColumns = try db.columns(in: "checklist_template").map { $0.name }
+      guard templateColumns.contains("category") else { return }
+
       // 1. Drop index on legacy 'category' column if it exists before dropping the column itself
       try db.execute(sql: "DROP INDEX IF EXISTS idx_checklist_template_category")
 
       // 2. Drop legacy 'category' column from checklist_template table
       try db.alter(table: "checklist_template") { t in
         t.drop(column: "category")
+      }
+    }
+
+    // Historical migration identifiers registered as no-ops to acknowledge existing databases
+    // created during earlier TestFlight releases where migrations v1..v8 were already applied.
+    migrator.registerMigration("v4") { _ in }
+    migrator.registerMigration("v5") { _ in }
+    migrator.registerMigration("v6") { _ in }
+    migrator.registerMigration("v7") { _ in }
+    migrator.registerMigration("v8") { _ in }
+
+    // v9: Ensures existing TestFlight installs (whose grdb_migrations already recorded v1..v8)
+    // receive the checklist_category table and category_id column migration.
+    migrator.registerMigration("v9") { db in
+      // 1. Ensure checklist_category table exists
+      if try !db.tableExists("checklist_category") {
+        try db.create(table: "checklist_category") { t in
+          t.column("id", .text).primaryKey()
+          t.column("name", .text).notNull()
+          t.column("icon", .text)
+          t.column("sort_order", .integer).notNull().defaults(to: 0)
+          t.column("created_at", .datetime).notNull()
+          t.column("updated_at", .datetime).notNull()
+        }
+        try db.create(
+          index: "idx_checklist_category_sort_order",
+          on: "checklist_category",
+          columns: ["sort_order"]
+        )
+
+        // Seed initial categories
+        let initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] = [
+          ("safety_emergency", "Safety & Emergency", "exclamationmark.shield.fill", 0),
+          ("navigation_maneuver", "Navigation & Maneuver", "steeringwheel", 1),
+          ("routine", "Routine", "checklist", 2),
+          ("engine_technical", "Engine & Technical", "wrench.and.screwdriver.fill", 3),
+          ("wintering_maintenance", "Wintering & Maintenance", "snowflake", 4)
+        ]
+        let now = Date()
+        for cat in initialCategories {
+          try db.execute(
+            sql: """
+            INSERT OR IGNORE INTO checklist_category (id, name, icon, sort_order, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            arguments: [cat.id, cat.name, cat.icon, cat.sortOrder, now, now]
+          )
+        }
+      }
+
+      // 2. Ensure any custom categories from legacy 'category' column are in checklist_category
+      let templateColumns = try db.columns(in: "checklist_template").map { $0.name }
+      let now = Date()
+      if templateColumns.contains("category") {
+        let existingCustomCategories = try String.fetchAll(
+          db,
+          sql: "SELECT DISTINCT category FROM checklist_template WHERE category IS NOT NULL"
+        )
+        for customCat in existingCustomCategories {
+          try db.execute(
+            sql: """
+            INSERT OR IGNORE INTO checklist_category (id, name, icon, sort_order, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            arguments: [customCat, customCat.capitalized, nil, 999, now, now]
+          )
+        }
+      }
+
+      // 3. Add category_id column if missing
+      if !templateColumns.contains("category_id") {
+        try db.alter(table: "checklist_template") { t in
+          t.add(column: "category_id", .text)
+            .references("checklist_category", column: "id", onDelete: .restrict)
+        }
+
+        if templateColumns.contains("category") {
+          try db.execute(sql: """
+            UPDATE checklist_template
+            SET category_id = category
+            WHERE category_id IS NULL
+          """)
+        }
+
+        try db.execute(sql: """
+          UPDATE checklist_template
+          SET category_id = 'routine'
+          WHERE category_id IS NULL
+        """)
+
+        try db.create(
+          index: "idx_checklist_template_category_id",
+          on: "checklist_template",
+          columns: ["category_id"]
+        )
+      }
+
+      // 4. Drop legacy 'category' column if still present
+      let finalColumns = try db.columns(in: "checklist_template").map { $0.name }
+      if finalColumns.contains("category") {
+        try db.execute(sql: "DROP INDEX IF EXISTS idx_checklist_template_category")
+        try db.alter(table: "checklist_template") { t in
+          t.drop(column: "category")
+        }
       }
     }
 
