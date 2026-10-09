@@ -216,12 +216,7 @@ struct GeoGarageLoginView: View {
 
   private func signInButton() -> some View {
     Button(action: startSignIn) {
-      if viewModel.isLoading {
-        ProgressView()
-          .progressViewStyle(CircularProgressViewStyle(tint: .white))
-      } else {
-        Text("Sign in with GeoGarage")
-      }
+      Text("Sign in with GeoGarage")
     }
     .buttonStyle(MarinePrimaryButtonStyle(isDestructive: false, minHeight: marineTheme.minTouchTarget * scaleFactor))
     .disabled(viewModel.isLoading)
