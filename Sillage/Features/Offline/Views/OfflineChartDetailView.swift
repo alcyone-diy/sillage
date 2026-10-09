@@ -120,7 +120,7 @@ struct OfflineChartDetailView: View {
                 return String(localized: "Checking…")
               case .ready:
                 if let bytes = viewModel.fileSizeBytes {
-                  return bytes.formatted(.byteCount(style: .file))
+                  return bytes.marineFormatted
                 }
                 return String(localized: "Unavailable")
               case .fileMissing:

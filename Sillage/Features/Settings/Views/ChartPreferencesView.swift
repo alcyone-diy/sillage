@@ -48,14 +48,6 @@ struct ChartPreferencesView: View {
     }
   }
 
-  /// A formatter used to display human-readable file sizes for local charts (e.g., "45.2 MB").
-  private let byteFormatter: MeasurementFormatter = {
-    let formatter = MeasurementFormatter()
-    formatter.unitOptions = .naturalScale
-    formatter.numberFormatter.maximumFractionDigits = 1
-    return formatter
-  }()
-
   var body: some View {
     // Allows creating bindings to the observable view model properties
     @Bindable var chartViewModel = chartViewModel
@@ -88,9 +80,7 @@ struct ChartPreferencesView: View {
             return false
           }()
 
-          let subtitle = mapFile.fileSize != nil
-            ? "Imported map - \(byteFormatter.string(from: mapFile.fileSize!))"
-            : "Imported map"
+          let subtitle = mapFile.fileSize.map { "Imported map - \($0.marineFormatted)" } ?? "Imported map"
 
           Button(action: {
             chartViewModel.switchChartSource(to: .localMBTiles(url: url))

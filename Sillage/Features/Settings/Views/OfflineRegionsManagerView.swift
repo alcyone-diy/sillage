@@ -208,7 +208,7 @@ private struct OfflineRegionsHeaderView: View {
       Text("\(downloadsCount) offline charts")
         .marineFont(.headline)
 
-      Text("Total size: \(totalSize.formatted())")
+      Text("Total size: \(totalSize.marineFormatted)")
         .marineFont(.subheadline)
         .foregroundStyle(.secondary)
     }
@@ -258,7 +258,7 @@ private struct OfflineDownloadRowView: View {
             Text("•")
               .marineFont(.caption)
               .foregroundColor(.secondary)
-            Text(size.formatted())
+            Text(size.marineFormatted)
               .marineFont(.caption)
               .foregroundColor(.secondary)
           }

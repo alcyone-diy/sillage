@@ -138,5 +138,47 @@ final class MarineFormattersTests: XCTestCase {
     let area = Measurement<UnitArea>(value: 12.345, unit: .marineSquareNauticalMiles)
     XCTAssertEqual(area.marineFormatted(locale: enUSLocale), "12.3 NM²")
   }
+
+  func testFileSizeFormatting() {
+    let enUS = Locale(identifier: "en_US")
+    let frFR = Locale(identifier: "fr_FR")
+
+    let b500 = Measurement<UnitInformationStorage>(value: 500, unit: .bytes)
+    let kb25 = Measurement<UnitInformationStorage>(value: 25_000, unit: .bytes)
+    let mb15 = Measurement<UnitInformationStorage>(value: 15_400_000, unit: .bytes)
+    let gb3 = Measurement<UnitInformationStorage>(value: 3_200_000_000, unit: .bytes)
+
+    let formatted500 = b500.marineFormatted(locale: enUS)
+    XCTAssertTrue(formatted500.contains("500"), "Expected 500 in result: \(formatted500)")
+
+    let formattedKB = kb25.marineFormatted(locale: enUS)
+    XCTAssertTrue(formattedKB.contains("25"), "Expected 25 in result: \(formattedKB)")
+    XCTAssertTrue(formattedKB.localizedCaseInsensitiveContains("kb"), "Expected KB/kB in result: \(formattedKB)")
+
+    let formattedMB = mb15.marineFormatted(locale: enUS)
+    XCTAssertTrue(formattedMB.contains("15"), "Expected 15 in result: \(formattedMB)")
+    XCTAssertTrue(formattedMB.contains("MB"), "Expected MB in result: \(formattedMB)")
+
+    let formattedGB = gb3.marineFormatted(locale: enUS)
+    XCTAssertTrue(formattedGB.contains("3"), "Expected 3 in result: \(formattedGB)")
+    XCTAssertTrue(formattedGB.contains("GB"), "Expected GB in result: \(formattedGB)")
+
+    // French locale uses Mo and comma separator
+    let frMB = mb15.marineFormatted(locale: frFR)
+    XCTAssertTrue(frMB.contains("15,4") || frMB.contains("15"), "Expected French value in result: \(frMB)")
+    XCTAssertTrue(frMB.contains("Mo"), "Expected Mo in French locale, got: \(frMB)")
+
+    // Unit conversion input test
+    let megaMeasurement = Measurement<UnitInformationStorage>(value: 50, unit: .megabytes)
+    let formattedMega = megaMeasurement.marineFormatted(locale: enUS)
+    XCTAssertTrue(formattedMega.contains("50"), "Expected 50 in result: \(formattedMega)")
+    XCTAssertTrue(formattedMega.contains("MB"), "Expected MB in result: \(formattedMega)")
+
+    // Direct BinaryInteger test (Int64, Int)
+    let rawBytes: Int64 = 15_400_000
+    let formattedInt64 = rawBytes.marineFormatted(locale: enUS)
+    XCTAssertTrue(formattedInt64.contains("15"), "Expected 15 in result: \(formattedInt64)")
+    XCTAssertTrue(formattedInt64.contains("MB"), "Expected MB in result: \(formattedInt64)")
+  }
 }
 

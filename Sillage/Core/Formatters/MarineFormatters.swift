@@ -203,3 +203,27 @@ extension FormatStyle where Self == Measurement<UnitLength>.FormatStyle {
   }
 }
 
+extension BinaryInteger {
+  /// Formats a byte count into a human-readable file size string (e.g. "500 bytes", "25 kB", "15.4 MB", "3.2 GB").
+  public func marineFormatted(locale: Locale = .autoupdatingCurrent) -> String {
+    let bytes = max(0, Int64(self))
+    return bytes.formatted(.byteCount(style: .file).locale(locale))
+  }
+
+  public var marineFormatted: String {
+    marineFormatted()
+  }
+}
+
+extension Measurement where UnitType == UnitInformationStorage {
+  /// Formats an information storage measurement into a human-readable file size string (e.g. "500 bytes", "25 kB", "15.4 MB", "3.2 GB").
+  public func marineFormatted(locale: Locale = .autoupdatingCurrent) -> String {
+    let bytes = max(0, Int64(self.converted(to: .bytes).value.rounded()))
+    return bytes.marineFormatted(locale: locale)
+  }
+
+  public var marineFormatted: String {
+    marineFormatted()
+  }
+}
+
