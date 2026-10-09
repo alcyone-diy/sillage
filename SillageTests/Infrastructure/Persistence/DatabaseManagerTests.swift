@@ -392,7 +392,7 @@ final class DatabaseManagerTests {
     let queue = try DatabaseQueue()
 
     // Simulate an existing database that was migrated up to v8 in earlier TestFlight versions
-    try queue.write { db in
+    try await queue.write { db in
       // 1. Create grdb_migrations table and simulate applied migrations v1..v8
       try db.execute(sql: """
         CREATE TABLE grdb_migrations (identifier TEXT NOT NULL PRIMARY KEY)
