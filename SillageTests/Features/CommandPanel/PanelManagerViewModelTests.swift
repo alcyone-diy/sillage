@@ -114,13 +114,46 @@ final class PanelManagerViewModelTests: XCTestCase {
       .chartPreferences,
       .checklists,
       .checklistCategories,
-      .checklistTemplateDetail(templateId: UUID(), template: nil, startEditable: false),
+      .checklistCategoryDetail(ChecklistCategoryDetailPayload(categoryId: "safety_emergency")),
+      .checklistTemplateDetail(ChecklistTemplateDetailPayload(templateId: UUID(), template: nil, startEditable: false)),
       .activeSession(ChecklistSessionPayload(id: UUID()))
     ]
 
     let set = Set(destinations)
     XCTAssertEqual(set.count, destinations.count, "Each CommandDestination case must be uniquely hashable")
-    XCTAssertEqual(destinations.count, 15, "All 15 CommandDestination enum cases must be tested for uniqueness")
+    XCTAssertEqual(destinations.count, 16, "All 16 CommandDestination enum cases must be tested for uniqueness")
+  }
+
+  func testChecklistCategoryDetailEqualityIgnoresCategoryObject() {
+    let cat1 = ChecklistCategoryItem(id: "routine", name: "Routine 1")
+    let cat2 = ChecklistCategoryItem(id: "routine", name: "Routine 2")
+    let payload1 = ChecklistCategoryDetailPayload(categoryId: "routine", category: cat1)
+    let payload2 = ChecklistCategoryDetailPayload(categoryId: "routine", category: cat2)
+    let payload3 = ChecklistCategoryDetailPayload(categoryId: "routine", category: nil)
+    XCTAssertEqual(payload1, payload2)
+    XCTAssertEqual(payload1, payload3)
+    XCTAssertEqual(payload1.hashValue, payload2.hashValue)
+    XCTAssertEqual(payload1.hashValue, payload3.hashValue)
+
+    let dest1 = PanelManagerViewModel.CommandDestination.checklistCategoryDetail(payload1)
+    let dest2 = PanelManagerViewModel.CommandDestination.checklistCategoryDetail(payload2)
+    XCTAssertEqual(dest1, dest2)
+    XCTAssertEqual(dest1.hashValue, dest2.hashValue)
+  }
+
+  func testChecklistTemplateDetailEqualityIgnoresTemplateObject() {
+    let id = UUID()
+    let tpl1 = ChecklistTemplate(id: id, title: "T1", categoryId: "routine")
+    let tpl2 = ChecklistTemplate(id: id, title: "T2", categoryId: "routine")
+    let payload1 = ChecklistTemplateDetailPayload(templateId: id, template: tpl1, startEditable: false)
+    let payload2 = ChecklistTemplateDetailPayload(templateId: id, template: tpl2, startEditable: false)
+    XCTAssertEqual(payload1, payload2)
+    XCTAssertEqual(payload1.hashValue, payload2.hashValue)
+
+    let dest1 = PanelManagerViewModel.CommandDestination.checklistTemplateDetail(payload1)
+    let dest2 = PanelManagerViewModel.CommandDestination.checklistTemplateDetail(payload2)
+    XCTAssertEqual(dest1, dest2)
+    XCTAssertEqual(dest1.hashValue, dest2.hashValue)
   }
 
   // MARK: - Navigation Path Stack Operations

@@ -44,7 +44,7 @@ public struct ChecklistTemplateListView: View {
               .marineFont(.body)
 
             Button {
-              panelManager?.commandPath.append(.checklistTemplateDetail(templateId: nil, startEditable: true))
+              panelManager?.commandPath.append(.checklistTemplateDetail(ChecklistTemplateDetailPayload(templateId: nil, startEditable: true)))
             } label: {
               HStack(spacing: MarineTheme.Spacing.small) {
                 Image(marineIcon: .add)
@@ -61,7 +61,14 @@ public struct ChecklistTemplateListView: View {
         ForEach(viewModel.groupedByCategoryItem, id: \.category.id) { section in
           Section {
             ForEach(section.templates) { template in
-              NavigationLink(value: PanelManagerViewModel.CommandDestination.checklistTemplateDetail(templateId: template.id, template: template)) {
+              NavigationLink(
+                value: PanelManagerViewModel.CommandDestination.checklistTemplateDetail(
+                  ChecklistTemplateDetailPayload(
+                    templateId: template.id,
+                    template: template
+                  )
+                )
+              ) {
                 ChecklistTemplateRowView(
                   template: template,
                   activeSession: viewModel.activeSession(for: template.id),
@@ -113,7 +120,7 @@ public struct ChecklistTemplateListView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          panelManager?.commandPath.append(.checklistTemplateDetail(templateId: nil, startEditable: true))
+          panelManager?.commandPath.append(.checklistTemplateDetail(ChecklistTemplateDetailPayload(templateId: nil, startEditable: true)))
         } label: {
           Image(marineIcon: .add)
             .foregroundStyle(marineTheme.colors.accent)

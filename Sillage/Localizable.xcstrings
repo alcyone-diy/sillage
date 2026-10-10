@@ -75,6 +75,9 @@
     "%@/3h" : {
       "comment" : "Format for 3-hour barometric trend suffix"
     },
+    "%lld" : {
+
+    },
     "%lld of %lld checked" : {
       "localizations" : {
         "en" : {
@@ -86,6 +89,9 @@
       }
     },
     "%lld offline charts" : {
+
+    },
+    "%lld steps" : {
 
     },
     "%lld." : {
@@ -262,6 +268,9 @@
     "Arm Alarm" : {
 
     },
+    "Associated Checklists" : {
+
+    },
     "Authentication Error" : {
 
     },
@@ -355,6 +364,9 @@
     "Checklists" : {
 
     },
+    "Checklists can be managed and started from the Checklists panel." : {
+
+    },
     "Checklists In Progress" : {
 
     },
@@ -440,6 +452,9 @@
 
     },
     "Critical GPS accuracy. Anchor alarm is temporarily unreliable." : {
+
+    },
+    "Custom" : {
 
     },
     "Debug" : {
@@ -593,6 +608,9 @@
 
     },
     "Error Loading Categories" : {
+
+    },
+    "Error Loading Category" : {
 
     },
     "Error loading document" : {
@@ -750,7 +768,7 @@
     "Hemisphere" : {
 
     },
-    "Hide" : {
+    "Hide from Chart" : {
 
     },
     "Hide offline chart frame" : {
@@ -763,6 +781,12 @@
 
     },
     "I Accept" : {
+
+    },
+    "Icon" : {
+
+    },
+    "Identifier" : {
 
     },
     "Import Failed" : {
@@ -953,6 +977,9 @@
 
     },
     "No checklists in progress or log entries." : {
+
+    },
+    "No checklists in this category" : {
 
     },
     "No data recorded for this time period" : {
@@ -1172,9 +1199,6 @@
     "Show Details" : {
 
     },
-    "Show on chart" : {
-
-    },
     "Show on Chart" : {
 
     },
@@ -1208,11 +1232,17 @@
     "SOG" : {
 
     },
+    "Sort Order" : {
+
+    },
     "South-West Bound" : {
 
     },
     "Squall Imminent" : {
       "comment" : "Weather alarm"
+    },
+    "Standard" : {
+
     },
     "Start" : {
 
@@ -1381,6 +1411,12 @@
     "Triggers on drops ≥ 5.0 hPa within 3h. Recommended offshore to avoid alarm fatigue." : {
       "comment" : "Low sensitivity explanation"
     },
+    "Type" : {
+
+    },
+    "Unable to load category details. Please try again." : {
+
+    },
     "Unable to load checklist categories. Please try again." : {
 
     },
@@ -1420,6 +1456,9 @@
     },
     "Vigilance" : {
       "comment" : "Weather alarm"
+    },
+    "Visible on chart" : {
+
     },
     "W" : {
       "comment" : "West cardinal point"

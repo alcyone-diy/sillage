@@ -46,8 +46,17 @@ public struct ChecklistCategoryListView: View {
       } else {
         List {
           ForEach(viewModel.categories) { category in
-            ChecklistCategoryRowView(category: category)
-              .marineListCell()
+            NavigationLink(
+              value: PanelManagerViewModel.CommandDestination.checklistCategoryDetail(
+                ChecklistCategoryDetailPayload(
+                  categoryId: category.id,
+                  category: category
+                )
+              )
+            ) {
+              ChecklistCategoryRowView(category: category)
+            }
+            .marineListCell()
           }
         }
         .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)

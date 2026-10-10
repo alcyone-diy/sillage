@@ -311,13 +311,23 @@ struct CommandPanelView: View {
       } else {
         checklistServiceUnavailableView(for: "Checklist Categories")
       }
-    case .checklistTemplateDetail(let templateId, let template, let startEditable):
+    case .checklistCategoryDetail(let payload):
+      if let service = checklistService ?? appEnvironment.checklistService {
+        ChecklistCategoryDetailView(
+          categoryId: payload.categoryId,
+          category: payload.category,
+          checklistService: service
+        )
+      } else {
+        checklistServiceUnavailableView(for: "Checklist Category Detail")
+      }
+    case .checklistTemplateDetail(let payload):
       if let service = checklistService ?? appEnvironment.checklistService {
         ChecklistTemplateDetailView(
-          templateId: templateId,
-          template: template,
+          templateId: payload.templateId,
+          template: payload.template,
           checklistService: service,
-          startEditable: startEditable
+          startEditable: payload.startEditable
         )
       } else {
         checklistServiceUnavailableView(for: "Checklist Template Detail")
