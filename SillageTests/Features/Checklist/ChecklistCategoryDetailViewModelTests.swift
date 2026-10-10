@@ -172,6 +172,7 @@ private final class MockChecklistService: ChecklistServiceProtocol {
     fatalError("Unused in ViewModel tests")
   }
   func deleteCategory(id: String) async throws {}
+  func fetchChecklistCountsByCategory() async throws -> [String: Int] { [:] }
 
   func fetchTemplates() async throws -> [ChecklistTemplate] {
     if let error = errorToThrow {

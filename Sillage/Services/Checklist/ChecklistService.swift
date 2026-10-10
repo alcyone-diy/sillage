@@ -496,6 +496,26 @@ public final class ChecklistService: ChecklistServiceProtocol {
     }
   }
 
+  public func fetchChecklistCountsByCategory() async throws -> [String: Int] {
+    try await databaseManager.reader.read { db in
+      let rows = try Row.fetchAll(
+        db,
+        sql: """
+        SELECT \(ChecklistTemplateRecord.Columns.category_id.name), COUNT(*)
+        FROM \(ChecklistTemplateRecord.databaseTableName)
+        GROUP BY \(ChecklistTemplateRecord.Columns.category_id.name)
+        """
+      )
+      var counts: [String: Int] = [:]
+      for row in rows {
+        if let categoryId: String = row[0], let count: Int = row[1] {
+          counts[categoryId] = count
+        }
+      }
+      return counts
+    }
+  }
+
   // MARK: - Session Lifecycle (Get-or-Create)
 
   public func startSession(templateId: UUID) async throws(ChecklistSessionError) -> ChecklistSession {

@@ -228,7 +228,5 @@ private struct ActiveChecklistRowView: View {
           .clipShape(Capsule())
       }
     }
-    .frame(minHeight: marineTheme.minTouchTarget)
-    .contentShape(Rectangle())
   }
 }

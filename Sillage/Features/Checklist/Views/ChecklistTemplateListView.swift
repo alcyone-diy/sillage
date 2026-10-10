@@ -225,7 +225,5 @@ private struct ChecklistTemplateRowView: View {
           .clipShape(Capsule())
       }
     }
-    .frame(minHeight: marineTheme.minTouchTarget)
-    .contentShape(Rectangle())
   }
 }

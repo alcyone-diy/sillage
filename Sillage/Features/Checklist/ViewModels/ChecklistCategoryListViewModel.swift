@@ -19,6 +19,7 @@ public final class ChecklistCategoryListViewModel {
   private let checklistService: any ChecklistServiceProtocol
 
   public private(set) var categories: [ChecklistCategoryItem] = []
+  public private(set) var checklistCounts: [String: Int] = [:]
   public private(set) var isLoading: Bool = false
   public var errorMessage: String?
 
@@ -26,14 +27,24 @@ public final class ChecklistCategoryListViewModel {
     self.checklistService = checklistService
   }
 
-  /// Loads available categories from the database.
+  /// Returns the number of checklist templates belonging to the given category.
+  public func checklistCount(for categoryId: String) -> Int {
+    checklistCounts[categoryId] ?? 0
+  }
+
+  /// Loads available categories and checklist templates from the database.
   public func loadCategories() async {
     isLoading = true
     defer { isLoading = false }
     errorMessage = nil
 
     do {
-      categories = try await checklistService.fetchCategories()
+      async let fetchedCategories = checklistService.fetchCategories()
+      async let fetchedCounts = checklistService.fetchChecklistCountsByCategory()
+      let (categoriesList, counts) = try await (fetchedCategories, fetchedCounts)
+
+      categories = categoriesList
+      checklistCounts = counts
     } catch {
       if error is CancellationError {
         return

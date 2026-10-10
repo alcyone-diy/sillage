@@ -54,11 +54,15 @@ public struct ChecklistCategoryListView: View {
                 )
               )
             ) {
-              ChecklistCategoryRowView(category: category)
+              ChecklistCategoryRowView(
+                category: category,
+                checklistCount: viewModel.checklistCount(for: category.id)
+              )
             }
             .marineListCell()
           }
         }
+        .listStyle(.insetGrouped)
         .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
       }
     }
@@ -74,6 +78,7 @@ public struct ChecklistCategoryListView: View {
 private struct ChecklistCategoryRowView: View {
   @Environment(\.marineTheme) private var marineTheme
   let category: ChecklistCategoryItem
+  let checklistCount: Int
 
   var body: some View {
     HStack(spacing: MarineTheme.Spacing.medium) {
@@ -82,13 +87,18 @@ private struct ChecklistCategoryRowView: View {
         .foregroundStyle(category.color(for: marineTheme))
         .frame(width: 32, alignment: .center)
 
-      Text(category.name)
-        .marineFont(.body)
-        .foregroundStyle(marineTheme.colors.textPrimary)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(category.name)
+          .marineFont(.body)
+          .foregroundStyle(marineTheme.colors.textPrimary)
+
+        Text("^[\(checklistCount) checklist](inflect: true)")
+          .marineFont(.caption)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+      }
 
       Spacer()
     }
-    .frame(minHeight: marineTheme.minTouchTarget)
-    .contentShape(Rectangle())
+    .accessibilityElement(children: .combine)
   }
 }

@@ -359,4 +359,30 @@ final class ChecklistCategoryTests: XCTestCase {
       XCTAssertEqual(row["category_id"], "routine")
     }
   }
+
+  func testFetchChecklistCountsByCategory() async throws {
+    _ = try await checklistService.createCustomTemplate(
+      title: "Routine 1",
+      description: nil,
+      categoryId: "routine",
+      items: [("Item 1", nil)]
+    )
+    _ = try await checklistService.createCustomTemplate(
+      title: "Routine 2",
+      description: nil,
+      categoryId: "routine",
+      items: [("Item 2", nil)]
+    )
+    _ = try await checklistService.createCustomTemplate(
+      title: "Safety 1",
+      description: nil,
+      categoryId: "safety_emergency",
+      items: [("Item 3", nil)]
+    )
+
+    let counts = try await checklistService.fetchChecklistCountsByCategory()
+    XCTAssertEqual(counts["routine"], 2)
+    XCTAssertEqual(counts["safety_emergency"], 1)
+    XCTAssertNil(counts["engine_technical"])
+  }
 }

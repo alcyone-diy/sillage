@@ -88,6 +88,9 @@ public protocol ChecklistServiceProtocol: Sendable {
   /// Deletes a checklist category if no templates reference it.
   func deleteCategory(id: String) async throws
 
+  /// Fetches count of checklist templates grouped by category identifier.
+  func fetchChecklistCountsByCategory() async throws -> [String: Int]
+
   // MARK: - Sessions (Get-or-Create pattern)
 
   /// Starts a new checklist session or transparently returns the active one if already in progress.

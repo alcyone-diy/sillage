@@ -55,6 +55,29 @@ final class ChecklistCategoryListViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.errorMessage)
   }
 
+  func testLoadCategoriesSuccessWithChecklistCounts() async {
+    let sampleCategories = [
+      ChecklistCategoryItem(id: "routine", name: "Routine", icon: "checklist", sortOrder: 0),
+      ChecklistCategoryItem(id: "emergency", name: "Emergency", icon: "exclamationmark.triangle", sortOrder: 1),
+      ChecklistCategoryItem(id: "engine", name: "Engine", icon: "wrench", sortOrder: 2)
+    ]
+    mockService.categoriesToReturn = sampleCategories
+    mockService.countsToReturn = [
+      "routine": 2,
+      "emergency": 1
+    ]
+
+    await viewModel.loadCategories()
+
+    XCTAssertEqual(viewModel.categories.count, 3)
+    XCTAssertEqual(viewModel.checklistCount(for: "routine"), 2)
+    XCTAssertEqual(viewModel.checklistCount(for: "emergency"), 1)
+    XCTAssertEqual(viewModel.checklistCount(for: "engine"), 0)
+    XCTAssertEqual(viewModel.checklistCount(for: "nonexistent"), 0)
+    XCTAssertFalse(viewModel.isLoading)
+    XCTAssertNil(viewModel.errorMessage)
+  }
+
   func testLoadCategoriesFailureSetsErrorMessage() async {
     mockService.errorToThrow = NSError(domain: "test", code: -1, userInfo: nil)
 
@@ -81,6 +104,8 @@ final class ChecklistCategoryListViewModelTests: XCTestCase {
 @MainActor
 private final class MockChecklistService: ChecklistServiceProtocol {
   var categoriesToReturn: [ChecklistCategoryItem] = []
+  var countsToReturn: [String: Int] = [:]
+  var templatesToReturn: [ChecklistTemplate] = []
   var errorToThrow: (any Error)?
 
   func fetchCategories() async throws -> [ChecklistCategoryItem] {
@@ -99,7 +124,19 @@ private final class MockChecklistService: ChecklistServiceProtocol {
   }
   func deleteCategory(id: String) async throws {}
 
-  func fetchTemplates() async throws -> [ChecklistTemplate] { [] }
+  func fetchChecklistCountsByCategory() async throws -> [String: Int] {
+    if let error = errorToThrow {
+      throw error
+    }
+    return countsToReturn
+  }
+
+  func fetchTemplates() async throws -> [ChecklistTemplate] {
+    if let error = errorToThrow {
+      throw error
+    }
+    return templatesToReturn
+  }
   func fetchTemplate(id: UUID) async throws -> ChecklistTemplate? { nil }
   func createTemplate(title: String, description: String?, categoryId: String, items: [(title: String, detail: String?)]) async throws -> ChecklistTemplate {
     fatalError("Unused")
