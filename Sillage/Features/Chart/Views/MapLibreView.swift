@@ -136,6 +136,8 @@ struct MapLibreView: UIViewRepresentable {
     let goToWaypointVisualState = viewModel.goToWaypointVisualState
     let bearingLineVisualState = viewModel.bearingLineVisualState
     let offlineMaskVisualState = viewModel.offlineMaskVisualState
+    let anchorVisualState = viewModel.anchorVisualState
+    let highlightedOfflineRegion = viewModel.highlightedOfflineRegion
     let isDataStale = viewModel.isDataStale
     let currentSource = viewModel.currentChartSource
     let isOpenSeaMapOverlayEnabled = viewModel.isOpenSeaMapOverlayEnabled
@@ -212,10 +214,9 @@ struct MapLibreView: UIViewRepresentable {
       }
       
       // Anchor update
-      let currentVisualState = viewModel.anchorVisualState
-      if currentVisualState != context.coordinator.lastAnchorVisualState {
-        context.coordinator.lastAnchorVisualState = currentVisualState
-        MapStyleController.updateAnchor(state: currentVisualState, in: style, theme: marineTheme)
+      if anchorVisualState != context.coordinator.lastAnchorVisualState {
+        context.coordinator.lastAnchorVisualState = anchorVisualState
+        MapStyleController.updateAnchor(state: anchorVisualState, in: style, theme: marineTheme)
       }
 
       // Offline mask update
@@ -229,10 +230,9 @@ struct MapLibreView: UIViewRepresentable {
       }
 
       // Highlighted offline region update
-      let currentHighlight = viewModel.highlightedOfflineRegion
-      if currentHighlight != context.coordinator.lastHighlightedOfflineRegion {
-        context.coordinator.lastHighlightedOfflineRegion = currentHighlight
-        MapStyleController.updateOfflineHighlight(region: currentHighlight, in: style, theme: marineTheme)
+      if highlightedOfflineRegion != context.coordinator.lastHighlightedOfflineRegion {
+        context.coordinator.lastHighlightedOfflineRegion = highlightedOfflineRegion
+        MapStyleController.updateOfflineHighlight(region: highlightedOfflineRegion, in: style, theme: marineTheme)
       }
 
       // Data Stale state update (Opacity)
