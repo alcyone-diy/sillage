@@ -357,8 +357,6 @@ public struct ChecklistTemplateDetailView: View {
       } else {
         ForEach($viewModel.items) { $item in
           let item = $item.wrappedValue
-          let isFirst = item.id == viewModel.items.first?.id
-          let isLast = item.id == viewModel.items.last?.id
           let displayIndex = viewModel.items.firstIndex(where: { $0.id == item.id }) ?? 0
 
           VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
@@ -371,40 +369,6 @@ public struct ChecklistTemplateDetailView: View {
               TextField("Step title", text: $item.title)
                 .marineFont(.body)
                 .focused($focusedField, equals: .item(item.id))
-
-              if editMode == .active {
-                HStack(spacing: MarineTheme.Spacing.tiny) {
-                  Button {
-                    withAnimation {
-                      viewModel.moveItemUp(id: item.id)
-                    }
-                  } label: {
-                    Image(systemName: "chevron.up")
-                      .font(.body.weight(.semibold))
-                      .foregroundStyle(isFirst ? marineTheme.colors.inactive.opacity(0.3) : marineTheme.colors.accent)
-                      .frame(minWidth: 32, minHeight: 32)
-                      .contentShape(Rectangle())
-                  }
-                  .buttonStyle(.plain)
-                  .disabled(isFirst)
-                  .accessibilityLabel(Text("Move up"))
-
-                  Button {
-                    withAnimation {
-                      viewModel.moveItemDown(id: item.id)
-                    }
-                  } label: {
-                    Image(systemName: "chevron.down")
-                      .font(.body.weight(.semibold))
-                      .foregroundStyle(isLast ? marineTheme.colors.inactive.opacity(0.3) : marineTheme.colors.accent)
-                      .frame(minWidth: 32, minHeight: 32)
-                      .contentShape(Rectangle())
-                  }
-                  .buttonStyle(.plain)
-                  .disabled(isLast)
-                  .accessibilityLabel(Text("Move down"))
-                }
-              }
             }
 
             TextField("Detail / instructions (Optional)", text: $item.detail)
@@ -471,7 +435,7 @@ public struct ChecklistTemplateDetailView: View {
     } footer: {
       VStack(alignment: .leading, spacing: MarineTheme.Spacing.medium) {
         if editMode == .active {
-          Text("Drag handles or tap arrows to change step order.")
+          Text("Drag handles to change step order.")
             .marineFont(.caption)
             .foregroundStyle(marineTheme.colors.textSecondary)
         } else if viewModel.items.count > 1 {

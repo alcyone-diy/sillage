@@ -48,44 +48,28 @@ public struct ChecklistCategoryListView: View {
         List {
           Section {
             ForEach(viewModel.categories) { category in
-              let isFirst = category.id == viewModel.categories.first?.id
-              let isLast = category.id == viewModel.categories.last?.id
-
-              if editMode == .active {
+              ZStack {
                 ChecklistCategoryRowView(
                   category: category,
                   checklistCount: viewModel.checklistCount(for: category.id),
-                  isReordering: true,
-                  isFirst: isFirst,
-                  isLast: isLast,
-                  onMoveUp: {
-                    withAnimation {
-                      viewModel.moveCategoryUp(id: category.id)
-                    }
-                  },
-                  onMoveDown: {
-                    withAnimation {
-                      viewModel.moveCategoryDown(id: category.id)
-                    }
-                  }
+                  showsDisclosureIndicator: editMode != .active
                 )
-                .marineListCell()
-              } else {
-                NavigationLink(
-                  value: PanelManagerViewModel.CommandDestination.checklistCategoryDetail(
-                    ChecklistCategoryDetailPayload(
-                      categoryId: category.id,
-                      category: category
+
+                if editMode != .active {
+                  NavigationLink(
+                    value: PanelManagerViewModel.CommandDestination.checklistCategoryDetail(
+                      ChecklistCategoryDetailPayload(
+                        categoryId: category.id,
+                        category: category
+                      )
                     )
-                  )
-                ) {
-                  ChecklistCategoryRowView(
-                    category: category,
-                    checklistCount: viewModel.checklistCount(for: category.id)
-                  )
+                  ) {
+                    EmptyView()
+                  }
+                  .opacity(0)
                 }
-                .marineListCell()
               }
+              .marineListCell()
             }
             .onMove(perform: viewModel.moveCategories)
           } header: {
@@ -118,7 +102,7 @@ public struct ChecklistCategoryListView: View {
             }
           } footer: {
             if editMode == .active {
-              Text("Drag handles or tap arrows to change category order.")
+              Text("Drag handles to change category order.")
                 .marineFont(.caption)
                 .foregroundStyle(marineTheme.colors.textSecondary)
             } else if viewModel.categories.count > 1 {
@@ -163,11 +147,7 @@ private struct ChecklistCategoryRowView: View {
   @Environment(\.marineTheme) private var marineTheme
   let category: ChecklistCategoryItem
   let checklistCount: Int
-  var isReordering: Bool = false
-  var isFirst: Bool = false
-  var isLast: Bool = false
-  var onMoveUp: (() -> Void)? = nil
-  var onMoveDown: (() -> Void)? = nil
+  var showsDisclosureIndicator: Bool = true
 
   var body: some View {
     HStack(spacing: MarineTheme.Spacing.medium) {
@@ -188,36 +168,12 @@ private struct ChecklistCategoryRowView: View {
 
       Spacer()
 
-      if isReordering {
-        HStack(spacing: MarineTheme.Spacing.tiny) {
-          Button {
-            onMoveUp?()
-          } label: {
-            Image(systemName: "chevron.up")
-              .font(.body.weight(.semibold))
-              .foregroundStyle(isFirst ? marineTheme.colors.inactive.opacity(0.3) : marineTheme.colors.accent)
-              .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-          .disabled(isFirst)
-          .accessibilityLabel(Text("Move up"))
-
-          Button {
-            onMoveDown?()
-          } label: {
-            Image(systemName: "chevron.down")
-              .font(.body.weight(.semibold))
-              .foregroundStyle(isLast ? marineTheme.colors.inactive.opacity(0.3) : marineTheme.colors.accent)
-              .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-          .disabled(isLast)
-          .accessibilityLabel(Text("Move down"))
-        }
+      if showsDisclosureIndicator {
+        Image(systemName: "chevron.right")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(marineTheme.colors.textSecondary.opacity(0.5))
       }
     }
-    .accessibilityElement(children: isReordering ? .contain : .combine)
+    .accessibilityElement(children: .combine)
   }
 }

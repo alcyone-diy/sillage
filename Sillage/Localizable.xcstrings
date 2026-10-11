@@ -565,10 +565,10 @@
     "Downloading…" : {
 
     },
-    "Drag handles or tap arrows to change category order." : {
+    "Drag handles to change category order." : {
 
     },
-    "Drag handles or tap arrows to change step order." : {
+    "Drag handles to change step order." : {
 
     },
     "Drag map to adjust anchor position" : {
@@ -935,12 +935,6 @@
       "comment" : "Medium sensitivity"
     },
     "Min" : {
-
-    },
-    "Move down" : {
-
-    },
-    "Move up" : {
 
     },
     "My Account" : {
