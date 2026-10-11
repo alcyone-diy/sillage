@@ -14,15 +14,26 @@ import OSLog
 
 /// Seeds essential built-in maritime checklist templates into the database.
 public struct ChecklistSeeder: Sendable {
-  nonisolated public static let initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] = [
-    ("safety_emergency", "Safety & Emergency", "exclamationmark.shield.fill", 0),
-    ("navigation_maneuver", "Navigation & Maneuver", "steeringwheel", 1),
-    ("routine", "Routine", "checklist", 2),
-    ("engine_technical", "Engine & Technical", "wrench.and.screwdriver.fill", 3),
-    ("wintering_maintenance", "Wintering & Maintenance", "snowflake", 4)
-  ]
+  nonisolated public static let hasSeededInitialCategoriesKey = "hasSeededInitialCategories"
 
-  nonisolated public static func seedDefaultCategoriesIfNeeded(in db: Database) throws {
+  nonisolated public static var initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] {
+    [
+      ("safety_emergency", String(localized: "Safety & Emergency"), "exclamationmark.shield.fill", 0),
+      ("navigation_maneuver", String(localized: "Navigation & Maneuver"), "steeringwheel", 1),
+      ("routine", String(localized: "Routine"), "checklist", 2),
+      ("engine_technical", String(localized: "Engine & Technical"), "wrench.and.screwdriver.fill", 3),
+      ("wintering_maintenance", String(localized: "Wintering & Maintenance"), "snowflake", 4)
+    ]
+  }
+
+  nonisolated public static func seedDefaultCategoriesIfNeeded(
+    in db: Database,
+    userDefaults: UserDefaults = .standard
+  ) throws {
+    guard !userDefaults.bool(forKey: hasSeededInitialCategoriesKey) else {
+      return
+    }
+
     let now = Date()
     for category in initialCategories {
       try db.execute(
@@ -33,10 +44,15 @@ public struct ChecklistSeeder: Sendable {
         arguments: [category.id, category.name, category.icon, category.sortOrder, now, now]
       )
     }
+
+    userDefaults.set(true, forKey: hasSeededInitialCategoriesKey)
   }
 
-  nonisolated public static func seedDefaultTemplatesIfNeeded(in db: Database) throws {
-    try seedDefaultCategoriesIfNeeded(in: db)
+  nonisolated public static func seedDefaultTemplatesIfNeeded(
+    in db: Database,
+    userDefaults: UserDefaults = .standard
+  ) throws {
+    try seedDefaultCategoriesIfNeeded(in: db, userDefaults: userDefaults)
 
     try db.create(table: "checklist_seeding_state", ifNotExists: true) { t in
       t.column("id", .text).primaryKey()
@@ -53,6 +69,19 @@ public struct ChecklistSeeder: Sendable {
       return
     }
 
+    let existingCategoryIds = try String.fetchAll(
+      db,
+      sql: "SELECT id FROM \(ChecklistCategoryRecord.databaseTableName) ORDER BY sort_order ASC, created_at ASC"
+    )
+    guard let fallbackCategoryId = existingCategoryIds.first else {
+      Logger.checklist.warning("Skipping built-in checklist template seeding because no categories exist.")
+      return
+    }
+    let existingCategorySet = Set(existingCategoryIds)
+    let resolveCategoryId: (String) -> String = { preferredId in
+      existingCategorySet.contains(preferredId) ? preferredId : fallbackCategoryId
+    }
+
     Logger.checklist.info("Seeding built-in maritime checklists...")
     let now = Date()
 
@@ -62,7 +91,7 @@ public struct ChecklistSeeder: Sendable {
       id: departureId.uuidString,
       title: "Pre-Departure Checklist",
       description: "Essential vessel and crew safety checks before leaving the berth or mooring.",
-      category_id: "routine",
+      category_id: resolveCategoryId("routine"),
       sort_order: 0,
       created_at: now,
       updated_at: now
@@ -96,7 +125,7 @@ public struct ChecklistSeeder: Sendable {
       id: anchorId.uuidString,
       title: "Anchoring Checklist",
       description: "Standard anchoring procedure and safety radius verification.",
-      category_id: "navigation_maneuver",
+      category_id: resolveCategoryId("navigation_maneuver"),
       sort_order: 1,
       created_at: now,
       updated_at: now
@@ -128,7 +157,7 @@ public struct ChecklistSeeder: Sendable {
       id: mobId.uuidString,
       title: "Man Overboard (MOB)",
       description: "Critical emergency procedure for crew recovery at sea.",
-      category_id: "safety_emergency",
+      category_id: resolveCategoryId("safety_emergency"),
       sort_order: 2,
       created_at: now,
       updated_at: now
@@ -160,7 +189,7 @@ public struct ChecklistSeeder: Sendable {
       id: weatherId.uuidString,
       title: "Heavy Weather & Reefing",
       description: "Safety measures and sail plan reduction for rising sea state and squalls.",
-      category_id: "navigation_maneuver",
+      category_id: resolveCategoryId("navigation_maneuver"),
       sort_order: 3,
       created_at: now,
       updated_at: now

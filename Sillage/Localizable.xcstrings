@@ -466,9 +466,6 @@
     "Critical GPS accuracy. Anchor alarm is temporarily unreliable." : {
 
     },
-    "Custom" : {
-
-    },
     "Debug" : {
 
     },
@@ -626,6 +623,9 @@
 
     },
     "End Time" : {
+
+    },
+    "Engine & Technical" : {
 
     },
     "Error" : {
@@ -964,6 +964,9 @@
     "Navigation" : {
 
     },
+    "Navigation & Maneuver" : {
+
+    },
     "Network error: %@" : {
 
     },
@@ -989,6 +992,9 @@
 
     },
     "No categories available" : {
+
+    },
+    "No categories available. Please create a category first." : {
 
     },
     "No chart layer available for download. Please select a valid layer." : {
@@ -1102,6 +1108,9 @@
     "Please provide a title for your checklist." : {
 
     },
+    "Please select or create a category for your checklist." : {
+
+    },
     "Points" : {
 
     },
@@ -1171,10 +1180,16 @@
     "RNG" : {
 
     },
+    "Routine" : {
+
+    },
     "S" : {
       "comment" : "South cardinal point"
     },
     "Safety" : {
+
+    },
+    "Safety & Emergency" : {
 
     },
     "Safety radius exceeded (%@ / %@)" : {
@@ -1261,9 +1276,6 @@
     },
     "Squall Imminent" : {
       "comment" : "Weather alarm"
-    },
-    "Standard" : {
-
     },
     "Start" : {
 
@@ -1438,9 +1450,6 @@
     "Triggers on drops ≥ 5.0 hPa within 3h. Recommended offshore to avoid alarm fatigue." : {
       "comment" : "Low sensitivity explanation"
     },
-    "Type" : {
-
-    },
     "Unable to load category details. Please try again." : {
 
     },
@@ -1539,6 +1548,9 @@
 
     },
     "Window Duration" : {
+
+    },
+    "Wintering & Maintenance" : {
 
     },
     "xctest-dynamic-overlay" : {

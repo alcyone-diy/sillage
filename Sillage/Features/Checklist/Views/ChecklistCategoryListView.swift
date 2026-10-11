@@ -169,7 +169,7 @@ private struct ChecklistCategoryRowView: View {
     HStack(spacing: MarineTheme.Spacing.medium) {
       Image(systemName: category.displaySystemImage)
         .font(.title3)
-        .foregroundStyle(category.color(for: marineTheme))
+        .foregroundStyle(marineTheme.colors.accent)
         .frame(width: 32, alignment: .center)
 
       VStack(alignment: .leading, spacing: 2) {

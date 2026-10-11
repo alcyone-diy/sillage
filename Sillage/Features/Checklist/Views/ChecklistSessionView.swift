@@ -132,14 +132,14 @@ public struct ChecklistSessionView: View {
         if let categoryItem = viewModel.categoryItem {
           HStack(spacing: MarineTheme.Spacing.small) {
             Image(systemName: categoryItem.displaySystemImage)
-            Text(LocalizedStringKey(categoryItem.name))
+            Text(categoryItem.name)
           }
           .marineFont(.caption)
-          .foregroundStyle(categoryItem.color(for: marineTheme))
+          .foregroundStyle(marineTheme.colors.accent)
         } else if let categoryId = viewModel.categoryId {
           HStack(spacing: MarineTheme.Spacing.small) {
             Image(systemName: "checklist")
-            Text(LocalizedStringKey(categoryId.capitalized))
+            Text(categoryId.capitalized)
           }
           .marineFont(.caption)
           .foregroundStyle(marineTheme.colors.accent)

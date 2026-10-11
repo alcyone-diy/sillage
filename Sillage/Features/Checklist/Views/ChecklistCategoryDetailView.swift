@@ -242,7 +242,7 @@ public struct ChecklistCategoryDetailView: View {
       Text("Icon")
         .marineSectionHeader()
     } footer: {
-      if !viewModel.isNew && !viewModel.isBuiltIn {
+      if !viewModel.isNew {
         VStack(alignment: .leading, spacing: MarineTheme.Spacing.medium) {
           if !viewModel.associatedTemplates.isEmpty {
             Text("This category cannot be deleted while it contains checklists.")
@@ -273,24 +273,13 @@ public struct ChecklistCategoryDetailView: View {
   private var informationSection: some View {
     Section {
       HStack {
-        Text("Type")
-          .marineFont(.body)
-          .foregroundStyle(marineTheme.colors.textPrimary)
-        Spacer()
-        Text(viewModel.isBuiltIn ? "Standard" : "Custom")
-          .marineFont(.body)
-          .foregroundStyle(marineTheme.colors.textSecondary)
-      }
-      .marineListCell()
-
-      HStack {
         Text("Icon")
           .marineFont(.body)
           .foregroundStyle(marineTheme.colors.textPrimary)
         Spacer()
         Image(systemName: viewModel.displaySystemImage)
           .font(.title3)
-          .foregroundStyle(viewModel.category?.color(for: marineTheme) ?? marineTheme.colors.accent)
+          .foregroundStyle(marineTheme.colors.accent)
       }
       .marineListCell()
     } header: {

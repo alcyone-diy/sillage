@@ -57,7 +57,7 @@ public final class ChecklistTemplateDetailViewModel {
 
   public var title: String = ""
   public var descriptionText: String = ""
-  public var categoryId: String = "routine"
+  public var categoryId: String = ""
   public var items: [ChecklistItemDraft] = []
 
   /// The currently resolved category item from availableCategories, if found.
@@ -136,12 +136,16 @@ public final class ChecklistTemplateDetailViewModel {
   /// Explains why the checklist template cannot be saved, or returns nil if valid.
   public var validationErrorMessage: String? {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedCategoryId = categoryId.trimmingCharacters(in: .whitespacesAndNewlines)
     let validItems = items.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     let isTitleEmpty = trimmedTitle.isEmpty
     let isStepsEmpty = validItems.isEmpty
+    let isCategoryEmpty = trimmedCategoryId.isEmpty
 
-    if isTitleEmpty && isStepsEmpty {
+    if isCategoryEmpty {
+      return String(localized: "Please select or create a category for your checklist.")
+    } else if isTitleEmpty && isStepsEmpty {
       return String(localized: "Please provide a title and at least one step for your checklist.")
     } else if isTitleEmpty {
       return String(localized: "Please provide a title for your checklist.")
@@ -156,7 +160,7 @@ public final class ChecklistTemplateDetailViewModel {
     template: ChecklistTemplate? = nil,
     checklistService: any ChecklistServiceProtocol,
     startEditable: Bool = false,
-    initialCategoryId: String = "routine"
+    initialCategoryId: String? = nil
   ) {
     self.templateId = templateId ?? template?.id
     self.checklistService = checklistService
@@ -166,7 +170,9 @@ public final class ChecklistTemplateDetailViewModel {
       self.template = template
       populate(from: template)
     } else if templateId == nil {
-      self.categoryId = initialCategoryId
+      if let initialCategoryId {
+        self.categoryId = initialCategoryId
+      }
       self.items = [ChecklistItemDraft()]
     }
   }
@@ -175,6 +181,9 @@ public final class ChecklistTemplateDetailViewModel {
   public func load() async {
     do {
       self.availableCategories = try await checklistService.fetchCategories()
+      if categoryId.isEmpty, let firstCategory = availableCategories.first {
+        self.categoryId = firstCategory.id
+      }
     } catch {
       Logger.checklist.error("Failed to load checklist categories: \(String(reflecting: error), privacy: .public)")
     }
@@ -274,7 +283,7 @@ public final class ChecklistTemplateDetailViewModel {
     } else {
       title = ""
       descriptionText = ""
-      categoryId = "routine"
+      categoryId = availableCategories.first?.id ?? ""
       items = [ChecklistItemDraft()]
     }
   }

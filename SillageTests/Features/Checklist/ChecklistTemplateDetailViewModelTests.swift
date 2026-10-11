@@ -64,7 +64,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.errorMessage)
     XCTAssertEqual(viewModel.title, "")
     XCTAssertNil(viewModel.description)
-    XCTAssertEqual(viewModel.categoryId, "routine")
+    XCTAssertEqual(viewModel.categoryId, "")
     XCTAssertTrue(viewModel.items.isEmpty)
     XCTAssertFalse(viewModel.hasActiveSession)
     XCTAssertFalse(viewModel.isEditable)
@@ -287,8 +287,21 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertNil(creationVM.errorMessage)
   }
 
-  func testValidationRequiresTitleAndNonEmptyItem() {
-    let creationVM = ChecklistTemplateDetailViewModel(checklistService: checklistService)
+  func testValidationRequiresCategoryTitleAndNonEmptyItem() {
+    let creationVM = ChecklistTemplateDetailViewModel(
+      checklistService: checklistService,
+      initialCategoryId: "routine"
+    )
+
+    // 0. Empty categoryId -> invalid
+    creationVM.categoryId = ""
+    creationVM.title = "Night Watch"
+    creationVM.items[0].title = "Log baro pressure"
+    XCTAssertFalse(creationVM.isValid)
+
+    creationVM.categoryId = "routine"
+    creationVM.title = ""
+    creationVM.items[0].title = ""
 
     // 1. Both empty -> invalid
     XCTAssertFalse(creationVM.isValid)

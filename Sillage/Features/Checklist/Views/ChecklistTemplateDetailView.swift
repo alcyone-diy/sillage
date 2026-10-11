@@ -36,7 +36,7 @@ public struct ChecklistTemplateDetailView: View {
     template: ChecklistTemplate? = nil,
     checklistService: any ChecklistServiceProtocol,
     startEditable: Bool = false,
-    initialCategoryId: String = "routine",
+    initialCategoryId: String? = nil,
     onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)? = nil
   ) {
     self.templateId = templateId ?? template?.id
@@ -132,7 +132,7 @@ public struct ChecklistTemplateDetailView: View {
               .padding(8)
               .contentShape(Rectangle())
           }
-          .disabled(viewModel.isSaving)
+          .disabled(viewModel.isSaving || viewModel.categoryId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
           .accessibilityLabel(String(localized: "Save"))
         }
       } else {
@@ -210,14 +210,14 @@ public struct ChecklistTemplateDetailView: View {
         HStack(spacing: MarineTheme.Spacing.small) {
           if let categoryItem = viewModel.selectedCategoryItem {
             Image(systemName: categoryItem.displaySystemImage)
-              .foregroundStyle(categoryItem.color(for: marineTheme))
-            Text(LocalizedStringKey(categoryItem.name))
+              .foregroundStyle(marineTheme.colors.accent)
+            Text(categoryItem.name)
               .marineFont(.body)
               .foregroundStyle(marineTheme.colors.textSecondary)
           } else {
             Image(systemName: "checklist")
               .foregroundStyle(marineTheme.colors.accent)
-            Text(LocalizedStringKey(viewModel.categoryId.capitalized))
+            Text(viewModel.categoryId.capitalized)
               .marineFont(.body)
               .foregroundStyle(marineTheme.colors.textSecondary)
           }
@@ -316,20 +316,32 @@ public struct ChecklistTemplateDetailView: View {
       }
       .marineListCell()
 
-      Picker("Category", selection: $viewModel.categoryId) {
-        if viewModel.availableCategories.isEmpty {
-          Text(LocalizedStringKey(viewModel.categoryId.capitalized))
-            .tag(viewModel.categoryId)
-        } else {
-          ForEach(viewModel.availableCategories) { cat in
-            Label(LocalizedStringKey(cat.name), systemImage: cat.displaySystemImage)
-              .tag(cat.id)
+      if viewModel.availableCategories.isEmpty && viewModel.categoryId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+          Text("Category")
+            .marineFont(.caption)
+            .foregroundStyle(marineTheme.colors.textSecondary)
+          Text("No categories available. Please create a category first.")
+            .marineFont(.body)
+            .foregroundStyle(marineTheme.colors.warning)
+        }
+        .marineListCell()
+      } else {
+        Picker("Category", selection: $viewModel.categoryId) {
+          if viewModel.availableCategories.isEmpty {
+            Text(viewModel.categoryId.capitalized)
+              .tag(viewModel.categoryId)
+          } else {
+            ForEach(viewModel.availableCategories) { cat in
+              Label(cat.name, systemImage: cat.displaySystemImage)
+                .tag(cat.id)
+            }
           }
         }
+        .pickerStyle(.menu)
+        .marineFont(.body)
+        .marineListCell()
       }
-      .pickerStyle(.menu)
-      .marineFont(.body)
-      .marineListCell()
 
       VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
         Text("Description")

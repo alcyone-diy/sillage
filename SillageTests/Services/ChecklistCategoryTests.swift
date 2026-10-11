@@ -45,8 +45,89 @@ final class ChecklistCategoryTests: XCTestCase {
     }
 
     let routine = try XCTUnwrap(categories.first(where: { $0.id == "routine" }))
-    XCTAssertEqual(routine.name, "Routine")
+    XCTAssertFalse(routine.name.isEmpty)
     XCTAssertEqual(routine.icon, "checklist")
+  }
+
+  func testSeederRunsOnlyOnceAndDoesNotRecreateDeletedCategories() async throws {
+    let suiteName = "ChecklistSeederTests_\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    // Clear categories in DB first
+    try await databaseManager.write { db in
+      try db.execute(sql: "DELETE FROM checklist_category")
+    }
+
+    // 1. First seed populates categories and sets UserDefaults flag
+    try await databaseManager.write { db in
+      guard let suiteDefaults = UserDefaults(suiteName: suiteName) else { return }
+      try ChecklistSeeder.seedDefaultCategoriesIfNeeded(in: db, userDefaults: suiteDefaults)
+    }
+    XCTAssertTrue(defaults.bool(forKey: ChecklistSeeder.hasSeededInitialCategoriesKey))
+
+    let categoriesAfterFirstSeed = try await checklistService.fetchCategories()
+    XCTAssertEqual(categoriesAfterFirstSeed.count, 5)
+    let routine = try XCTUnwrap(categoriesAfterFirstSeed.first(where: { $0.id == "routine" }))
+    XCTAssertEqual(routine.name, String(localized: "Routine"))
+
+    // 2. Delete a category
+    try await checklistService.deleteCategory(id: "routine")
+    let afterDelete = try await checklistService.fetchCategories()
+    XCTAssertEqual(afterDelete.count, 4)
+
+    // 3. Second seed is a no-op and does NOT recreate the deleted category
+    try await databaseManager.write { db in
+      guard let suiteDefaults = UserDefaults(suiteName: suiteName) else { return }
+      try ChecklistSeeder.seedDefaultCategoriesIfNeeded(in: db, userDefaults: suiteDefaults)
+    }
+    let afterSecondSeed = try await checklistService.fetchCategories()
+    XCTAssertEqual(afterSecondSeed.count, 4)
+    XCTAssertNil(afterSecondSeed.first(where: { $0.id == "routine" }))
+  }
+
+  func testSeedDefaultTemplatesFallsBackToFirstCategoryWhenPreferredDeleted() async throws {
+    let suiteName = "ChecklistSeederFallbackTests_\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    // Mark categories as already seeded, and delete "routine" from DB
+    defaults.set(true, forKey: ChecklistSeeder.hasSeededInitialCategoriesKey)
+    try await checklistService.deleteCategory(id: "routine")
+
+    try await databaseManager.write { db in
+      guard let suiteDefaults = UserDefaults(suiteName: suiteName) else { return }
+      try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db, userDefaults: suiteDefaults)
+    }
+
+    let templates = try await checklistService.fetchTemplates()
+    XCTAssertEqual(templates.count, 4)
+    let departure = try XCTUnwrap(templates.first(where: { $0.title == "Pre-Departure Checklist" }))
+    // "routine" was deleted, so it must fall back to the first available category ("safety_emergency")
+    XCTAssertEqual(departure.categoryId, "safety_emergency")
+  }
+
+  func testSeedDefaultTemplatesSkipsWhenNoCategoriesExist() async throws {
+    let suiteName = "ChecklistSeederEmptyCategoriesTests_\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    // Mark categories as already seeded and wipe all categories from DB
+    defaults.set(true, forKey: ChecklistSeeder.hasSeededInitialCategoriesKey)
+    try await databaseManager.write { db in
+      try db.execute(sql: "DELETE FROM checklist_category")
+    }
+
+    // Should not throw or recreate categories
+    try await databaseManager.write { db in
+      guard let suiteDefaults = UserDefaults(suiteName: suiteName) else { return }
+      try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db, userDefaults: suiteDefaults)
+    }
+
+    let categories = try await checklistService.fetchCategories()
+    XCTAssertTrue(categories.isEmpty)
+    let templates = try await checklistService.fetchTemplates()
+    XCTAssertTrue(templates.isEmpty)
   }
 
   // MARK: - Association & Relationship Tests

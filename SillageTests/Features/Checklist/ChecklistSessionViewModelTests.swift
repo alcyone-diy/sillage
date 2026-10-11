@@ -288,7 +288,8 @@ final class ChecklistSessionViewModelTests: XCTestCase {
 
     XCTAssertNotNil(viewModel.categoryItem)
     XCTAssertEqual(viewModel.categoryId, "engine_technical")
-    XCTAssertEqual(viewModel.categoryName, "Engine & Technical")
+    XCTAssertEqual(viewModel.categoryName, viewModel.categoryItem?.name)
+    XCTAssertFalse(viewModel.categoryName.isEmpty)
   }
 
   func testCategoryItemResolvesForCustomCategory() async throws {

@@ -43,12 +43,6 @@ public final class ChecklistCategoryDetailViewModel {
     return icons
   }
 
-  /// Whether this is a built-in standard maritime category (vs custom user-defined category).
-  public var isBuiltIn: Bool {
-    guard let categoryId else { return false }
-    return ChecklistSeeder.initialCategories.contains { $0.id == categoryId }
-  }
-
   /// Returns true if creating a new category (no existing categoryId).
   public var isNew: Bool {
     categoryId == nil
@@ -59,9 +53,9 @@ public final class ChecklistCategoryDetailViewModel {
     !isNew
   }
 
-  /// Indicates whether deletion is allowed (custom category with no associated checklists).
+  /// Indicates whether deletion is allowed (existing category with no associated checklists).
   public var canDelete: Bool {
-    !isNew && !isBuiltIn && associatedTemplates.isEmpty && !isSaving
+    !isNew && associatedTemplates.isEmpty && !isSaving
   }
 
   /// Resolved display system image.

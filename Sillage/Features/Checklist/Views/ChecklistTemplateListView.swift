@@ -104,8 +104,8 @@ public struct ChecklistTemplateListView: View {
           } header: {
             HStack(spacing: MarineTheme.Spacing.small) {
               Image(systemName: section.category.displaySystemImage)
-                .foregroundStyle(section.category.color(for: marineTheme))
-              Text(LocalizedStringKey(section.category.name))
+                .foregroundStyle(marineTheme.colors.accent)
+              Text(section.category.name)
                 .marineSectionHeader()
             }
           }

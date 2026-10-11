@@ -40,7 +40,6 @@ final class ChecklistCategoryDetailViewModelTests: XCTestCase {
     XCTAssertTrue(viewModel.associatedTemplates.isEmpty)
     XCTAssertFalse(viewModel.isLoading)
     XCTAssertNil(viewModel.errorMessage)
-    XCTAssertTrue(viewModel.isBuiltIn)
     XCTAssertEqual(viewModel.name, "")
     XCTAssertNil(viewModel.icon)
     XCTAssertEqual(viewModel.displaySystemImage, "checklist")
@@ -113,14 +112,14 @@ final class ChecklistCategoryDetailViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.errorMessage)
   }
 
-  // MARK: - Custom Category Detection
+  // MARK: - Deletion Eligibility
 
-  func testCustomCategoryIsNotBuiltIn() {
-    let customViewModel = ChecklistCategoryDetailViewModel(
-      categoryId: "custom_sails",
+  func testAnyCategoryWithoutTemplatesCanBeDeleted() {
+    let safetyVM = ChecklistCategoryDetailViewModel(
+      categoryId: "safety_emergency",
       checklistService: mockService
     )
-    XCTAssertFalse(customViewModel.isBuiltIn)
+    XCTAssertTrue(safetyVM.canDelete)
   }
 
   // MARK: - Error Handling
