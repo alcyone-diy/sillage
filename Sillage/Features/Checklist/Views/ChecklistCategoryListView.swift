@@ -14,6 +14,7 @@ import SwiftUI
 @MainActor
 public struct ChecklistCategoryListView: View {
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(PanelManagerViewModel.self) private var panelManager: PanelManagerViewModel?
   private let checklistService: any ChecklistServiceProtocol
   @State private var viewModel: ChecklistCategoryListViewModel
   @State private var editMode: EditMode = .inactive
@@ -125,6 +126,21 @@ public struct ChecklistCategoryListView: View {
     .marineListBackground()
     .navigationTitle("Checklist Categories")
     .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button {
+          panelManager?.commandPath.append(
+            .checklistCategoryDetail(
+              ChecklistCategoryDetailPayload(categoryId: nil, startEditable: true)
+            )
+          )
+        } label: {
+          Image(marineIcon: .add)
+            .foregroundStyle(marineTheme.colors.accent)
+        }
+        .accessibilityLabel(String(localized: "New Category"))
+      }
+    }
     .task {
       await viewModel.loadCategories()
     }

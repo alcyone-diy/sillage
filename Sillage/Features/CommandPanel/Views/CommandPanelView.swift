@@ -316,7 +316,8 @@ struct CommandPanelView: View {
         ChecklistCategoryDetailView(
           categoryId: payload.categoryId,
           category: payload.category,
-          checklistService: service
+          checklistService: service,
+          startEditable: payload.startEditable
         )
       } else {
         checklistServiceUnavailableView(for: "Checklist Category Detail")

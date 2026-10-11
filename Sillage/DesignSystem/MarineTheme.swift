@@ -154,6 +154,30 @@ struct MarineTheme {
     nonisolated static let offlineRegionsBorderOpacity: Double = 0.85
   }
 
+  struct Icons: Sendable {
+    nonisolated static let checklistCategoryDefaults: [String] = [
+      "checklist",
+      "exclamationmark.shield.fill",
+      "steeringwheel",
+      "wrench.and.screwdriver.fill",
+      "snowflake",
+      "sailboat.fill",
+      "ferry.fill",
+      "safari.fill",
+      "location.north.line.fill",
+      "wind",
+      "drop.fill",
+      "bolt.fill",
+      "antenna.radiowaves.left.and.right",
+      "cross.case.fill",
+      "flame.fill",
+      "lifepreserver.fill",
+      "bell.fill",
+      "flag.fill",
+      "tag.fill"
+    ]
+  }
+
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false, colors: dayColors)
   static let gloveMode = MarineTheme(minTouchTarget: 66, isGloveMode: true, colors: dayColors)
 

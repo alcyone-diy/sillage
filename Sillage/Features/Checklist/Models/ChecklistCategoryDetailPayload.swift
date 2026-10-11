@@ -16,24 +16,32 @@ import Foundation
 /// The optional `category` acts solely as a transient fast-path snapshot to eliminate initial UI latency,
 /// ensuring that mutations do not alter the navigation stack identity in SwiftUI.
 public struct ChecklistCategoryDetailPayload: Hashable, Sendable {
-  public let categoryId: String
+  public let categoryId: String?
   public let category: ChecklistCategoryItem?
+  public let startEditable: Bool
 
-  public init(categoryId: String, category: ChecklistCategoryItem? = nil) {
-    self.categoryId = categoryId
+  public init(
+    categoryId: String? = nil,
+    category: ChecklistCategoryItem? = nil,
+    startEditable: Bool = false
+  ) {
+    self.categoryId = categoryId ?? category?.id
     self.category = category
+    self.startEditable = startEditable
   }
 
-  public init(_ category: ChecklistCategoryItem) {
+  public init(_ category: ChecklistCategoryItem, startEditable: Bool = false) {
     self.categoryId = category.id
     self.category = category
+    self.startEditable = startEditable
   }
 
   public static func == (lhs: ChecklistCategoryDetailPayload, rhs: ChecklistCategoryDetailPayload) -> Bool {
-    lhs.categoryId == rhs.categoryId
+    lhs.categoryId == rhs.categoryId && lhs.startEditable == rhs.startEditable
   }
 
   public func hash(into hasher: inout Hasher) {
     hasher.combine(categoryId)
+    hasher.combine(startEditable)
   }
 }

@@ -146,6 +146,100 @@ final class ChecklistCategoryDetailViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isLoading)
     XCTAssertNil(viewModel.errorMessage)
   }
+
+  // MARK: - Editing, Creation & Deletion
+
+  func testEditAndSaveCategoryUpdatesCategoryAndExitsEditMode() async {
+    let initial = ChecklistCategoryItem(
+      id: "safety_emergency",
+      name: "Safety & Emergency",
+      icon: "exclamationmark.shield.fill",
+      sortOrder: 0
+    )
+    mockService.categoryToReturn = initial
+    await viewModel.loadCategory()
+
+    viewModel.isEditable = true
+    viewModel.name = "  Safety & Rescue  "
+    viewModel.icon = "lifepreserver.fill"
+
+    let saved = await viewModel.save()
+    XCTAssertNotNil(saved)
+    XCTAssertFalse(viewModel.isEditable)
+    XCTAssertEqual(viewModel.name, "Safety & Rescue")
+    XCTAssertEqual(viewModel.icon, "lifepreserver.fill")
+    XCTAssertEqual(viewModel.displaySystemImage, "lifepreserver.fill")
+  }
+
+  func testCreateNewCategorySavesAndSetsCategoryId() async {
+    let creationVM = ChecklistCategoryDetailViewModel(
+      categoryId: nil,
+      checklistService: mockService,
+      startEditable: true
+    )
+    XCTAssertNil(creationVM.categoryId)
+    XCTAssertTrue(creationVM.isNew)
+    XCTAssertTrue(creationVM.isEditable)
+    XCTAssertFalse(creationVM.isValid)
+    XCTAssertEqual(creationVM.availableIcons, MarineTheme.Icons.checklistCategoryDefaults)
+
+    creationVM.name = "Rigging & Sails"
+    creationVM.icon = "sailboat.fill"
+    XCTAssertTrue(creationVM.isValid)
+
+    let saved = await creationVM.save()
+    XCTAssertNotNil(saved)
+    XCTAssertFalse(creationVM.isNew)
+    XCTAssertFalse(creationVM.isEditable)
+    XCTAssertEqual(creationVM.name, "Rigging & Sails")
+    XCTAssertEqual(creationVM.icon, "sailboat.fill")
+    XCTAssertNotNil(creationVM.categoryId)
+    XCTAssertEqual(creationVM.categoryId, saved?.id)
+  }
+
+  func testRevertRestoresOriginalValues() async {
+    let initial = ChecklistCategoryItem(
+      id: "routine",
+      name: "Routine",
+      icon: "checklist",
+      sortOrder: 2
+    )
+    let vm = ChecklistCategoryDetailViewModel(
+      categoryId: "routine",
+      category: initial,
+      checklistService: mockService,
+      startEditable: true
+    )
+
+    vm.name = "Modified Name"
+    vm.icon = "wind"
+    vm.revert()
+
+    XCTAssertFalse(vm.isEditable)
+    XCTAssertEqual(vm.name, "Routine")
+    XCTAssertEqual(vm.icon, "checklist")
+  }
+
+  func testCanDeleteAndDeleteCustomCategory() async {
+    let custom = ChecklistCategoryItem(
+      id: "custom_sails",
+      name: "Sails",
+      icon: "sailboat.fill",
+      sortOrder: 5
+    )
+    mockService.categoryToReturn = custom
+    let customVM = ChecklistCategoryDetailViewModel(
+      categoryId: "custom_sails",
+      category: custom,
+      checklistService: mockService
+    )
+    await customVM.loadCategory()
+
+    XCTAssertTrue(customVM.canDelete)
+    let deleted = await customVM.deleteCategory()
+    XCTAssertTrue(deleted)
+    XCTAssertEqual(mockService.deletedCategoryId, "custom_sails")
+  }
 }
 
 // MARK: - Test Mock
@@ -154,6 +248,7 @@ final class ChecklistCategoryDetailViewModelTests: XCTestCase {
 private final class MockChecklistService: ChecklistServiceProtocol {
   var categoryToReturn: ChecklistCategoryItem?
   var templatesToReturn: [ChecklistTemplate] = []
+  var deletedCategoryId: String?
   var errorToThrow: (any Error)?
 
   func fetchCategories() async throws -> [ChecklistCategoryItem] { [] }
@@ -166,12 +261,35 @@ private final class MockChecklistService: ChecklistServiceProtocol {
   }
 
   func createCategory(id: String?, name: String, icon: String?, sortOrder: Int?) async throws -> ChecklistCategoryItem {
-    fatalError("Unused in ViewModel tests")
+    if let error = errorToThrow {
+      throw error
+    }
+    return ChecklistCategoryItem(
+      id: id ?? UUID().uuidString,
+      name: name,
+      icon: icon,
+      sortOrder: sortOrder ?? 0
+    )
   }
+
   func updateCategory(id: String, name: String, icon: String?, sortOrder: Int?) async throws -> ChecklistCategoryItem {
-    fatalError("Unused in ViewModel tests")
+    if let error = errorToThrow {
+      throw error
+    }
+    return ChecklistCategoryItem(
+      id: id,
+      name: name,
+      icon: icon,
+      sortOrder: sortOrder ?? 0
+    )
   }
-  func deleteCategory(id: String) async throws {}
+
+  func deleteCategory(id: String) async throws {
+    if let error = errorToThrow {
+      throw error
+    }
+    deletedCategoryId = id
+  }
   func reorderCategories(ids: [String]) async throws {}
   func fetchChecklistCountsByCategory() async throws -> [String: Int] { [:] }
 
