@@ -88,6 +88,9 @@ public protocol ChecklistServiceProtocol: Sendable {
   /// Deletes a checklist category if no templates reference it.
   func deleteCategory(id: String) async throws
 
+  /// Updates the sort order of checklist categories according to the given ordered list of identifiers.
+  func reorderCategories(ids: [String]) async throws
+
   /// Fetches count of checklist templates grouped by category identifier.
   func fetchChecklistCountsByCategory() async throws -> [String: Int]
 

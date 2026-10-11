@@ -385,4 +385,17 @@ final class ChecklistCategoryTests: XCTestCase {
     XCTAssertEqual(counts["safety_emergency"], 1)
     XCTAssertNil(counts["engine_technical"])
   }
+
+  func testReorderCategoriesPersistsNewOrder() async throws {
+    let initial = try await checklistService.fetchCategories()
+    let reversedIds = Array(initial.map(\.id).reversed())
+
+    try await checklistService.reorderCategories(ids: reversedIds)
+
+    let reordered = try await checklistService.fetchCategories()
+    XCTAssertEqual(reordered.map(\.id), reversedIds)
+    for (expectedOrder, category) in reordered.enumerated() {
+      XCTAssertEqual(category.sortOrder, expectedOrder)
+    }
+  }
 }

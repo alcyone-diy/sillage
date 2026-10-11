@@ -97,6 +97,70 @@ final class ChecklistCategoryListViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isLoading)
     XCTAssertNil(viewModel.errorMessage)
   }
+
+  // MARK: - Reordering
+
+  func testMoveCategoriesUpdatesOrderAndPersists() async {
+    mockService.categoriesToReturn = [
+      ChecklistCategoryItem(id: "cat_a", name: "Alpha", sortOrder: 0),
+      ChecklistCategoryItem(id: "cat_b", name: "Bravo", sortOrder: 1),
+      ChecklistCategoryItem(id: "cat_c", name: "Charlie", sortOrder: 2)
+    ]
+    await viewModel.loadCategories()
+
+    // Move first category to the end
+    viewModel.moveCategories(fromOffsets: IndexSet(integer: 0), toOffset: 3)
+    await Task.yield()
+
+    XCTAssertEqual(viewModel.categories.map(\.id), ["cat_b", "cat_c", "cat_a"])
+    XCTAssertEqual(viewModel.categories.map(\.sortOrder), [0, 1, 2])
+    XCTAssertEqual(mockService.reorderCallCount, 1)
+    XCTAssertEqual(mockService.lastReorderedIds, ["cat_b", "cat_c", "cat_a"])
+  }
+
+  func testMoveCategoryUpAndDown() async {
+    mockService.categoriesToReturn = [
+      ChecklistCategoryItem(id: "cat_a", name: "Alpha", sortOrder: 0),
+      ChecklistCategoryItem(id: "cat_b", name: "Bravo", sortOrder: 1),
+      ChecklistCategoryItem(id: "cat_c", name: "Charlie", sortOrder: 2)
+    ]
+    await viewModel.loadCategories()
+
+    viewModel.moveCategoryUp(id: "cat_b")
+    await Task.yield()
+    XCTAssertEqual(viewModel.categories.map(\.id), ["cat_b", "cat_a", "cat_c"])
+    XCTAssertEqual(viewModel.categories.map(\.sortOrder), [0, 1, 2])
+    XCTAssertEqual(mockService.reorderCallCount, 1)
+    XCTAssertEqual(mockService.lastReorderedIds, ["cat_b", "cat_a", "cat_c"])
+
+    viewModel.moveCategoryDown(id: "cat_b")
+    await Task.yield()
+    XCTAssertEqual(viewModel.categories.map(\.id), ["cat_a", "cat_b", "cat_c"])
+    XCTAssertEqual(viewModel.categories.map(\.sortOrder), [0, 1, 2])
+    XCTAssertEqual(mockService.reorderCallCount, 2)
+    XCTAssertEqual(mockService.lastReorderedIds, ["cat_a", "cat_b", "cat_c"])
+  }
+
+  func testRapidConsecutiveMovesCancelsPreviousSaveTasksAndPersistsOnlyOnce() async {
+    mockService.categoriesToReturn = [
+      ChecklistCategoryItem(id: "cat_a", name: "Alpha", sortOrder: 0),
+      ChecklistCategoryItem(id: "cat_b", name: "Bravo", sortOrder: 1),
+      ChecklistCategoryItem(id: "cat_c", name: "Charlie", sortOrder: 2)
+    ]
+    await viewModel.loadCategories()
+
+    // Synchronously trigger multiple consecutive moves before yielding the MainActor
+    viewModel.moveCategoryUp(id: "cat_c")   // -> [cat_a, cat_c, cat_b]
+    viewModel.moveCategoryUp(id: "cat_c")   // -> [cat_c, cat_a, cat_b]
+    viewModel.moveCategoryDown(id: "cat_a") // -> [cat_c, cat_b, cat_a]
+
+    await Task.yield()
+
+    XCTAssertEqual(viewModel.categories.map(\.id), ["cat_c", "cat_b", "cat_a"])
+    XCTAssertEqual(viewModel.categories.map(\.sortOrder), [0, 1, 2])
+    XCTAssertEqual(mockService.reorderCallCount, 1)
+    XCTAssertEqual(mockService.lastReorderedIds, ["cat_c", "cat_b", "cat_a"])
+  }
 }
 
 // MARK: - Test Mock
@@ -106,6 +170,8 @@ private final class MockChecklistService: ChecklistServiceProtocol {
   var categoriesToReturn: [ChecklistCategoryItem] = []
   var countsToReturn: [String: Int] = [:]
   var templatesToReturn: [ChecklistTemplate] = []
+  var reorderCallCount: Int = 0
+  var lastReorderedIds: [String]?
   var errorToThrow: (any Error)?
 
   func fetchCategories() async throws -> [ChecklistCategoryItem] {
@@ -123,6 +189,13 @@ private final class MockChecklistService: ChecklistServiceProtocol {
     fatalError("Unused in ViewModel tests")
   }
   func deleteCategory(id: String) async throws {}
+  func reorderCategories(ids: [String]) async throws {
+    if let error = errorToThrow {
+      throw error
+    }
+    reorderCallCount += 1
+    lastReorderedIds = ids
+  }
 
   func fetchChecklistCountsByCategory() async throws -> [String: Int] {
     if let error = errorToThrow {

@@ -325,6 +325,9 @@
     "Cannot delete a track while it is actively recording." : {
 
     },
+    "Categories" : {
+
+    },
     "Category" : {
 
     },
@@ -560,6 +563,9 @@
 
     },
     "Downloading…" : {
+
+    },
+    "Drag handles or tap arrows to change category order." : {
 
     },
     "Drag handles or tap arrows to change step order." : {
@@ -1310,6 +1316,9 @@
 
     },
     "Tap '+' to select an area on the chart to download." : {
+
+    },
+    "Tap Reorder to change category order." : {
 
     },
     "Target Position" : {

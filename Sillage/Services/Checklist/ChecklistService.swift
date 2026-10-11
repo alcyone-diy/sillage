@@ -496,6 +496,23 @@ public final class ChecklistService: ChecklistServiceProtocol {
     }
   }
 
+  public func reorderCategories(ids: [String]) async throws {
+    try await databaseManager.write { db in
+      let now = Date()
+      for (index, id) in ids.enumerated() {
+        guard var category = try ChecklistCategoryRecord.fetchOne(db, key: id) else {
+          throw ChecklistSessionError.categoryNotFound(id)
+        }
+        if category.sort_order != index {
+          category.sort_order = index
+          category.updated_at = now
+          try category.update(db)
+        }
+      }
+      Logger.checklist.info("Successfully reordered \(ids.count, privacy: .public) categories")
+    }
+  }
+
   public func fetchChecklistCountsByCategory() async throws -> [String: Int] {
     try await databaseManager.reader.read { db in
       let rows = try Row.fetchAll(
