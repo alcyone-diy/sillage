@@ -91,6 +91,11 @@ struct MarineTheme {
     
     /// The visual size of the interaction handles, dynamically adjusted for Glove Mode visibility.
     let handleSize: CGFloat
+    /// Visual size for contextual callout header icon badges, dynamically scaled for Glove Mode.
+    let calloutHeaderBadgeSize: CGFloat
+    /// Visual size for circular close buttons, dynamically scaled for Glove Mode.
+    let closeButtonCircleSize: CGFloat
+    
     static let cornerRadius: CGFloat = 12.0
     static let borderWidth: CGFloat = 1.0
     static let paginationDotSize: CGFloat = 6.0
@@ -111,14 +116,26 @@ struct MarineTheme {
     static let topToolbarClearance: CGFloat = 160.0
     /// Vertical offset from target screen point to callout card center
     static let calloutVerticalOffset: CGFloat = 110.0
-    /// Divider height in map callout telemetry header
-    static let calloutDividerHeight: CGFloat = 36.0
     /// Standard divider height in floating top telemetry HUD cards
     static let hudDividerHeight: CGFloat = 28.0
+
+    /// Subdued background tint opacity for contextual icon badges
+    static let badgeBackgroundOpacity: Double = 0.15
+    /// Standard indicator dot size for active measure pin selection
+    static let indicatorDotSize: CGFloat = 8.0
+    /// Minimum text scale factor for compact telemetry cells
+    static let compactTextScaleFactor: CGFloat = 0.8
+    /// Minimum text scale factor for action row labels
+    static let actionTextScaleFactor: CGFloat = 0.85
   }
 
   var metrics: Metrics {
-    Metrics(touchTarget: minTouchTarget, handleSize: isGloveMode ? 36.0 : 24.0)
+    Metrics(
+      touchTarget: minTouchTarget,
+      handleSize: isGloveMode ? 36.0 : 24.0,
+      calloutHeaderBadgeSize: isGloveMode ? 44.0 : 36.0,
+      closeButtonCircleSize: isGloveMode ? 36.0 : 28.0
+    )
   }
 
   struct Spacing: Sendable {

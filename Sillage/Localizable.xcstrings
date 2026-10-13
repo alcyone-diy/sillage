@@ -175,9 +175,6 @@
     "Acquiring..." : {
 
     },
-    "Active Pin" : {
-
-    },
     "Active Track" : {
 
     },
@@ -457,9 +454,6 @@
     "Create Checklist" : {
 
     },
-    "Create Waypoint…" : {
-
-    },
     "Critical GPS accuracy (%@). Anchor alarm is temporarily unreliable." : {
 
     },
@@ -515,12 +509,6 @@
 
     },
     "Description" : {
-
-    },
-    "Deselect" : {
-
-    },
-    "Deselect Target" : {
 
     },
     "Desired Accuracy" : {
@@ -943,9 +931,6 @@
     "Measure Distance" : {
 
     },
-    "Measure Distance…" : {
-
-    },
     "Medium" : {
       "comment" : "Medium sensitivity"
     },
@@ -1217,9 +1202,6 @@
     "Segments" : {
 
     },
-    "Select" : {
-
-    },
     "Select Drop Point" : {
 
     },
@@ -1233,9 +1215,6 @@
 
     },
     "Show" : {
-
-    },
-    "Show Details" : {
 
     },
     "Show on Chart" : {
@@ -1343,9 +1322,6 @@
 
     },
     "Tap Reorder to change category order." : {
-
-    },
-    "Target Position" : {
 
     },
     "The application has been closed by iOS. Active services (like tracking or anchor watch) have been stopped." : {

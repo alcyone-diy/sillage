@@ -63,3 +63,23 @@ extension Image {
         self.init(systemName: marineIcon.rawValue)
     }
 }
+
+extension Label where Title == Text, Icon == Image {
+    /// Initializes a label from a localized string key and a marine icon.
+    init(_ titleKey: LocalizedStringKey, marineIcon: MarineIcon) {
+        self.init {
+            Text(titleKey)
+        } icon: {
+            Image(marineIcon: marineIcon)
+        }
+    }
+
+    /// Initializes a label from a string and a marine icon.
+    init(_ title: some StringProtocol, marineIcon: MarineIcon) {
+        self.init {
+            Text(title)
+        } icon: {
+            Image(marineIcon: marineIcon)
+        }
+    }
+}
