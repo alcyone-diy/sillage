@@ -23,6 +23,8 @@ final class MapCalloutViewModel {
   var screenPoint: CGPoint = .zero
   var targetCoordinate: CLLocationCoordinate2D? = nil
   var targetWaypointID: String? = nil
+  private(set) var isDraggingPin: Bool = false
+  private(set) var lastSheetHeight: CGFloat = 220
   
   /// Formatted coordinate string for UI presentation without altering raw coordinate precision.
   var formattedCoordinate: String? {
@@ -43,13 +45,35 @@ final class MapCalloutViewModel {
     self.screenPoint = point
     self.targetCoordinate = coordinate
     self.targetWaypointID = waypointID
+    self.isDraggingPin = false
     self.isCalloutVisible = true
+  }
+  
+  /// Marks the beginning of an interactive pin drag session, cancelling pending projections.
+  func beginDragging() {
+    throttleTask?.cancel()
+    throttleTask = nil
+    self.isDraggingPin = true
+  }
+
+  /// Marks the end of an interactive pin drag session.
+  func endDragging() {
+    self.isDraggingPin = false
+  }
+
+  /// Updates target coordinate and screen position synchronously during active dragging.
+  func updateTarget(screenPoint: CGPoint, coordinate: CLLocationCoordinate2D) {
+    throttleTask?.cancel()
+    throttleTask = nil
+    self.screenPoint = screenPoint
+    self.targetCoordinate = coordinate
   }
   
   /// Requests the map view to pan upwards if the target point is obscured by the bottom sheet.
   /// - Parameter sheetHeight: The rendered height of the bottom sheet.
   func ensureVisible(sheetHeight: CGFloat) {
     guard isCalloutVisible else { return }
+    self.lastSheetHeight = sheetHeight
     onEnsureVisibleRequested?(sheetHeight)
   }
   
@@ -59,20 +83,21 @@ final class MapCalloutViewModel {
     throttleTask = nil
     self.isCalloutVisible = false
     self.targetWaypointID = nil
+    self.isDraggingPin = false
   }
   
   /// Throttles screen position updates during high-frequency map region changes (60-120Hz).
   /// Matrix projection from CLLocationCoordinate2D to screen CGPoint is lightweight,
   /// so screenPosition is updated synchronously at full 60/120Hz display refresh rate with zero lag.
   func throttledUpdateScreenPosition(from mapView: MLNMapView) {
-    guard isCalloutVisible else { return }
+    guard isCalloutVisible, !isDraggingPin else { return }
     performProjectionUpdate(from: mapView)
   }
   
   /// Forces an immediate update of screen coordinates from the map view.
   /// Called when map region animation or gesture completes.
   func updateScreenPositionImmediately(from mapView: MLNMapView) {
-    guard isCalloutVisible else { return }
+    guard isCalloutVisible, !isDraggingPin else { return }
     throttleTask?.cancel()
     throttleTask = nil
     performProjectionUpdate(from: mapView)
@@ -82,6 +107,7 @@ final class MapCalloutViewModel {
   
   /// Performs projection re-calculation from target geographic coordinate to screen point.
   private func performProjectionUpdate(from mapView: MLNMapView) {
+    guard !isDraggingPin else { return }
     guard let targetCoord = targetCoordinate else { return }
     let newPoint = mapView.convert(targetCoord, toPointTo: mapView)
     if abs(self.screenPoint.x - newPoint.x) >= Self.screenPointUpdateThreshold ||

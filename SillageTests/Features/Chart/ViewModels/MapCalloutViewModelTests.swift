@@ -137,6 +137,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     }
     viewModel.ensureVisible(sheetHeight: 250.0)
     XCTAssertEqual(reportedHeight, 250.0)
+    XCTAssertEqual(viewModel.lastSheetHeight, 250.0)
     
     // 3. Long pressing empty map space
     viewModel.presentCallout(at: CGPoint(x: 200, y: 400), coordinate: coord, waypointID: nil)
@@ -183,5 +184,90 @@ final class MapCalloutViewModelTests: XCTestCase {
 
     // Callout must remain visible even if the coordinate projected outside map bounds
     XCTAssertTrue(viewModel.isCalloutVisible)
+  }
+
+  func testUpdateTargetDuringDrag() {
+    let viewModel = MapCalloutViewModel()
+    let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.presentCallout(at: CGPoint(x: 100, y: 100), coordinate: initialCoord)
+    XCTAssertFalse(viewModel.isDraggingPin)
+
+    viewModel.beginDragging()
+    XCTAssertTrue(viewModel.isDraggingPin)
+
+    let newScreenPoint = CGPoint(x: 150, y: 220)
+    let newCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
+
+    viewModel.updateTarget(screenPoint: newScreenPoint, coordinate: newCoord)
+
+    XCTAssertTrue(viewModel.isDraggingPin)
+    XCTAssertEqual(viewModel.screenPoint, newScreenPoint)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, newCoord.latitude)
+    XCTAssertEqual(viewModel.targetCoordinate?.longitude, newCoord.longitude)
+
+    viewModel.endDragging()
+    XCTAssertFalse(viewModel.isDraggingPin)
+
+    viewModel.dismiss()
+    XCTAssertFalse(viewModel.isDraggingPin)
+    XCTAssertFalse(viewModel.isCalloutVisible)
+  }
+
+  func testProjectionIgnoredDuringDrag() {
+    let viewModel = MapCalloutViewModel()
+    let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.presentCallout(at: CGPoint(x: 100, y: 100), coordinate: initialCoord)
+
+    viewModel.beginDragging()
+    let draggedScreenPoint = CGPoint(x: 150, y: 220)
+    let draggedCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
+    viewModel.updateTarget(screenPoint: draggedScreenPoint, coordinate: draggedCoord)
+
+    let mapView = MLNMapView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+    // Throttled or immediate update shouldn't overwrite the drag position while dragging
+    viewModel.throttledUpdateScreenPosition(from: mapView)
+    XCTAssertEqual(viewModel.screenPoint, draggedScreenPoint)
+
+    viewModel.updateScreenPositionImmediately(from: mapView)
+    XCTAssertEqual(viewModel.screenPoint, draggedScreenPoint)
+  }
+
+  func testCompleteDragLifecycleAndProjectionResumption() {
+    let viewModel = MapCalloutViewModel()
+    let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.presentCallout(at: CGPoint(x: 100, y: 100), coordinate: initialCoord)
+    XCTAssertFalse(viewModel.isDraggingPin)
+
+    // 1. Begin drag
+    viewModel.beginDragging()
+    XCTAssertTrue(viewModel.isDraggingPin)
+
+    // 2. Projections are completely ignored during drag
+    let mapView = MLNMapView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+    let intermediateScreenPoint = CGPoint(x: 180, y: 240)
+    let intermediateCoord = CLLocationCoordinate2D(latitude: 47.02, longitude: -2.98)
+    viewModel.updateTarget(screenPoint: intermediateScreenPoint, coordinate: intermediateCoord)
+    XCTAssertEqual(viewModel.screenPoint, intermediateScreenPoint)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, intermediateCoord.latitude)
+
+    viewModel.throttledUpdateScreenPosition(from: mapView)
+    XCTAssertEqual(viewModel.screenPoint, intermediateScreenPoint)
+    viewModel.updateScreenPositionImmediately(from: mapView)
+    XCTAssertEqual(viewModel.screenPoint, intermediateScreenPoint)
+
+    // 3. End drag
+    viewModel.endDragging()
+    XCTAssertFalse(viewModel.isDraggingPin)
+
+    // 4. Projections resume normally after drag session ends
+    viewModel.updateScreenPositionImmediately(from: mapView)
+    let projectedPoint = mapView.convert(intermediateCoord, toPointTo: mapView)
+    XCTAssertEqual(viewModel.screenPoint.x, projectedPoint.x, accuracy: 0.5)
+    XCTAssertEqual(viewModel.screenPoint.y, projectedPoint.y, accuracy: 0.5)
+
+    // 5. Verify lastSheetHeight retention
+    XCTAssertEqual(viewModel.lastSheetHeight, 220.0)
+    viewModel.ensureVisible(sheetHeight: 285.0)
+    XCTAssertEqual(viewModel.lastSheetHeight, 285.0)
   }
 }

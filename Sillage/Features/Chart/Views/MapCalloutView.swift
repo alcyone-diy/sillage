@@ -13,7 +13,7 @@ import CoreLocation
 import OSLog
 
 /// A native contextual bottom dialog sheet overlay view rendered for map targets.
-/// Displays an exact target crosshair at the screen coordinate when targeting empty map space,
+/// Displays an interactive inverted teardrop map pin at the screen coordinate when targeting empty map space,
 /// and presents a self-sizing native bottom sheet (.presentationDetents([.height(...)]) with
 /// .presentationDragIndicator(.visible) and .presentationBackgroundInteraction(.enabled))
 /// displaying live bearing & distance telemetry and contextual marine action buttons.
@@ -43,10 +43,13 @@ struct MapCalloutView: View {
   
   var body: some View {
     ZStack {
-      // Target Crosshair (Displayed only when targeting empty map space and not measuring)
+      // Inverted Teardrop Target Pin (Displayed only when targeting empty map space and not measuring)
       if calloutViewModel.isCalloutVisible && calloutViewModel.targetWaypointID == nil && !chartViewModel.measureToolViewModel.isActive {
-        MarineCrosshairView()
-          .position(x: calloutViewModel.screenPoint.x, y: calloutViewModel.screenPoint.y)
+        MarineTargetPinView(isDragging: calloutViewModel.isDraggingPin)
+          .position(
+            x: calloutViewModel.screenPoint.x,
+            y: calloutViewModel.screenPoint.y + (MarineTargetPinView.pinHeight / 2.0)
+          )
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -66,7 +69,7 @@ struct MapCalloutView: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(marineTheme.colors.panelBackground)
         .presentationBackgroundInteraction(.enabled(upThrough: .height(measuredHeight)))
-        .interactiveDismissDisabled(chartViewModel.isMapMoving || chartViewModel.measureToolViewModel.isDraggingPin)
+        .interactiveDismissDisabled(chartViewModel.isMapMoving || chartViewModel.measureToolViewModel.isDraggingPin || calloutViewModel.isDraggingPin)
     }
   }
   
