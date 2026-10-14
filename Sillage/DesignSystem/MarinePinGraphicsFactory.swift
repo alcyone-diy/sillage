@@ -223,31 +223,4 @@ final class MarinePinGraphicsFactory {
       cacheKey: cacheKey
     )
   }
-
-  /// Creates or returns a cached high-resolution image for a contextual chart target pin (idle or dragging).
-  public static func createTargetPinImage(
-    isDragging: Bool,
-    theme: MarineTheme
-  ) -> UIImage? {
-    let stateKey = isDragging ? "dragging" : "idle"
-
-    let style = Style(
-      fillColor: isDragging ? UIColor(theme.colors.primary) : UIColor(theme.colors.surfaceBackground),
-      strokeColor: isDragging ? UIColor(theme.colors.textPrimary) : UIColor(theme.colors.primary),
-      badgeColor: isDragging ? UIColor(theme.colors.panelBackground) : UIColor(theme.colors.primary),
-      reticleColor: isDragging ? UIColor(theme.colors.textPrimary) : UIColor(theme.colors.primary),
-      centerDotColor: isDragging ? UIColor(theme.colors.textPrimary) : UIColor(theme.colors.primary),
-      scale: isDragging ? 1.08 : 1.0,
-      shadowBlur: isDragging ? 5.0 : 4.0,
-      shadowAlpha: isDragging ? 0.55 : 0.45
-    )
-
-    let cacheKey = "target-pin-\(stateKey)-\(style.colorSignature)"
-
-    return createPinImage(
-      badge: .icon(.crosshair),
-      style: style,
-      cacheKey: cacheKey
-    )
-  }
 }

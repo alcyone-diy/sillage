@@ -21,7 +21,8 @@ final class MapCalloutViewModel {
   var isCalloutVisible: Bool = false
   var targetCoordinate: CLLocationCoordinate2D? = nil
   var targetWaypointID: String? = nil
-  private(set) var isDraggingPin: Bool = false
+  var crosshairOffset: CGSize = .zero
+  var isCentering: Bool = false
   private(set) var lastSheetHeight: CGFloat = 220
   
   /// Formatted coordinate string for UI presentation without altering raw coordinate precision.
@@ -36,24 +37,25 @@ final class MapCalloutViewModel {
   /// - Parameters:
   ///   - coordinate: Geographic coordinate under the target.
   ///   - waypointID: Optional ID if an existing waypoint feature was selected.
-  func presentCallout(coordinate: CLLocationCoordinate2D, waypointID: String? = nil) {
+  ///   - initialOffset: Optional screen offset from the center of the viewport for animated centering.
+  func presentCallout(
+    coordinate: CLLocationCoordinate2D,
+    waypointID: String? = nil,
+    initialOffset: CGSize = .zero
+  ) {
     self.targetCoordinate = coordinate
     self.targetWaypointID = waypointID
-    self.isDraggingPin = false
+    self.crosshairOffset = initialOffset
+    self.isCentering = (initialOffset != .zero)
     self.isCalloutVisible = true
   }
+
+  /// Centers the crosshair at the mathematical center of the map viewport.
+  func centerCrosshair() {
+    self.crosshairOffset = .zero
+  }
   
-  /// Marks the beginning of an interactive pin drag session.
-  func beginDragging() {
-    self.isDraggingPin = true
-  }
-
-  /// Marks the end of an interactive pin drag session.
-  func endDragging() {
-    self.isDraggingPin = false
-  }
-
-  /// Updates target coordinate during active dragging.
+  /// Updates target coordinate during chart panning.
   func updateTarget(coordinate: CLLocationCoordinate2D) {
     self.targetCoordinate = coordinate
   }
@@ -70,7 +72,8 @@ final class MapCalloutViewModel {
   func dismiss() {
     self.isCalloutVisible = false
     self.targetWaypointID = nil
-    self.isDraggingPin = false
+    self.crosshairOffset = .zero
+    self.isCentering = false
   }
   
   /// Calculates the Great Circle initial bearing from the vessel to the target coordinate.

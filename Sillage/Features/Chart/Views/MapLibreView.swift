@@ -220,7 +220,6 @@ struct MapLibreView: UIViewRepresentable {
         context.coordinator.lastThemeHash = currentThemeHash
         MapStyleController.ensureAnchorImagesExist(in: style, theme: marineTheme)
         MapStyleController.ensureMeasurePinImagesExist(in: style, theme: marineTheme)
-        MapStyleController.ensureTargetPinImagesExist(in: style, theme: marineTheme)
       }
 
       // Measure feature update (polyline and pins)
@@ -231,25 +230,6 @@ struct MapLibreView: UIViewRepresentable {
         MapStyleController.updateMeasurePins(state: measureState, activePin: measureActivePin, in: style, theme: marineTheme)
         context.coordinator.lastMeasureState = measureState
         context.coordinator.lastMeasureActivePin = measureActivePin
-      }
-
-      // Target pin feature update (contextual map target selection)
-      let targetPinCoord = viewModel.calloutViewModel.targetCoordinate
-      let isTargetPinVisible = viewModel.calloutViewModel.isCalloutVisible && viewModel.calloutViewModel.targetWaypointID == nil && !viewModel.measureToolViewModel.isActive
-      let isTargetPinDragging = viewModel.calloutViewModel.isDraggingPin
-      if targetPinCoord != context.coordinator.lastTargetPinCoordinate ||
-         isTargetPinVisible != context.coordinator.lastTargetPinVisible ||
-         isTargetPinDragging != context.coordinator.lastTargetPinDragging {
-        MapStyleController.updateTargetPin(
-          coordinate: targetPinCoord,
-          isDragging: isTargetPinDragging,
-          isVisible: isTargetPinVisible,
-          in: style,
-          theme: marineTheme
-        )
-        context.coordinator.lastTargetPinCoordinate = targetPinCoord
-        context.coordinator.lastTargetPinVisible = isTargetPinVisible
-        context.coordinator.lastTargetPinDragging = isTargetPinDragging
       }
       
       // Anchor update
@@ -384,19 +364,14 @@ struct MapLibreView: UIViewRepresentable {
     var lastMeasureActivePin: ActiveMeasurePin?
     weak var pinPanGesture: UIPanGestureRecognizer?
     private var activeDraggedPin: ActiveMeasurePin?
-    private var isDraggingCalloutPin: Bool = false
     private var isLongPressActive: Bool = false
-    private var hasMovedCalloutPin: Bool = false
-    private var calloutPinDragOffset: CGPoint = .zero
     private var measurePinDragOffset: CGPoint = .zero
     private var isUserActivelyInteractingWithPins: Bool {
-      isLongPressActive || isDraggingCalloutPin || activeDraggedPin != nil || parent.viewModel.measureToolViewModel.isDraggingPin
+      isLongPressActive || activeDraggedPin != nil || parent.viewModel.measureToolViewModel.isDraggingPin
     }
     private var lastPanUpdateTime: CFTimeInterval = 0
+    private var lastCalloutTargetUpdateTime: CFTimeInterval = 0
     private static let pinPanThrottleInterval: CFTimeInterval = 0.016
-    var lastTargetPinCoordinate: CLLocationCoordinate2D?
-    var lastTargetPinVisible: Bool = false
-    var lastTargetPinDragging: Bool = false
     var lastThemeHash: Int?
     var lastAnchorVisualState: AnchorVisualState?
     var lastOfflineMaskVisualState: OfflineMaskVisualState?
@@ -472,28 +447,13 @@ struct MapLibreView: UIViewRepresentable {
       return nil
     }
 
-    /// Tests whether a screen touch point is within the touch hit target of the contextual callout target pin.
-    func hitTestCalloutPin(at point: CGPoint, in mapView: MLNMapView) -> Bool {
-      guard parent.viewModel.calloutViewModel.isCalloutVisible,
-            parent.viewModel.calloutViewModel.targetWaypointID == nil,
-            !parent.viewModel.measureToolViewModel.isActive,
-            let targetCoord = parent.viewModel.calloutViewModel.targetCoordinate else { return false }
-
-      let tipPoint = mapView.convert(targetCoord, toPointTo: mapView)
-      let hitRadius: CGFloat = parent.marineTheme.isGloveMode ? 48.0 : 36.0
-      return distanceToPin(touchPoint: point, tipPoint: tipPoint) <= hitRadius
-    }
-
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-      if gestureRecognizer == pinPanGesture {
+      if gestureRecognizer === pinPanGesture {
         guard !isLongPressActive else { return false }
         guard let mapView = self.mapView else { return false }
         let touchPoint = gestureRecognizer.location(in: mapView)
         if parent.viewModel.measureToolViewModel.isActive {
           return hitTestMeasurePin(at: touchPoint, in: mapView) != nil
-        }
-        if parent.viewModel.calloutViewModel.isCalloutVisible && parent.viewModel.calloutViewModel.targetWaypointID == nil {
-          return hitTestCalloutPin(at: touchPoint, in: mapView)
         }
         return false
       }
@@ -520,15 +480,9 @@ struct MapLibreView: UIViewRepresentable {
     @objc func handlePinPan(_ sender: UIPanGestureRecognizer) {
       guard let mapView = sender.view as? MLNMapView else { return }
 
-      // Route first according to any already engaged drag session before testing tool modes
-      if activeDraggedPin != nil {
+      // Route according to active measure tool pin drag
+      if activeDraggedPin != nil || parent.viewModel.measureToolViewModel.isActive {
         handleMeasurePinPan(sender, in: mapView)
-      } else if isDraggingCalloutPin {
-        handleCalloutPinPan(sender, in: mapView)
-      } else if parent.viewModel.measureToolViewModel.isActive {
-        handleMeasurePinPan(sender, in: mapView)
-      } else if parent.viewModel.calloutViewModel.isCalloutVisible && parent.viewModel.calloutViewModel.targetWaypointID == nil {
-        handleCalloutPinPan(sender, in: mapView)
       }
     }
 
@@ -620,162 +574,6 @@ struct MapLibreView: UIViewRepresentable {
         y: min(max(point.y, 0), mapView.bounds.height)
       )
     }
-
-    private func handleCalloutPinPan(_ sender: UIPanGestureRecognizer, in mapView: MLNMapView) {
-      let touchPoint = sender.location(in: mapView)
-
-      switch sender.state {
-      case .began:
-        guard hitTestCalloutPin(at: touchPoint, in: mapView),
-              let targetCoord = parent.viewModel.calloutViewModel.targetCoordinate else { return }
-        isDraggingCalloutPin = true
-        hasMovedCalloutPin = false
-        parent.viewModel.calloutViewModel.beginDragging()
-        parent.viewModel.chartInteractedByUser()
-
-        let tipPoint = mapView.convert(targetCoord, toPointTo: mapView)
-        calloutPinDragOffset = CGPoint(
-          x: touchPoint.x - tipPoint.x,
-          y: touchPoint.y - tipPoint.y
-        )
-        lastPanUpdateTime = CACurrentMediaTime()
-
-        // Immediate visual feedback on MapLibre style
-        if let style = mapView.style {
-          MapStyleController.updateTargetPin(
-            coordinate: targetCoord,
-            isDragging: true,
-            isVisible: true,
-            in: style,
-            theme: parent.marineTheme
-          )
-          lastTargetPinDragging = true
-        }
-
-      case .changed:
-        updateCalloutPinDrag(at: touchPoint, in: mapView)
-
-      case .ended:
-        endCalloutPinDrag(at: touchPoint, in: mapView)
-
-      case .cancelled, .failed:
-        cancelCalloutPinDrag(in: mapView)
-
-      default:
-        break
-      }
-    }
-
-    private func updateCalloutPinDrag(at touchPoint: CGPoint, in mapView: MLNMapView) {
-      guard isDraggingCalloutPin else { return }
-      // Ensure callout target mode is still valid; otherwise abort and clean up drag state
-      guard parent.viewModel.calloutViewModel.isCalloutVisible,
-            parent.viewModel.calloutViewModel.targetWaypointID == nil else {
-        cancelCalloutPinDrag(in: mapView)
-        return
-      }
-
-      hasMovedCalloutPin = true
-
-      let now = CACurrentMediaTime()
-      guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { return }
-      lastPanUpdateTime = now
-
-      let rawTip = CGPoint(
-        x: touchPoint.x - calloutPinDragOffset.x,
-        y: touchPoint.y - calloutPinDragOffset.y
-      )
-      let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
-      let coord = mapView.convert(clampedTip, toCoordinateFrom: mapView)
-
-      // Atomic update of both GPU layer and ViewModel at 60Hz lockstep
-      if let style = mapView.style {
-        MapStyleController.updateTargetPin(
-          coordinate: coord,
-          isDragging: true,
-          isVisible: true,
-          in: style,
-          theme: parent.marineTheme
-        )
-        lastTargetPinCoordinate = coord
-        lastTargetPinDragging = true
-      }
-
-      parent.viewModel.calloutViewModel.updateTarget(coordinate: coord)
-    }
-
-    private func endCalloutPinDrag(at touchPoint: CGPoint, in mapView: MLNMapView) {
-      guard isDraggingCalloutPin else { return }
-      let moved = hasMovedCalloutPin
-      let dragOffset = calloutPinDragOffset
-      isDraggingCalloutPin = false
-      isLongPressActive = false
-      hasMovedCalloutPin = false
-      calloutPinDragOffset = .zero
-      parent.viewModel.calloutViewModel.endDragging()
-
-      if parent.viewModel.calloutViewModel.isCalloutVisible && parent.viewModel.calloutViewModel.targetWaypointID == nil {
-        let finalCoord: CLLocationCoordinate2D
-        if moved {
-          let rawTip = CGPoint(
-            x: touchPoint.x - dragOffset.x,
-            y: touchPoint.y - dragOffset.y
-          )
-          let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
-          finalCoord = mapView.convert(clampedTip, toCoordinateFrom: mapView)
-          parent.viewModel.calloutViewModel.updateTarget(coordinate: finalCoord)
-        } else if let existingCoord = parent.viewModel.calloutViewModel.targetCoordinate {
-          finalCoord = existingCoord
-        } else {
-          cancelCalloutPinDrag(in: mapView)
-          return
-        }
-
-        if let style = mapView.style {
-          MapStyleController.updateTargetPin(
-            coordinate: finalCoord,
-            isDragging: false,
-            isVisible: true,
-            in: style,
-            theme: parent.marineTheme
-          )
-          lastTargetPinCoordinate = finalCoord
-          lastTargetPinDragging = false
-        }
-
-        let currentPoint = mapView.convert(finalCoord, toPointTo: mapView)
-        ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: parent.viewModel.calloutViewModel.lastSheetHeight)
-        return
-      }
-
-      cancelCalloutPinDrag(in: mapView)
-    }
-
-    private func cancelCalloutPinDrag(in mapView: MLNMapView) {
-      guard isDraggingCalloutPin else { return }
-      isDraggingCalloutPin = false
-      isLongPressActive = false
-      hasMovedCalloutPin = false
-      calloutPinDragOffset = .zero
-      parent.viewModel.calloutViewModel.endDragging()
-      if let style = mapView.style {
-        MapStyleController.updateTargetPin(
-          coordinate: parent.viewModel.calloutViewModel.targetCoordinate,
-          isDragging: false,
-          isVisible: parent.viewModel.calloutViewModel.isCalloutVisible && parent.viewModel.calloutViewModel.targetWaypointID == nil,
-          in: style,
-          theme: parent.marineTheme
-        )
-        lastTargetPinVisible = parent.viewModel.calloutViewModel.isCalloutVisible && parent.viewModel.calloutViewModel.targetWaypointID == nil
-        lastTargetPinDragging = false
-      }
-
-      if parent.viewModel.calloutViewModel.isCalloutVisible,
-         let targetCoord = parent.viewModel.calloutViewModel.targetCoordinate {
-        let currentPoint = mapView.convert(targetCoord, toPointTo: mapView)
-        ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: parent.viewModel.calloutViewModel.lastSheetHeight)
-      }
-    }
     
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
       if gestureRecognizer == pinPanGesture || otherGestureRecognizer == pinPanGesture {
@@ -792,17 +590,7 @@ struct MapLibreView: UIViewRepresentable {
     
     @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
       if sender.state == .ended || sender.state == .cancelled || sender.state == .failed {
-        // Guarantee isLongPressActive and any abandoned drag session are reset, even if guards return early
-        if isDraggingCalloutPin && (parent.viewModel.measureToolViewModel.isActive || parent.viewModel.isActionConfirmationCardActive) {
-          if let mapView = sender.view as? MLNMapView {
-            cancelCalloutPinDrag(in: mapView)
-          } else {
-            isDraggingCalloutPin = false
-            hasMovedCalloutPin = false
-            calloutPinDragOffset = .zero
-            parent.viewModel.calloutViewModel.endDragging()
-          }
-        }
+        // Guarantee isLongPressActive and measure pin drag session are reset, even if guards return early
         if parent.viewModel.measureToolViewModel.isDraggingPin && !parent.viewModel.measureToolViewModel.isActive {
           parent.viewModel.measureToolViewModel.isDraggingPin = false
         }
@@ -878,77 +666,47 @@ struct MapLibreView: UIViewRepresentable {
           // Note: Camera adjustment is deferred until finger release (.ended)
           let targetCoordinate = feature.coordinate
           parent.viewModel.calloutViewModel.presentCallout(coordinate: targetCoordinate, waypointID: id)
-
-          // Immediately hide any previously placed TargetPin from the MapLibre style
-          if let style = mapView.style {
-            MapStyleController.updateTargetPin(
-              coordinate: nil,
-              isDragging: false,
-              isVisible: false,
-              in: style,
-              theme: parent.marineTheme
-            )
-            lastTargetPinCoordinate = nil
-            lastTargetPinVisible = false
-            lastTargetPinDragging = false
-          }
         } else {
-          // Long press on map to create/drag target pin:
-          // The bottom circular badge must appear directly under the user's finger.
-          // Therefore, the needle tip is positioned offset upwards by needleToHeadCenterOffset.
-          let rawTip = CGPoint(
-            x: touchPoint.x,
-            y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
+          // Long press on empty chart area: target with crosshair!
+          let targetCoordinate = mapView.convert(touchPoint, toCoordinateFrom: mapView)
+          let screenCenter = CGPoint(x: mapView.bounds.midX, y: mapView.bounds.midY)
+          let rawOffset = CGSize(
+            width: touchPoint.x - screenCenter.x,
+            height: touchPoint.y - screenCenter.y
           )
-          let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
-          let targetCoordinate = mapView.convert(clampedTip, toCoordinateFrom: mapView)
+          let isNearCenter = hypot(rawOffset.width, rawOffset.height) < 1.0
+          let initialOffset = isNearCenter ? .zero : rawOffset
 
-          calloutPinDragOffset = CGPoint(
-            x: touchPoint.x - clampedTip.x,
-            y: touchPoint.y - clampedTip.y
+          parent.viewModel.calloutViewModel.presentCallout(
+            coordinate: targetCoordinate,
+            waypointID: nil,
+            initialOffset: initialOffset
           )
-          isDraggingCalloutPin = true
-          hasMovedCalloutPin = false
-          lastPanUpdateTime = CACurrentMediaTime()
 
-          parent.viewModel.calloutViewModel.presentCallout(coordinate: targetCoordinate, waypointID: nil)
-          parent.viewModel.calloutViewModel.beginDragging()
+          if !isNearCenter {
+            // Move chart camera so the target coordinate centers at the middle of the screen
+            mapView.setCenter(targetCoordinate, animated: true)
 
-          if let style = mapView.style {
-            MapStyleController.updateTargetPin(
-              coordinate: targetCoordinate,
-              isDragging: true,
-              isVisible: true,
-              in: style,
-              theme: parent.marineTheme
-            )
-            lastTargetPinCoordinate = targetCoordinate
-            lastTargetPinVisible = true
-            lastTargetPinDragging = true
+            // Animate the crosshair from touchPoint to the center of the screen
+            withAnimation(.easeInOut(duration: 0.35)) {
+              parent.viewModel.calloutViewModel.centerCrosshair()
+            }
           }
         }
 
       case .changed:
-        updateCalloutPinDrag(at: touchPoint, in: mapView)
+        break
 
       case .ended:
-        if isDraggingCalloutPin {
-          endCalloutPinDrag(at: touchPoint, in: mapView)
-        } else if parent.viewModel.calloutViewModel.isCalloutVisible,
-                  let targetCoord = parent.viewModel.calloutViewModel.targetCoordinate {
+        if parent.viewModel.calloutViewModel.isCalloutVisible,
+           parent.viewModel.calloutViewModel.targetWaypointID != nil,
+           let targetCoord = parent.viewModel.calloutViewModel.targetCoordinate {
           let currentPoint = mapView.convert(targetCoord, toPointTo: mapView)
           ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: parent.viewModel.calloutViewModel.lastSheetHeight)
         }
         isLongPressActive = false
 
       case .cancelled, .failed:
-        if isDraggingCalloutPin {
-          cancelCalloutPinDrag(in: mapView)
-        } else if parent.viewModel.calloutViewModel.isCalloutVisible,
-                  let targetCoord = parent.viewModel.calloutViewModel.targetCoordinate {
-          let currentPoint = mapView.convert(targetCoord, toPointTo: mapView)
-          ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: parent.viewModel.calloutViewModel.lastSheetHeight)
-        }
         isLongPressActive = false
 
       default:
@@ -1054,7 +812,9 @@ struct MapLibreView: UIViewRepresentable {
         guard let self = self, let mapView = mapView else { return }
         // Never move the camera while the user is actively touching or dragging on the map!
         guard !self.isUserActivelyInteractingWithPins else { return }
+        // EnsureVisible is only applied to waypoints; crosshairs remain strictly at the center of the viewport
         guard self.parent.viewModel.calloutViewModel.isCalloutVisible,
+              self.parent.viewModel.calloutViewModel.targetWaypointID != nil,
               let targetCoord = self.parent.viewModel.calloutViewModel.targetCoordinate else { return }
         let currentPoint = mapView.convert(targetCoord, toPointTo: mapView)
         self.ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: sheetHeight)
@@ -1101,6 +861,18 @@ struct MapLibreView: UIViewRepresentable {
         projection: { mapView.convert($0, toPointTo: mapView) },
         bounds: mapView.bounds
       )
+
+      // Live update target coordinate under crosshair when user moves the map (throttled to ~30Hz)
+      if parent.viewModel.calloutViewModel.isCalloutVisible &&
+         parent.viewModel.calloutViewModel.targetWaypointID == nil &&
+         !parent.viewModel.measureToolViewModel.isActive &&
+         !parent.viewModel.calloutViewModel.isCentering {
+        let now = CACurrentMediaTime()
+        if now - lastCalloutTargetUpdateTime >= 0.032 {
+          lastCalloutTargetUpdateTime = now
+          parent.viewModel.calloutViewModel.updateTarget(coordinate: mapView.centerCoordinate)
+        }
+      }
       
       // Technical Design Choice: Dynamic Tracking Break Evaluation
       // During active manual panning in tracking mode (.northUp or .courseUp), measure the physical screen displacement
@@ -1143,10 +915,6 @@ struct MapLibreView: UIViewRepresentable {
       // Register all pin and anchor status icons once in MapLibre style
       MapStyleController.ensureAnchorImagesExist(in: style, theme: parent.marineTheme)
       MapStyleController.ensureMeasurePinImagesExist(in: style, theme: parent.marineTheme)
-      MapStyleController.ensureTargetPinImagesExist(in: style, theme: parent.marineTheme)
-      lastTargetPinCoordinate = nil
-      lastTargetPinVisible = false
-      lastTargetPinDragging = false
       lastThemeHash = nil
       
       if let currentSource = parent.viewModel.currentChartSource {
@@ -1268,6 +1036,11 @@ struct MapLibreView: UIViewRepresentable {
     func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       if !reason.contains(.programmatic) {
         self.parent.viewModel.isMapMoving = true
+        if self.parent.viewModel.calloutViewModel.isCalloutVisible &&
+           self.parent.viewModel.calloutViewModel.targetWaypointID == nil &&
+           !self.parent.viewModel.measureToolViewModel.isActive {
+          self.parent.viewModel.calloutViewModel.isCentering = false
+        }
         
         if self.parent.viewModel.trackingMode != .free && !self.parent.viewModel.anchorViewModel.isAdjustingAnchor {
           if shouldBreakTracking(for: reason) {
@@ -1359,18 +1132,26 @@ struct MapLibreView: UIViewRepresentable {
           projection: { mapView.convert($0, toPointTo: mapView) },
           bounds: mapView.bounds
         )
+
+        // Sync final target coordinate under crosshair when camera movement stops
+        if self.parent.viewModel.calloutViewModel.isCalloutVisible &&
+           self.parent.viewModel.calloutViewModel.targetWaypointID == nil &&
+           !self.parent.viewModel.measureToolViewModel.isActive {
+          self.parent.viewModel.calloutViewModel.isCentering = false
+          self.parent.viewModel.calloutViewModel.updateTarget(coordinate: mapView.centerCoordinate)
+        }
         
         // Technical Design Choice: Centering Restoration vs Tracking Break
         // If the user was in an automated tracking mode:
         // - If movement exceeded the threshold: tracking mode was broken during the gesture (or broken now).
         // - If movement remained within the tolerance margin: restore camera lock on vessel smoothly,
-        //   EXCEPT when manual anchor position adjustment is active (`anchorViewModel.isAdjustingAnchor == false`),
+        //   EXCEPT when manual anchor position adjustment or callout targeting is active,
         //   preventing the crosshair aiming position from being pulled away (rubber-band bug) during micro-drags.
         if self.parent.viewModel.trackingMode != .free {
           if self.hasExceededTrackingMargin {
             self.parent.viewModel.chartInteractedByUser()
           } else if self.shouldBreakTracking(for: reason) {
-            if !self.parent.viewModel.anchorViewModel.isAdjustingAnchor {
+            if !self.parent.viewModel.anchorViewModel.isAdjustingAnchor && !self.parent.viewModel.calloutViewModel.isCalloutVisible {
               Logger.chart.info("Manual drag remained within tolerance margin; recentering on vessel.")
               self.parent.viewModel.centerOnUserLocation()
             }

@@ -47,10 +47,21 @@ struct MapCalloutView: View {
   }
 
   var body: some View {
-    Color.clear
-      .allowsHitTesting(false)
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .sheet(isPresented: isSheetPresented) {
+    ZStack {
+      Color.clear
+        .allowsHitTesting(false)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+      // Aiming crosshair for contextual map target selection
+      if calloutViewModel.isCalloutVisible &&
+         calloutViewModel.targetWaypointID == nil &&
+         !chartViewModel.measureToolViewModel.isActive {
+        MarineCrosshairView.targetAiming(theme: marineTheme)
+          .offset(calloutViewModel.crosshairOffset)
+          .transition(.opacity)
+      }
+    }
+    .sheet(isPresented: isSheetPresented) {
       calloutSheetContent
         .onAppear {
           notifySheetHeightChanged(measuredHeight)
@@ -68,7 +79,7 @@ struct MapCalloutView: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(marineTheme.colors.panelBackground)
         .presentationBackgroundInteraction(.enabled(upThrough: .height(measuredHeight)))
-        .interactiveDismissDisabled(chartViewModel.isMapMoving || chartViewModel.measureToolViewModel.isDraggingPin || calloutViewModel.isDraggingPin)
+        .interactiveDismissDisabled(chartViewModel.isMapMoving || chartViewModel.measureToolViewModel.isDraggingPin)
     }
   }
   

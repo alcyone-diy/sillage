@@ -39,7 +39,6 @@ enum MapLayerIdentifier: String, CaseIterable, Comparable {
   case headingTick = "heading-vector-tick-layer"
   case vesselSymbol = "vessel-layer"
   case measurePins = "measure-pins-layer"
-  case targetPin = "target-pin-layer"
 
   var zIndex: Int {
     Self.allCases.firstIndex(of: self) ?? 0
@@ -63,7 +62,6 @@ enum MapSourceIdentifier: String, CaseIterable {
   case bearingLine = "bearing-line-source"
   case measureLine = "measure-line-source"
   case measurePins = "measure-pins-source"
-  case targetPin = "target-pin-source"
   case visibleWaypoints = "visible-waypoints-source"
   case goToWaypoint = "goto-waypoint-source"
   case heading = "heading-vector-source"
@@ -455,19 +453,6 @@ struct MapStyleController {
     }
   }
 
-  /// Ensures both target pin icon images (idle and dragging) are registered in the MapLibre style stack.
-  static func ensureTargetPinImagesExist(in style: MLNStyle, theme: MarineTheme) {
-    let states: [(Bool, String)] = [(false, "target-pin-idle"), (true, "target-pin-dragging")]
-    for (isDragging, imageName) in states {
-      if let image = MarinePinGraphicsFactory.createTargetPinImage(isDragging: isDragging, theme: theme) {
-        if style.image(forName: imageName) !== image {
-          style.setImage(image, forName: imageName)
-          Logger.mapStyle.debug("Updated target pin icon image \(imageName, privacy: .public)")
-        }
-      }
-    }
-  }
-
   // MARK: - Navigation Layers (Tracks, Waypoints, Bearing Line, Anchor)
 
   /// Ensures navigation sources and layers (active track, saved track, waypoints, bearing line, anchor) exist.
@@ -476,7 +461,6 @@ struct MapStyleController {
     if style.source(withIdentifier: MapSourceIdentifier.activeTrack.rawValue) == nil {
       ensureAnchorImagesExist(in: style, theme: theme)
       ensureMeasurePinImagesExist(in: style, theme: theme)
-      ensureTargetPinImagesExist(in: style, theme: theme)
 
       // 1. Active Track
       let activeTrackSource = MLNShapeSource(identifier: MapSourceIdentifier.activeTrack.rawValue, shape: nil, options: nil)
@@ -569,21 +553,6 @@ struct MapStyleController {
       measurePinsLayer.iconOpacity = NSExpression(forConstantValue: 1.0)
       measurePinsLayer.iconOpacityTransition = MLNTransition(duration: 0, delay: 0)
       insertLayer(measurePinsLayer, identifier: .measurePins, into: style)
-
-      // 5c. Contextual Target Pin (for callout target selection)
-      let targetPinSource = MLNShapeSource(identifier: MapSourceIdentifier.targetPin.rawValue, shape: nil, options: nil)
-      style.addSource(targetPinSource)
-
-      let targetPinLayer = MLNSymbolStyleLayer(identifier: MapLayerIdentifier.targetPin.rawValue, source: targetPinSource)
-      targetPinLayer.iconImageName = NSExpression(forKeyPath: "icon")
-      targetPinLayer.iconAnchor = NSExpression(forConstantValue: "top")
-      targetPinLayer.iconOffset = NSExpression(forConstantValue: [0.0, -MarinePinGraphicsFactory.focalPointY])
-      targetPinLayer.iconRotationAlignment = NSExpression(forConstantValue: "viewport")
-      targetPinLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
-      targetPinLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
-      targetPinLayer.iconOpacity = NSExpression(forConstantValue: 1.0)
-      targetPinLayer.iconOpacityTransition = MLNTransition(duration: 0, delay: 0)
-      insertLayer(targetPinLayer, identifier: .targetPin, into: style)
 
       // 6. Anchor Radius Fill, Stroke, Rode Line & Symbol Point
       let anchorRadiusSource = MLNShapeSource(identifier: MapSourceIdentifier.anchorRadius.rawValue, shape: nil, options: nil)
@@ -727,30 +696,6 @@ struct MapStyleController {
 
       pinSource.shape = MLNShapeCollectionFeature(shapes: [featureA, featureB])
     }
-  }
-
-  /// Updates contextual target pin feature on the MapLibre style with zero GPU/Metal latency.
-  static func updateTargetPin(
-    coordinate: CLLocationCoordinate2D?,
-    isDragging: Bool,
-    isVisible: Bool,
-    in style: MLNStyle,
-    theme: MarineTheme
-  ) {
-    ensureNavigationLayersExist(in: style, theme: theme)
-    guard let pinSource = style.source(withIdentifier: MapSourceIdentifier.targetPin.rawValue) as? MLNShapeSource else { return }
-
-    guard isVisible, let coord = coordinate else {
-      pinSource.shape = nil
-      return
-    }
-
-    let feature = MLNPointFeature()
-    feature.coordinate = coord
-    feature.attributes = [
-      "icon": isDragging ? "target-pin-dragging" : "target-pin-idle"
-    ]
-    pinSource.shape = feature
   }
 
   /// Updates anchor features and layer styling on the MapLibre style.

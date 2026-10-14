@@ -31,4 +31,13 @@ final class MarineCrosshairViewTests: XCTestCase {
     XCTAssertEqual(crosshair.color, customColor)
     XCTAssertEqual(crosshair.centerDotColor, customDotColor)
   }
+
+  func testTargetAimingFactory() {
+    let theme = MarineTheme.standard
+    let crosshair = MarineCrosshairView.targetAiming(theme: theme)
+
+    XCTAssertEqual(crosshair.size, MarineCrosshairView.defaultSize)
+    XCTAssertEqual(crosshair.color, theme.colors.vectorHDG)
+    XCTAssertEqual(crosshair.centerDotColor, theme.colors.destructive)
+  }
 }

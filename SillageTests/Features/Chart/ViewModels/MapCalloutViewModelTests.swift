@@ -167,53 +167,39 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertTrue(formatted?.contains("47°") == true)
   }
 
-  func testUpdateTargetDuringDrag() {
+  func testUpdateTarget() {
     let viewModel = MapCalloutViewModel()
     let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
     viewModel.presentCallout(coordinate: initialCoord)
-    XCTAssertFalse(viewModel.isDraggingPin)
-
-    viewModel.beginDragging()
-    XCTAssertTrue(viewModel.isDraggingPin)
 
     let newCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
     viewModel.updateTarget(coordinate: newCoord)
 
-    XCTAssertTrue(viewModel.isDraggingPin)
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, newCoord.latitude)
     XCTAssertEqual(viewModel.targetCoordinate?.longitude, newCoord.longitude)
 
-    viewModel.endDragging()
-    XCTAssertFalse(viewModel.isDraggingPin)
-
     viewModel.dismiss()
-    XCTAssertFalse(viewModel.isDraggingPin)
     XCTAssertFalse(viewModel.isCalloutVisible)
   }
 
-  func testCompleteDragLifecycleAndSheetHeight() {
+  func testSheetHeightRetention() {
     let viewModel = MapCalloutViewModel()
     let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
     viewModel.presentCallout(coordinate: initialCoord)
-    XCTAssertFalse(viewModel.isDraggingPin)
 
-    // 1. Begin drag
-    viewModel.beginDragging()
-    XCTAssertTrue(viewModel.isDraggingPin)
-
-    // 2. Update target coordinate
-    let intermediateCoord = CLLocationCoordinate2D(latitude: 47.02, longitude: -2.98)
-    viewModel.updateTarget(coordinate: intermediateCoord)
-    XCTAssertEqual(viewModel.targetCoordinate?.latitude, intermediateCoord.latitude)
-
-    // 3. End drag
-    viewModel.endDragging()
-    XCTAssertFalse(viewModel.isDraggingPin)
-
-    // 4. Verify lastSheetHeight retention
     XCTAssertEqual(viewModel.lastSheetHeight, 220.0)
     viewModel.ensureVisible(sheetHeight: 285.0)
     XCTAssertEqual(viewModel.lastSheetHeight, 285.0)
+  }
+
+  func testPresentCalloutWithZeroOffsetDoesNotSetCentering() {
+    let viewModel = MapCalloutViewModel()
+    let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+
+    viewModel.presentCallout(coordinate: coord, waypointID: nil, initialOffset: .zero)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertEqual(viewModel.crosshairOffset, .zero)
+    XCTAssertFalse(viewModel.isCentering, "isCentering should be false when initialOffset is zero")
   }
 
   func testEnsureVisibleInvokesCallbackWhenDialogArrives() {
@@ -229,5 +215,27 @@ final class MapCalloutViewModelTests: XCTestCase {
     viewModel.ensureVisible(sheetHeight: 300.0)
     XCTAssertEqual(receivedSheetHeight, 300.0, "ensureVisible should trigger camera adjustment when the dialog arrives")
     XCTAssertEqual(viewModel.lastSheetHeight, 300.0)
+  }
+
+  func testCrosshairOffsetAndCenteringLifecycle() {
+    let viewModel = MapCalloutViewModel()
+    let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    let initialOffset = CGSize(width: 50.0, height: -120.0)
+
+    XCTAssertEqual(viewModel.crosshairOffset, .zero)
+    XCTAssertFalse(viewModel.isCentering)
+
+    viewModel.presentCallout(coordinate: coord, waypointID: nil, initialOffset: initialOffset)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertEqual(viewModel.crosshairOffset, initialOffset)
+    XCTAssertTrue(viewModel.isCentering)
+
+    viewModel.centerCrosshair()
+    XCTAssertEqual(viewModel.crosshairOffset, .zero)
+
+    viewModel.dismiss()
+    XCTAssertFalse(viewModel.isCalloutVisible)
+    XCTAssertEqual(viewModel.crosshairOffset, .zero)
+    XCTAssertFalse(viewModel.isCentering)
   }
 }

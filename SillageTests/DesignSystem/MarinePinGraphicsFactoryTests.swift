@@ -33,23 +33,10 @@ final class MarinePinGraphicsFactoryTests: XCTestCase {
     XCTAssertEqual(imageB?.size.height, 84.0)
   }
 
-  func testCreateTargetPinImage_returnsValidDimensions() {
-    let theme = MarineTheme.standard
-    let idleImage = MarinePinGraphicsFactory.createTargetPinImage(isDragging: false, theme: theme)
-    let dragImage = MarinePinGraphicsFactory.createTargetPinImage(isDragging: true, theme: theme)
-
-    XCTAssertNotNil(idleImage)
-    XCTAssertNotNil(dragImage)
-    XCTAssertEqual(idleImage?.size.width, 52.0)
-    XCTAssertEqual(idleImage?.size.height, 84.0)
-    XCTAssertEqual(dragImage?.size.width, 52.0)
-    XCTAssertEqual(dragImage?.size.height, 84.0)
-  }
-
   func testCreatePinImage_cachingMechanism() {
     let theme = MarineTheme.standard
-    let img1 = MarinePinGraphicsFactory.createTargetPinImage(isDragging: false, theme: theme)
-    let img2 = MarinePinGraphicsFactory.createTargetPinImage(isDragging: false, theme: theme)
+    let img1 = MarinePinGraphicsFactory.createMeasurePinImage(for: .start, isSelected: false, theme: theme)
+    let img2 = MarinePinGraphicsFactory.createMeasurePinImage(for: .start, isSelected: false, theme: theme)
 
     XCTAssertNotNil(img1)
     XCTAssertNotNil(img2)

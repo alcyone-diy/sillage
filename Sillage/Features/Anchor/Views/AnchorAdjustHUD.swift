@@ -25,10 +25,7 @@ public struct AnchorAdjustHUD: View {
   public var body: some View {
     ZStack {
       // 1. Central Crosshair (Fixed at center of map viewport)
-      MarineCrosshairView(
-        color: marineTheme.colors.vectorHDG,
-        centerDotColor: marineTheme.colors.destructive
-      )
+      MarineCrosshairView.targetAiming(theme: marineTheme)
 
       VStack {
         // 2. Top Sightline Telemetry HUD (Isolated sub-view for 120fps rendering)

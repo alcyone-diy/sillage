@@ -12,16 +12,16 @@ import SwiftUI
 
 /// Standardized high-contrast crosshair view used across marine map overlays
 /// (e.g. anchor position adjustment, map callout waypoint targeting).
-public struct MarineCrosshairView: View {
+struct MarineCrosshairView: View {
   @Environment(\.marineTheme) private var marineTheme
 
-  public static let defaultSize: CGFloat = 44.0
+  static let defaultSize: CGFloat = 44.0
 
-  public var size: CGFloat
-  public var color: Color?
-  public var centerDotColor: Color?
+  var size: CGFloat
+  var color: Color?
+  var centerDotColor: Color?
 
-  public init(
+  init(
     size: CGFloat = MarineCrosshairView.defaultSize,
     color: Color? = nil,
     centerDotColor: Color? = nil
@@ -31,7 +31,20 @@ public struct MarineCrosshairView: View {
     self.centerDotColor = centerDotColor
   }
 
-  public var body: some View {
+  /// Creates the standardized high-contrast aiming crosshair used across marine map overlays
+  /// (e.g. anchor repositioning, chart callout aiming).
+  static func targetAiming(
+    theme: MarineTheme,
+    size: CGFloat = MarineCrosshairView.defaultSize
+  ) -> MarineCrosshairView {
+    MarineCrosshairView(
+      size: size,
+      color: theme.colors.vectorHDG,
+      centerDotColor: theme.colors.destructive
+    )
+  }
+
+  var body: some View {
     let mainColor = color ?? marineTheme.colors.primary
     let dotColor = centerDotColor ?? mainColor
     let circleDiameter = size * 0.65
