@@ -215,4 +215,19 @@ final class MapCalloutViewModelTests: XCTestCase {
     viewModel.ensureVisible(sheetHeight: 285.0)
     XCTAssertEqual(viewModel.lastSheetHeight, 285.0)
   }
+
+  func testEnsureVisibleInvokesCallbackWhenDialogArrives() {
+    let viewModel = MapCalloutViewModel()
+    let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.presentCallout(coordinate: coord)
+    
+    var receivedSheetHeight: CGFloat? = nil
+    viewModel.onEnsureVisibleRequested = { height in
+      receivedSheetHeight = height
+    }
+    
+    viewModel.ensureVisible(sheetHeight: 300.0)
+    XCTAssertEqual(receivedSheetHeight, 300.0, "ensureVisible should trigger camera adjustment when the dialog arrives")
+    XCTAssertEqual(viewModel.lastSheetHeight, 300.0)
+  }
 }

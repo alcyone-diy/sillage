@@ -47,10 +47,16 @@ struct MapCalloutView: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .sheet(isPresented: isSheetPresented) {
       calloutSheetContent
+        .onAppear {
+          if !chartViewModel.measureToolViewModel.isActive {
+            calloutViewModel.ensureVisible(sheetHeight: measuredHeight)
+          }
+        }
         .onGeometryChange(for: CGFloat.self) { proxy in
           proxy.size.height
         } action: { newHeight in
-          if newHeight > 0 && abs(measuredHeight - newHeight) > 1.0 {
+          guard newHeight > 0 else { return }
+          if abs(measuredHeight - newHeight) > 1.0 {
             measuredHeight = newHeight
             if !chartViewModel.measureToolViewModel.isActive {
               calloutViewModel.ensureVisible(sheetHeight: newHeight)
