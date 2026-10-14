@@ -21,11 +21,6 @@ final class AnchorGraphicsFactory {
     theme: MarineTheme,
     size: CGSize = CGSize(width: 44, height: 44)
   ) -> UIImage? {
-    let key = "anchor-\(status.rawValue)-\(Int(size.width))x\(Int(size.height))" as NSString
-    if let cachedImage = cache.object(forKey: key) {
-      return cachedImage
-    }
-
     let statusColor: UIColor
     switch status {
     case .setup:
@@ -36,6 +31,11 @@ final class AnchorGraphicsFactory {
       statusColor = UIColor(theme.colors.anchorArmed)
     case .dragging:
       statusColor = UIColor(theme.colors.anchorDragging)
+    }
+
+    let key = "anchor-\(status.rawValue)-\(Int(size.width))x\(Int(size.height))-\(statusColor.description)" as NSString
+    if let cachedImage = cache.object(forKey: key) {
+      return cachedImage
     }
 
     return createAnchorImage(size: size, color: statusColor, cacheKey: key)

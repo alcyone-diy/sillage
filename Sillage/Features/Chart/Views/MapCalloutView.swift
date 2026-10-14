@@ -42,18 +42,10 @@ struct MapCalloutView: View {
   }
   
   var body: some View {
-    ZStack {
-      // Inverted Teardrop Target Pin (Displayed only when targeting empty map space and not measuring)
-      if calloutViewModel.isCalloutVisible && calloutViewModel.targetWaypointID == nil && !chartViewModel.measureToolViewModel.isActive {
-        MarineTargetPinView(isDragging: calloutViewModel.isDraggingPin)
-          .position(
-            x: calloutViewModel.screenPoint.x,
-            y: calloutViewModel.screenPoint.y + (MarineTargetPinView.pinHeight / 2.0)
-          )
-      }
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .sheet(isPresented: isSheetPresented) {
+    Color.clear
+      .allowsHitTesting(false)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .sheet(isPresented: isSheetPresented) {
       calloutSheetContent
         .onGeometryChange(for: CGFloat.self) { proxy in
           proxy.size.height

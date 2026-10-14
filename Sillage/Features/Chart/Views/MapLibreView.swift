@@ -203,6 +203,26 @@ struct MapLibreView: UIViewRepresentable {
         context.coordinator.lastBearingLineVisualState = bearingLineVisualState
       }
 
+      // Ensure pin and anchor images match the current MarineTheme when the theme changes
+      var themeHasher = Hasher()
+      themeHasher.combine(marineTheme.isGloveMode)
+      themeHasher.combine(marineTheme.colors.primary)
+      themeHasher.combine(marineTheme.colors.accent)
+      themeHasher.combine(marineTheme.colors.surfaceBackground)
+      themeHasher.combine(marineTheme.colors.textPrimary)
+      themeHasher.combine(marineTheme.colors.panelBackground)
+      themeHasher.combine(marineTheme.colors.anchorDropped)
+      themeHasher.combine(marineTheme.colors.anchorArmed)
+      themeHasher.combine(marineTheme.colors.anchorDragging)
+      let currentThemeHash = themeHasher.finalize()
+
+      if context.coordinator.lastThemeHash != currentThemeHash {
+        context.coordinator.lastThemeHash = currentThemeHash
+        MapStyleController.ensureAnchorImagesExist(in: style, theme: marineTheme)
+        MapStyleController.ensureMeasurePinImagesExist(in: style, theme: marineTheme)
+        MapStyleController.ensureTargetPinImagesExist(in: style, theme: marineTheme)
+      }
+
       // Measure feature update (polyline and pins)
       let measureState = viewModel.measureToolViewModel.state
       let measureActivePin = viewModel.measureToolViewModel.activePin
@@ -211,6 +231,25 @@ struct MapLibreView: UIViewRepresentable {
         MapStyleController.updateMeasurePins(state: measureState, activePin: measureActivePin, in: style, theme: marineTheme)
         context.coordinator.lastMeasureState = measureState
         context.coordinator.lastMeasureActivePin = measureActivePin
+      }
+
+      // Target pin feature update (contextual map target selection)
+      let targetPinCoord = viewModel.calloutViewModel.targetCoordinate
+      let isTargetPinVisible = viewModel.calloutViewModel.isCalloutVisible && viewModel.calloutViewModel.targetWaypointID == nil && !viewModel.measureToolViewModel.isActive
+      let isTargetPinDragging = viewModel.calloutViewModel.isDraggingPin
+      if targetPinCoord != context.coordinator.lastTargetPinCoordinate ||
+         isTargetPinVisible != context.coordinator.lastTargetPinVisible ||
+         isTargetPinDragging != context.coordinator.lastTargetPinDragging {
+        MapStyleController.updateTargetPin(
+          coordinate: targetPinCoord,
+          isDragging: isTargetPinDragging,
+          isVisible: isTargetPinVisible,
+          in: style,
+          theme: marineTheme
+        )
+        context.coordinator.lastTargetPinCoordinate = targetPinCoord
+        context.coordinator.lastTargetPinVisible = isTargetPinVisible
+        context.coordinator.lastTargetPinDragging = isTargetPinDragging
       }
       
       // Anchor update
@@ -348,6 +387,11 @@ struct MapLibreView: UIViewRepresentable {
     private var isDraggingCalloutPin: Bool = false
     private var calloutPinDragOffset: CGPoint = .zero
     private var lastPanUpdateTime: CFTimeInterval = 0
+    private static let pinPanThrottleInterval: CFTimeInterval = 0.016
+    var lastTargetPinCoordinate: CLLocationCoordinate2D?
+    var lastTargetPinVisible: Bool = false
+    var lastTargetPinDragging: Bool = false
+    var lastThemeHash: Int?
     var lastAnchorVisualState: AnchorVisualState?
     var lastOfflineMaskVisualState: OfflineMaskVisualState?
     var lastHighlightedOfflineRegion: HighlightedOfflineRegion?
@@ -384,6 +428,15 @@ struct MapLibreView: UIViewRepresentable {
       NotificationCenter.default.removeObserver(self)
     }
     
+    /// Computes the minimal distance between a touch point and an inverted nautical map pin (checking both circular head and needle tip).
+    private func distanceToPin(touchPoint: CGPoint, tipPoint: CGPoint) -> CGFloat {
+      let headOffset = MarineMapPinShape.needleToHeadCenterOffset
+      let headCenter = CGPoint(x: tipPoint.x, y: tipPoint.y + headOffset)
+      let distHead = hypot(touchPoint.x - headCenter.x, touchPoint.y - headCenter.y)
+      let distTip = hypot(touchPoint.x - tipPoint.x, touchPoint.y - tipPoint.y)
+      return min(distHead, distTip)
+    }
+
     /// Tests whether a screen touch point is within the touch hit target of Pin A or Pin B.
     func hitTestMeasurePin(at point: CGPoint, in mapView: MLNMapView) -> ActiveMeasurePin? {
       guard parent.viewModel.measureToolViewModel.isActive else { return nil }
@@ -394,20 +447,9 @@ struct MapLibreView: UIViewRepresentable {
       let ptA = mapView.convert(startCoord, toPointTo: mapView)
       let ptB = mapView.convert(endCoord, toPointTo: mapView)
 
-      let headOffset = MarineMapPinShape.needleToHeadCenterOffset
-      let headCenterA = CGPoint(x: ptA.x, y: ptA.y + headOffset)
-      let headCenterB = CGPoint(x: ptB.x, y: ptB.y + headOffset)
-
-      let hitRadius: CGFloat = 36.0 // 72 pt diameter target for Glove Mode
-
-      let distA = hypot(point.x - headCenterA.x, point.y - headCenterA.y)
-      let distB = hypot(point.x - headCenterB.x, point.y - headCenterB.y)
-
-      let tipDistA = hypot(point.x - ptA.x, point.y - ptA.y)
-      let tipDistB = hypot(point.x - ptB.x, point.y - ptB.y)
-
-      let minA = min(distA, tipDistA)
-      let minB = min(distB, tipDistB)
+      let hitRadius: CGFloat = parent.marineTheme.isGloveMode ? 48.0 : 36.0
+      let minA = distanceToPin(touchPoint: point, tipPoint: ptA)
+      let minB = distanceToPin(touchPoint: point, tipPoint: ptB)
 
       if minA <= hitRadius && minB <= hitRadius {
         if measureVM.activePin == .start {
@@ -432,15 +474,8 @@ struct MapLibreView: UIViewRepresentable {
             let targetCoord = parent.viewModel.calloutViewModel.targetCoordinate else { return false }
 
       let tipPoint = mapView.convert(targetCoord, toPointTo: mapView)
-      let headOffset = MarineMapPinShape.needleToHeadCenterOffset
-      let headCenter = CGPoint(x: tipPoint.x, y: tipPoint.y + headOffset)
-
-      // In Glove Mode, expand the hit radius significantly (48pt radius / 96pt diameter target)
       let hitRadius: CGFloat = parent.marineTheme.isGloveMode ? 48.0 : 36.0
-      let distHead = hypot(point.x - headCenter.x, point.y - headCenter.y)
-      let distTip = hypot(point.x - tipPoint.x, point.y - tipPoint.y)
-
-      return distHead <= hitRadius || distTip <= hitRadius
+      return distanceToPin(touchPoint: point, tipPoint: tipPoint) <= hitRadius
     }
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -523,7 +558,7 @@ struct MapLibreView: UIViewRepresentable {
         }
 
         let now = CACurrentMediaTime()
-        guard now - lastPanUpdateTime >= 0.05 else { return }
+        guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { return }
         lastPanUpdateTime = now
 
         let tipPoint = CGPoint(
@@ -589,6 +624,18 @@ struct MapLibreView: UIViewRepresentable {
         )
         lastPanUpdateTime = CACurrentMediaTime()
 
+        // Immediate visual feedback on MapLibre style
+        if let style = mapView.style {
+          MapStyleController.updateTargetPin(
+            coordinate: targetCoord,
+            isDragging: true,
+            isVisible: true,
+            in: style,
+            theme: parent.marineTheme
+          )
+          lastTargetPinDragging = true
+        }
+
       case .changed:
         guard isDraggingCalloutPin else { return }
         // Ensure callout target mode is still valid; otherwise abort and clean up drag state
@@ -597,11 +644,22 @@ struct MapLibreView: UIViewRepresentable {
           isDraggingCalloutPin = false
           calloutPinDragOffset = .zero
           parent.viewModel.calloutViewModel.endDragging()
+          if let style = mapView.style {
+            MapStyleController.updateTargetPin(
+              coordinate: nil,
+              isDragging: false,
+              isVisible: false,
+              in: style,
+              theme: parent.marineTheme
+            )
+            lastTargetPinVisible = false
+            lastTargetPinDragging = false
+          }
           return
         }
 
         let now = CACurrentMediaTime()
-        guard now - lastPanUpdateTime >= 0.016 else { return }
+        guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { return }
         lastPanUpdateTime = now
 
         let rawTip = CGPoint(
@@ -610,7 +668,21 @@ struct MapLibreView: UIViewRepresentable {
         )
         let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
         let coord = mapView.convert(clampedTip, toCoordinateFrom: mapView)
-        parent.viewModel.calloutViewModel.updateTarget(screenPoint: clampedTip, coordinate: coord)
+
+        // Atomic update of both GPU layer and ViewModel at 60Hz lockstep
+        if let style = mapView.style {
+          MapStyleController.updateTargetPin(
+            coordinate: coord,
+            isDragging: true,
+            isVisible: true,
+            in: style,
+            theme: parent.marineTheme
+          )
+          lastTargetPinCoordinate = coord
+          lastTargetPinDragging = true
+        }
+
+        parent.viewModel.calloutViewModel.updateTarget(coordinate: coord)
 
       case .ended:
         if isDraggingCalloutPin {
@@ -621,7 +693,19 @@ struct MapLibreView: UIViewRepresentable {
             )
             let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
             let coord = mapView.convert(clampedTip, toCoordinateFrom: mapView)
-            parent.viewModel.calloutViewModel.updateTarget(screenPoint: clampedTip, coordinate: coord)
+            parent.viewModel.calloutViewModel.updateTarget(coordinate: coord)
+
+            if let style = mapView.style {
+              MapStyleController.updateTargetPin(
+                coordinate: coord,
+                isDragging: false,
+                isVisible: true,
+                in: style,
+                theme: parent.marineTheme
+              )
+              lastTargetPinCoordinate = coord
+              lastTargetPinDragging = false
+            }
 
             // Critical: Clean up drag state BEFORE camera animation so projection updates are not blocked
             isDraggingCalloutPin = false
@@ -635,12 +719,31 @@ struct MapLibreView: UIViewRepresentable {
         isDraggingCalloutPin = false
         calloutPinDragOffset = .zero
         parent.viewModel.calloutViewModel.endDragging()
+        if let style = mapView.style {
+          MapStyleController.updateTargetPin(
+            coordinate: parent.viewModel.calloutViewModel.targetCoordinate,
+            isDragging: false,
+            isVisible: parent.viewModel.calloutViewModel.isCalloutVisible && parent.viewModel.calloutViewModel.targetWaypointID == nil,
+            in: style,
+            theme: parent.marineTheme
+          )
+          lastTargetPinDragging = false
+        }
 
       case .cancelled, .failed:
         isDraggingCalloutPin = false
         calloutPinDragOffset = .zero
         parent.viewModel.calloutViewModel.endDragging()
-        parent.viewModel.calloutViewModel.updateScreenPositionImmediately(from: mapView)
+        if let style = mapView.style {
+          MapStyleController.updateTargetPin(
+            coordinate: parent.viewModel.calloutViewModel.targetCoordinate,
+            isDragging: false,
+            isVisible: parent.viewModel.calloutViewModel.isCalloutVisible && parent.viewModel.calloutViewModel.targetWaypointID == nil,
+            in: style,
+            theme: parent.marineTheme
+          )
+          lastTargetPinDragging = false
+        }
 
       default:
         break
@@ -729,7 +832,19 @@ struct MapLibreView: UIViewRepresentable {
         waypointID = nil
       }
 
-      self.parent.viewModel.calloutViewModel.presentCallout(at: targetPoint, coordinate: targetCoordinate, waypointID: waypointID)
+      self.parent.viewModel.calloutViewModel.presentCallout(coordinate: targetCoordinate, waypointID: waypointID)
+      if let style = mapView.style, waypointID == nil {
+        MapStyleController.updateTargetPin(
+          coordinate: targetCoordinate,
+          isDragging: false,
+          isVisible: true,
+          in: style,
+          theme: parent.marineTheme
+        )
+        lastTargetPinCoordinate = targetCoordinate
+        lastTargetPinVisible = true
+        lastTargetPinDragging = false
+      }
       ensureTargetVisible(at: targetPoint, in: mapView, sheetHeight: parent.viewModel.calloutViewModel.lastSheetHeight)
     }
     
@@ -738,7 +853,7 @@ struct MapLibreView: UIViewRepresentable {
     /// If the point is too close to the bottom (under the sheet) or too close to the top (under the HUD),
     /// the map camera smoothly animates to bring the target into comfortable, unobstructed view with full pin clearance.
     private func ensureTargetVisible(at point: CGPoint, in mapView: MLNMapView, sheetHeight: CGFloat = 220) {
-      let pinHeight: CGFloat = MarineTargetPinView.pinHeight
+      let pinHeight: CGFloat = MarinePinGraphicsFactory.pinHeight
       let bottomClearance: CGFloat = 40.0 + pinHeight
       let topClearance: CGFloat = max(mapView.safeAreaInsets.top + 80.0, MarineTheme.Metrics.topToolbarClearance)
       
@@ -800,7 +915,6 @@ struct MapLibreView: UIViewRepresentable {
     func mapViewRegionIsChanging(_ mapView: MLNMapView) {
       let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
       self.parent.viewModel.throttledUpdateMapScaleAndZoom(metersPerPoint: mpp, zoomLevel: mapView.zoomLevel)
-      self.parent.viewModel.calloutViewModel.throttledUpdateScreenPosition(from: mapView)
       self.parent.viewModel.throttledUpdateCenterCoordinate(mapView.centerCoordinate)
       self.parent.viewModel.updateOfflineRegionScreenPositions(
         projection: { mapView.convert($0, toPointTo: mapView) },
@@ -829,7 +943,6 @@ struct MapLibreView: UIViewRepresentable {
     func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
       let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
       self.parent.viewModel.updateMapScaleAndZoomImmediately(metersPerPoint: mpp, zoomLevel: mapView.zoomLevel)
-      self.parent.viewModel.calloutViewModel.updateScreenPositionImmediately(from: mapView)
       self.parent.viewModel.updateCenterCoordinateImmediately(mapView.centerCoordinate)
       self.parent.viewModel.updateOfflineRegionScreenPositions(
         projection: { mapView.convert($0, toPointTo: mapView) },
@@ -846,8 +959,14 @@ struct MapLibreView: UIViewRepresentable {
         style.setImage(image, forName: "vessel-cursor")
       }
       
-      // Register all 4 anchor status icons once in MapLibre style
+      // Register all pin and anchor status icons once in MapLibre style
       MapStyleController.ensureAnchorImagesExist(in: style, theme: parent.marineTheme)
+      MapStyleController.ensureMeasurePinImagesExist(in: style, theme: parent.marineTheme)
+      MapStyleController.ensureTargetPinImagesExist(in: style, theme: parent.marineTheme)
+      lastTargetPinCoordinate = nil
+      lastTargetPinVisible = false
+      lastTargetPinDragging = false
+      lastThemeHash = nil
       
       if let currentSource = parent.viewModel.currentChartSource {
         MapStyleController.updateChartSource(currentSource, in: style, isOverlayEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled)

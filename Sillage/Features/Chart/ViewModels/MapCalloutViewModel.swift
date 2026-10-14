@@ -10,17 +10,15 @@
 
 import SwiftUI
 import CoreLocation
-import MapLibre
 
 /// Manages the state and telemetry calculation for the map target callout overlay.
-/// Geographic coordinate is fixed, and screen position updates synchronously with map movement (zero lag).
+/// Geographic coordinate is fixed or dragged, with native MapLibre GPU pin rendering.
 /// Enforces strict Swift 6 MainActor isolation.
 @Observable
 @MainActor
 final class MapCalloutViewModel {
   
   var isCalloutVisible: Bool = false
-  var screenPoint: CGPoint = .zero
   var targetCoordinate: CLLocationCoordinate2D? = nil
   var targetWaypointID: String? = nil
   private(set) var isDraggingPin: Bool = false
@@ -34,25 +32,19 @@ final class MapCalloutViewModel {
   /// Closure invoked when the UI requests ensuring the target point is not obscured by overlay sheets.
   var onEnsureVisibleRequested: (@MainActor (CGFloat) -> Void)? = nil
   
-  private var throttleTask: TaskCancellable?
-  
-  /// Presents the map callout overlay at the specified screen point and coordinate.
+  /// Presents the map callout overlay at the specified geographic coordinate.
   /// - Parameters:
-  ///   - point: Initial touch point on screen in local view coordinates.
-  ///   - coordinate: Geographic coordinate under the touch point.
-  ///   - waypointID: Optional ID if an existing waypoint feature was long-pressed.
-  func presentCallout(at point: CGPoint, coordinate: CLLocationCoordinate2D, waypointID: String? = nil) {
-    self.screenPoint = point
+  ///   - coordinate: Geographic coordinate under the target.
+  ///   - waypointID: Optional ID if an existing waypoint feature was selected.
+  func presentCallout(coordinate: CLLocationCoordinate2D, waypointID: String? = nil) {
     self.targetCoordinate = coordinate
     self.targetWaypointID = waypointID
     self.isDraggingPin = false
     self.isCalloutVisible = true
   }
   
-  /// Marks the beginning of an interactive pin drag session, cancelling pending projections.
+  /// Marks the beginning of an interactive pin drag session.
   func beginDragging() {
-    throttleTask?.cancel()
-    throttleTask = nil
     self.isDraggingPin = true
   }
 
@@ -61,11 +53,8 @@ final class MapCalloutViewModel {
     self.isDraggingPin = false
   }
 
-  /// Updates target coordinate and screen position synchronously during active dragging.
-  func updateTarget(screenPoint: CGPoint, coordinate: CLLocationCoordinate2D) {
-    throttleTask?.cancel()
-    throttleTask = nil
-    self.screenPoint = screenPoint
+  /// Updates target coordinate during active dragging.
+  func updateTarget(coordinate: CLLocationCoordinate2D) {
     self.targetCoordinate = coordinate
   }
   
@@ -77,43 +66,11 @@ final class MapCalloutViewModel {
     onEnsureVisibleRequested?(sheetHeight)
   }
   
-  /// Dismisses the callout overlay and cancels any pending throttled projection tasks.
+  /// Dismisses the callout overlay.
   func dismiss() {
-    throttleTask?.cancel()
-    throttleTask = nil
     self.isCalloutVisible = false
     self.targetWaypointID = nil
     self.isDraggingPin = false
-  }
-  
-  /// Throttles screen position updates during high-frequency map region changes (60-120Hz).
-  /// Matrix projection from CLLocationCoordinate2D to screen CGPoint is lightweight,
-  /// so screenPosition is updated synchronously at full 60/120Hz display refresh rate with zero lag.
-  func throttledUpdateScreenPosition(from mapView: MLNMapView) {
-    guard isCalloutVisible, !isDraggingPin else { return }
-    performProjectionUpdate(from: mapView)
-  }
-  
-  /// Forces an immediate update of screen coordinates from the map view.
-  /// Called when map region animation or gesture completes.
-  func updateScreenPositionImmediately(from mapView: MLNMapView) {
-    guard isCalloutVisible, !isDraggingPin else { return }
-    throttleTask?.cancel()
-    throttleTask = nil
-    performProjectionUpdate(from: mapView)
-  }
-  
-  private static let screenPointUpdateThreshold: CGFloat = 0.5
-  
-  /// Performs projection re-calculation from target geographic coordinate to screen point.
-  private func performProjectionUpdate(from mapView: MLNMapView) {
-    guard !isDraggingPin else { return }
-    guard let targetCoord = targetCoordinate else { return }
-    let newPoint = mapView.convert(targetCoord, toPointTo: mapView)
-    if abs(self.screenPoint.x - newPoint.x) >= Self.screenPointUpdateThreshold ||
-       abs(self.screenPoint.y - newPoint.y) >= Self.screenPointUpdateThreshold {
-      self.screenPoint = newPoint
-    }
   }
   
   /// Calculates the Great Circle initial bearing from the vessel to the target coordinate.

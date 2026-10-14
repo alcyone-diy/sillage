@@ -10,7 +10,6 @@
 
 import XCTest
 import CoreLocation
-import MapLibre
 @testable import Sillage
 
 @MainActor
@@ -21,13 +20,11 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isCalloutVisible)
     XCTAssertNil(viewModel.targetCoordinate)
     
-    let screenPoint = CGPoint(x: 150, y: 300)
     let targetCoord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
     
-    viewModel.presentCallout(at: screenPoint, coordinate: targetCoord, waypointID: "wp-123")
+    viewModel.presentCallout(coordinate: targetCoord, waypointID: "wp-123")
     
     XCTAssertTrue(viewModel.isCalloutVisible)
-    XCTAssertEqual(viewModel.screenPoint, screenPoint)
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, targetCoord.latitude)
     XCTAssertEqual(viewModel.targetCoordinate?.longitude, targetCoord.longitude)
     XCTAssertEqual(viewModel.targetWaypointID, "wp-123")
@@ -43,7 +40,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     let vesselCoord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621) // Nantes
     let targetCoord = CLLocationCoordinate2D(latitude: 48.856614, longitude: 2.352222)   // Paris
     
-    viewModel.presentCallout(at: CGPoint(x: 100, y: 100), coordinate: targetCoord)
+    viewModel.presentCallout(coordinate: targetCoord)
     
     let bearing = viewModel.bearing(from: vesselCoord)
     let distance = viewModel.distance(from: vesselCoord)
@@ -66,7 +63,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     
     // Target ~100m North
     let targetNorth = CLLocationCoordinate2D(latitude: 47.0009, longitude: -3.0)
-    viewModel.presentCallout(at: .zero, coordinate: targetNorth)
+    viewModel.presentCallout(coordinate: targetNorth)
     
     let bearingNorth = viewModel.bearing(from: vessel)
     let distanceNorth = viewModel.distance(from: vessel)
@@ -86,7 +83,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     
     // Target East
     let targetEast = CLLocationCoordinate2D(latitude: 47.0, longitude: -2.99)
-    viewModel.presentCallout(at: .zero, coordinate: targetEast)
+    viewModel.presentCallout(coordinate: targetEast)
     if let brgEast = viewModel.bearing(from: vessel) {
       let degrees = brgEast.converted(to: .degrees).value
       XCTAssertGreaterThan(degrees, 80)
@@ -98,7 +95,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     let viewModel = MapCalloutViewModel()
     let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
     
-    viewModel.presentCallout(at: .zero, coordinate: coord)
+    viewModel.presentCallout(coordinate: coord)
     
     let distance = viewModel.distance(from: coord)
     XCTAssertNotNil(distance)
@@ -115,7 +112,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.distance(from: CLLocationCoordinate2D(latitude: 47.0, longitude: -1.0)))
     
     // With target set but nil vessel coordinate
-    viewModel.presentCallout(at: .zero, coordinate: CLLocationCoordinate2D(latitude: 48.0, longitude: 2.0))
+    viewModel.presentCallout(coordinate: CLLocationCoordinate2D(latitude: 48.0, longitude: 2.0))
     XCTAssertNil(viewModel.bearing(from: nil))
     XCTAssertNil(viewModel.distance(from: nil))
   }
@@ -124,8 +121,8 @@ final class MapCalloutViewModelTests: XCTestCase {
     let viewModel = MapCalloutViewModel()
     let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
     
-    // 1. Long pressing an existing waypoint
-    viewModel.presentCallout(at: CGPoint(x: 100, y: 200), coordinate: coord, waypointID: "existing-wp-1")
+    // 1. Selecting an existing waypoint
+    viewModel.presentCallout(coordinate: coord, waypointID: "existing-wp-1")
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertEqual(viewModel.targetWaypointID, "existing-wp-1")
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, coord.latitude)
@@ -139,16 +136,15 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertEqual(reportedHeight, 250.0)
     XCTAssertEqual(viewModel.lastSheetHeight, 250.0)
     
-    // 3. Long pressing empty map space
-    viewModel.presentCallout(at: CGPoint(x: 200, y: 400), coordinate: coord, waypointID: nil)
+    // 3. Selecting empty map space
+    viewModel.presentCallout(coordinate: coord, waypointID: nil)
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertNil(viewModel.targetWaypointID)
-    XCTAssertEqual(viewModel.screenPoint, CGPoint(x: 200, y: 400))
   }
   
   func testDismissClearsCalloutState() {
     let viewModel = MapCalloutViewModel()
-    viewModel.presentCallout(at: CGPoint(x: 50, y: 50), coordinate: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0), waypointID: "target-1")
+    viewModel.presentCallout(coordinate: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0), waypointID: "target-1")
     
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertEqual(viewModel.targetWaypointID, "target-1")
@@ -164,44 +160,26 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.formattedCoordinate)
     
     let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
-    viewModel.presentCallout(at: .zero, coordinate: coord)
+    viewModel.presentCallout(coordinate: coord)
     
     let formatted = viewModel.formattedCoordinate
     XCTAssertNotNil(formatted)
     XCTAssertTrue(formatted?.contains("47°") == true)
   }
 
-  func testMapPanDoesNotDismissCallout() {
-    let viewModel = MapCalloutViewModel()
-    let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
-    viewModel.presentCallout(at: CGPoint(x: 200, y: 400), coordinate: coord)
-    XCTAssertTrue(viewModel.isCalloutVisible)
-
-    // Simulate an offscreen projection: MLNMapView converts offscreen coordinate
-    let mapView = MLNMapView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
-    // Call updateScreenPositionImmediately with mapView where the coordinate is off-screen
-    viewModel.updateScreenPositionImmediately(from: mapView)
-
-    // Callout must remain visible even if the coordinate projected outside map bounds
-    XCTAssertTrue(viewModel.isCalloutVisible)
-  }
-
   func testUpdateTargetDuringDrag() {
     let viewModel = MapCalloutViewModel()
     let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    viewModel.presentCallout(at: CGPoint(x: 100, y: 100), coordinate: initialCoord)
+    viewModel.presentCallout(coordinate: initialCoord)
     XCTAssertFalse(viewModel.isDraggingPin)
 
     viewModel.beginDragging()
     XCTAssertTrue(viewModel.isDraggingPin)
 
-    let newScreenPoint = CGPoint(x: 150, y: 220)
     let newCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
-
-    viewModel.updateTarget(screenPoint: newScreenPoint, coordinate: newCoord)
+    viewModel.updateTarget(coordinate: newCoord)
 
     XCTAssertTrue(viewModel.isDraggingPin)
-    XCTAssertEqual(viewModel.screenPoint, newScreenPoint)
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, newCoord.latitude)
     XCTAssertEqual(viewModel.targetCoordinate?.longitude, newCoord.longitude)
 
@@ -213,59 +191,26 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isCalloutVisible)
   }
 
-  func testProjectionIgnoredDuringDrag() {
+  func testCompleteDragLifecycleAndSheetHeight() {
     let viewModel = MapCalloutViewModel()
     let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    viewModel.presentCallout(at: CGPoint(x: 100, y: 100), coordinate: initialCoord)
-
-    viewModel.beginDragging()
-    let draggedScreenPoint = CGPoint(x: 150, y: 220)
-    let draggedCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
-    viewModel.updateTarget(screenPoint: draggedScreenPoint, coordinate: draggedCoord)
-
-    let mapView = MLNMapView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
-    // Throttled or immediate update shouldn't overwrite the drag position while dragging
-    viewModel.throttledUpdateScreenPosition(from: mapView)
-    XCTAssertEqual(viewModel.screenPoint, draggedScreenPoint)
-
-    viewModel.updateScreenPositionImmediately(from: mapView)
-    XCTAssertEqual(viewModel.screenPoint, draggedScreenPoint)
-  }
-
-  func testCompleteDragLifecycleAndProjectionResumption() {
-    let viewModel = MapCalloutViewModel()
-    let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    viewModel.presentCallout(at: CGPoint(x: 100, y: 100), coordinate: initialCoord)
+    viewModel.presentCallout(coordinate: initialCoord)
     XCTAssertFalse(viewModel.isDraggingPin)
 
     // 1. Begin drag
     viewModel.beginDragging()
     XCTAssertTrue(viewModel.isDraggingPin)
 
-    // 2. Projections are completely ignored during drag
-    let mapView = MLNMapView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
-    let intermediateScreenPoint = CGPoint(x: 180, y: 240)
+    // 2. Update target coordinate
     let intermediateCoord = CLLocationCoordinate2D(latitude: 47.02, longitude: -2.98)
-    viewModel.updateTarget(screenPoint: intermediateScreenPoint, coordinate: intermediateCoord)
-    XCTAssertEqual(viewModel.screenPoint, intermediateScreenPoint)
+    viewModel.updateTarget(coordinate: intermediateCoord)
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, intermediateCoord.latitude)
-
-    viewModel.throttledUpdateScreenPosition(from: mapView)
-    XCTAssertEqual(viewModel.screenPoint, intermediateScreenPoint)
-    viewModel.updateScreenPositionImmediately(from: mapView)
-    XCTAssertEqual(viewModel.screenPoint, intermediateScreenPoint)
 
     // 3. End drag
     viewModel.endDragging()
     XCTAssertFalse(viewModel.isDraggingPin)
 
-    // 4. Projections resume normally after drag session ends
-    viewModel.updateScreenPositionImmediately(from: mapView)
-    let projectedPoint = mapView.convert(intermediateCoord, toPointTo: mapView)
-    XCTAssertEqual(viewModel.screenPoint.x, projectedPoint.x, accuracy: 0.5)
-    XCTAssertEqual(viewModel.screenPoint.y, projectedPoint.y, accuracy: 0.5)
-
-    // 5. Verify lastSheetHeight retention
+    // 4. Verify lastSheetHeight retention
     XCTAssertEqual(viewModel.lastSheetHeight, 220.0)
     viewModel.ensureVisible(sheetHeight: 285.0)
     XCTAssertEqual(viewModel.lastSheetHeight, 285.0)
