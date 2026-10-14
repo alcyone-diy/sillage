@@ -37,6 +37,15 @@ final class MeasureToolViewModel {
   private(set) var state: MeasureState = .inactive
   var activePin: ActiveMeasurePin = .end
   var isDraggingPin: Bool = false
+  private(set) var lastSheetHeight: CGFloat = 220
+  var onEnsureVisibleRequested: (@MainActor (CGFloat) -> Void)? = nil
+
+  /// Requests the map coordinator to frame the measure pins unobstructed by the bottom sheet dialog.
+  func ensureVisible(sheetHeight: CGFloat) {
+    self.lastSheetHeight = sheetHeight
+    guard isActive else { return }
+    onEnsureVisibleRequested?(sheetHeight)
+  }
 
   // MARK: - Computed Properties
 

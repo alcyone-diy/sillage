@@ -225,4 +225,34 @@ final class MeasureToolViewModelTests: XCTestCase {
     // Circular head at top center (center at y = 18)
     XCTAssertTrue(pathDown.contains(CGPoint(x: 18.0, y: 18.0)))
   }
+
+  func testEnsureVisibleAndSheetHeightRetention() {
+    let viewModel = MeasureToolViewModel()
+    XCTAssertEqual(viewModel.lastSheetHeight, 220.0)
+
+    viewModel.ensureVisible(sheetHeight: 275.0)
+    XCTAssertEqual(viewModel.lastSheetHeight, 275.0)
+  }
+
+  func testEnsureVisibleCallbackInvoked() {
+    let viewModel = MeasureToolViewModel()
+    var receivedHeight: CGFloat? = nil
+    viewModel.onEnsureVisibleRequested = { height in
+      receivedHeight = height
+    }
+
+    // 1. When inactive, callback should not fire but lastSheetHeight is updated
+    viewModel.ensureVisible(sheetHeight: 310.0)
+    XCTAssertNil(receivedHeight)
+    XCTAssertEqual(viewModel.lastSheetHeight, 310.0)
+
+    // 2. When active, callback fires
+    viewModel.start(
+      at: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      initialEnd: CLLocationCoordinate2D(latitude: 47.1, longitude: -2.9)
+    )
+    viewModel.ensureVisible(sheetHeight: 320.0)
+    XCTAssertEqual(receivedHeight, 320.0)
+    XCTAssertEqual(viewModel.lastSheetHeight, 320.0)
+  }
 }

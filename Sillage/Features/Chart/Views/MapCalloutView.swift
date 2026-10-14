@@ -41,6 +41,11 @@ struct MapCalloutView: View {
     )
   }
   
+  private func notifySheetHeightChanged(_ height: CGFloat) {
+    chartViewModel.measureToolViewModel.ensureVisible(sheetHeight: height)
+    calloutViewModel.ensureVisible(sheetHeight: height)
+  }
+
   var body: some View {
     Color.clear
       .allowsHitTesting(false)
@@ -48,9 +53,7 @@ struct MapCalloutView: View {
       .sheet(isPresented: isSheetPresented) {
       calloutSheetContent
         .onAppear {
-          if !chartViewModel.measureToolViewModel.isActive {
-            calloutViewModel.ensureVisible(sheetHeight: measuredHeight)
-          }
+          notifySheetHeightChanged(measuredHeight)
         }
         .onGeometryChange(for: CGFloat.self) { proxy in
           proxy.size.height
@@ -58,9 +61,7 @@ struct MapCalloutView: View {
           guard newHeight > 0 else { return }
           if abs(measuredHeight - newHeight) > 1.0 {
             measuredHeight = newHeight
-            if !chartViewModel.measureToolViewModel.isActive {
-              calloutViewModel.ensureVisible(sheetHeight: newHeight)
-            }
+            notifySheetHeightChanged(newHeight)
           }
         }
         .presentationDetents([.height(measuredHeight)])

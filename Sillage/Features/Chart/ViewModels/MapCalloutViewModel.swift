@@ -61,8 +61,8 @@ final class MapCalloutViewModel {
   /// Requests the map view to pan upwards if the target point is obscured by the bottom sheet.
   /// - Parameter sheetHeight: The rendered height of the bottom sheet.
   func ensureVisible(sheetHeight: CGFloat) {
-    guard isCalloutVisible else { return }
     self.lastSheetHeight = sheetHeight
+    guard isCalloutVisible else { return }
     onEnsureVisibleRequested?(sheetHeight)
   }
   

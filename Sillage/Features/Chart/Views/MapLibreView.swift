@@ -388,6 +388,10 @@ struct MapLibreView: UIViewRepresentable {
     private var isLongPressActive: Bool = false
     private var hasMovedCalloutPin: Bool = false
     private var calloutPinDragOffset: CGPoint = .zero
+    private var measurePinDragOffset: CGPoint = .zero
+    private var isUserActivelyInteractingWithPins: Bool {
+      isLongPressActive || isDraggingCalloutPin || activeDraggedPin != nil || parent.viewModel.measureToolViewModel.isDraggingPin
+    }
     private var lastPanUpdateTime: CFTimeInterval = 0
     private static let pinPanThrottleInterval: CFTimeInterval = 0.016
     var lastTargetPinCoordinate: CLLocationCoordinate2D?
@@ -539,16 +543,17 @@ struct MapLibreView: UIViewRepresentable {
         parent.viewModel.measureToolViewModel.isDraggingPin = true
         parent.viewModel.chartInteractedByUser()
 
-        let tipPoint = CGPoint(
-          x: touchPoint.x,
-          y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
-        )
-        let coord = mapView.convert(tipPoint, toCoordinateFrom: mapView)
-        switch pin {
-        case .start:
-          parent.viewModel.measureToolViewModel.updateStart(to: coord)
-        case .end:
-          parent.viewModel.measureToolViewModel.updateEnd(to: coord)
+        let currentCoord = (pin == .start)
+          ? parent.viewModel.measureToolViewModel.startCoordinate
+          : parent.viewModel.measureToolViewModel.endCoordinate
+        if let currentCoord = currentCoord {
+          let tipPoint = mapView.convert(currentCoord, toPointTo: mapView)
+          measurePinDragOffset = CGPoint(
+            x: touchPoint.x - tipPoint.x,
+            y: touchPoint.y - tipPoint.y
+          )
+        } else {
+          measurePinDragOffset = .zero
         }
         lastPanUpdateTime = CACurrentMediaTime()
 
@@ -556,6 +561,7 @@ struct MapLibreView: UIViewRepresentable {
         guard let pin = activeDraggedPin else { return }
         guard parent.viewModel.measureToolViewModel.isActive else {
           activeDraggedPin = nil
+          measurePinDragOffset = .zero
           parent.viewModel.measureToolViewModel.isDraggingPin = false
           return
         }
@@ -564,11 +570,12 @@ struct MapLibreView: UIViewRepresentable {
         guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { return }
         lastPanUpdateTime = now
 
-        let tipPoint = CGPoint(
-          x: touchPoint.x,
-          y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
+        let rawTip = CGPoint(
+          x: touchPoint.x - measurePinDragOffset.x,
+          y: touchPoint.y - measurePinDragOffset.y
         )
-        let coord = mapView.convert(tipPoint, toCoordinateFrom: mapView)
+        let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
+        let coord = mapView.convert(clampedTip, toCoordinateFrom: mapView)
         switch pin {
         case .start:
           parent.viewModel.measureToolViewModel.updateStart(to: coord)
@@ -578,11 +585,12 @@ struct MapLibreView: UIViewRepresentable {
 
       case .ended:
         if let pin = activeDraggedPin {
-          let tipPoint = CGPoint(
-            x: touchPoint.x,
-            y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
+          let rawTip = CGPoint(
+            x: touchPoint.x - measurePinDragOffset.x,
+            y: touchPoint.y - measurePinDragOffset.y
           )
-          let coord = mapView.convert(tipPoint, toCoordinateFrom: mapView)
+          let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
+          let coord = mapView.convert(clampedTip, toCoordinateFrom: mapView)
           switch pin {
           case .start:
             parent.viewModel.measureToolViewModel.updateStart(to: coord)
@@ -591,11 +599,15 @@ struct MapLibreView: UIViewRepresentable {
           }
         }
         activeDraggedPin = nil
+        measurePinDragOffset = .zero
         parent.viewModel.measureToolViewModel.isDraggingPin = false
+        ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
 
       case .cancelled, .failed:
         activeDraggedPin = nil
+        measurePinDragOffset = .zero
         parent.viewModel.measureToolViewModel.isDraggingPin = false
+        ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
 
       default:
         break
@@ -772,7 +784,7 @@ struct MapLibreView: UIViewRepresentable {
       if gestureRecognizer is UILongPressGestureRecognizer || otherGestureRecognizer is UILongPressGestureRecognizer {
         return false
       }
-      if isLongPressActive || isDraggingCalloutPin {
+      if isUserActivelyInteractingWithPins {
         return false
       }
       return true
@@ -791,6 +803,9 @@ struct MapLibreView: UIViewRepresentable {
             parent.viewModel.calloutViewModel.endDragging()
           }
         }
+        if parent.viewModel.measureToolViewModel.isDraggingPin && !parent.viewModel.measureToolViewModel.isActive {
+          parent.viewModel.measureToolViewModel.isDraggingPin = false
+        }
         isLongPressActive = false
       }
 
@@ -803,11 +818,13 @@ struct MapLibreView: UIViewRepresentable {
           x: touchPoint.x,
           y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
         )
-        let coord = mapView.convert(tipPoint, toCoordinateFrom: mapView)
+        let clampedTip = clampPointToMapBounds(tipPoint, in: mapView)
+        let coord = mapView.convert(clampedTip, toCoordinateFrom: mapView)
 
         switch sender.state {
         case .began:
           parent.viewModel.measureToolViewModel.isDraggingPin = true
+          isLongPressActive = true
           parent.viewModel.chartInteractedByUser()
           parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
           lastPanUpdateTime = CACurrentMediaTime()
@@ -824,9 +841,13 @@ struct MapLibreView: UIViewRepresentable {
           parent.viewModel.chartInteractedByUser()
           parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
           parent.viewModel.measureToolViewModel.isDraggingPin = false
+          isLongPressActive = false
+          ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
 
         case .cancelled, .failed:
           parent.viewModel.measureToolViewModel.isDraggingPin = false
+          isLongPressActive = false
+          ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
 
         default:
           break
@@ -935,57 +956,116 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
     
-    /// Technical Design Choice: Automatic Map Camera Framing for Contextual Callout Target Pin
-    /// Ensures the selected target point is never obscured by the bottom sheet or the top telemetry HUD.
-    /// If the point is too close to the bottom (under the sheet) or too close to the top (under the HUD),
-    /// the map camera smoothly animates to bring the target into comfortable, unobstructed view with full pin clearance.
+    /// Technical Design Choice: Automatic Map Camera Framing for Sheet Obscuration Prevention
+    /// Shifts the map camera vertically so that the vertical segment [minY, maxY] fits comfortably
+    /// between topClearance and the top of the bottom sheet dialog (with safety margin).
+    private func shiftCameraToFitVerticalRange(
+      minY: CGFloat,
+      maxY: CGFloat,
+      fallbackPoint: CGPoint?,
+      fallbackBottomOffset: CGFloat? = nil,
+      in mapView: MLNMapView,
+      sheetHeight: CGFloat
+    ) {
+      let safeBottom = mapView.safeAreaInsets.bottom
+      // The required clearance margin between the bottom of the target visual element and the top of the dialog
+      let marginAboveSheet: CGFloat = 24.0
+      let topClearance: CGFloat = max(mapView.safeAreaInsets.top + 80.0, MarineTheme.Metrics.topToolbarClearance)
+
+      let effectiveSheetHeight = sheetHeight > 0 ? sheetHeight : (parent.marineTheme.isGloveMode ? 260.0 : 220.0)
+      let dialogTopY = mapView.bounds.height - effectiveSheetHeight - safeBottom
+      let targetPinBottomY = dialogTopY - marginAboveSheet
+      let effectiveFallbackOffset = fallbackBottomOffset ?? MarinePinGraphicsFactory.pinHeight
+
+      var deltaY: CGFloat = 0.0
+
+      if maxY > targetPinBottomY {
+        let neededShiftUp = maxY - targetPinBottomY
+        if minY - neededShiftUp >= topClearance {
+          deltaY = neededShiftUp
+        } else if let fallback = fallbackPoint {
+          let fallbackBottom = fallback.y + effectiveFallbackOffset
+          if fallbackBottom > targetPinBottomY {
+            deltaY = fallbackBottom - targetPinBottomY
+          } else if fallback.y < topClearance {
+            deltaY = fallback.y - topClearance
+          }
+        }
+      } else if minY < topClearance {
+        let neededShiftDown = minY - topClearance
+        if maxY - neededShiftDown <= targetPinBottomY {
+          deltaY = neededShiftDown
+        } else if let fallback = fallbackPoint {
+          let fallbackBottom = fallback.y + effectiveFallbackOffset
+          if fallback.y < topClearance {
+            deltaY = fallback.y - topClearance
+          } else if fallbackBottom > targetPinBottomY {
+            deltaY = fallbackBottom - targetPinBottomY
+          }
+        }
+      }
+
+      if abs(deltaY) > 1.0 {
+        let currentCenterPoint = mapView.convert(mapView.centerCoordinate, toPointTo: mapView)
+        let newCenterPoint = CGPoint(x: currentCenterPoint.x, y: currentCenterPoint.y + deltaY)
+        let newCenterCoordinate = mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
+        mapView.setCenter(newCenterCoordinate, animated: true)
+      }
+    }
+
     private func ensureTargetVisible(at point: CGPoint, in mapView: MLNMapView, sheetHeight: CGFloat = 220) {
       let isWaypointTarget = parent.viewModel.calloutViewModel.targetWaypointID != nil
       let targetBottomOffset: CGFloat = isWaypointTarget
         ? (parent.marineTheme.isGloveMode ? 20.0 : 16.0)
         : MarinePinGraphicsFactory.pinHeight
-      let safeBottom = mapView.safeAreaInsets.bottom
-      // The required clearance margin between the bottom of the target (pin or waypoint) and the top of the callout dialog
-      let marginAboveSheet: CGFloat = 24.0
-      let topClearance: CGFloat = max(mapView.safeAreaInsets.top + 80.0, MarineTheme.Metrics.topToolbarClearance)
-      
-      // The callout dialog occupies the bottom of the screen. Its actual visual height includes content and safe area.
-      let effectiveSheetHeight = sheetHeight > 0 ? sheetHeight : (parent.marineTheme.isGloveMode ? 260.0 : 220.0)
-      let dialogTopY = mapView.bounds.height - effectiveSheetHeight - safeBottom
-
-      // Screen Y coordinate of the bottom of the target visual element
-      let targetBottomY = point.y + targetBottomOffset
-
-      var deltaY: CGFloat = 0.0
-
-      // If the bottom of the target is less than marginAboveSheet pixels above the dialog top
-      // (or under the dialog), shift the map upwards so the target sits exactly marginAboveSheet pixels above the dialog.
-      let targetPinBottomY = dialogTopY - marginAboveSheet
-      if targetBottomY > targetPinBottomY {
-        deltaY = targetBottomY - targetPinBottomY
-      } else if point.y < topClearance {
-        deltaY = point.y - topClearance
-      }
-      
-      if abs(deltaY) > 1.0 {
-        let currentCenterPoint = mapView.convert(mapView.centerCoordinate, toPointTo: mapView)
-        let newCenterPoint = CGPoint(x: currentCenterPoint.x, y: currentCenterPoint.y + deltaY)
-        let newCenterCoordinate = mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
-        
-        mapView.setCenter(newCenterCoordinate, animated: true)
-      }
+      shiftCameraToFitVerticalRange(
+        minY: point.y,
+        maxY: point.y + targetBottomOffset,
+        fallbackPoint: point,
+        fallbackBottomOffset: targetBottomOffset,
+        in: mapView,
+        sheetHeight: sheetHeight
+      )
     }
-    
+
+    private func ensureMeasurePinsVisible(in mapView: MLNMapView, sheetHeight: CGFloat = 220) {
+      guard parent.viewModel.measureToolViewModel.isActive else { return }
+      guard let startCoord = parent.viewModel.measureToolViewModel.startCoordinate,
+            let endCoord = parent.viewModel.measureToolViewModel.endCoordinate else { return }
+
+      let pinHeight: CGFloat = MarinePinGraphicsFactory.pinHeight
+      let ptA = mapView.convert(startCoord, toPointTo: mapView)
+      let ptB = mapView.convert(endCoord, toPointTo: mapView)
+      let activePt = parent.viewModel.measureToolViewModel.activePin == .start ? ptA : ptB
+
+      shiftCameraToFitVerticalRange(
+        minY: min(ptA.y, ptB.y),
+        maxY: max(ptA.y + pinHeight, ptB.y + pinHeight),
+        fallbackPoint: activePt,
+        fallbackBottomOffset: pinHeight,
+        in: mapView,
+        sheetHeight: sheetHeight
+      )
+    }
+
     func setupSubscription(for mapView: MLNMapView) {
       // Connect ensureVisible callback from MapCalloutViewModel
       parent.viewModel.calloutViewModel.onEnsureVisibleRequested = { [weak self, weak mapView] sheetHeight in
         guard let self = self, let mapView = mapView else { return }
         // Never move the camera while the user is actively touching or dragging on the map!
-        guard !self.isDraggingCalloutPin && !self.isLongPressActive else { return }
+        guard !self.isUserActivelyInteractingWithPins else { return }
         guard self.parent.viewModel.calloutViewModel.isCalloutVisible,
               let targetCoord = self.parent.viewModel.calloutViewModel.targetCoordinate else { return }
         let currentPoint = mapView.convert(targetCoord, toPointTo: mapView)
         self.ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: sheetHeight)
+      }
+
+      // Connect ensureVisible callback from MeasureToolViewModel
+      parent.viewModel.measureToolViewModel.onEnsureVisibleRequested = { [weak self, weak mapView] sheetHeight in
+        guard let self = self, let mapView = mapView else { return }
+        // Never move the camera while the user is actively touching or dragging on the map!
+        guard !self.isUserActivelyInteractingWithPins else { return }
+        self.ensureMeasurePinsVisible(in: mapView, sheetHeight: sheetHeight)
       }
 
       streamTask?.cancel()
