@@ -61,6 +61,14 @@ public enum AppConstants {
     
     /// Touch threshold scaled for Glove Mode (aligned with Fitts's Law 66pt minimum touch target size).
     nonisolated public static let trackingBreakGloveThreshold: CGFloat = 60.0
+
+    /// Fixed screen distance (in points) separating Pin A and Pin B upon measurement tool activation,
+    /// ensuring both pins are immediately distinct and visible regardless of map zoom.
+    nonisolated public static let measureInitialPinScreenDistance: CGFloat = 120.0
+
+    /// MapLibre GL Native Mercator scale at zoom 0 based on 512pt world tile extent:
+    /// 40_075_016.686m / 512.0 = 78_271.51696 meters per point at the equator.
+    nonisolated public static let earthEquatorialMetersPerPointAtZoomZero: Double = 78_271.51696
   }
 
   /// GeoGarage sign-in over OAuth2 authorization code + PKCE using HTTPS callback with Associated Domains.

@@ -278,21 +278,48 @@ final class ChartViewModel {
 
   /// Technical Design Choice: Distance & Bearing Measurement Activation
   /// Activates the 2-point measurement tool starting from the given coordinate (e.g. callout target).
-  /// Computes an initial end point based on current map center or a small geographic offset to guarantee two distinct visible pins.
+  /// Computes an initial end point positioned at a fixed screen distance from point A, independent of the map's zoom level.
   func startMeasuring(from coordinate: CLLocationCoordinate2D) {
     chartInteractedByUser()
-    let initialEnd: CLLocationCoordinate2D
-    if abs(centerCoordinate.latitude - coordinate.latitude) > 0.001 ||
-       abs(centerCoordinate.longitude - coordinate.longitude) > 0.001 {
-      initialEnd = centerCoordinate
-    } else {
-      // Small 0.01 degree offset (~0.6 NM) to ensure immediate visual distinction
-      initialEnd = CLLocationCoordinate2D(
-        latitude: coordinate.latitude + 0.01,
-        longitude: coordinate.longitude + 0.01
-      )
-    }
+    let initialEnd = computeInitialMeasureEndCoordinate(from: coordinate)
     measureToolViewModel.start(at: coordinate, initialEnd: initialEnd)
+  }
+
+  /// Computes an initial end coordinate positioned at a fixed screen distance from the start point,
+  /// guaranteeing that the distance between Pin A and Pin B on the screen is strictly independent of the map zoom level.
+  func computeInitialMeasureEndCoordinate(from coordinate: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
+    // 1. Retrieve current map scale (meters per point), or fallback to standard MapLibre Web Mercator (512pt) calculation for current zoom
+    let mppMeters: Double
+    if let mapScale {
+      mppMeters = mapScale.converted(to: .meters).value
+    } else {
+      let latRadians = Measurement(value: coordinate.latitude, unit: UnitAngle.degrees).converted(to: .radians).value
+      let calculatedMpp = AppConstants.Map.earthEquatorialMetersPerPointAtZoomZero * cos(latRadians) / pow(2.0, zoomLevel)
+      mppMeters = max(calculatedMpp, 0.05)
+    }
+
+    // 2. Physical ground distance corresponding to the fixed screen distance in points
+    let groundDistance = Measurement(
+      value: AppConstants.Map.measureInitialPinScreenDistance * mppMeters,
+      unit: UnitLength.meters
+    )
+
+    // 3. Orient towards the upper right of the screen (45°), normalized in [0, 360) and taking chart rotation into account
+    let screenBearing = Measurement(value: 45.0, unit: UnitAngle.degrees)
+    let rawBearing = screenBearing + chartDirection
+    let geographicBearing = Measurement(value: rawBearing.normalizedDegrees, unit: UnitAngle.degrees)
+
+    // 4. Project coordinates using Rhumb line (preserving constant bearing on Mercator chart) or Great Circle
+    if let projectedCoord = coordinate.rhumbCoordinate(atDistance: groundDistance, bearing: geographicBearing) ??
+                            coordinate.greatCircleCoordinate(atDistance: groundDistance, bearing: geographicBearing) {
+      return projectedCoord
+    }
+
+    // Fallback in extreme degenerate conditions
+    return CLLocationCoordinate2D(
+      latitude: coordinate.latitude + 0.001,
+      longitude: coordinate.longitude + 0.001
+    )
   }
 
   // MARK: - Camera Multicast Stream

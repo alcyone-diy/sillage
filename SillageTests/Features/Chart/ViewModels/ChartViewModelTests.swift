@@ -1560,6 +1560,159 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertNotNil(viewModel.savedTrackVisualState, "Current track should still be displayed")
     XCTAssertEqual(viewModel.displayedTrackSessionID, session1ID, "Current track session ID should remain unchanged")
   }
+
+  func testComputeInitialMeasureEndCoordinate_withMapScale() {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: nil,
+      messageService: messageService
+    )
+
+    let startCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.mapScale = Measurement(value: 5.0, unit: .meters) // 5 meters per point
+    viewModel.chartDirection = Measurement(value: 0.0, unit: .degrees)
+
+    let endCoord = viewModel.computeInitialMeasureEndCoordinate(from: startCoord)
+    let distance = startCoord.distance(to: endCoord)
+
+    // 120 points * 5 meters/point = 600 meters
+    XCTAssertEqual(distance.converted(to: .meters).value, 600.0, accuracy: 10.0)
+
+    // Direction should be ~45 degrees (North-East)
+    let bearing = startCoord.greatCircleBearing(to: endCoord)
+    XCTAssertNotNil(bearing)
+    if let bearing {
+      XCTAssertEqual(bearing.converted(to: .degrees).value, 45.0, accuracy: 2.0)
+    }
+  }
+
+  func testStartMeasuring_activatesMeasureToolAtFixedScreenDistance() {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: nil,
+      messageService: messageService
+    )
+
+    let startCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.mapScale = Measurement(value: 10.0, unit: .meters)
+
+    viewModel.startMeasuring(from: startCoord)
+
+    XCTAssertTrue(viewModel.measureToolViewModel.isActive)
+    XCTAssertEqual(viewModel.measureToolViewModel.startCoordinate?.latitude, startCoord.latitude)
+    XCTAssertEqual(viewModel.measureToolViewModel.startCoordinate?.longitude, startCoord.longitude)
+    XCTAssertNotNil(viewModel.measureToolViewModel.endCoordinate)
+    XCTAssertNotEqual(viewModel.measureToolViewModel.startCoordinate, viewModel.measureToolViewModel.endCoordinate)
+  }
+
+  func testComputeInitialMeasureEndCoordinate_withRotatedChartDirection() {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: nil,
+      messageService: messageService
+    )
+
+    let startCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.mapScale = Measurement(value: 5.0, unit: .meters)
+
+    // 1. Chart rotated 90° (Course-Up East): 45° screen offset + 90° heading = 135° (South-East)
+    viewModel.chartDirection = Measurement(value: 90.0, unit: .degrees)
+    let endCoord90 = viewModel.computeInitialMeasureEndCoordinate(from: startCoord)
+    let bearing90 = startCoord.greatCircleBearing(to: endCoord90)
+    XCTAssertNotNil(bearing90)
+    if let bearing90 {
+      XCTAssertEqual(bearing90.converted(to: .degrees).value, 135.0, accuracy: 2.0)
+    }
+
+    // 2. Chart rotated 350°: 45° + 350° = 395° -> normalized strictly to 35°
+    viewModel.chartDirection = Measurement(value: 350.0, unit: .degrees)
+    let endCoord350 = viewModel.computeInitialMeasureEndCoordinate(from: startCoord)
+    let bearing350 = startCoord.greatCircleBearing(to: endCoord350)
+    XCTAssertNotNil(bearing350)
+    if let bearing350 {
+      XCTAssertEqual(bearing350.converted(to: .degrees).value, 35.0, accuracy: 2.0)
+    }
+  }
+
+  func testComputeInitialMeasureEndCoordinate_withoutMapScale_fallbackToZoomLevel() {
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: nil,
+      messageService: messageService
+    )
+
+    let startCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.mapScale = nil
+    viewModel.zoomLevel = 14.0
+    viewModel.chartDirection = Measurement(value: 0.0, unit: .degrees)
+
+    let endCoord = viewModel.computeInitialMeasureEndCoordinate(from: startCoord)
+    let distance = startCoord.distance(to: endCoord)
+
+    // Theoretical 512pt Mercator fallback at lat 47°, zoom 14:
+    // mpp = 78_271.51696 * cos(47°) / 2^14 ≈ 3.258 m/pt
+    // Expected distance = 120 * 3.258 ≈ 391 meters
+    let expectedMpp = AppConstants.Map.earthEquatorialMetersPerPointAtZoomZero * cos(Measurement(value: 47.0, unit: UnitAngle.degrees).converted(to: .radians).value) / pow(2.0, 14.0)
+    let expectedDistanceMeters = 120.0 * expectedMpp
+
+    XCTAssertEqual(distance.converted(to: .meters).value, expectedDistanceMeters, accuracy: 10.0)
+  }
 }
 
 
