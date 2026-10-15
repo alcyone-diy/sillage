@@ -52,13 +52,13 @@ struct MapCalloutView: View {
         .allowsHitTesting(false)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-      // Aiming crosshair for contextual map target selection
+      // Aiming crosshair for contextual map target selection (visible once centering flight completes)
       if calloutViewModel.isCalloutVisible &&
          calloutViewModel.targetWaypointID == nil &&
+         !calloutViewModel.isCentering &&
          !chartViewModel.measureToolViewModel.isActive {
         MarineCrosshairView.targetAiming(theme: marineTheme)
-          .offset(calloutViewModel.crosshairOffset)
-          .transition(.opacity)
+          .allowsHitTesting(false)
       }
     }
     .sheet(isPresented: isSheetPresented) {

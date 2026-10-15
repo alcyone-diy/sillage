@@ -39,6 +39,7 @@ enum MapLayerIdentifier: String, CaseIterable, Comparable {
   case headingTick = "heading-vector-tick-layer"
   case vesselSymbol = "vessel-layer"
   case measurePins = "measure-pins-layer"
+  case targetAimingCrosshair = "target-aiming-crosshair-layer"
 
   var zIndex: Int {
     Self.allCases.firstIndex(of: self) ?? 0
@@ -70,6 +71,7 @@ enum MapSourceIdentifier: String, CaseIterable {
   case anchorEvitement = "anchor-evitement-source"
   case anchorRode = "anchor-rode-source"
   case anchorPoint = "anchor-point-source"
+  case targetAimingCrosshair = "target-aiming-crosshair-source"
 }
 
 
@@ -450,6 +452,62 @@ struct MapStyleController {
           }
         }
       }
+    }
+  }
+
+  static let targetAimingCrosshairImageName = "target-aiming-crosshair"
+
+  /// Ensures the target aiming crosshair icon image is registered in the MapLibre style stack.
+  static func ensureTargetAimingCrosshairImageExists(in style: MLNStyle, theme: MarineTheme) {
+    if style.image(forName: targetAimingCrosshairImageName) == nil {
+      refreshTargetAimingCrosshairImage(in: style, theme: theme)
+    }
+  }
+
+  /// Refreshes the target aiming crosshair icon image when the theme changes.
+  /// Generates the image directly from MarineCrosshairView using SwiftUI's ImageRenderer.
+  static func refreshTargetAimingCrosshairImage(in style: MLNStyle, theme: MarineTheme) {
+    let view = MarineCrosshairView.targetAiming(theme: theme).environment(\.marineTheme, theme)
+    let renderer = ImageRenderer(content: view)
+    renderer.scale = UIScreen.main.scale
+    if let image = renderer.uiImage {
+      style.setImage(image, forName: targetAimingCrosshairImageName)
+      Logger.mapStyle.debug("Updated target aiming crosshair image for theme change")
+    }
+  }
+
+  /// Ensures the target aiming crosshair source and layer exist in the style stack.
+  static func ensureTargetAimingCrosshairLayersExist(in style: MLNStyle, theme: MarineTheme) {
+    ensureTargetAimingCrosshairImageExists(in: style, theme: theme)
+
+    if style.source(withIdentifier: MapSourceIdentifier.targetAimingCrosshair.rawValue) == nil {
+      let source = MLNShapeSource(identifier: MapSourceIdentifier.targetAimingCrosshair.rawValue, shape: nil, options: nil)
+      style.addSource(source)
+    }
+
+    if style.layer(withIdentifier: MapLayerIdentifier.targetAimingCrosshair.rawValue) == nil {
+      guard let source = style.source(withIdentifier: MapSourceIdentifier.targetAimingCrosshair.rawValue) else { return }
+      let layer = MLNSymbolStyleLayer(identifier: MapLayerIdentifier.targetAimingCrosshair.rawValue, source: source)
+      layer.iconImageName = NSExpression(forConstantValue: targetAimingCrosshairImageName)
+      layer.iconAnchor = NSExpression(forConstantValue: "center")
+      layer.iconRotationAlignment = NSExpression(forConstantValue: "viewport")
+      layer.iconOpacityTransition = MLNTransition(duration: 0, delay: 0)
+      layer.iconAllowsOverlap = NSExpression(forConstantValue: true)
+      layer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
+      insertLayer(layer, identifier: .targetAimingCrosshair, into: style)
+    }
+  }
+
+  /// Updates or clears the target aiming crosshair coordinate in the MapLibre GPU style stack.
+  static func updateTargetAimingCrosshair(coordinate: CLLocationCoordinate2D?, in style: MLNStyle, theme: MarineTheme) {
+    ensureTargetAimingCrosshairLayersExist(in: style, theme: theme)
+    guard let source = style.source(withIdentifier: MapSourceIdentifier.targetAimingCrosshair.rawValue) as? MLNShapeSource else { return }
+    if let coordinate {
+      let feature = MLNPointFeature()
+      feature.coordinate = coordinate
+      source.shape = feature
+    } else {
+      source.shape = nil
     }
   }
 

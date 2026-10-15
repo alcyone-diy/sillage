@@ -21,8 +21,8 @@ final class MapCalloutViewModel {
   var isCalloutVisible: Bool = false
   var targetCoordinate: CLLocationCoordinate2D? = nil
   var targetWaypointID: String? = nil
-  var crosshairOffset: CGSize = .zero
   var isCentering: Bool = false
+  var aimingCoordinate: CLLocationCoordinate2D? = nil
   private(set) var lastSheetHeight: CGFloat = 220
   
   /// Formatted coordinate string for UI presentation without altering raw coordinate precision.
@@ -33,26 +33,52 @@ final class MapCalloutViewModel {
   /// Closure invoked when the UI requests ensuring the target point is not obscured by overlay sheets.
   var onEnsureVisibleRequested: (@MainActor (CGFloat) -> Void)? = nil
   
-  /// Presents the map callout overlay at the specified geographic coordinate.
-  /// - Parameters:
-  ///   - coordinate: Geographic coordinate under the target.
-  ///   - waypointID: Optional ID if an existing waypoint feature was selected.
-  ///   - initialOffset: Optional screen offset from the center of the viewport for animated centering.
-  func presentCallout(
-    coordinate: CLLocationCoordinate2D,
-    waypointID: String? = nil,
-    initialOffset: CGSize = .zero
-  ) {
+  /// Presents the map callout overlay for an existing waypoint.
+  func presentWaypointCallout(coordinate: CLLocationCoordinate2D, waypointID: String) {
     self.targetCoordinate = coordinate
     self.targetWaypointID = waypointID
-    self.crosshairOffset = initialOffset
-    self.isCentering = (initialOffset != .zero)
+    self.aimingCoordinate = nil
+    self.isCentering = false
     self.isCalloutVisible = true
   }
 
-  /// Centers the crosshair at the mathematical center of the map viewport.
-  func centerCrosshair() {
-    self.crosshairOffset = .zero
+  /// Begins targeting an empty map location with crosshair aiming.
+  /// - Parameters:
+  ///   - coordinate: Geographic coordinate touch point.
+  ///   - needsCentering: True if MapLibre must fly the camera to center this point.
+  func beginAiming(at coordinate: CLLocationCoordinate2D, needsCentering: Bool) {
+    self.targetCoordinate = coordinate
+    self.targetWaypointID = nil
+    self.aimingCoordinate = needsCentering ? coordinate : nil
+    self.isCentering = needsCentering
+    self.isCalloutVisible = true
+  }
+
+  /// Finalizes the centering flight once the camera has arrived at the screen center.
+  func completeCentering(at mapCenter: CLLocationCoordinate2D) {
+    self.aimingCoordinate = nil
+    self.isCentering = false
+    self.targetCoordinate = mapCenter
+  }
+
+  /// Interrupts the centering flight (e.g. user dragged the map mid-flight or window resized).
+  func interruptCentering(at mapCenter: CLLocationCoordinate2D) {
+    self.aimingCoordinate = nil
+    self.isCentering = false
+    self.targetCoordinate = mapCenter
+  }
+
+  /// Presents the map callout overlay at the specified geographic coordinate.
+  func presentCallout(
+    coordinate: CLLocationCoordinate2D,
+    waypointID: String? = nil,
+    needsCentering: Bool = false
+  ) {
+    if let waypointID {
+      presentWaypointCallout(coordinate: coordinate, waypointID: waypointID)
+    } else {
+      beginAiming(at: coordinate, needsCentering: needsCentering)
+    }
   }
   
   /// Updates target coordinate during chart panning.
@@ -72,7 +98,7 @@ final class MapCalloutViewModel {
   func dismiss() {
     self.isCalloutVisible = false
     self.targetWaypointID = nil
-    self.crosshairOffset = .zero
+    self.aimingCoordinate = nil
     self.isCentering = false
   }
   

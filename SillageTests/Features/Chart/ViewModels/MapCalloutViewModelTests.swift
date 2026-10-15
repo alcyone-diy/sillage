@@ -192,14 +192,70 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.lastSheetHeight, 285.0)
   }
 
-  func testPresentCalloutWithZeroOffsetDoesNotSetCentering() {
+  func testBeginAimingWithNeedsCentering() {
+    let viewModel = MapCalloutViewModel()
+    let touchCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    let centerCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
+
+    XCTAssertFalse(viewModel.isCentering)
+    XCTAssertNil(viewModel.aimingCoordinate)
+
+    viewModel.beginAiming(at: touchCoord, needsCentering: true)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertTrue(viewModel.isCentering)
+    XCTAssertEqual(viewModel.aimingCoordinate?.latitude, touchCoord.latitude)
+    XCTAssertEqual(viewModel.aimingCoordinate?.longitude, touchCoord.longitude)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, touchCoord.latitude)
+
+    viewModel.completeCentering(at: centerCoord)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertFalse(viewModel.isCentering)
+    XCTAssertNil(viewModel.aimingCoordinate)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, centerCoord.latitude)
+    XCTAssertEqual(viewModel.targetCoordinate?.longitude, centerCoord.longitude)
+
+    viewModel.dismiss()
+    XCTAssertFalse(viewModel.isCalloutVisible)
+    XCTAssertFalse(viewModel.isCentering)
+    XCTAssertNil(viewModel.aimingCoordinate)
+  }
+
+  func testBeginAimingWithoutNeedsCentering() {
+    let viewModel = MapCalloutViewModel()
+    let centerCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+
+    viewModel.beginAiming(at: centerCoord, needsCentering: false)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertFalse(viewModel.isCentering)
+    XCTAssertNil(viewModel.aimingCoordinate)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, centerCoord.latitude)
+  }
+
+  func testInterruptCenteringSnapsToCenter() {
+    let viewModel = MapCalloutViewModel()
+    let touchCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    let panCenterCoord = CLLocationCoordinate2D(latitude: 47.02, longitude: -2.98)
+
+    viewModel.beginAiming(at: touchCoord, needsCentering: true)
+    XCTAssertTrue(viewModel.isCentering)
+    XCTAssertNotNil(viewModel.aimingCoordinate)
+
+    viewModel.interruptCentering(at: panCenterCoord)
+    XCTAssertFalse(viewModel.isCentering)
+    XCTAssertNil(viewModel.aimingCoordinate)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, panCenterCoord.latitude)
+    XCTAssertEqual(viewModel.targetCoordinate?.longitude, panCenterCoord.longitude)
+  }
+
+  func testPresentWaypointCalloutDoesNotSetCenteringOrAiming() {
     let viewModel = MapCalloutViewModel()
     let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
 
-    viewModel.presentCallout(coordinate: coord, waypointID: nil, initialOffset: .zero)
+    viewModel.presentWaypointCallout(coordinate: coord, waypointID: "wp-42")
     XCTAssertTrue(viewModel.isCalloutVisible)
-    XCTAssertEqual(viewModel.crosshairOffset, .zero)
-    XCTAssertFalse(viewModel.isCentering, "isCentering should be false when initialOffset is zero")
+    XCTAssertEqual(viewModel.targetWaypointID, "wp-42")
+    XCTAssertFalse(viewModel.isCentering)
+    XCTAssertNil(viewModel.aimingCoordinate)
   }
 
   func testEnsureVisibleInvokesCallbackWhenDialogArrives() {
@@ -215,27 +271,5 @@ final class MapCalloutViewModelTests: XCTestCase {
     viewModel.ensureVisible(sheetHeight: 300.0)
     XCTAssertEqual(receivedSheetHeight, 300.0, "ensureVisible should trigger camera adjustment when the dialog arrives")
     XCTAssertEqual(viewModel.lastSheetHeight, 300.0)
-  }
-
-  func testCrosshairOffsetAndCenteringLifecycle() {
-    let viewModel = MapCalloutViewModel()
-    let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    let initialOffset = CGSize(width: 50.0, height: -120.0)
-
-    XCTAssertEqual(viewModel.crosshairOffset, .zero)
-    XCTAssertFalse(viewModel.isCentering)
-
-    viewModel.presentCallout(coordinate: coord, waypointID: nil, initialOffset: initialOffset)
-    XCTAssertTrue(viewModel.isCalloutVisible)
-    XCTAssertEqual(viewModel.crosshairOffset, initialOffset)
-    XCTAssertTrue(viewModel.isCentering)
-
-    viewModel.centerCrosshair()
-    XCTAssertEqual(viewModel.crosshairOffset, .zero)
-
-    viewModel.dismiss()
-    XCTAssertFalse(viewModel.isCalloutVisible)
-    XCTAssertEqual(viewModel.crosshairOffset, .zero)
-    XCTAssertFalse(viewModel.isCentering)
   }
 }
