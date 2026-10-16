@@ -52,14 +52,20 @@ struct MapCalloutView: View {
         .allowsHitTesting(false)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-      // Aiming crosshair for contextual map target selection (visible once centering flight completes)
-      if calloutViewModel.isCalloutVisible &&
-         calloutViewModel.targetWaypointID == nil &&
-         !calloutViewModel.isCentering &&
-         !chartViewModel.measureToolViewModel.isActive {
-        MarineCrosshairView.targetAiming(theme: marineTheme)
-          .allowsHitTesting(false)
-      }
+      // Aiming crosshair for contextual map target selection (visible once centering flight completes).
+      // Kept permanently mounted in the view hierarchy so its CALayer and shadow buffer are pre-warmed,
+      // guaranteeing a 0-frame opacity toggle in the exact same CATransaction as MapLibre layer hiding.
+      let isSwiftUICrosshairVisible =
+        calloutViewModel.isCalloutVisible &&
+        calloutViewModel.targetWaypointID == nil &&
+        !calloutViewModel.isCentering &&
+        calloutViewModel.aimingCoordinate == nil &&
+        !chartViewModel.measureToolViewModel.isActive
+
+      MarineCrosshairView.targetAiming(theme: marineTheme)
+        .opacity(isSwiftUICrosshairVisible ? 1.0 : 0.0)
+        .transaction { $0.disablesAnimations = true }
+        .allowsHitTesting(false)
     }
     .sheet(isPresented: isSheetPresented) {
       calloutSheetContent
@@ -79,7 +85,7 @@ struct MapCalloutView: View {
         .presentationDragIndicator(.visible)
         .presentationBackground(marineTheme.colors.panelBackground)
         .presentationBackgroundInteraction(.enabled(upThrough: .height(measuredHeight)))
-        .interactiveDismissDisabled(chartViewModel.isMapMoving || chartViewModel.measureToolViewModel.isDraggingPin)
+        .interactiveDismissDisabled(chartViewModel.isMapMoving || chartViewModel.measureToolViewModel.isDraggingPin || calloutViewModel.aimingCoordinate != nil)
     }
   }
   

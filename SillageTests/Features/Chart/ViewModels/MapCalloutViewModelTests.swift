@@ -272,4 +272,73 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertEqual(receivedSheetHeight, 300.0, "ensureVisible should trigger camera adjustment when the dialog arrives")
     XCTAssertEqual(viewModel.lastSheetHeight, 300.0)
   }
+
+  func testAimingPreviewLifecycle() {
+    let viewModel = MapCalloutViewModel()
+    let touchCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    let dragCoord = CLLocationCoordinate2D(latitude: 47.01, longitude: -3.02)
+
+    viewModel.startAimingPreview(at: touchCoord)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertFalse(viewModel.isCentering)
+    XCTAssertEqual(viewModel.aimingCoordinate?.latitude, touchCoord.latitude)
+    XCTAssertEqual(viewModel.aimingCoordinate?.longitude, touchCoord.longitude)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, touchCoord.latitude)
+
+    viewModel.updateAimingPreview(at: dragCoord)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertEqual(viewModel.aimingCoordinate?.latitude, dragCoord.latitude)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, dragCoord.latitude)
+
+    viewModel.cancelAimingPreview()
+    XCTAssertFalse(viewModel.isCalloutVisible)
+    XCTAssertNil(viewModel.aimingCoordinate)
+    XCTAssertNil(viewModel.targetCoordinate)
+  }
+
+  func testAimingPreviewThenBeginAiming() {
+    let viewModel = MapCalloutViewModel()
+    let touchCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+
+    viewModel.startAimingPreview(at: touchCoord)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertNotNil(viewModel.aimingCoordinate)
+
+    viewModel.beginAiming(at: touchCoord, needsCentering: true)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertTrue(viewModel.isCentering)
+    XCTAssertEqual(viewModel.aimingCoordinate?.latitude, touchCoord.latitude)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, touchCoord.latitude)
+  }
+
+  func testAimingPreviewWhileCalloutAlreadyOpenPreservesVisibilityAndUpdatesTarget() {
+    let viewModel = MapCalloutViewModel()
+    let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    let secondTouchCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
+    let secondDragCoord = CLLocationCoordinate2D(latitude: 47.06, longitude: -2.94)
+
+    // First callout is already open
+    viewModel.beginAiming(at: initialCoord, needsCentering: false)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertNil(viewModel.aimingCoordinate)
+
+    // User long-presses elsewhere while callout is open
+    viewModel.startAimingPreview(at: secondTouchCoord)
+    XCTAssertTrue(viewModel.isCalloutVisible, "Callout must remain open during subsequent long press elsewhere")
+    XCTAssertEqual(viewModel.aimingCoordinate?.latitude, secondTouchCoord.latitude)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, secondTouchCoord.latitude)
+
+    // User drags finger
+    viewModel.updateAimingPreview(at: secondDragCoord)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertEqual(viewModel.aimingCoordinate?.latitude, secondDragCoord.latitude)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, secondDragCoord.latitude)
+
+    // User releases finger
+    viewModel.beginAiming(at: secondDragCoord, needsCentering: true)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertTrue(viewModel.isCentering)
+    XCTAssertEqual(viewModel.aimingCoordinate?.latitude, secondDragCoord.latitude)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, secondDragCoord.latitude)
+  }
 }

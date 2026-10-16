@@ -467,7 +467,9 @@ struct MapStyleController {
   /// Refreshes the target aiming crosshair icon image when the theme changes.
   /// Generates the image directly from MarineCrosshairView using SwiftUI's ImageRenderer.
   static func refreshTargetAimingCrosshairImage(in style: MLNStyle, theme: MarineTheme) {
-    let view = MarineCrosshairView.targetAiming(theme: theme).environment(\.marineTheme, theme)
+    let view = MarineCrosshairView.targetAiming(theme: theme)
+      .padding(8)
+      .environment(\.marineTheme, theme)
     let renderer = ImageRenderer(content: view)
     renderer.scale = UIScreen.main.scale
     if let image = renderer.uiImage {
@@ -494,6 +496,7 @@ struct MapStyleController {
       layer.iconOpacityTransition = MLNTransition(duration: 0, delay: 0)
       layer.iconAllowsOverlap = NSExpression(forConstantValue: true)
       layer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
+      layer.isVisible = false
       insertLayer(layer, identifier: .targetAimingCrosshair, into: style)
     }
   }
@@ -502,11 +505,15 @@ struct MapStyleController {
   static func updateTargetAimingCrosshair(coordinate: CLLocationCoordinate2D?, in style: MLNStyle, theme: MarineTheme) {
     ensureTargetAimingCrosshairLayersExist(in: style, theme: theme)
     guard let source = style.source(withIdentifier: MapSourceIdentifier.targetAimingCrosshair.rawValue) as? MLNShapeSource else { return }
+    let layer = style.layer(withIdentifier: MapLayerIdentifier.targetAimingCrosshair.rawValue)
     if let coordinate {
       let feature = MLNPointFeature()
       feature.coordinate = coordinate
       source.shape = feature
+      layer?.isVisible = true
     } else {
+      // Hide the layer synchronously on the render thread before the async GeoJSON worker clears the shape
+      layer?.isVisible = false
       source.shape = nil
     }
   }

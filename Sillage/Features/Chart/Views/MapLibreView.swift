@@ -276,13 +276,13 @@ struct MapLibreView: UIViewRepresentable {
          let target = viewModel.calloutViewModel.targetCoordinate,
          let style = uiView.style {
         uiView.setCenter(target, animated: false)
-        context.coordinator.lastAimingCoordinate = nil
-        MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style, theme: marineTheme)
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
           viewModel.calloutViewModel.interruptCentering(at: target)
         }
+        context.coordinator.lastAimingCoordinate = nil
+        MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style, theme: marineTheme)
       }
     }
 
@@ -681,25 +681,80 @@ struct MapLibreView: UIViewRepresentable {
       switch sender.state {
       case .began:
         isLongPressActive = true
+        lastPanUpdateTime = CACurrentMediaTime()
         // Disable active tracking mode during target inspection
         parent.viewModel.chartInteractedByUser()
+
+        // 1. Trigger haptic feedback as soon as the long press is detected
+        let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
+        feedbackGenerator.impactOccurred()
 
         let touchRect = CGRect(x: touchPoint.x - 22, y: touchPoint.y - 22, width: 44, height: 44)
         let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: [MapLayerIdentifier.goToWaypoint.rawValue, MapLayerIdentifier.visibleWaypoints.rawValue])
 
         if let feature = features.first as? MLNPointFeature,
            let id = feature.attributes[MapFeatureKey.id.rawValue] as? String {
-          // Tapped on an existing waypoint: present callout for the waypoint
-          // Note: Camera adjustment is deferred until finger release (.ended)
+          // Tapped on an existing waypoint: present callout immediately, defer camera adjustment until release (.ended)
           if let style = mapView.style {
             lastAimingCoordinate = nil
             MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style, theme: parent.marineTheme)
           }
-          let targetCoordinate = feature.coordinate
-          parent.viewModel.calloutViewModel.presentCallout(coordinate: targetCoordinate, waypointID: id)
+          parent.viewModel.calloutViewModel.presentWaypointCallout(coordinate: feature.coordinate, waypointID: id)
         } else {
-          // Long press on empty chart area: target with crosshair!
+          // Long press on empty chart area:
+          // 2. Display callout dialog immediately
+          // 3. Display crosshair in MapLibre under the finger immediately
           let targetCoordinate = mapView.convert(touchPoint, toCoordinateFrom: mapView)
+
+          if let style = mapView.style {
+            lastAimingCoordinate = targetCoordinate
+            MapStyleController.updateTargetAimingCrosshair(
+              coordinate: targetCoordinate,
+              in: style,
+              theme: parent.marineTheme
+            )
+          }
+
+          parent.viewModel.calloutViewModel.startAimingPreview(at: targetCoordinate)
+        }
+
+      case .changed:
+        // Update crosshair under finger as the user drags before releasing
+        guard parent.viewModel.calloutViewModel.targetWaypointID == nil,
+              parent.viewModel.calloutViewModel.aimingCoordinate != nil else { break }
+        let now = CACurrentMediaTime()
+        guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { break }
+        lastPanUpdateTime = now
+
+        let currentTouchPoint = sender.location(in: mapView)
+        let updatedCoordinate = mapView.convert(currentTouchPoint, toCoordinateFrom: mapView)
+        if let style = mapView.style {
+          lastAimingCoordinate = updatedCoordinate
+          MapStyleController.updateTargetAimingCrosshair(
+            coordinate: updatedCoordinate,
+            in: style,
+            theme: parent.marineTheme
+          )
+        }
+        parent.viewModel.calloutViewModel.updateAimingPreview(at: updatedCoordinate)
+
+      case .ended:
+        isLongPressActive = false
+        if parent.viewModel.calloutViewModel.isCalloutVisible,
+           parent.viewModel.calloutViewModel.targetWaypointID != nil,
+           let targetCoord = parent.viewModel.calloutViewModel.targetCoordinate {
+          let currentPoint = mapView.convert(targetCoord, toPointTo: mapView)
+          ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: parent.viewModel.calloutViewModel.lastSheetHeight)
+        } else if parent.viewModel.calloutViewModel.aimingCoordinate != nil {
+          let targetCoordinate = mapView.convert(touchPoint, toCoordinateFrom: mapView)
+          if let style = mapView.style {
+            lastAimingCoordinate = targetCoordinate
+            MapStyleController.updateTargetAimingCrosshair(
+              coordinate: targetCoordinate,
+              in: style,
+              theme: parent.marineTheme
+            )
+          }
           let screenCenter = CGPoint(x: mapView.bounds.midX, y: mapView.bounds.midY)
           let rawOffset = CGSize(
             width: touchPoint.x - screenCenter.x,
@@ -707,42 +762,35 @@ struct MapLibreView: UIViewRepresentable {
           )
           let isNearCenter = hypot(rawOffset.width, rawOffset.height) < 1.0
 
+          if !isNearCenter {
+            // 1. Center the map with the MapLibre crosshair
+            parent.viewModel.calloutViewModel.beginAiming(at: targetCoordinate, needsCentering: true)
+            mapView.setCenter(targetCoordinate, animated: true)
+          } else {
+            // Already at center:
+            // Trigger SwiftUI crosshair opacity = 1.0; MapLibreView.updateUIView will hide the MapLibre
+            // crosshair layer in the exact same SwiftUI render transaction.
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+              parent.viewModel.calloutViewModel.beginAiming(at: targetCoordinate, needsCentering: false)
+            }
+          }
+        }
+
+      case .cancelled, .failed:
+        isLongPressActive = false
+        if parent.viewModel.calloutViewModel.aimingCoordinate != nil {
           if let style = mapView.style {
-            let aimingCoord = isNearCenter ? nil : targetCoordinate
-            lastAimingCoordinate = aimingCoord
+            lastAimingCoordinate = nil
             MapStyleController.updateTargetAimingCrosshair(
-              coordinate: aimingCoord,
+              coordinate: nil,
               in: style,
               theme: parent.marineTheme
             )
           }
-
-          var transaction = Transaction()
-          transaction.disablesAnimations = true
-          withTransaction(transaction) {
-            parent.viewModel.calloutViewModel.beginAiming(at: targetCoordinate, needsCentering: !isNearCenter)
-          }
-
-          if !isNearCenter {
-            // Move chart camera so the target coordinate centers at the middle of the screen
-            mapView.setCenter(targetCoordinate, animated: true)
-          }
+          parent.viewModel.calloutViewModel.cancelAimingPreview()
         }
-
-      case .changed:
-        break
-
-      case .ended:
-        if parent.viewModel.calloutViewModel.isCalloutVisible,
-           parent.viewModel.calloutViewModel.targetWaypointID != nil,
-           let targetCoord = parent.viewModel.calloutViewModel.targetCoordinate {
-          let currentPoint = mapView.convert(targetCoord, toPointTo: mapView)
-          ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: parent.viewModel.calloutViewModel.lastSheetHeight)
-        }
-        isLongPressActive = false
-
-      case .cancelled, .failed:
-        isLongPressActive = false
 
       default:
         break
@@ -901,7 +949,8 @@ struct MapLibreView: UIViewRepresentable {
       if parent.viewModel.calloutViewModel.isCalloutVisible &&
          parent.viewModel.calloutViewModel.targetWaypointID == nil &&
          !parent.viewModel.measureToolViewModel.isActive &&
-         !parent.viewModel.calloutViewModel.isCentering {
+         !parent.viewModel.calloutViewModel.isCentering &&
+         parent.viewModel.calloutViewModel.aimingCoordinate == nil {
         let now = CACurrentMediaTime()
         if now - lastCalloutTargetUpdateTime >= 0.032 {
           lastCalloutTargetUpdateTime = now
@@ -1078,10 +1127,8 @@ struct MapLibreView: UIViewRepresentable {
            self.parent.viewModel.calloutViewModel.targetWaypointID == nil &&
            !self.parent.viewModel.measureToolViewModel.isActive {
           if self.parent.viewModel.calloutViewModel.isCentering {
-            if let style = mapView.style {
-              self.lastAimingCoordinate = nil
-              MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style, theme: self.parent.marineTheme)
-            }
+            // Trigger SwiftUI crosshair opacity = 1.0; MapLibreView.updateUIView will hide the MapLibre
+            // crosshair layer in the exact same SwiftUI render transaction.
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
@@ -1156,6 +1203,20 @@ struct MapLibreView: UIViewRepresentable {
     // Capture user's chart movements to sync the final camera state and evaluate tracking mode persistence.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       self.parent.viewModel.isMapMoving = false
+
+      // Synchronously hand off from MapLibre crosshair to SwiftUI crosshair on the exact frame camera movement stops.
+      // MapLibreView.updateUIView will hide the MapLibre crosshair layer in the exact same SwiftUI render pass.
+      if !self.isLongPressActive &&
+         self.parent.viewModel.calloutViewModel.isCalloutVisible &&
+         self.parent.viewModel.calloutViewModel.targetWaypointID == nil &&
+         !self.parent.viewModel.measureToolViewModel.isActive {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+          self.parent.viewModel.calloutViewModel.completeCentering(at: mapView.centerCoordinate)
+        }
+      }
+
       Task { @MainActor [weak self] in
         guard let self else { return }
         
@@ -1180,21 +1241,6 @@ struct MapLibreView: UIViewRepresentable {
           projection: { mapView.convert($0, toPointTo: mapView) },
           bounds: mapView.bounds
         )
-
-        // Sync final target coordinate under crosshair when camera movement stops
-        if self.parent.viewModel.calloutViewModel.isCalloutVisible &&
-           self.parent.viewModel.calloutViewModel.targetWaypointID == nil &&
-           !self.parent.viewModel.measureToolViewModel.isActive {
-          if let style = mapView.style {
-            self.lastAimingCoordinate = nil
-            MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style, theme: self.parent.marineTheme)
-          }
-          var transaction = Transaction()
-          transaction.disablesAnimations = true
-          withTransaction(transaction) {
-            self.parent.viewModel.calloutViewModel.completeCentering(at: mapView.centerCoordinate)
-          }
-        }
         
         // Technical Design Choice: Centering Restoration vs Tracking Break
         // If the user was in an automated tracking mode:

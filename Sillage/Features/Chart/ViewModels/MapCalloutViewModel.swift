@@ -42,6 +42,30 @@ final class MapCalloutViewModel {
     self.isCalloutVisible = true
   }
 
+  /// Starts crosshair aiming under the user's finger during a long press gesture
+  /// and immediately presents the callout dialog.
+  func startAimingPreview(at coordinate: CLLocationCoordinate2D) {
+    self.targetCoordinate = coordinate
+    self.targetWaypointID = nil
+    self.aimingCoordinate = coordinate
+    self.isCentering = false
+    self.isCalloutVisible = true
+  }
+
+  /// Updates preview aiming location as the user drags their finger before release.
+  func updateAimingPreview(at coordinate: CLLocationCoordinate2D) {
+    self.targetCoordinate = coordinate
+    self.aimingCoordinate = coordinate
+  }
+
+  /// Cancels preview aiming and resets aiming state.
+  func cancelAimingPreview() {
+    self.aimingCoordinate = nil
+    self.isCentering = false
+    self.isCalloutVisible = false
+    self.targetCoordinate = nil
+  }
+
   /// Begins targeting an empty map location with crosshair aiming.
   /// - Parameters:
   ///   - coordinate: Geographic coordinate touch point.
