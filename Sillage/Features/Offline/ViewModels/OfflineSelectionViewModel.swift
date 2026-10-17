@@ -171,7 +171,8 @@ final class OfflineSelectionViewModel {
     preferencesService: PreferencesServiceProtocol,
     chartViewModel: ChartViewModel,
     offlineMapManager: OfflineMapManagerProtocol? = nil,
-    networkMonitor: NetworkMonitorServiceProtocol? = nil
+    networkMonitor: NetworkMonitorServiceProtocol? = nil,
+    messageService: MessageService? = nil
   ) {
     let monitor = networkMonitor ?? NetworkMonitorService()
     let service = GeoGarageDownloadService(
@@ -179,7 +180,8 @@ final class OfflineSelectionViewModel {
       downloader: downloader,
       downloadRepository: downloadRepository,
       preferencesService: preferencesService,
-      networkMonitor: monitor
+      networkMonitor: monitor,
+      messageService: messageService
     )
     self.init(
       downloadService: service,
@@ -319,11 +321,15 @@ final class OfflineSelectionViewModel {
     resolveTargetLayerID()
   }
 
+  private func failWithFeedback(_ message: String, isAuthenticationError: Bool = false) {
+    Logger.offline.warning("OfflineSelectionViewModel: \(message, privacy: .public)")
+    downloadService.failDownload(with: message, isAuthenticationError: isAuthenticationError)
+  }
+
   /// Validates and returns the target layer ID, failing the download service if unavailable.
   private func requireTargetLayerID(explicitSource: ChartSource? = nil) -> String? {
     guard let layerID = resolveTargetLayerID(explicitSource: explicitSource), !layerID.isEmpty else {
-      Logger.offline.warning("OfflineSelectionViewModel: startDownload called but no chart layer is available or selected.")
-      downloadService.failDownload(with: String(localized: "No chart layer available for download. Please select a valid layer."))
+      failWithFeedback(String(localized: "No chart layer available for download. Please select a valid layer."))
       return nil
     }
     return layerID
@@ -332,8 +338,7 @@ final class OfflineSelectionViewModel {
   /// Validates and returns the geographic bounding box for download, failing the download service if unavailable.
   private func requireDownloadBounds() -> GeographicBoundingBox? {
     guard let bounds = selectedBounds ?? chartViewModel.currentVisibleBounds else {
-      Logger.offline.warning("OfflineSelectionViewModel: startDownload called but no valid bounds found.")
-      downloadService.failDownload(with: String(localized: "No visible map viewport found. Pan or zoom the chart first."))
+      failWithFeedback(String(localized: "No visible map viewport found. Pan or zoom the chart first."))
       return nil
     }
     return bounds
@@ -357,8 +362,10 @@ final class OfflineSelectionViewModel {
     guard let bounds = requireDownloadBounds() else { return }
 
     guard let customerID = preferencesService.geoGarageCustomerID, !customerID.isEmpty else {
-      Logger.offline.warning("OfflineSelectionViewModel: startDownload called without authenticated customer ID.")
-      downloadService.failDownload(with: String(localized: "User is not authenticated with GeoGarage. Please login first."))
+      failWithFeedback(
+        String(localized: "User is not authenticated with GeoGarage. Please login first."),
+        isAuthenticationError: true
+      )
       return
     }
 
@@ -385,10 +392,12 @@ final class OfflineSelectionViewModel {
       guard let self else { return }
 
       // The package is requested with the user's token, not an embedded key: no token, no request.
-      let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token") ?? ""
-      guard !token.isEmpty else {
-        Logger.offline.warning("OfflineSelectionViewModel: startDownload called without a GeoGarage access token.")
-        self.downloadService.failDownload(with: String(localized: "User is not authenticated with GeoGarage. Please login first."))
+      guard let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token"),
+            !token.isEmpty else {
+        self.failWithFeedback(
+          String(localized: "User is not authenticated with GeoGarage. Please login first."),
+          isAuthenticationError: true
+        )
         return
       }
 

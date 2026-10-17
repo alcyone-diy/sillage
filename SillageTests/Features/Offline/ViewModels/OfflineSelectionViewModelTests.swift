@@ -251,7 +251,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     customDownloadService: GeoGarageDownloadServiceProtocol? = nil,
     diskSpaceProvider: MockDiskSpaceProvider? = nil,
     setupVisibleBounds: Bool = true,
-    authenticated: Bool = true
+    authenticated: Bool = true,
+    messageService: MessageService? = nil
   ) -> (
     sut: OfflineSelectionViewModel,
     downloadService: GeoGarageDownloadServiceProtocol,
@@ -267,6 +268,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let downloadRepository = downloadRepository ?? MockDownloadRepository()
     let networkMonitor = networkMonitor ?? MockNetworkMonitorService()
     let diskSpaceProvider = diskSpaceProvider ?? MockDiskSpaceProvider()
+    let messageService = messageService ?? MessageService()
     let preferences = PreferencesService()
     preferences.pendingCAASDownloads = []
     if authenticated {
@@ -296,7 +298,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       anchorService: anchorService,
       anchorViewModel: anchorVM,
       waypointService: nil,
-      messageService: MessageService()
+      messageService: messageService
     )
 
     if setupVisibleBounds {
@@ -312,7 +314,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       downloadRepository: downloadRepository,
       preferencesService: preferences,
       networkMonitor: networkMonitor,
-      diskSpaceProvider: diskSpaceProvider
+      diskSpaceProvider: diskSpaceProvider,
+      messageService: messageService
     )
 
     let sut = OfflineSelectionViewModel(
@@ -372,6 +375,9 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let mockDownloadService = MockGeoGarageDownloadService()
     let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
     await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+    addTeardownBlock {
+      await KeychainManager.shared.save(token: "token123", for: "geogarage_access_token")
+    }
 
     sut.startDownload(chartSource: nil)
 
@@ -381,10 +387,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     }
 
     XCTAssertTrue(mockDownloadService.failDownloadCalled, "without a token the download must fail immediately")
+    XCTAssertTrue(mockDownloadService.lastFailDownloadIsAuthError, "without a token the failure must be marked as an authentication error")
     XCTAssertFalse(mockDownloadService.startDownloadCalled, "no package must be requested")
-
-    // `setUp` assumes a token is present: put it back for the following tests.
-    await KeychainManager.shared.save(token: "token123", for: "geogarage_access_token")
   }
 
   func testStartDownload_unauthenticated_setsFailedState() {
@@ -398,6 +402,41 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       XCTFail("Expected .failed state when customer ID is missing, got \(sut.downloadPhase)")
     }
     XCTAssertFalse(sut.isDownloading)
+  }
+
+  func testStartDownload_unauthenticated_postsAppMessage() {
+    let messageService = MessageService()
+    let (sut, _, _, _, _, _, _, _) = makeSUT(authenticated: false, messageService: messageService)
+
+    sut.startDownload(chartSource: nil)
+
+    XCTAssertEqual(messageService.messages.count, 1)
+    let message = messageService.messages.first
+    XCTAssertEqual(message?.category, .offlineCharts)
+    XCTAssertEqual(message?.severity, .error)
+    XCTAssertEqual(message?.intent, .openSettings(target: .geoGarage))
+  }
+
+  func testStartDownload_withoutAccessToken_postsAppMessage() async {
+    let messageService = MessageService()
+    let (sut, _, _, _, _, _, _, _) = makeSUT(authenticated: true, messageService: messageService)
+    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+    addTeardownBlock {
+      await KeychainManager.shared.save(token: "token123", for: "geogarage_access_token")
+    }
+
+    sut.startDownload(chartSource: nil)
+
+    for _ in 0..<100 {
+      if !messageService.messages.isEmpty { break }
+      try? await Task.sleep(for: .milliseconds(10))
+    }
+
+    XCTAssertEqual(messageService.messages.count, 1)
+    let message = messageService.messages.first
+    XCTAssertEqual(message?.category, .offlineCharts)
+    XCTAssertEqual(message?.severity, .error)
+    XCTAssertEqual(message?.intent, .openSettings(target: .geoGarage))
   }
 
   func testStartDownload_withoutAvailableOrSelectedLayer_setsFailedState() {

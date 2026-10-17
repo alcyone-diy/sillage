@@ -280,7 +280,8 @@ final class AppEnvironment {
         downloadRepository: geoGarageDownloadRepository,
         preferencesService: preferencesService,
         networkMonitor: networkMonitorService,
-        diskSpaceProvider: diskSpaceProvider
+        diskSpaceProvider: diskSpaceProvider,
+        messageService: messageService
       )
       
       let offlineSelectionViewModel = OfflineSelectionViewModel(

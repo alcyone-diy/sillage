@@ -121,8 +121,17 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     downloadPhase = .cancelled
   }
 
-  func failDownload(with errorMessage: String) {
+  var lastFailDownloadIsAuthError: Bool = false
+
+  func failDownload(with errorMessage: String, isAuthenticationError: Bool) {
     failDownloadCalled = true
+    lastFailDownloadIsAuthError = isAuthenticationError
+    downloadPhase = .failed(errorMessage: errorMessage)
+  }
+
+  func failDownload(id: UUID, errorMessage: String, isAuthenticationError: Bool) {
+    failDownloadCalled = true
+    lastFailDownloadIsAuthError = isAuthenticationError
     downloadPhase = .failed(errorMessage: errorMessage)
   }
 

@@ -58,6 +58,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   private let preferencesService: PreferencesServiceProtocol
   private let networkMonitor: NetworkMonitorServiceProtocol
   private let diskSpaceProvider: DiskSpaceProviderProtocol
+  private let messageService: MessageService?
 
   // MARK: - State Properties
 
@@ -192,7 +193,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     downloadRepository: GeoGarageDownloadRepositoryProtocol,
     preferencesService: PreferencesServiceProtocol,
     networkMonitor: NetworkMonitorServiceProtocol,
-    diskSpaceProvider: DiskSpaceProviderProtocol = SystemDiskSpaceProvider()
+    diskSpaceProvider: DiskSpaceProviderProtocol = SystemDiskSpaceProvider(),
+    messageService: MessageService? = nil
   ) {
     self.packageService = packageService
     self.downloader = downloader
@@ -200,6 +202,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     self.preferencesService = preferencesService
     self.networkMonitor = networkMonitor
     self.diskSpaceProvider = diskSpaceProvider
+    self.messageService = messageService
 
     // Restore any existing persisted pending downloads into queued state
     self.activeDownloads = preferencesService.pendingCAASDownloads.map {
@@ -367,7 +370,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     notifyProgressObservers()
   }
 
-  func failDownload(with errorMessage: String) {
+  func failDownload(with errorMessage: String, isAuthenticationError: Bool = false) {
     Logger.offline.error("GeoGarageDownloadService: failing all active downloads explicitly: \(errorMessage, privacy: .public)")
     for task in downloadTasks.values {
       task.cancel()
@@ -379,9 +382,10 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     sessionTotalDownloadsCount = 0
     lastTerminalPhase = .failed(errorMessage: errorMessage)
     notifyProgressObservers()
+    postFailureMessage(errorMessage, isAuthenticationError: isAuthenticationError)
   }
 
-  func failDownload(id: UUID, errorMessage: String) {
+  func failDownload(id: UUID, errorMessage: String, isAuthenticationError: Bool = false) {
     Logger.offline.error("GeoGarageDownloadService: download \(id.uuidString, privacy: .public) failed explicitly: \(errorMessage, privacy: .public)")
     downloadTasks[id]?.cancel()
     downloadTasks.removeValue(forKey: id)
@@ -395,6 +399,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     }
     notifyProgressObservers()
     processQueue()
+    postFailureMessage(errorMessage, isAuthenticationError: isAuthenticationError)
   }
 
   func deleteDownload(_ download: OfflineChartDownload) async throws(CaasError) {
@@ -445,7 +450,11 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
 
           guard !resolvedCustomer.isEmpty && !resolvedAccessToken.isEmpty else {
             Logger.offline.warning("Cannot start queued download \(targetID.uuidString, privacy: .public): missing credentials.")
-            self.failDownload(id: targetID, errorMessage: String(localized: "User is not authenticated with GeoGarage. Please login first."))
+            self.failDownload(
+              id: targetID,
+              errorMessage: String(localized: "User is not authenticated with GeoGarage. Please login first."),
+              isAuthenticationError: true
+            )
             return
           }
 
@@ -530,16 +539,11 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     }
 
     guard !accessToken.isEmpty else {
-      updateDownloadPhase(id: localID, to: .failed(errorMessage: CaasError.authenticationRequired.localizedDescription))
-      removeDownload(id: localID)
-      sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
-      if activeDownloads.isEmpty {
-        sessionCompletedDownloadsCount = 0
-        sessionTotalDownloadsCount = 0
-        lastTerminalPhase = .failed(errorMessage: CaasError.authenticationRequired.localizedDescription)
-      }
-      notifyProgressObservers()
-      processQueue()
+      failDownload(
+        id: localID,
+        errorMessage: CaasError.authenticationRequired.localizedDescription,
+        isAuthenticationError: true
+      )
       return
     }
 
@@ -623,17 +627,12 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
         Logger.offline.info("Network connectivity error during CAAS download: \(error.localizedDescription, privacy: .public). Queued in pending state.")
         updateDownloadPhase(id: localID, to: .waitingForNetwork(message: String(localized: "Waiting for network connection…")))
       } else {
-        Logger.offline.error("Fatal error during CAAS download: \(error.localizedDescription, privacy: .public)")
-        updateDownloadPhase(id: localID, to: .failed(errorMessage: error.localizedDescription))
-        removeDownload(id: localID)
-        sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
-        if activeDownloads.isEmpty {
-          sessionCompletedDownloadsCount = 0
-          sessionTotalDownloadsCount = 0
-          lastTerminalPhase = .failed(errorMessage: error.localizedDescription)
-        }
-        notifyProgressObservers()
-        processQueue()
+        let isAuthError = (error as? CaasError) == .authenticationRequired
+        failDownload(
+          id: localID,
+          errorMessage: error.localizedDescription,
+          isAuthenticationError: isAuthError
+        )
       }
     }
   }
@@ -809,5 +808,17 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     }
 
     return false
+  }
+
+  private func postFailureMessage(_ errorMessage: String, isAuthenticationError: Bool = false) {
+    guard let messageService else { return }
+    let appMessage = AppMessage(
+      title: LocalizedStringResource("Offline Download Failed"),
+      detail: LocalizedStringResource(stringLiteral: errorMessage),
+      severity: .error,
+      category: .offlineCharts,
+      intent: isAuthenticationError ? .openSettings(target: .geoGarage) : .none
+    )
+    messageService.post(appMessage)
   }
 }

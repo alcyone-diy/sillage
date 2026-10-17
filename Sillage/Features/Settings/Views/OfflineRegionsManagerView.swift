@@ -191,6 +191,7 @@ struct OfflineRegionsManagerView: View {
   private func showOnChart(_ item: OfflineChartItem) {
     guard let bounds = item.geographicBounds else {
       Logger.offline.warning("Cannot show offline chart on map: bounds are missing.")
+      errorMessage = String(localized: "Cannot show offline chart: boundary data is missing.")
       return
     }
     chartViewModel.highlightOfflineRegion(id: item.id, name: item.displayName, bounds: bounds)

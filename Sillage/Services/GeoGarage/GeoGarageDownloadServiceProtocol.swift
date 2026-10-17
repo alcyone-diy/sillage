@@ -66,14 +66,31 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
   func cancelDownload()
 
   /// Explicitly marks all active downloads as failed with a localized error message and cleans up pending state.
-  /// - Parameter errorMessage: Human-readable error description for UI display.
-  func failDownload(with errorMessage: String)
+  /// - Parameters:
+  ///   - errorMessage: Human-readable error description for UI display.
+  ///   - isAuthenticationError: Indicates whether the failure is due to missing or invalid credentials.
+  func failDownload(with errorMessage: String, isAuthenticationError: Bool)
+
+  /// Explicitly fails a specific in-progress download by its local UUID with an error description.
+  /// - Parameters:
+  ///   - id: Local unique identifier of the download package.
+  ///   - errorMessage: Human-readable error description.
+  ///   - isAuthenticationError: Indicates whether the failure is due to missing or invalid credentials.
+  func failDownload(id: UUID, errorMessage: String, isAuthenticationError: Bool)
 
   /// Deletes a downloaded chart package from local disk and repository.
   func deleteDownload(_ download: OfflineChartDownload) async throws(CaasError)
 }
 
 extension GeoGarageDownloadServiceProtocol {
+  func failDownload(with errorMessage: String) {
+    failDownload(with: errorMessage, isAuthenticationError: false)
+  }
+
+  func failDownload(id: UUID, errorMessage: String) {
+    failDownload(id: id, errorMessage: errorMessage, isAuthenticationError: false)
+  }
+
   func startDownload(
     layerID: String,
     layerName: String,

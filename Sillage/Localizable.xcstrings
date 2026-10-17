@@ -325,6 +325,9 @@
     "Cannot delete a track while it is actively recording." : {
 
     },
+    "Cannot show offline chart: boundary data is missing." : {
+
+    },
     "Categories" : {
 
     },
@@ -1043,6 +1046,9 @@
 
     },
     "Offline charts unavailable" : {
+
+    },
+    "Offline Download Failed" : {
 
     },
     "Offline Maps Error" : {

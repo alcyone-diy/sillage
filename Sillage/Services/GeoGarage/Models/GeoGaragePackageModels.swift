@@ -279,7 +279,7 @@ nonisolated struct ActiveCAASDownload: Identifiable, Equatable, Sendable {
 // MARK: - Errors
 
 /// Strongly-typed errors for the CAAS pipeline (request, download, verification).
-nonisolated enum CaasError: Error, LocalizedError, Sendable {
+nonisolated enum CaasError: Error, LocalizedError, Sendable, Equatable {
   case requestFailed(statusCode: Int)
   case packageGenerationFailed(message: String)
   case downloadFailed(underlying: String)
