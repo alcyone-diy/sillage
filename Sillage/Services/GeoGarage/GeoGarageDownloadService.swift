@@ -237,7 +237,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     zoneWKT: String,
     zoomMax: Int,
     accessToken: String,
-    customerID: String
+    customerID: String,
+    customName: String? = nil
   ) {
     lastTerminalPhase = nil
 
@@ -250,7 +251,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       layerName: layerName,
       boundsWKT: zoneWKT,
       zoomMax: zoomMax,
-      createdAt: Date()
+      createdAt: Date(),
+      customName: customName
     )
 
     // If starting a new session from 0 active downloads, reset completed count
@@ -454,7 +456,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
         layerName: old.layerName,
         boundsWKT: old.boundsWKT,
         zoomMax: old.zoomMax,
-        createdAt: old.createdAt
+        createdAt: old.createdAt,
+        customName: old.customName
       )
       activeDownloads[index] = ActiveCAASDownload(item: updated, phase: activeDownloads[index].phase)
       if let prefIndex = preferencesService.pendingCAASDownloads.firstIndex(where: { $0.id == id }) {
@@ -657,13 +660,22 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     lastProgressUpdateDate.removeValue(forKey: localID)
     lastReportedBytes.removeValue(forKey: localID)
 
+    let finalRecord: OfflineChartDownload
+    if let custom = activeDownloads.first(where: { $0.id == localID })?.item.customName, !custom.isEmpty {
+      let customRecord = record.updatingCustomName(custom)
+      try? await downloadRepository.save(customRecord)
+      finalRecord = customRecord
+    } else {
+      finalRecord = record
+    }
+
     sessionCompletedDownloadsCount += 1
-    updateDownloadPhase(id: localID, to: .completed(record))
+    updateDownloadPhase(id: localID, to: .completed(finalRecord))
     removeDownload(id: localID)
     if activeDownloads.isEmpty {
       sessionCompletedDownloadsCount = 0
       sessionTotalDownloadsCount = 0
-      lastTerminalPhase = .completed(record)
+      lastTerminalPhase = .completed(finalRecord)
     }
     notifyProgressObservers()
     processQueue()

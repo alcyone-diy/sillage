@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct MarineTheme {
   let minTouchTarget: CGFloat
@@ -169,6 +170,14 @@ struct MarineTheme {
     nonisolated static let offlineMaskFillOpacity: Double = 0.55
     nonisolated static let offlineRegionsBorderLineWidth: Double = 1.5
     nonisolated static let offlineRegionsBorderOpacity: Double = 0.85
+
+    /// Standard edge insets for framing vessel and active navigation targets (GoTo waypoint) cleanly within viewport panels.
+    nonisolated static let navigationTargetFramingPadding = UIEdgeInsets(
+      top: MarineTheme.Spacing.compassTopMargin + MarineTheme.Spacing.hudCardTopPadding,
+      left: MarineTheme.Spacing.extraLarge * 3,
+      bottom: MarineTheme.Spacing.overlayCardBottom + MarineTheme.Spacing.extraLarge * 2,
+      right: MarineTheme.Spacing.extraLarge * 3
+    )
   }
 
   struct Icons: Sendable {
@@ -215,6 +224,20 @@ struct MarineTheme {
     case .instrumentLabel: return (.caption2, .bold)
     }
   }
+
+  /// Computes the dynamic UIEdgeInsets for framing an offline region selection comfortably within the interactive chart viewport.
+  /// Dynamically accounts for top telemetry / compass clearances, horizontal touch targets (including Glove Mode),
+  /// and the bottom action confirmation card (`MarineActionConfirmationCard`).
+  var offlineSelectionEdgeInsets: UIEdgeInsets {
+    let top = MarineTheme.Spacing.compassTopMargin + MarineTheme.Spacing.hudCardTopPadding
+    let horizontal = minTouchTarget + MarineTheme.Spacing.medium
+    let estimatedCardHeight: CGFloat = isGloveMode ? 170.0 : 140.0
+    let bottom = estimatedCardHeight + MarineTheme.Spacing.overlayCardBottom + MarineTheme.Spacing.large
+    return UIEdgeInsets(top: top, left: horizontal, bottom: bottom, right: horizontal)
+  }
+
+  /// Standard edge insets for framing vessel and active navigation targets (GoTo waypoint) cleanly within viewport panels.
+  static let navigationTargetFramingPadding = ChartMetrics.navigationTargetFramingPadding
 }
 
 private struct MarineThemeKey: EnvironmentKey {

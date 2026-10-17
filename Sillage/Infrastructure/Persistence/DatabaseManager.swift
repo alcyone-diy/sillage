@@ -481,6 +481,17 @@ public final class DatabaseManager: Sendable {
       }
     }
 
+    // v10: Ensures geogarage_download table has custom_name column if migrating from older schema versions
+    migrator.registerMigration("v10") { db in
+      guard try db.tableExists("geogarage_download") else { return }
+      let columns = try db.columns(in: "geogarage_download").map { $0.name }
+      if !columns.contains("custom_name") {
+        try db.alter(table: "geogarage_download") { t in
+          t.add(column: "custom_name", .text)
+        }
+      }
+    }
+
     return migrator
   }
 }

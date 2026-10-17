@@ -42,13 +42,15 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
   ///   - zoomMax: Maximum zoom level to include in the MBTiles archive.
   ///   - accessToken: OAuth2 access token of the signed-in user (`Authorization: Bearer`).
   ///   - customerID: User's GeoGarage customer identifier.
+  ///   - customName: Optional custom user-assigned name for the chart package.
   func startDownload(
     layerID: String,
     layerName: String,
     zoneWKT: String,
     zoomMax: Int,
     accessToken: String,
-    customerID: String
+    customerID: String,
+    customName: String?
   )
 
   /// Resumes in-flight or queued CAAS downloads (e.g., on app launch or upon network reconnection).
@@ -67,4 +69,25 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
 
   /// Deletes a downloaded chart package from local disk and repository.
   func deleteDownload(_ download: OfflineChartDownload) async throws(CaasError)
+}
+
+extension GeoGarageDownloadServiceProtocol {
+  func startDownload(
+    layerID: String,
+    layerName: String,
+    zoneWKT: String,
+    zoomMax: Int,
+    accessToken: String,
+    customerID: String
+  ) {
+    startDownload(
+      layerID: layerID,
+      layerName: layerName,
+      zoneWKT: zoneWKT,
+      zoomMax: zoomMax,
+      accessToken: accessToken,
+      customerID: customerID,
+      customName: nil
+    )
+  }
 }

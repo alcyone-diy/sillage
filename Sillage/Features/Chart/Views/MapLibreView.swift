@@ -327,18 +327,52 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
 
-    
+    // Offline selection mode: force chart rotation to 0 (North-Up) and reset pitch to 0.
     if let offlineVM = offlineSelectionViewModel, offlineVM.isSelectionModeActive {
-      if uiView.direction != 0 {
-        uiView.setDirection(0, animated: true)
-      }
-      if uiView.camera.pitch != 0 {
+      uiView.isRotateEnabled = false
+
+      if let initialBounds = offlineVM.initialBounds, uiView.bounds.width > 0, uiView.bounds.height > 0 {
+        // When modifying an existing chart's zone, separate the camera leveling and bounding box framing
+        // from general animated transitions to guarantee instantaneous, deterministic screen coordinate projection.
+        uiView.direction = 0
         let camera = uiView.camera
         camera.pitch = 0
-        uiView.setCamera(camera, animated: true)
+        uiView.camera = camera
+
+        let mlnBounds = MLNCoordinateBounds(sw: initialBounds.southWest, ne: initialBounds.northEast)
+        let padding = marineTheme.offlineSelectionEdgeInsets
+        uiView.setVisibleCoordinateBounds(mlnBounds, edgePadding: padding, animated: false, completionHandler: nil)
+
+        let swPoint = uiView.convert(initialBounds.southWest, toPointTo: uiView)
+        let nePoint = uiView.convert(initialBounds.northEast, toPointTo: uiView)
+        let minX = min(swPoint.x, nePoint.x)
+        let maxX = max(swPoint.x, nePoint.x)
+        let minY = min(swPoint.y, nePoint.y)
+        let maxY = max(swPoint.y, nePoint.y)
+        let width = maxX - minX
+        let height = maxY - minY
+        let rect = (width > 10 && height > 10) ? CGRect(x: minX, y: minY, width: width, height: height) : nil
+
+        // SwiftUI Lifecycle: Defer mutation of observable ViewModel state to a Task
+        // to avoid modifying state during view update (updateUIView).
+        Task { @MainActor [weak offlineVM] in
+          if let rect {
+            offlineVM?.updateCropRect(rect)
+          }
+          offlineVM?.consumeInitialBounds()
+        }
+      } else {
+        // Standard selection mode: smoothly restore North-Up orientation and level pitch with animation.
+        if uiView.direction != 0 {
+          uiView.setDirection(0, animated: true)
+        }
+        if uiView.camera.pitch != 0 {
+          let camera = uiView.camera
+          camera.pitch = 0
+          uiView.setCamera(camera, animated: true)
+        }
       }
-      uiView.isRotateEnabled = false
-      
+
       context.coordinator.updateOfflineSelectionBounds(mapView: uiView)
     } else {
       uiView.isRotateEnabled = true
@@ -981,9 +1015,9 @@ struct MapLibreView: UIViewRepresentable {
       streamTask = Task { @MainActor in
         for await event in parent.viewModel.cameraMoveStream {
           switch event {
-          case .fitBounds(let bounds, let padding):
+          case .fitBounds(let bounds, let padding, let animated):
             let mlnBounds = MLNCoordinateBounds(sw: bounds.southWest, ne: bounds.northEast)
-            await mapView.setVisibleCoordinateBounds(mlnBounds, edgePadding: padding, animated: true)
+            await mapView.setVisibleCoordinateBounds(mlnBounds, edgePadding: padding, animated: animated)
           case .center(let coordinate, let zoom, let heading):
             let targetZoom = zoom ?? mapView.zoomLevel
             
@@ -1239,6 +1273,10 @@ struct MapLibreView: UIViewRepresentable {
     @MainActor
     func updateOfflineSelectionBounds(mapView: MLNMapView) {
       if let offlineVM = self.parent.offlineSelectionViewModel, offlineVM.isSelectionModeActive {
+        // If initial bounds are pending asynchronous projection into cropRect, defer recalculation
+        // to avoid overwriting selectedBounds with the default centered box.
+        guard offlineVM.initialBounds == nil || offlineVM.cropRect != nil else { return }
+
         let rect = offlineVM.cropRect ?? {
             let baseSize = min(mapView.bounds.width, mapView.bounds.height) * offlineVM.cropBoxWidthRatio
             let size = CGSize(width: baseSize, height: baseSize * offlineVM.cropBoxAspect)

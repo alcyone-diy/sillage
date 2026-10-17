@@ -78,7 +78,12 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       )
     }
 
+    var deleteError: CaasError?
+
     func deleteLocalChart(id: UUID) async throws(CaasError) {
+      if let deleteError {
+        throw deleteError
+      }
       deletedIDs.append(id)
     }
   }
@@ -547,10 +552,14 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertFalse(prefs.pendingCAASDownloads.isEmpty, "Pending download must be retained on connectivity error")
   }
 
-  func testCancelDownload_cancelsTask_setsCancelledState_andClearsPendingState() {
+  func testCancelDownload_cancelsTask_setsCancelledState_andClearsPendingState() async throws {
     let (sut, _, _, _, _, _, _, prefs) = makeSUT()
 
     sut.startDownload(accessToken: "token123", customerID: "cust123")
+    for _ in 0..<50 {
+      if sut.isDownloading { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
     XCTAssertTrue(sut.isDownloading)
 
     sut.cancelDownload()
@@ -1143,6 +1152,11 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     sut.startDownload(accessToken: "token123", customerID: "cust123")
     sut.startDownload(accessToken: "token123", customerID: "cust123")
 
+    for _ in 0..<50 {
+      if downloadService.activeDownloads.count == 3 { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
     XCTAssertEqual(prefs.pendingCAASDownloads.count, 3)
     XCTAssertEqual(downloadService.activeDownloads.count, 3)
 
@@ -1211,6 +1225,11 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     sut.startDownload(accessToken: "token123", customerID: "cust123")
     sut.startDownload(accessToken: "token123", customerID: "cust123")
     sut.startDownload(accessToken: "token123", customerID: "cust123")
+
+    for _ in 0..<50 {
+      if downloadService.activeDownloads.count == 3 { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
 
     guard downloadService.activeDownloads.count == 3 else {
       XCTFail("Expected 3 downloads")
@@ -1411,6 +1430,165 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let invalidItem = OfflineChartItem.inProgress(invalidPending, phase: .queued)
     XCTAssertTrue(invalidItem.boundsWKT.isEmpty)
     XCTAssertNil(invalidItem.geographicBounds)
+  }
+
+  // MARK: - Zone Modification Tests
+
+  func testStartModifyingZone_activatesSelectionMode_andConfiguresProperties() {
+    let (sut, _, _, _, chartVM, _, _, _) = makeSUT()
+
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/test.mbtiles",
+      md5: "md5",
+      zoomMax: 15,
+      boundsWKT: "POLYGON((-5.0 48.0, -4.0 48.0, -4.0 49.0, -5.0 49.0, -5.0 48.0))",
+      customName: "My Rade de Brest"
+    )
+
+    XCTAssertFalse(sut.isSelectionModeActive)
+    XCTAssertNil(sut.chartToModify)
+
+    sut.startModifyingZone(
+      for: download,
+      customName: "Updated Brest",
+      padding: MarineTheme.standard.offlineSelectionEdgeInsets
+    )
+
+    XCTAssertTrue(sut.isSelectionModeActive)
+    XCTAssertEqual(sut.chartToModify?.id, download.id)
+    XCTAssertEqual(sut.selectedLayerID, "shom")
+    XCTAssertEqual(sut.zoomMax, 15)
+    XCTAssertEqual(sut.pendingCustomName, "Updated Brest")
+    XCTAssertEqual(sut.initialBounds, download.geographicBounds)
+    XCTAssertEqual(sut.selectedBounds, download.geographicBounds)
+    XCTAssertFalse(sut.availableDownloadedChartsForMask.contains(where: { $0.id == download.id }), "Modifying chart must be excluded from mask downloads")
+    XCTAssertEqual(chartVM.trackingMode, .free)
+
+    sut.consumeInitialBounds()
+    XCTAssertNil(sut.initialBounds)
+  }
+
+  func testResetSelection_clearsModifyingZoneState() {
+    let (sut, _, _, _, _, _, _, _) = makeSUT()
+
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/test.mbtiles",
+      md5: "md5",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-5.0 48.0, -4.0 48.0, -4.0 49.0, -5.0 49.0, -5.0 48.0))",
+      customName: "Old Name"
+    )
+
+    sut.startModifyingZone(for: download, padding: MarineTheme.standard.offlineSelectionEdgeInsets)
+    XCTAssertTrue(sut.isSelectionModeActive)
+    XCTAssertNotNil(sut.chartToModify)
+    XCTAssertNotNil(sut.pendingCustomName)
+    XCTAssertNotNil(sut.initialBounds)
+
+    sut.resetSelection()
+    XCTAssertFalse(sut.isSelectionModeActive)
+    XCTAssertNil(sut.chartToModify)
+    XCTAssertNil(sut.pendingCustomName)
+    XCTAssertNil(sut.initialBounds)
+  }
+
+  func testStartDownload_whenModifyingZone_deletesOldChart_andPassesPreservedCustomName() async throws {
+    let mockDownloader = MockChartDownloader()
+    let mockRepo = MockDownloadRepository()
+    let chartID = UUID()
+
+    let oldDownload = OfflineChartDownload(
+      id: chartID,
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/test.mbtiles",
+      md5: "md5",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-5.0 48.0, -4.0 48.0, -4.0 49.0, -5.0 49.0, -5.0 48.0))",
+      customName: "Zone Brest"
+    )
+    mockRepo.downloads = [oldDownload]
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(
+      downloader: mockDownloader,
+      downloadRepository: mockRepo
+    )
+
+    sut.startModifyingZone(
+      for: oldDownload,
+      customName: "Zone Brest Modifiée",
+      padding: MarineTheme.standard.offlineSelectionEdgeInsets
+    )
+
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
+
+    XCTAssertFalse(sut.isSelectionModeActive)
+    XCTAssertNil(sut.chartToModify)
+    XCTAssertNil(sut.pendingCustomName)
+
+    // Wait for the deletion task to complete
+    for _ in 0..<50 {
+      if mockDownloader.deletedIDs.contains(chartID) { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    XCTAssertTrue(mockDownloader.deletedIDs.contains(chartID), "Old chart must be deleted when starting modified download")
+  }
+
+  func testStartDownload_whenModifyingZone_andDeletionFails_abortsDownloadAndReportsError() async throws {
+    let mockDownloader = MockChartDownloader()
+    mockDownloader.deleteError = CaasError.fileSystemError(underlying: "Disk IO failure")
+    let mockRepo = MockDownloadRepository()
+    let chartID = UUID()
+
+    let oldDownload = OfflineChartDownload(
+      id: chartID,
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/test.mbtiles",
+      md5: "md5",
+      zoomMax: 14,
+      boundsWKT: "POLYGON((-5.0 48.0, -4.0 48.0, -4.0 49.0, -5.0 49.0, -5.0 48.0))",
+      customName: "Zone Brest"
+    )
+    mockRepo.downloads = [oldDownload]
+
+    let (sut, _, _, _, _, _, _, _) = makeSUT(
+      downloader: mockDownloader,
+      downloadRepository: mockRepo
+    )
+
+    sut.startModifyingZone(
+      for: oldDownload,
+      customName: "Zone Brest Modifiée",
+      padding: MarineTheme.standard.offlineSelectionEdgeInsets
+    )
+
+    sut.startDownload(accessToken: "token123", customerID: "cust123")
+
+    // Wait for the failure state
+    for _ in 0..<50 {
+      if case .failed = sut.downloadPhase { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    if case .failed(let message) = sut.downloadPhase {
+      XCTAssertFalse(message.isEmpty)
+    } else {
+      XCTFail("Expected downloadPhase to be .failed when deletion fails, but got \(sut.downloadPhase)")
+    }
+
+    XCTAssertFalse(sut.isDownloading)
   }
 }
 

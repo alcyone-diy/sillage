@@ -56,6 +56,20 @@ final class OfflineSelectionViewModel {
   /// The user-defined dimension and position of the selection crop box. If nil, defaults are applied based on screen size.
   private(set) var cropRect: CGRect?
 
+  /// The existing offline chart package being modified, if zone modification is underway.
+  private(set) var chartToModify: OfflineChartDownload?
+
+  /// The custom name to apply to the replacement chart package once downloaded.
+  private(set) var pendingCustomName: String?
+
+  /// The initial geographic bounds of the chart being modified, to align the crop box exactly on the existing zone.
+  private(set) var initialBounds: GeographicBoundingBox?
+
+  /// Clears initialBounds once it has been projected into cropRect by the map engine.
+  func consumeInitialBounds() {
+    self.initialBounds = nil
+  }
+
   // MARK: - Configuration Properties
 
   var selectedLayerID: String = "" {
@@ -81,6 +95,14 @@ final class OfflineSelectionViewModel {
 
   var downloadedCharts: [OfflineChartDownload] {
     downloadRepository.downloads
+  }
+
+  /// Downloads to display on the map mask, excluding any chart currently undergoing zone modification.
+  var availableDownloadedChartsForMask: [OfflineChartDownload] {
+    if let chartToModify {
+      return downloadedCharts.filter { $0.id != chartToModify.id }
+    }
+    return downloadedCharts
   }
 
   /// All chart items to be displayed in the UI, combining completed downloads and active/queued downloads.
@@ -210,6 +232,10 @@ final class OfflineSelectionViewModel {
     estimatedArea = nil
     isValidSize = false
     cropRect = nil
+    chartToModify = nil
+    pendingCustomName = nil
+    initialBounds = nil
+    chartViewModel.clearOfflineRegionHighlight()
     calculationTask?.cancel()
     chartViewModel.updateOfflineMaskState(
       isSelectionActive: false,
@@ -217,6 +243,40 @@ final class OfflineSelectionViewModel {
       selectedBounds: nil,
       downloads: []
     )
+  }
+
+  /// Enters region selection mode to modify the geographic boundary of an existing downloaded chart.
+  /// - Parameters:
+  ///   - download: The existing offline chart package whose zone is being changed.
+  ///   - customName: Optional updated custom name from the edit session.
+  ///   - padding: Viewport edge insets injected by the UI layer to frame the bounding box.
+  func startModifyingZone(for download: OfflineChartDownload, customName: String? = nil, padding: UIEdgeInsets) {
+    self.chartToModify = download
+    self.selectedLayerID = download.layerID
+    self.zoomMax = download.zoomMax
+    if let customName, !customName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      self.pendingCustomName = customName.trimmingCharacters(in: .whitespacesAndNewlines)
+    } else {
+      self.pendingCustomName = download.customName
+    }
+
+    chartViewModel.clearOfflineRegionHighlight()
+
+    if let bounds = download.geographicBounds {
+      self.initialBounds = bounds
+      self.selectedBounds = bounds
+      self.estimatedArea = bounds.estimatedArea
+      self.isValidSize = bounds.estimatedArea.converted(to: .squareNauticalMiles).value <= maxArea.value
+      self.cropRect = nil
+
+      chartViewModel.fitBounds(bounds, padding: padding, animated: false)
+    } else {
+      self.initialBounds = nil
+      self.selectedBounds = nil
+      self.cropRect = nil
+    }
+
+    self.isSelectionModeActive = true
   }
 
   /// Resolves the target GeoGarage layer identifier to download according to priority:
@@ -264,7 +324,7 @@ final class OfflineSelectionViewModel {
       isSelectionActive: isSelectionModeActive,
       activeLayerID: targetLayerID,
       selectedBounds: isSelectionModeActive ? selectedBounds : nil,
-      downloads: downloadedCharts
+      downloads: availableDownloadedChartsForMask
     )
   }
 
@@ -283,11 +343,16 @@ final class OfflineSelectionViewModel {
 
     guard let layerToDownload = requireTargetLayerID(explicitSource: chartSource) else { return }
 
+    let chartBeingReplaced = self.chartToModify
+    let customNameToPreserve = self.pendingCustomName ?? chartBeingReplaced?.customName
+
     // UI reset MUST be synchronous on the MainActor BEFORE the async download process
     isSelectionModeActive = false
     let zoneWKT = bounds.toWKT()
     selectedBounds = nil
     cropRect = nil
+    chartToModify = nil
+    pendingCustomName = nil
     calculationTask?.cancel()
 
     let selectedLayer = availableLayers.first(where: { $0.layer == layerToDownload })
@@ -297,6 +362,7 @@ final class OfflineSelectionViewModel {
 
     Task { [weak self] in
       guard let self else { return }
+
       // The package is requested with the user's token, not an embedded key: no token, no request.
       let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token") ?? ""
       guard !token.isEmpty else {
@@ -305,13 +371,15 @@ final class OfflineSelectionViewModel {
         return
       }
 
-      self.downloadService.startDownload(
+      await self.processDownloadRequest(
         layerID: layerToDownload,
         layerName: layerName,
         zoneWKT: zoneWKT,
         zoomMax: zoomMax,
         accessToken: token,
-        customerID: customerID
+        customerID: customerID,
+        chartBeingReplaced: chartBeingReplaced,
+        customName: customNameToPreserve
       )
     }
   }
@@ -324,23 +392,66 @@ final class OfflineSelectionViewModel {
     guard let bounds = requireDownloadBounds() else { return }
     guard let layerToDownload = requireTargetLayerID() else { return }
 
+    let chartBeingReplaced = self.chartToModify
+    let customNameToPreserve = self.pendingCustomName ?? chartBeingReplaced?.customName
+
     isSelectionModeActive = false
     let zoneWKT = bounds.toWKT()
     selectedBounds = nil
     cropRect = nil
+    chartToModify = nil
+    pendingCustomName = nil
     calculationTask?.cancel()
 
     let selectedLayer = availableLayers.first(where: { $0.layer == layerToDownload })
     let layerName = selectedLayer?.brandName ?? layerToDownload.uppercased()
     let zoomMax = self.zoomMax
 
-    downloadService.startDownload(
-      layerID: layerToDownload,
+    Task { [weak self] in
+      guard let self else { return }
+      await self.processDownloadRequest(
+        layerID: layerToDownload,
+        layerName: layerName,
+        zoneWKT: zoneWKT,
+        zoomMax: zoomMax,
+        accessToken: accessToken,
+        customerID: customerID,
+        chartBeingReplaced: chartBeingReplaced,
+        customName: customNameToPreserve
+      )
+    }
+  }
+
+  /// Processes a validated download request, awaiting deletion of any replaced chart package before initiating download.
+  private func processDownloadRequest(
+    layerID: String,
+    layerName: String,
+    zoneWKT: String,
+    zoomMax: Int,
+    accessToken: String,
+    customerID: String,
+    chartBeingReplaced: OfflineChartDownload?,
+    customName: String?
+  ) async {
+    if let chartBeingReplaced {
+      do {
+        try await self.deleteDownload(chartBeingReplaced)
+        Logger.offline.info("Deleted previous offline chart package \(chartBeingReplaced.id.uuidString, privacy: .public) prior to replacing zone.")
+      } catch {
+        Logger.offline.error("Failed to delete previous offline chart package: \(error.localizedDescription, privacy: .public)")
+        self.downloadService.failDownload(with: error.localizedDescription)
+        return
+      }
+    }
+
+    self.downloadService.startDownload(
+      layerID: layerID,
       layerName: layerName,
       zoneWKT: zoneWKT,
       zoomMax: zoomMax,
       accessToken: accessToken,
-      customerID: customerID
+      customerID: customerID,
+      customName: customName
     )
   }
 

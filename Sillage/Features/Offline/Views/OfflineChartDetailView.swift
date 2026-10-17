@@ -15,6 +15,7 @@ import OSLog
 struct OfflineChartDetailView: View {
   @Bindable var viewModel: OfflineChartDetailViewModel
   @Environment(ChartViewModel.self) private var chartViewModel
+  @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel: OfflineSelectionViewModel?
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.dismiss) private var dismiss
@@ -182,6 +183,20 @@ struct OfflineChartDetailView: View {
             )
             .marineListCell()
           }
+
+          if viewModel.isEditing {
+            Button(action: {
+              startModifyingZone()
+            }) {
+              HStack {
+                Image(marineIcon: .edit)
+                Text("Change Zone")
+              }
+            }
+            .buttonStyle(MarineButtonStyle(.secondary))
+            .disabled(isChangeZoneDisabled)
+            .marineListCell()
+          }
         } header: {
           Text("Geographic Coverage").marineSectionHeader()
         } footer: {
@@ -327,6 +342,24 @@ struct OfflineChartDetailView: View {
         viewModel.errorMessage = error.localizedDescription
       }
     }
+  }
+
+  private var isChangeZoneDisabled: Bool {
+    viewModel.isDeleting ||
+    viewModel.isSaving ||
+    (offlineSelectionViewModel?.isSelectionModeActive ?? false) ||
+    !chartViewModel.isOfflineAreaEnabled
+  }
+
+  private func startModifyingZone() {
+    guard let offlineSelectionViewModel, let download = viewModel.chartDownload else { return }
+    let nameToPreserve = viewModel.editableName.trimmingCharacters(in: .whitespacesAndNewlines)
+    offlineSelectionViewModel.startModifyingZone(
+      for: download,
+      customName: nameToPreserve.isEmpty ? nil : nameToPreserve,
+      padding: marineTheme.offlineSelectionEdgeInsets
+    )
+    panelManagerViewModel.closePanel()
   }
 }
 

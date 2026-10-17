@@ -35,7 +35,7 @@ struct OfflineSelectionHUD: View {
   }
   
   var body: some View {
-    if let viewModel = viewModel, viewModel.isSelectionModeActive {
+    if let viewModel = viewModel, viewModel.isSelectionModeActive, (viewModel.initialBounds == nil || viewModel.cropRect != nil) {
       GeometryReader { geometry in
         let baseRect = getBaseRect(in: geometry, viewModel: viewModel)
         

@@ -212,6 +212,11 @@ nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
     }
     return documentsURL.appendingPathComponent(cleanRelative)
   }
+
+  /// Geographic bounding box parsed from WKT polygon for map camera framing.
+  var geographicBounds: GeographicBoundingBox? {
+    boundsWKT.isEmpty ? nil : GeographicBoundingBox(wkt: boundsWKT)
+  }
 }
 
 // MARK: - Download State Machine

@@ -43,6 +43,7 @@ nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiab
   let boundsWKT: String
   let zoomMax: Int
   let createdAt: Date
+  let customName: String?
 
   init(
     id: UUID? = nil,
@@ -51,7 +52,8 @@ nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiab
     layerName: String,
     boundsWKT: String,
     zoomMax: Int,
-    createdAt: Date = Date()
+    createdAt: Date = Date(),
+    customName: String? = nil
   ) {
     self.id = id ?? packageID ?? UUID()
     self.packageID = packageID
@@ -60,10 +62,11 @@ nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiab
     self.boundsWKT = boundsWKT
     self.zoomMax = zoomMax
     self.createdAt = createdAt
+    self.customName = customName
   }
 
   enum CodingKeys: String, CodingKey {
-    case id, packageID, layerID, layerName, boundsWKT, zoomMax, createdAt
+    case id, packageID, layerID, layerName, boundsWKT, zoomMax, createdAt, customName
   }
 
   init(from decoder: Decoder) throws {
@@ -75,6 +78,7 @@ nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiab
     self.boundsWKT = try container.decode(String.self, forKey: .boundsWKT)
     self.zoomMax = try container.decode(Int.self, forKey: .zoomMax)
     self.createdAt = try container.decode(Date.self, forKey: .createdAt)
+    self.customName = try container.decodeIfPresent(String.self, forKey: .customName)
   }
 }
 

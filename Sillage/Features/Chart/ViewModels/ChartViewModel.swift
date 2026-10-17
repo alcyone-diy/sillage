@@ -17,7 +17,7 @@ import OSLog
 /// Represents a camera movement instruction to be consumed by the UI layer.
 enum CameraMoveEvent {
   case center(coordinate: CLLocationCoordinate2D, zoom: Double?, heading: Measurement<UnitAngle>?)
-  case fitBounds(bounds: GeographicBoundingBox, padding: UIEdgeInsets)
+  case fitBounds(bounds: GeographicBoundingBox, padding: UIEdgeInsets, animated: Bool)
   case positionAtScreenFraction(coordinate: CLLocationCoordinate2D, yFraction: CGFloat, xFraction: CGFloat)
 }
 
@@ -557,7 +557,11 @@ final class ChartViewModel {
       )
       
       // Use padding to ensure points are not hidden behind UI panels
-      event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: 100, left: 100, bottom: 100, right: 100))
+      event = CameraMoveEvent.fitBounds(
+        bounds: bounds,
+        padding: MarineTheme.navigationTargetFramingPadding,
+        animated: true
+      )
     } else {
       event = CameraMoveEvent.center(coordinate: visualState.coordinate, zoom: nil, heading: nil)
     }
@@ -1322,7 +1326,8 @@ final class ChartViewModel {
   /// Sets `trackingMode` to `.free` to allow arbitrary map framing.
   func fitBounds(
     _ bounds: GeographicBoundingBox,
-    padding: UIEdgeInsets? = nil
+    padding: UIEdgeInsets? = nil,
+    animated: Bool = true
   ) {
     let resolvedPadding = padding ?? UIEdgeInsets(
       top: MarineTheme.Spacing.extraLarge,
@@ -1332,7 +1337,7 @@ final class ChartViewModel {
     )
     self.trackingMode = .free
     self.preferencesService.lastMapTrackingMode = .free
-    let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: resolvedPadding)
+    let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: resolvedPadding, animated: animated)
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
     }
@@ -1384,7 +1389,7 @@ final class ChartViewModel {
     
     if centerOnTrack {
       if let bounds = bounds {
-        let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: resolvedPadding, left: resolvedPadding, bottom: resolvedPadding, right: resolvedPadding))
+        let event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: resolvedPadding, left: resolvedPadding, bottom: resolvedPadding, right: resolvedPadding), animated: true)
         for continuation in self.cameraMoveContinuations.values {
           continuation.yield(event)
         }
