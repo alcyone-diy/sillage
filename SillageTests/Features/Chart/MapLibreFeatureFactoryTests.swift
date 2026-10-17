@@ -224,4 +224,62 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     XCTAssertEqual(stdFeature.attributes["isCalloutTarget"] as? Bool, false)
     XCTAssertEqual(draftFeature.attributes["isCalloutTarget"] as? Bool, true)
   }
+
+  func testCreateVisibleWaypointsFeature_whenSelected_setsIsCalloutTargetTrue() {
+    let standardWaypoint = WaypointVisualState(
+      id: "std-1",
+      name: "Saved Point",
+      coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15),
+      colorHex: "#007AFF",
+      isDraft: false,
+      isSelected: false
+    )
+    let selectedWaypoint = WaypointVisualState(
+      id: "edit-1",
+      name: "Editing Point",
+      coordinate: CLLocationCoordinate2D(latitude: 46.20, longitude: -1.20),
+      colorHex: "#FF9500",
+      isDraft: false,
+      isSelected: true
+    )
+
+    let collection = MapLibreFeatureFactory.createVisibleWaypointsFeature(
+      from: [standardWaypoint, selectedWaypoint],
+      targetWaypointID: nil
+    )
+
+    XCTAssertNotNil(collection)
+    guard let features = collection?.shapes as? [MLNPointFeature], features.count == 2 else {
+      XCTFail("Expected 2 MLNPointFeature shapes")
+      return
+    }
+
+    XCTAssertEqual(features[0].attributes["isCalloutTarget"] as? Bool, false)
+    XCTAssertEqual(features[1].attributes["isCalloutTarget"] as? Bool, true)
+  }
+
+  func testCreateGoToWaypointFeature_whenSelected_setsIsCalloutTargetTrue() {
+    let unselectedGoTo = WaypointVisualState(
+      id: "goto-1",
+      name: "GoTo Normal",
+      coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15),
+      colorHex: "#007AFF",
+      isDraft: false,
+      isSelected: false
+    )
+    let selectedGoTo = WaypointVisualState(
+      id: "goto-2",
+      name: "GoTo Editing",
+      coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15),
+      colorHex: "#007AFF",
+      isDraft: false,
+      isSelected: true
+    )
+
+    let feature1 = MapLibreFeatureFactory.createGoToWaypointFeature(from: unselectedGoTo, targetWaypointID: nil)
+    let feature2 = MapLibreFeatureFactory.createGoToWaypointFeature(from: selectedGoTo, targetWaypointID: nil)
+
+    XCTAssertEqual(feature1?.attributes["isCalloutTarget"] as? Bool, false)
+    XCTAssertEqual(feature2?.attributes["isCalloutTarget"] as? Bool, true)
+  }
 }

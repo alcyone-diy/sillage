@@ -87,7 +87,13 @@ public final class WaypointDetailViewModel {
       updateDraftWaypoint()
     }
   }
-  public var isEditable: Bool
+  public var isEditable: Bool {
+    didSet {
+      guard isEditable != oldValue else { return }
+      guard !isSuppressingDraftUpdates else { return }
+      onStateChanged?()
+    }
+  }
   
   public var isGoTo: Bool {
     guard let id = editingWaypointID else { return false }

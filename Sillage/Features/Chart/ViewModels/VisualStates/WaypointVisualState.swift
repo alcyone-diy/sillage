@@ -18,13 +18,22 @@ public struct WaypointVisualState: Equatable, Sendable, Identifiable {
   public let coordinate: CLLocationCoordinate2D
   public let colorHex: String
   public let isDraft: Bool
+  public let isSelected: Bool
   
-  public init(id: String, name: String, coordinate: CLLocationCoordinate2D, colorHex: String, isDraft: Bool = false) {
+  public init(
+    id: String,
+    name: String,
+    coordinate: CLLocationCoordinate2D,
+    colorHex: String,
+    isDraft: Bool = false,
+    isSelected: Bool = false
+  ) {
     self.id = id
     self.name = name
     self.coordinate = coordinate
     self.colorHex = colorHex
     self.isDraft = isDraft
+    self.isSelected = isSelected
   }
 }
 

@@ -587,14 +587,18 @@ final class ChartViewModel {
         id: waypoint.id,
         name: resolvedName,
         coordinate: activeVM.currentCoordinate ?? waypoint.coordinate,
-        colorHex: activeVM.color.hexString ?? waypoint.validDisplayColorHex
+        colorHex: activeVM.color.hexString ?? waypoint.validDisplayColorHex,
+        isDraft: false,
+        isSelected: true
       )
     }
     return WaypointVisualState(
       id: waypoint.id,
       name: waypoint.name,
       coordinate: waypoint.coordinate,
-      colorHex: waypoint.validDisplayColorHex
+      colorHex: waypoint.validDisplayColorHex,
+      isDraft: false,
+      isSelected: false
     )
   }
 
@@ -618,7 +622,8 @@ final class ChartViewModel {
             name: draftWaypoint.name,
             coordinate: draftWaypoint.coordinate,
             colorHex: draftWaypoint.validDisplayColorHex,
-            isDraft: true
+            isDraft: true,
+            isSelected: true
           )
         )
       }

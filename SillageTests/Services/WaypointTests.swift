@@ -655,6 +655,7 @@ final class WaypointTests: XCTestCase {
     let previewVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
     XCTAssertEqual(previewVisualState.coordinate.latitude, 47.25, accuracy: 0.0001)
     XCTAssertEqual(previewVisualState.coordinate.longitude, -2.35, accuracy: 0.0001)
+    XCTAssertTrue(previewVisualState.isSelected)
     
     // 4. User cancels / reverts edits without saving
     vm.revert()
@@ -662,8 +663,10 @@ final class WaypointTests: XCTestCase {
     let revertedVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
     XCTAssertEqual(revertedVisualState.coordinate.latitude, 46.16, accuracy: 0.0001)
     XCTAssertEqual(revertedVisualState.coordinate.longitude, -1.15, accuracy: 0.0001)
+    // As long as the dialog is still open (even after revert / read-only), it stays selected
+    XCTAssertTrue(revertedVisualState.isSelected)
     
-    // 5. Test dismissing / cleaning up activeWaypointDetailViewModel restores original coordinates
+    // 5. Test dismissing / cleaning up activeWaypointDetailViewModel restores original coordinates and unselects
     vm.updateCoordinate(CLLocationCoordinate2D(latitude: 48.0, longitude: -3.0))
     let modifiedVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
     XCTAssertEqual(modifiedVisualState.coordinate.latitude, 48.0, accuracy: 0.0001)
@@ -672,6 +675,7 @@ final class WaypointTests: XCTestCase {
     let restoredVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
     XCTAssertEqual(restoredVisualState.coordinate.latitude, 46.16, accuracy: 0.0001)
     XCTAssertEqual(restoredVisualState.coordinate.longitude, -1.15, accuracy: 0.0001)
+    XCTAssertFalse(restoredVisualState.isSelected)
   }
 
   func testExistingGoToWaypointLivePreviewAndRevert() async throws {
@@ -745,12 +749,83 @@ final class WaypointTests: XCTestCase {
     let previewGoTo = try XCTUnwrap(chartVM.goToWaypointVisualState)
     XCTAssertEqual(previewGoTo.coordinate.latitude, 47.50, accuracy: 0.0001)
     XCTAssertEqual(previewGoTo.coordinate.longitude, -2.80, accuracy: 0.0001)
+    XCTAssertTrue(previewGoTo.isSelected)
     
     vm.revert()
     
     let revertedGoTo = try XCTUnwrap(chartVM.goToWaypointVisualState)
     XCTAssertEqual(revertedGoTo.coordinate.latitude, 46.16, accuracy: 0.0001)
     XCTAssertEqual(revertedGoTo.coordinate.longitude, -1.15, accuracy: 0.0001)
+    XCTAssertTrue(revertedGoTo.isSelected)
+
+    chartVM.activeWaypointDetailViewModel = nil
+    let unselectedGoTo = try XCTUnwrap(chartVM.goToWaypointVisualState)
+    XCTAssertFalse(unselectedGoTo.isSelected)
+  }
+
+  func testExistingWaypointReadOnlyDialogShowsSelectedOnMap() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    
+    let chartVM = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: service,
+      messageService: messageService
+    )
+    
+    let originalCoord = CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    let waypoint = Waypoint(
+      id: UUID().uuidString,
+      name: "Read Only Point",
+      colorHex: "#FF0000",
+      coordinate: originalCoord
+    )
+    try await service.saveWaypoint(waypoint)
+    
+    for _ in 0..<50 {
+      if !chartVM.visibleWaypointVisualStates.isEmpty { break }
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    
+    let initialVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first)
+    XCTAssertFalse(initialVisualState.isSelected)
+    
+    // Open in read-only mode (startEditable: false)
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      editingWaypoint: waypoint,
+      startEditable: false
+    )
+    chartVM.activeWaypointDetailViewModel = vm
+    
+    let openDialogVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first)
+    XCTAssertTrue(openDialogVisualState.isSelected)
+    
+    // Close dialog
+    chartVM.activeWaypointDetailViewModel = nil
+    let closedDialogVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first)
+    XCTAssertFalse(closedDialogVisualState.isSelected)
   }
 }
 
