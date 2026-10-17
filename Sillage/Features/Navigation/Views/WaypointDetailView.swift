@@ -18,6 +18,7 @@ struct WaypointDetailView: View {
   @Bindable var viewModel: WaypointDetailViewModel
   var onGoToRequested: ((String) -> Void)?
   var onCancelNavigationRequested: (() -> Void)?
+  var onModifyPositionRequested: (() -> Void)?
   
   @State private var showDeleteConfirmation = false
   
@@ -115,6 +116,19 @@ struct WaypointDetailView: View {
             }
           }
           .marineListCell()
+          
+          if viewModel.isEditable {
+            Button(action: {
+              onModifyPositionRequested?()
+            }) {
+              HStack {
+                Image(marineIcon: .crosshair)
+                Text("Modify Position")
+              }
+            }
+            .buttonStyle(MarineButtonStyle(.secondary))
+            .marineListCell()
+          }
         } header: {
           Text("Location").marineSectionHeader()
         } footer: {
