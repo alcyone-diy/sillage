@@ -88,6 +88,7 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   var deletedDownloads: [OfflineChartDownload] = []
 
   var lastCustomName: String? = nil
+  var lastReplacesChartID: UUID? = nil
 
   func startDownload(
     layerID: String,
@@ -96,10 +97,12 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     zoomMax: Int,
     accessToken: String,
     customerID: String,
-    customName: String? = nil
+    customName: String? = nil,
+    replacesChartID: UUID? = nil
   ) {
     startDownloadCalled = true
     lastCustomName = customName
+    lastReplacesChartID = replacesChartID
   }
 
   func resumePendingDownloadIfNeeded() async {

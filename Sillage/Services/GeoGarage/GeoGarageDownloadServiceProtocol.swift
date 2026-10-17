@@ -43,6 +43,7 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
   ///   - accessToken: OAuth2 access token of the signed-in user (`Authorization: Bearer`).
   ///   - customerID: User's GeoGarage customer identifier.
   ///   - customName: Optional custom user-assigned name for the chart package.
+  ///   - replacesChartID: Optional UUID of an existing chart package being replaced by this modified zone.
   func startDownload(
     layerID: String,
     layerName: String,
@@ -50,7 +51,8 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
     zoomMax: Int,
     accessToken: String,
     customerID: String,
-    customName: String?
+    customName: String?,
+    replacesChartID: UUID?
   )
 
   /// Resumes in-flight or queued CAAS downloads (e.g., on app launch or upon network reconnection).
@@ -78,7 +80,9 @@ extension GeoGarageDownloadServiceProtocol {
     zoneWKT: String,
     zoomMax: Int,
     accessToken: String,
-    customerID: String
+    customerID: String,
+    customName: String? = nil,
+    replacesChartID: UUID? = nil
   ) {
     startDownload(
       layerID: layerID,
@@ -87,7 +91,8 @@ extension GeoGarageDownloadServiceProtocol {
       zoomMax: zoomMax,
       accessToken: accessToken,
       customerID: customerID,
-      customName: nil
+      customName: customName,
+      replacesChartID: replacesChartID
     )
   }
 }

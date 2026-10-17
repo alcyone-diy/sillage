@@ -44,6 +44,7 @@ nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiab
   let zoomMax: Int
   let createdAt: Date
   let customName: String?
+  let replacesChartID: UUID?
 
   init(
     id: UUID? = nil,
@@ -53,7 +54,8 @@ nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiab
     boundsWKT: String,
     zoomMax: Int,
     createdAt: Date = Date(),
-    customName: String? = nil
+    customName: String? = nil,
+    replacesChartID: UUID? = nil
   ) {
     self.id = id ?? packageID ?? UUID()
     self.packageID = packageID
@@ -63,10 +65,11 @@ nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiab
     self.zoomMax = zoomMax
     self.createdAt = createdAt
     self.customName = customName
+    self.replacesChartID = replacesChartID
   }
 
   enum CodingKeys: String, CodingKey {
-    case id, packageID, layerID, layerName, boundsWKT, zoomMax, createdAt, customName
+    case id, packageID, layerID, layerName, boundsWKT, zoomMax, createdAt, customName, replacesChartID
   }
 
   init(from decoder: Decoder) throws {
@@ -79,8 +82,38 @@ nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiab
     self.zoomMax = try container.decode(Int.self, forKey: .zoomMax)
     self.createdAt = try container.decode(Date.self, forKey: .createdAt)
     self.customName = try container.decodeIfPresent(String.self, forKey: .customName)
+    self.replacesChartID = try container.decodeIfPresent(UUID.self, forKey: .replacesChartID)
+  }
+
+  func updating(packageID: UUID?) -> PendingCAASDownload {
+    PendingCAASDownload(
+      id: self.id,
+      packageID: packageID,
+      layerID: self.layerID,
+      layerName: self.layerName,
+      boundsWKT: self.boundsWKT,
+      zoomMax: self.zoomMax,
+      createdAt: self.createdAt,
+      customName: self.customName,
+      replacesChartID: self.replacesChartID
+    )
+  }
+
+  func updating(replacesChartID: UUID?) -> PendingCAASDownload {
+    PendingCAASDownload(
+      id: self.id,
+      packageID: self.packageID,
+      layerID: self.layerID,
+      layerName: self.layerName,
+      boundsWKT: self.boundsWKT,
+      zoomMax: self.zoomMax,
+      createdAt: self.createdAt,
+      customName: self.customName,
+      replacesChartID: replacesChartID
+    )
   }
 }
+
 
 @MainActor
 protocol PreferencesServiceProtocol: AnyObject {

@@ -44,7 +44,7 @@ import OSLog
 ///    are performed between each pipeline phase (request, polling steps, download) to ensure clean deallocation.
 @Observable
 @MainActor
-final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @unchecked Sendable {
+final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
 
   // MARK: - Concurrency Limits
 
@@ -57,6 +57,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
   private let downloadRepository: GeoGarageDownloadRepositoryProtocol
   private let preferencesService: PreferencesServiceProtocol
   private let networkMonitor: NetworkMonitorServiceProtocol
+  private let diskSpaceProvider: DiskSpaceProviderProtocol
 
   // MARK: - State Properties
 
@@ -190,13 +191,15 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     downloader: GeoGarageChartDownloaderProtocol,
     downloadRepository: GeoGarageDownloadRepositoryProtocol,
     preferencesService: PreferencesServiceProtocol,
-    networkMonitor: NetworkMonitorServiceProtocol
+    networkMonitor: NetworkMonitorServiceProtocol,
+    diskSpaceProvider: DiskSpaceProviderProtocol = SystemDiskSpaceProvider()
   ) {
     self.packageService = packageService
     self.downloader = downloader
     self.downloadRepository = downloadRepository
     self.preferencesService = preferencesService
     self.networkMonitor = networkMonitor
+    self.diskSpaceProvider = diskSpaceProvider
 
     // Restore any existing persisted pending downloads into queued state
     self.activeDownloads = preferencesService.pendingCAASDownloads.map {
@@ -238,7 +241,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     zoomMax: Int,
     accessToken: String,
     customerID: String,
-    customName: String? = nil
+    customName: String? = nil,
+    replacesChartID: UUID? = nil
   ) {
     lastTerminalPhase = nil
 
@@ -252,7 +256,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       boundsWKT: zoneWKT,
       zoomMax: zoomMax,
       createdAt: Date(),
-      customName: customName
+      customName: customName,
+      replacesChartID: replacesChartID
     )
 
     // If starting a new session from 0 active downloads, reset completed count
@@ -267,7 +272,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     activeDownloads.append(ActiveCAASDownload(item: pending, phase: .queued))
     notifyProgressObservers()
 
-    Logger.offline.info("Enqueued offline chart download for '\(layerID, privacy: .public)' (id: \(localID.uuidString, privacy: .public)). Total items in queue: \(self.activeDownloads.count, privacy: .public)")
+    Logger.offline.info("Enqueued offline chart download for '\(layerID, privacy: .public)' (id: \(localID.uuidString, privacy: .public), replaces: \(replacesChartID?.uuidString ?? "none", privacy: .public)). Total items in queue: \(self.activeDownloads.count, privacy: .public)")
 
     processQueue(accessToken: accessToken, customerID: customerID)
   }
@@ -276,17 +281,42 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     lastTerminalPhase = nil
 
     // Purge any pending downloads already completed in repository
-    var remaining: [PendingCAASDownload] = []
-    for pending in preferencesService.pendingCAASDownloads {
+    preferencesService.pendingCAASDownloads.removeAll { pending in
       if let pkgID = pending.packageID, downloadRepository.downloads.contains(where: { $0.id == pkgID || $0.id == pending.id }) {
         Logger.offline.info("Pending download \(pending.id.uuidString, privacy: .public) already completed in repository. Clearing pending state.")
-      } else {
-        remaining.append(pending)
+        return true
+      }
+      return false
+    }
+
+    // App Resume Storage Re-evaluation:
+    // If the app terminated and resumed, re-evaluate disk space for any pending downloads that intended to retain an old chart.
+    let candidates = preferencesService.pendingCAASDownloads.compactMap { pending -> (id: UUID, replacesID: UUID, boundsWKT: String, zoomMax: Int)? in
+      guard let replacesID = pending.replacesChartID, downloadRepository.downloads.contains(where: { $0.id == replacesID }) else { return nil }
+      return (pending.id, replacesID, pending.boundsWKT, pending.zoomMax)
+    }
+
+    for candidate in candidates {
+      let estimatedSize = OfflinePackageSizeEstimator.estimatePackageSize(wkt: candidate.boundsWKT, zoomMax: candidate.zoomMax)
+      let available = diskSpaceProvider.availableDiskSpace()
+      let hasSufficientSpace = available.map {
+        OfflineStoragePolicy.hasSufficientSpace(availableSpace: $0, estimatedDownloadSize: estimatedSize)
+      } ?? false
+
+      if !hasSufficientSpace {
+        Logger.offline.warning("App resumed with constrained disk space. Deleting retained previous chart \(candidate.replacesID.uuidString, privacy: .public) before resuming download.")
+        do {
+          try await self.downloader.deleteLocalChart(id: candidate.replacesID)
+          // Re-fetch post-await: update target item atomically by ID without bulk overwriting preferences
+          self.updatePendingReplacesChartID(id: candidate.id, replacesChartID: nil)
+        } catch {
+          Logger.offline.error("Failed to delete retained previous chart on resume: \(error.localizedDescription, privacy: .public)")
+        }
       }
     }
-    preferencesService.pendingCAASDownloads = remaining
 
-    guard !remaining.isEmpty else {
+    let currentPending = preferencesService.pendingCAASDownloads
+    guard !currentPending.isEmpty else {
       activeDownloads.removeAll()
       sessionCompletedDownloadsCount = 0
       sessionTotalDownloadsCount = 0
@@ -294,7 +324,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       return
     }
 
-    for pending in remaining {
+    for pending in currentPending {
       if !activeDownloads.contains(where: { $0.id == pending.id }) {
         activeDownloads.append(ActiveCAASDownload(item: pending, phase: .queued))
       }
@@ -447,22 +477,24 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
   }
 
   private func updatePendingPackageID(id: UUID, packageID: UUID) {
+    if let prefIndex = preferencesService.pendingCAASDownloads.firstIndex(where: { $0.id == id }) {
+      preferencesService.pendingCAASDownloads[prefIndex] = preferencesService.pendingCAASDownloads[prefIndex].updating(packageID: packageID)
+    }
+
     if let index = activeDownloads.firstIndex(where: { $0.id == id }) {
-      let old = activeDownloads[index].item
-      let updated = PendingCAASDownload(
-        id: old.id,
-        packageID: packageID,
-        layerID: old.layerID,
-        layerName: old.layerName,
-        boundsWKT: old.boundsWKT,
-        zoomMax: old.zoomMax,
-        createdAt: old.createdAt,
-        customName: old.customName
-      )
+      let updated = activeDownloads[index].item.updating(packageID: packageID)
       activeDownloads[index] = ActiveCAASDownload(item: updated, phase: activeDownloads[index].phase)
-      if let prefIndex = preferencesService.pendingCAASDownloads.firstIndex(where: { $0.id == id }) {
-        preferencesService.pendingCAASDownloads[prefIndex] = updated
-      }
+    }
+  }
+
+  private func updatePendingReplacesChartID(id: UUID, replacesChartID: UUID?) {
+    if let prefIndex = preferencesService.pendingCAASDownloads.firstIndex(where: { $0.id == id }) {
+      preferencesService.pendingCAASDownloads[prefIndex] = preferencesService.pendingCAASDownloads[prefIndex].updating(replacesChartID: replacesChartID)
+    }
+
+    if let index = activeDownloads.firstIndex(where: { $0.id == id }) {
+      let updated = activeDownloads[index].item.updating(replacesChartID: replacesChartID)
+      activeDownloads[index] = ActiveCAASDownload(item: updated, phase: activeDownloads[index].phase)
     }
   }
 
@@ -519,6 +551,30 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
 
     do {
       try Task.checkCancellation()
+
+      // Technical Design: Storage safety evaluation if replacing an existing chart
+      if let replacesID = activeDownloads.first(where: { $0.id == localID })?.item.replacesChartID {
+        let estimatedSize = OfflinePackageSizeEstimator.estimatePackageSize(wkt: zoneWKT, zoomMax: zoomMax)
+        let available = diskSpaceProvider.availableDiskSpace()
+        let hasSufficientSpace = available.map {
+          OfflineStoragePolicy.hasSufficientSpace(availableSpace: $0, estimatedDownloadSize: estimatedSize)
+        } ?? false
+
+        if !hasSufficientSpace {
+          Logger.offline.warning("Insufficient storage buffer to retain chart \(replacesID.uuidString, privacy: .public). Deleting upfront before download.")
+          do {
+            try await self.downloader.deleteLocalChart(id: replacesID)
+            self.updatePendingReplacesChartID(id: localID, replacesChartID: nil)
+            Logger.offline.info("Deleted previous chart \(replacesID.uuidString, privacy: .public) upfront due to storage limits.")
+          } catch {
+            Logger.offline.error("Failed to delete previous chart upfront: \(error.localizedDescription, privacy: .public)")
+            self.failDownload(id: localID, errorMessage: error.localizedDescription)
+            return
+          }
+        } else {
+          Logger.offline.info("Sufficient storage space available. Retaining previous chart \(replacesID.uuidString, privacy: .public) during download.")
+        }
+      }
 
       let packageID: UUID
       if let existing = existingPackageID {
@@ -627,6 +683,25 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
     let totalBytes = completedStatus.size ?? 0
     updateDownloadPhase(id: localID, to: .downloading(receivedBytes: 0, totalBytes: totalBytes))
 
+    // Storage Re-evaluation: Before downloading the archive file, verify exact size if old chart is retained
+    if let replacesID = activeDownloads.first(where: { $0.id == localID })?.item.replacesChartID, totalBytes > 0 {
+      let exactPackageSize = Measurement(value: Double(totalBytes), unit: UnitInformationStorage.bytes)
+      let available = diskSpaceProvider.availableDiskSpace()
+      let hasSufficientSpace = available.map {
+        OfflineStoragePolicy.hasSufficientSpace(availableSpace: $0, estimatedDownloadSize: exactPackageSize)
+      } ?? false
+
+      if !hasSufficientSpace {
+        Logger.offline.warning("Storage became constrained during package generation for \(replacesID.uuidString, privacy: .public). Deleting old chart now before archive download.")
+        do {
+          try await self.downloader.deleteLocalChart(id: replacesID)
+          self.updatePendingReplacesChartID(id: localID, replacesChartID: nil)
+        } catch {
+          Logger.offline.error("Failed to delete old chart before archive download: \(error.localizedDescription, privacy: .public)")
+        }
+      }
+    }
+
     let record = try await downloader.download(
       packageID: packageID,
       downloadURL: downloadURL,
@@ -667,6 +742,16 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol, @uncheck
       finalRecord = customRecord
     } else {
       finalRecord = record
+    }
+
+    // If an old chart was being replaced and kept during download, delete it now that new chart is safely downloaded and stored
+    if let replacesID = activeDownloads.first(where: { $0.id == localID })?.item.replacesChartID {
+      do {
+        try await self.downloader.deleteLocalChart(id: replacesID)
+        Logger.offline.info("Deleted previous offline chart package \(replacesID.uuidString, privacy: .public) after successfully replacing zone.")
+      } catch {
+        Logger.offline.warning("Non-fatal: Failed to delete previous chart package \(replacesID.uuidString, privacy: .public) after replacement: \(error.localizedDescription, privacy: .public)")
+      }
     }
 
     sessionCompletedDownloadsCount += 1

@@ -273,12 +273,14 @@ final class AppEnvironment {
       )
       
       let networkMonitorService = NetworkMonitorService()
+      let diskSpaceProvider = SystemDiskSpaceProvider()
       let geoGarageDownloadService = GeoGarageDownloadService(
         packageService: geoGaragePackageService,
         downloader: geoGarageChartDownloader,
         downloadRepository: geoGarageDownloadRepository,
         preferencesService: preferencesService,
-        networkMonitor: networkMonitorService
+        networkMonitor: networkMonitorService,
+        diskSpaceProvider: diskSpaceProvider
       )
       
       let offlineSelectionViewModel = OfflineSelectionViewModel(

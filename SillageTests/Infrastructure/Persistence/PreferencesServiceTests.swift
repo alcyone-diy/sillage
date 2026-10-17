@@ -80,7 +80,8 @@ final class PreferencesServiceTests: XCTestCase {
       layerName: "SHOM France",
       boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
       zoomMax: 14,
-      createdAt: createdAt
+      createdAt: createdAt,
+      replacesChartID: UUID()
     )
     let pending2 = PendingCAASDownload(
       id: packageID2,
@@ -116,5 +117,54 @@ final class PreferencesServiceTests: XCTestCase {
       defaults.removeObject(forKey: key)
     }
   }
+
+  func testPendingCAASDownload_updatingPackageID() {
+    let initial = PendingCAASDownload(
+      id: UUID(),
+      packageID: nil,
+      layerID: "shom",
+      layerName: "SHOM",
+      boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
+      zoomMax: 14,
+      customName: "My Chart",
+      replacesChartID: UUID()
+    )
+    let newPackageID = UUID()
+    let updated = initial.updating(packageID: newPackageID)
+
+    XCTAssertEqual(updated.id, initial.id)
+    XCTAssertEqual(updated.packageID, newPackageID)
+    XCTAssertEqual(updated.layerID, initial.layerID)
+    XCTAssertEqual(updated.layerName, initial.layerName)
+    XCTAssertEqual(updated.boundsWKT, initial.boundsWKT)
+    XCTAssertEqual(updated.zoomMax, initial.zoomMax)
+    XCTAssertEqual(updated.createdAt, initial.createdAt)
+    XCTAssertEqual(updated.customName, initial.customName)
+    XCTAssertEqual(updated.replacesChartID, initial.replacesChartID)
+  }
+
+  func testPendingCAASDownload_updatingReplacesChartID() {
+    let initialReplacesID = UUID()
+    let initial = PendingCAASDownload(
+      id: UUID(),
+      packageID: UUID(),
+      layerID: "shom",
+      layerName: "SHOM",
+      boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
+      zoomMax: 14,
+      customName: "My Chart",
+      replacesChartID: initialReplacesID
+    )
+
+    let updatedCleared = initial.updating(replacesChartID: nil)
+    XCTAssertEqual(updatedCleared.id, initial.id)
+    XCTAssertEqual(updatedCleared.packageID, initial.packageID)
+    XCTAssertNil(updatedCleared.replacesChartID)
+
+    let newReplacesID = UUID()
+    let updatedNew = updatedCleared.updating(replacesChartID: newReplacesID)
+    XCTAssertEqual(updatedNew.replacesChartID, newReplacesID)
+  }
 }
+
 

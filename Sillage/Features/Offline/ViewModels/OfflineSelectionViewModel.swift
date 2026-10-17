@@ -433,17 +433,6 @@ final class OfflineSelectionViewModel {
     chartBeingReplaced: OfflineChartDownload?,
     customName: String?
   ) async {
-    if let chartBeingReplaced {
-      do {
-        try await self.deleteDownload(chartBeingReplaced)
-        Logger.offline.info("Deleted previous offline chart package \(chartBeingReplaced.id.uuidString, privacy: .public) prior to replacing zone.")
-      } catch {
-        Logger.offline.error("Failed to delete previous offline chart package: \(error.localizedDescription, privacy: .public)")
-        self.downloadService.failDownload(with: error.localizedDescription)
-        return
-      }
-    }
-
     self.downloadService.startDownload(
       layerID: layerID,
       layerName: layerName,
@@ -451,7 +440,8 @@ final class OfflineSelectionViewModel {
       zoomMax: zoomMax,
       accessToken: accessToken,
       customerID: customerID,
-      customName: customName
+      customName: customName,
+      replacesChartID: chartBeingReplaced?.id
     )
   }
 
