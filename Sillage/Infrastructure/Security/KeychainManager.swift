@@ -11,8 +11,36 @@
 import Foundation
 import Security
 
+public protocol KeychainManaging: Sendable {
+  func save(token: String, for account: String) async
+  func retrieveToken(for account: String) async -> String?
+  func deleteToken(for account: String) async
+
+  func saveSync(token: String, for account: String)
+  func retrieveTokenSync(for account: String) -> String?
+  func deleteTokenSync(for account: String)
+}
+
+extension KeychainManaging {
+  public func retrieveValidToken(for account: String) async -> String? {
+    guard let token = await retrieveToken(for: account)?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !token.isEmpty else {
+      return nil
+    }
+    return token
+  }
+
+  public func retrieveValidTokenSync(for account: String) -> String? {
+    guard let token = retrieveTokenSync(for: account)?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !token.isEmpty else {
+      return nil
+    }
+    return token
+  }
+}
+
 /// A lightweight, robust manager for securely storing and retrieving items in the iOS Keychain.
-struct KeychainManager: Sendable {
+nonisolated struct KeychainManager: KeychainManaging, Sendable {
   static let shared = KeychainManager()
 
   private init() {}

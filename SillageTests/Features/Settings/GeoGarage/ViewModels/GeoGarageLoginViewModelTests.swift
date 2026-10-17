@@ -138,11 +138,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
 
   func testViewStateReflectsAuthenticationAndErrors() {
     let mockAuthService = MockGeoGarageAuthService()
-    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
-    KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token")
-    addTeardownBlock {
-      await MainActor.run { KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token") }
-    }
+    let mockKeychain = MockKeychainManager()
+    let viewModel = GeoGarageLoginViewModel(
+      offlineMapManager: MockOfflineMapManager(),
+      partnerSecretService: MockGeoGaragePartnerSecretService(),
+      keychainManager: mockKeychain
+    )
 
     XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .unauthenticated(error: nil))
 
@@ -150,7 +151,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .unauthenticated(error: "boom"))
 
     viewModel.errorMessage = nil
-    KeychainManager.shared.saveSync(token: "tok", for: "geogarage_access_token")
+    mockKeychain.saveSync(token: "tok", for: "geogarage_access_token")
     XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .authenticated)
 
     mockAuthService.authError = AuthError.tokenExpired

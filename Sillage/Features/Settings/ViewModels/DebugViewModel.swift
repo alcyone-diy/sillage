@@ -16,12 +16,17 @@ import OSLog
 @Observable
 @MainActor
 final class DebugViewModel {
+  private let keychainManager: any KeychainManaging
+
+  init(keychainManager: any KeychainManaging = KeychainManager.shared) {
+    self.keychainManager = keychainManager
+  }
   
   func invalidateGeoGarageToken() {
-    KeychainManager.shared.saveSync(token: "invalid_debug_token", for: "geogarage_access_token")
+    keychainManager.saveSync(token: "invalid_debug_token", for: "geogarage_access_token")
     // An invalid access token is refreshed silently: simulating an expired session also requires
     // corrupting the refresh token.
-    KeychainManager.shared.saveSync(token: "invalid_debug_refresh_token", for: "geogarage_refresh_token")
+    keychainManager.saveSync(token: "invalid_debug_refresh_token", for: "geogarage_refresh_token")
   }
   
   func scheduleDebugBarometerNotification(permissionService: PermissionServiceProtocol, notificationService: NotificationService) async throws {

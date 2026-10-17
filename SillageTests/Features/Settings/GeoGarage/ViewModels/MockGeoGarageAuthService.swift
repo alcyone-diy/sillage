@@ -85,10 +85,14 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
     return GeoGarageSettingsResponse(customerID: "cus_mock123", layers: availableLayers)
   }
 
+  var keychainManager: (any KeychainManaging)?
+
   func logout() async {
-    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
-    await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
-    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    if let keychainManager {
+      await keychainManager.deleteToken(for: "geogarage_access_token")
+      await keychainManager.deleteToken(for: "geogarage_refresh_token")
+      await keychainManager.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    }
     self.authError = nil
     self.isGeoGarageAuthenticated = false
     self.availableLayers = []

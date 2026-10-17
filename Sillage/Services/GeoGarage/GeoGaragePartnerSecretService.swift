@@ -52,10 +52,16 @@ actor GeoGaragePartnerSecretService: GeoGaragePartnerSecretServiceProtocol {
 
   private let endpoint: URL?
   private let session: URLSession
+  private let keychainManager: any KeychainManaging
 
-  init(baseURLString: String = AppConstants.GeoGarage.accountsBaseURLString, session: URLSession = .shared) {
+  init(
+    baseURLString: String = AppConstants.GeoGarage.accountsBaseURLString,
+    session: URLSession = .shared,
+    keychainManager: any KeychainManaging = KeychainManager.shared
+  ) {
     self.endpoint = URL(string: "\(baseURLString)/partners/me/")
     self.session = session
+    self.keychainManager = keychainManager
   }
 
   func refresh(accessToken: String) async throws -> GeoGaragePartnerSecrets {
@@ -97,7 +103,7 @@ actor GeoGaragePartnerSecretService: GeoGaragePartnerSecretServiceProtocol {
         Logger.network.error("/partners/me/ returned an empty package secret for client \(secrets.clientID, privacy: .public).")
         throw PartnerSecretError.invalidResponse
       }
-      await KeychainManager.shared.save(token: secrets.packageSecret, for: Self.keychainAccount)
+      await keychainManager.save(token: secrets.packageSecret, for: Self.keychainAccount)
       Logger.network.info("Partner package secret refreshed for client \(secrets.clientID, privacy: .public).")
       return secrets
     case 401, 403:

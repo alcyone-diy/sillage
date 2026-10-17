@@ -22,7 +22,8 @@ extension ChartViewModel {
     anchorService: AnchorService,
     anchorViewModel: AnchorViewModel,
     waypointService: WaypointService? = nil,
-    messageService: MessageService? = nil
+    messageService: MessageService? = nil,
+    keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     let db = (try? DatabaseManager.inMemory()) ?? {
       fatalError("Failed to initialize in-memory DatabaseManager for test")
@@ -44,7 +45,8 @@ extension ChartViewModel {
       trackService: trackService,
       trackRecordingService: trackRecordingService,
       waypointService: waypointService,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: keychainManager
     )
   }
 }

@@ -143,13 +143,16 @@ final class OfflineSelectionViewModel {
 
   // MARK: - Initializers
 
+  private let keychainManager: any KeychainManaging
+
   init(
     downloadService: GeoGarageDownloadServiceProtocol,
     downloadRepository: GeoGarageDownloadRepositoryProtocol,
     preferencesService: PreferencesServiceProtocol,
     chartViewModel: ChartViewModel,
     offlineMapManager: OfflineMapManagerProtocol? = nil,
-    downloader: GeoGarageChartDownloaderProtocol? = nil
+    downloader: GeoGarageChartDownloaderProtocol? = nil,
+    keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     self.downloadService = downloadService
     self.downloadRepository = downloadRepository
@@ -157,6 +160,7 @@ final class OfflineSelectionViewModel {
     self.chartViewModel = chartViewModel
     self.offlineMapManager = offlineMapManager
     self.downloader = downloader
+    self.keychainManager = keychainManager
   }
 
   deinit {
@@ -172,7 +176,8 @@ final class OfflineSelectionViewModel {
     chartViewModel: ChartViewModel,
     offlineMapManager: OfflineMapManagerProtocol? = nil,
     networkMonitor: NetworkMonitorServiceProtocol? = nil,
-    messageService: MessageService? = nil
+    messageService: MessageService? = nil,
+    keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     let monitor = networkMonitor ?? NetworkMonitorService()
     let service = GeoGarageDownloadService(
@@ -181,7 +186,8 @@ final class OfflineSelectionViewModel {
       downloadRepository: downloadRepository,
       preferencesService: preferencesService,
       networkMonitor: monitor,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: keychainManager
     )
     self.init(
       downloadService: service,
@@ -189,7 +195,8 @@ final class OfflineSelectionViewModel {
       preferencesService: preferencesService,
       chartViewModel: chartViewModel,
       offlineMapManager: offlineMapManager,
-      downloader: downloader
+      downloader: downloader,
+      keychainManager: keychainManager
     )
   }
 
@@ -392,8 +399,7 @@ final class OfflineSelectionViewModel {
       guard let self else { return }
 
       // The package is requested with the user's token, not an embedded key: no token, no request.
-      guard let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token"),
-            !token.isEmpty else {
+      guard let token = await self.keychainManager.retrieveValidToken(for: "geogarage_access_token") else {
         self.failWithFeedback(
           String(localized: "User is not authenticated with GeoGarage. Please login first."),
           isAuthenticationError: true

@@ -57,17 +57,22 @@ final class AppEnvironment {
   
   /// Injectable so unit tests never reach the real GeoGarage portal.
   private let authSession: URLSession
+  let keychainManager: any KeychainManaging
+  private let tileProxyManager: TileProxyManager
 
   public init(
     metadata: AppMetadata? = nil,
     partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil,
-    authSession: URLSession = .shared
+    authSession: URLSession = .shared,
+    keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     self.metadata = metadata ?? AppMetadataProvider.resolve()
     self.bootDate = Date.now
     Self.setupMapLibreProtocol()
     self.offlineMapManager = OfflineMapManager()
-    self.geoGaragePartnerSecretService = partnerSecretService ?? GeoGaragePartnerSecretService()
+    self.keychainManager = keychainManager
+    self.tileProxyManager = TileProxyManager(keychainManager: keychainManager)
+    self.geoGaragePartnerSecretService = partnerSecretService ?? GeoGaragePartnerSecretService(keychainManager: keychainManager)
     self.authSession = authSession
     setupMapLibreProgressObservation()
   }
@@ -172,7 +177,7 @@ final class AppEnvironment {
       let checklistService = ChecklistService(databaseManager: databaseManager)
       try await checklistService.seedDefaultTemplatesIfNeeded()
 
-      let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService, session: authSession)
+      let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService, keychainManager: keychainManager, session: authSession)
       await geoGarageAuthService.bootstrap()
 
 
@@ -182,12 +187,12 @@ final class AppEnvironment {
       let geoGarageOfflineTileProvider = GeoGarageOfflineTileProvider()
       TileProxyProtocol.configure(
         offlineTileProvider: geoGarageOfflineTileProvider,
-        tileProxyManager: TileProxyManager.shared
+        tileProxyManager: tileProxyManager,
+        keychainManager: keychainManager
       )
 
       // Empty until the user signs in; skip tile loading until a valid secret is present.
-      if let sharedSecret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount),
-         !sharedSecret.isEmpty {
+      if let sharedSecret = await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount) {
         let initialCustomerID = preferencesService.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
         await geoGarageOfflineTileProvider.reloadDownloads(
           geoGarageDownloadRepository.downloads,
@@ -202,13 +207,13 @@ final class AppEnvironment {
         withObservationTracking {
           _ = geoGarageDownloadRepository.downloads
           _ = preferencesService.geoGarageCustomerID
-        } onChange: { [weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider, weak preferencesService] in
-          Task { @MainActor [weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider, weak preferencesService] in
-            guard let repo = geoGarageDownloadRepository,
+        } onChange: { [weak self, weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider, weak preferencesService] in
+          Task { @MainActor [weak self, weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider, weak preferencesService] in
+            guard let self = self,
+                  let repo = geoGarageDownloadRepository,
                   let provider = geoGarageOfflineTileProvider,
                   let preferences = preferencesService else { return }
-            guard let secret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount),
-                  !secret.isEmpty else {
+            guard let secret = await self.keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount) else {
               await provider.close()
               observeGeoGarageDownloads()
               return
@@ -261,7 +266,8 @@ final class AppEnvironment {
         trackService: trackService,
         trackRecordingService: trackRecordingService,
         waypointService: waypointService,
-        messageService: messageService
+        messageService: messageService,
+        keychainManager: keychainManager
       )
       let activeTrackViewModel = ActiveTrackViewModel(
         trackRecordingService: trackRecordingService,
@@ -281,7 +287,8 @@ final class AppEnvironment {
         preferencesService: preferencesService,
         networkMonitor: networkMonitorService,
         diskSpaceProvider: diskSpaceProvider,
-        messageService: messageService
+        messageService: messageService,
+        keychainManager: keychainManager
       )
       
       let offlineSelectionViewModel = OfflineSelectionViewModel(
@@ -290,7 +297,8 @@ final class AppEnvironment {
         preferencesService: preferencesService,
         chartViewModel: chartViewModel,
         offlineMapManager: self.offlineMapManager,
-        downloader: geoGarageChartDownloader
+        downloader: geoGarageChartDownloader,
+        keychainManager: keychainManager
       )
       let secondaryTelemetryViewModel = SecondaryTelemetryViewModel()
       await trackRecordingService.attemptRecoveryIfNeeded()
@@ -377,10 +385,8 @@ final class AppEnvironment {
     preferencesService: PreferencesService
   ) async {
     guard authService.isGeoGarageAuthenticated else { return }
-    let storedSecret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount) ?? ""
-    guard storedSecret.isEmpty else { return }
-    let accessToken = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token") ?? ""
-    guard !accessToken.isEmpty else { return }
+    guard await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount) == nil else { return }
+    guard let accessToken = await keychainManager.retrieveValidToken(for: "geogarage_access_token") else { return }
 
     do {
       let secrets = try await geoGaragePartnerSecretService.refresh(accessToken: accessToken)

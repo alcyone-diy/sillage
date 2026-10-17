@@ -197,6 +197,7 @@ final class ChartViewModel {
   let calloutViewModel = MapCalloutViewModel()
   let measureToolViewModel = MeasureToolViewModel()
   private let messageService: MessageService?
+  private let keychainManager: any KeychainManaging
   private var lastPositionedDraftID: String?
   private var lastPositionedDraftCoordinate: CLLocationCoordinate2D?
   
@@ -406,7 +407,8 @@ final class ChartViewModel {
     trackService: TrackService,
     trackRecordingService: TrackRecordingService,
     waypointService: WaypointService? = nil,
-    messageService: MessageService? = nil
+    messageService: MessageService? = nil,
+    keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     self.positioningService = positioningService
     self.instrumentDampingService = instrumentDampingService
@@ -418,6 +420,7 @@ final class ChartViewModel {
     self.trackService = trackService
     self.trackRecordingService = trackRecordingService
     self.messageService = messageService
+    self.keychainManager = keychainManager
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
     self.trackingMode = self.preferencesService.lastMapTrackingMode ?? .free
     
@@ -766,7 +769,7 @@ final class ChartViewModel {
   
   /// Authenticates with GeoGarage in the background using stored credentials to populate available layers.
   private func silentlyFetchGeoGarageLayers() {
-    guard let accessToken = KeychainManager.shared.retrieveTokenSync(for: "geogarage_access_token"), !accessToken.trimmingCharacters(in: .whitespaces).isEmpty else {
+    guard let accessToken = keychainManager.retrieveValidTokenSync(for: "geogarage_access_token") else {
       Task { @MainActor [weak self] in
         self?.authService.authError = nil
       }

@@ -41,6 +41,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   var authError: Error? = nil
   private var preferencesService: PreferencesServiceProtocol
   private let layerRepository: GeoGarageLayerRepositoryProtocol
+  private let keychainManager: any KeychainManaging
 
   var discoverURL: URL? {
     URL(string: "https://geogarage.com/")
@@ -69,28 +70,28 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   init(
     preferencesService: PreferencesServiceProtocol,
     layerRepository: GeoGarageLayerRepositoryProtocol,
+    keychainManager: any KeychainManaging = KeychainManager.shared,
     session: URLSession = .shared
   ) {
     self.preferencesService = preferencesService
     self.layerRepository = layerRepository
+    self.keychainManager = keychainManager
     self.session = session
   }
 
-  init(preferencesService: PreferencesServiceProtocol, session: URLSession = .shared) {
+  init(
+    preferencesService: PreferencesServiceProtocol,
+    keychainManager: any KeychainManaging = KeychainManager.shared,
+    session: URLSession = .shared
+  ) {
     self.preferencesService = preferencesService
     self.layerRepository = GeoGarageLayerRepository()
+    self.keychainManager = keychainManager
     self.session = session
   }
 
   func bootstrap() async {
-    let hasToken = await Task.detached(priority: .userInitiated) {
-      guard let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token"),
-            !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        return false
-      }
-      return true
-    }.value
-
+    let hasToken = await keychainManager.retrieveValidToken(for: "geogarage_access_token") != nil
     self.isGeoGarageAuthenticated = hasToken
     _ = await layerRepository.loadCachedLayers()
   }
@@ -100,11 +101,11 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     // isGeoGarageAuthenticated back on. Cancellation surfaces as AuthError.cancelled.
     refreshTask?.cancel()
     refreshTask = nil
-    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
-    await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
+    await keychainManager.deleteToken(for: "geogarage_access_token")
+    await keychainManager.deleteToken(for: "geogarage_refresh_token")
     // The decryption secret belongs to the session: drop it with the tokens, otherwise another
     // account could reuse it on packages already downloaded.
-    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    await keychainManager.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
     self.authError = nil
     // Installs migrated from the password-based sign-in: the stored username has no further use.
     preferencesService.geoGarageUsername = nil
@@ -221,8 +222,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   }
 
   private func performRefresh() async throws -> AuthSuccessResponse {
-    guard let refreshToken = await KeychainManager.shared.retrieveToken(for: "geogarage_refresh_token"),
-          !refreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    guard let refreshToken = await keychainManager.retrieveValidToken(for: "geogarage_refresh_token") else {
       let failure = AuthError.tokenExpired
       self.authError = failure
       throw failure
@@ -318,8 +318,8 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   }
 
   private func store(_ tokens: AuthSuccessResponse) async {
-    await KeychainManager.shared.save(token: tokens.access_token, for: "geogarage_access_token")
-    await KeychainManager.shared.save(token: tokens.refresh_token, for: "geogarage_refresh_token")
+    await keychainManager.save(token: tokens.access_token, for: "geogarage_access_token")
+    await keychainManager.save(token: tokens.refresh_token, for: "geogarage_refresh_token")
   }
 
   func fetchAccountSettings(accessToken: String) async throws -> GeoGarageSettingsResponse {

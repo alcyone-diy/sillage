@@ -31,15 +31,18 @@ final class GeoGarageLoginViewModel {
 
   private let offlineMapManager: OfflineMapManagerProtocol
   private let partnerSecretService: GeoGaragePartnerSecretServiceProtocol
+  private let keychainManager: any KeychainManaging
 
   init(
     offlineMapManager: OfflineMapManagerProtocol,
     partnerSecretService: GeoGaragePartnerSecretServiceProtocol,
-    context: GeoGarageLoginContext = .initialSetup
+    context: GeoGarageLoginContext = .initialSetup,
+    keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     self.offlineMapManager = offlineMapManager
     self.partnerSecretService = partnerSecretService
     self.context = context
+    self.keychainManager = keychainManager
   }
 
   func currentError(authService: GeoGarageAuthServiceProtocol) -> String? {
@@ -65,7 +68,7 @@ final class GeoGarageLoginViewModel {
   }
 
   var isAuthenticated: Bool {
-    KeychainManager.shared.retrieveTokenSync(for: "geogarage_access_token") != nil
+    keychainManager.retrieveValidTokenSync(for: "geogarage_access_token") != nil
   }
 
   func viewState(authService: GeoGarageAuthServiceProtocol) -> GeoGarageViewState {

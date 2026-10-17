@@ -31,31 +31,28 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   private var preferencesService: PreferencesService!
   private var layerRepository: GeoGarageLayerRepository!
   private var cacheURL: URL!
+  private var mockKeychain: MockKeychainManager!
 
   override func setUp() async throws {
     try await super.setUp()
     MockURLProtocol.reset()
     session = MockURLProtocol.makeMockSession()
+    mockKeychain = MockKeychainManager()
     cacheURL = FileManager.default.temporaryDirectory.appendingPathComponent("layers-\(UUID().uuidString).json")
-    preferencesService = PreferencesService()
+    let suiteName = "test-auth-\(UUID().uuidString)"
+    let testDefaults = UserDefaults(suiteName: suiteName) ?? .standard
+    preferencesService = PreferencesService(defaults: testDefaults)
     layerRepository = GeoGarageLayerRepository(cacheFileURL: cacheURL)
     service = GeoGarageAuthService(
       preferencesService: preferencesService,
       layerRepository: layerRepository,
+      keychainManager: mockKeychain,
       session: session
     )
     presenter = MockGeoGarageAuthorizationPresenter()
-    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
-    await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
-    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
   }
 
   override func tearDown() async throws {
-    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
-    await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
-    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
-    preferencesService?.geoGarageCustomerID = nil
-    preferencesService?.geoGarageUsername = nil
     if let cacheURL, FileManager.default.fileExists(atPath: cacheURL.path) {
       try? FileManager.default.removeItem(at: cacheURL)
     }
@@ -66,6 +63,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     preferencesService = nil
     layerRepository = nil
     cacheURL = nil
+    mockKeychain = nil
     try await super.tearDown()
   }
 
@@ -154,8 +152,8 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     let verifier = try XCTUnwrap(body["code_verifier"])
     XCTAssertEqual(GeoGaragePKCE.codeChallenge(for: verifier), authorizeQuery["code_challenge"], "the code_verifier sent must match the authorization code_challenge")
 
-    let storedAccess = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
-    let storedRefresh = await KeychainManager.shared.retrieveToken(for: "geogarage_refresh_token")
+    let storedAccess = await mockKeychain.retrieveToken(for: "geogarage_access_token")
+    let storedRefresh = await mockKeychain.retrieveToken(for: "geogarage_refresh_token")
     XCTAssertEqual(storedAccess, "new-access")
     XCTAssertEqual(storedRefresh, "new-refresh")
     XCTAssertTrue(service.isGeoGarageAuthenticated)
@@ -177,7 +175,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     }
     XCTAssertTrue(log.requests.isEmpty)
     XCTAssertFalse(service.isGeoGarageAuthenticated)
-    let storedAccess = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
+    let storedAccess = await mockKeychain.retrieveToken(for: "geogarage_access_token")
     XCTAssertNil(storedAccess)
   }
 
@@ -249,8 +247,8 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   // MARK: - refreshTokens()
 
   func testRefreshTokensRotatesAndStoresTheNewPair() async throws {
-    await KeychainManager.shared.save(token: "old-access", for: "geogarage_access_token")
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-access", for: "geogarage_access_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     let log = RequestLog()
     installPortalHandler(log: log)
 
@@ -263,14 +261,14 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     XCTAssertEqual(body["refresh_token"], "old-refresh")
     XCTAssertEqual(body["client_id"], AppConfiguration.shared.geoGarageClientID)
     XCTAssertNil(body["client_secret"], "public client: never a secret")
-    let storedAccess = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
-    let storedRefresh = await KeychainManager.shared.retrieveToken(for: "geogarage_refresh_token")
+    let storedAccess = await mockKeychain.retrieveToken(for: "geogarage_access_token")
+    let storedRefresh = await mockKeychain.retrieveToken(for: "geogarage_refresh_token")
     XCTAssertEqual(storedAccess, "new-access")
     XCTAssertEqual(storedRefresh, "new-refresh")
   }
 
   func testRefreshTokensWithInvalidGrantThrowsTokenExpired() async {
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     let log = RequestLog()
     installPortalHandler(tokenStatus: 400, tokenBody: #"{"error": "invalid_grant"}"#, log: log)
 
@@ -286,7 +284,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   }
 
   func testRefreshTokensPublishesAuthErrorForInvalidClient() async {
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     let log = RequestLog()
     installPortalHandler(tokenStatus: 400, tokenBody: #"{"error": "invalid_client"}"#, log: log)
 
@@ -302,7 +300,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   }
 
   func testRefreshTokensKeepsAuthErrorNilWhenOffline() async {
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     MockURLProtocol.setErrorHandler { request in
       guard request.url?.path == "/o/token" else { return nil }
       return URLError(.notConnectedToInternet)
@@ -335,7 +333,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   }
 
   func testConcurrentRefreshesShareASingleRequest() async throws {
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     let log = RequestLog()
     installPortalHandler(log: log)
 
@@ -348,7 +346,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   }
 
   func testSequentialRefreshesIssueTwoRequests() async throws {
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     let log = RequestLog()
     installPortalHandler(log: log)
 
@@ -364,8 +362,8 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   // MARK: - fetchAccountSettings(accessToken:) and 401/403
 
   func testFetchAccountSettingsRefreshesOnceOn401ThenRetries() async throws {
-    await KeychainManager.shared.save(token: "old-access", for: "geogarage_access_token")
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-access", for: "geogarage_access_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     let log = RequestLog()
     installPortalHandler(log: log)
 
@@ -380,7 +378,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   }
 
   func testFetchAccountSettingsThrowsTokenExpiredWhenRefreshFails() async {
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     let log = RequestLog()
     installPortalHandler(tokenStatus: 400, tokenBody: #"{"error": "invalid_grant"}"#, log: log)
 
@@ -399,8 +397,8 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   /// The portal answers 403 (not 401) to a stale Bearer: without this case the silent refresh never
   /// fired and the user had to sign in again every day.
   func testFetchAccountSettingsRefreshesOnceOn403ThenRetries() async throws {
-    await KeychainManager.shared.save(token: "old-access", for: "geogarage_access_token")
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-access", for: "geogarage_access_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     let log = RequestLog()
     installPortalHandler(rejectedStatus: 403, log: log)
 
@@ -415,7 +413,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   }
 
   func testFetchAccountSettingsThrowsTokenExpiredWhenRefreshFailsAfterA403() async {
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     let log = RequestLog()
     installPortalHandler(tokenStatus: 400, tokenBody: #"{"error": "invalid_grant"}"#, rejectedStatus: 403, log: log)
 
@@ -436,7 +434,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   /// A refresh started right before "Log Out" could complete after it, rewrite the tokens in the
   /// Keychain and turn `isGeoGarageAuthenticated` back on.
   func testLogoutCancelsAnInFlightRefresh() async throws {
-    await KeychainManager.shared.save(token: "old-refresh", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "old-refresh", for: "geogarage_refresh_token")
     let log = RequestLog()
     let tokenJSON = self.tokenJSON
     // The /o/token/ response only arrives after the logout: the handler sleeps on the
@@ -467,22 +465,22 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     } catch {
       XCTFail("unexpected error: \(error)")
     }
-    let access = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
-    let storedRefresh = await KeychainManager.shared.retrieveToken(for: "geogarage_refresh_token")
+    let access = await mockKeychain.retrieveToken(for: "geogarage_access_token")
+    let storedRefresh = await mockKeychain.retrieveToken(for: "geogarage_refresh_token")
     XCTAssertNil(access, "a cancelled refresh must not rewrite the tokens after the logout")
     XCTAssertNil(storedRefresh)
     XCTAssertFalse(service.isGeoGarageAuthenticated)
   }
 
   func testLogoutRemovesPackageSecret() async {
-    await KeychainManager.shared.save(token: "access", for: "geogarage_access_token")
-    await KeychainManager.shared.save(token: "s3cret", for: GeoGaragePartnerSecretService.keychainAccount)
+    await mockKeychain.save(token: "access", for: "geogarage_access_token")
+    await mockKeychain.save(token: "s3cret", for: GeoGaragePartnerSecretService.keychainAccount)
 
     await service.logout()
 
-    let secret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    let secret = await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
     XCTAssertNil(secret, "the decryption secret goes away with the session")
-    let access = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
+    let access = await mockKeychain.retrieveToken(for: "geogarage_access_token")
     XCTAssertNil(access)
   }
 
@@ -508,7 +506,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
 
   @MainActor
   func testBootstrapWithTokenLoadsCachedLayers() async {
-    await KeychainManager.shared.save(token: "valid-access", for: "geogarage_access_token")
+    await mockKeychain.save(token: "valid-access", for: "geogarage_access_token")
     let testLayer = GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-01-01", validUntil: "2027-01-01")
     await layerRepository.saveLayers([testLayer])
 
@@ -533,7 +531,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   func testLogoutClearsCustomerIDAndCache() async {
     preferencesService.geoGarageCustomerID = "cus_456"
     preferencesService.geoGarageUsername = "user"
-    await KeychainManager.shared.save(token: "valid-access", for: "geogarage_access_token")
+    await mockKeychain.save(token: "valid-access", for: "geogarage_access_token")
     let testLayer = GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-01-01", validUntil: "2027-01-01")
     await layerRepository.saveLayers([testLayer])
 

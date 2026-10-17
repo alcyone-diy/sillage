@@ -70,22 +70,25 @@ final class TileProxyProtocolTests: XCTestCase {
 
   private var mockOfflineProvider: MockOfflineTileProvider?
   private var mockNetworkManager: MockTileProxyManager?
+  private var mockKeychain: MockKeychainManager?
   private var customSession: URLSession?
 
   override func setUp() {
     super.setUp()
     let offline = MockOfflineTileProvider()
     let network = MockTileProxyManager()
+    let keychain = MockKeychainManager()
     mockOfflineProvider = offline
     mockNetworkManager = network
+    mockKeychain = keychain
+
+    keychain.saveSync(token: "test_valid_token", for: "geogarage_access_token")
 
     TileProxyProtocol.configure(
       offlineTileProvider: offline,
-      tileProxyManager: network
+      tileProxyManager: network,
+      keychainManager: keychain
     )
-
-    // Store dummy token in Keychain for TileProxyProtocol firewall
-    KeychainManager.shared.saveSync(token: "test_valid_token", for: "geogarage_access_token")
 
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [TileProxyProtocol.self]
@@ -97,10 +100,10 @@ final class TileProxyProtocolTests: XCTestCase {
   override func tearDown() {
     customSession?.invalidateAndCancel()
     customSession = nil
-    TileProxyProtocol.configure(offlineTileProvider: nil, tileProxyManager: nil)
+    TileProxyProtocol.resetForTesting()
     mockOfflineProvider = nil
     mockNetworkManager = nil
-    KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token")
+    mockKeychain = nil
     URLCache.shared.removeAllCachedResponses()
     super.tearDown()
   }
@@ -240,7 +243,7 @@ final class TileProxyProtocolTests: XCTestCase {
     }
 
     // Simulate airplane mode or expired token
-    KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token")
+    mockKeychain?.deleteTokenSync(for: "geogarage_access_token")
 
     guard let sampleOfflineData = "OFFLINE_LA_ROCHELLE_BYTES".data(using: .utf8) else {
       XCTFail("Failed to encode test tile data")

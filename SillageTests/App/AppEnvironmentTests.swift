@@ -33,29 +33,29 @@ final class AppEnvironmentTests: XCTestCase {
     }
   }
 
+  private var mockKeychain: MockKeychainManager!
+
   override func setUp() async throws {
     try await super.setUp()
+    TileProxyProtocol.resetForTesting()
     MockURLProtocol.reset()
     installPortalHandler()
     authSession = MockURLProtocol.makeMockSession()
     partnerSecretService = MockGeoGaragePartnerSecretService()
-    environment = AppEnvironment(partnerSecretService: partnerSecretService, authSession: authSession)
+    mockKeychain = MockKeychainManager()
+    environment = AppEnvironment(partnerSecretService: partnerSecretService, authSession: authSession, keychainManager: mockKeychain)
     let prefs = PreferencesService()
     prefs.pendingCAASDownloads = []
     prefs.geoGarageCustomerID = nil
-    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
-    await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
-    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
   }
 
   override func tearDown() async throws {
     let prefs = PreferencesService()
     prefs.pendingCAASDownloads = []
     prefs.geoGarageCustomerID = nil
-    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
-    await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
-    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    mockKeychain = nil
     MockURLProtocol.reset()
+    TileProxyProtocol.resetForTesting()
     environment = nil
     partnerSecretService = nil
     authSession = nil
@@ -102,15 +102,15 @@ final class AppEnvironmentTests: XCTestCase {
     )
     directPrefs.pendingCAASDownloads = [pending]
 
-    await KeychainManager.shared.save(token: "test_access_token", for: "geogarage_access_token")
+    await mockKeychain.save(token: "test_access_token", for: "geogarage_access_token")
 
-    addTeardownBlock {
+    addTeardownBlock { [weak self] in
       await MainActor.run {
         let cleanupPrefs = PreferencesService()
         cleanupPrefs.pendingCAASDownloads = []
         cleanupPrefs.geoGarageCustomerID = nil
       }
-      await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+      await self?.mockKeychain.deleteToken(for: "geogarage_access_token")
     }
 
     await environment.bootstrap()
@@ -171,7 +171,7 @@ final class AppEnvironmentTests: XCTestCase {
   // MARK: - Package secret restored at startup
 
   func testBootstrapRestoresTheMissingPackageSecretForAnAlreadySignedInInstall() async {
-    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+    await mockKeychain.save(token: "legacy_access_token", for: "geogarage_access_token")
 
     await environment.bootstrap()
     await environment.packageSecretRestoreTask?.value
@@ -186,7 +186,7 @@ final class AppEnvironmentTests: XCTestCase {
   /// The restore talks to the portal (15 s timeout, then possibly a refresh and a retry): on the
   /// critical path it could hold the launch screen up to 45 s at sea, connected without WAN.
   func testBootstrapReachesReadyBeforeTheSecretRestoreCompletes() async {
-    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+    await mockKeychain.save(token: "legacy_access_token", for: "geogarage_access_token")
 
     await environment.bootstrap()
 
@@ -200,8 +200,8 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   func testBootstrapDoesNotFetchThePackageSecretWhenTheKeychainAlreadyHasOne() async {
-    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
-    await KeychainManager.shared.save(token: "already-here", for: GeoGaragePartnerSecretService.keychainAccount)
+    await mockKeychain.save(token: "legacy_access_token", for: "geogarage_access_token")
+    await mockKeychain.save(token: "already-here", for: GeoGaragePartnerSecretService.keychainAccount)
 
     await environment.bootstrap()
     await environment.packageSecretRestoreTask?.value
@@ -210,7 +210,7 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   func testBootstrapWarnsWhenThePackageSecretCannotBeRestored() async {
-    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+    await mockKeychain.save(token: "legacy_access_token", for: "geogarage_access_token")
     partnerSecretService.errorToThrow = .noProfile
 
     await environment.bootstrap()
@@ -225,7 +225,7 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   func testBootstrapStaysSilentWhenThePackageSecretFetchIsOffline() async {
-    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
+    await mockKeychain.save(token: "legacy_access_token", for: "geogarage_access_token")
     partnerSecretService.errorToThrow = .networkError("offline")
 
     await environment.bootstrap()
@@ -242,8 +242,8 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   func testBootstrapRefreshesTokensWhenTheAccessTokenIsRejectedThenRetries() async {
-    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
-    await KeychainManager.shared.save(token: "legacy_refresh_token", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "legacy_access_token", for: "geogarage_access_token")
+    await mockKeychain.save(token: "legacy_refresh_token", for: "geogarage_refresh_token")
     installPortalHandler(
       tokenStatus: 200,
       tokenBody: #"{"access_token":"refreshed-access","token_type":"Bearer","expires_in":86400,"refresh_token":"refreshed-refresh","scope":"write read"}"#
@@ -268,8 +268,8 @@ final class AppEnvironmentTests: XCTestCase {
   /// Refresh token replaced or revoked: the Settings screen already shows "session expired". A
   /// "GeoGarage did not provide the secret" warning would be a second, misleading message.
   func testBootstrapStaysSilentWhenTheRefreshTokenIsDead() async throws {
-    await KeychainManager.shared.save(token: "legacy_access_token", for: "geogarage_access_token")
-    await KeychainManager.shared.save(token: "dead_refresh_token", for: "geogarage_refresh_token")
+    await mockKeychain.save(token: "legacy_access_token", for: "geogarage_access_token")
+    await mockKeychain.save(token: "dead_refresh_token", for: "geogarage_refresh_token")
     installPortalHandler(tokenStatus: 400, tokenBody: #"{"error":"invalid_grant"}"#)
     partnerSecretService.results = [.failure(.unauthorized)]
 

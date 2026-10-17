@@ -35,12 +35,11 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
   private static let tilePathRegex = #/^/([^/]+)/([^/]+)/(\d+)/(\d+)/(\d+)\.png$/#
 
-  // MARK: - Dependency Injection
-
   private static let dependenciesLock = OSAllocatedUnfairLock<(
     offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)?,
-    tileProxyManager: (any TileProxyManagerProtocol)?
-  )>(initialState: (offlineTileProvider: nil, tileProxyManager: nil))
+    tileProxyManager: (any TileProxyManagerProtocol)?,
+    keychainManager: (any KeychainManaging)?
+  )>(initialState: (offlineTileProvider: nil, tileProxyManager: nil, keychainManager: nil))
 
   static var offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)? {
     dependenciesLock.withLock { $0.offlineTileProvider }
@@ -50,16 +49,33 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     dependenciesLock.withLock { $0.tileProxyManager }
   }
 
+  static var keychainManager: (any KeychainManaging)? {
+    dependenciesLock.withLock { $0.keychainManager }
+  }
+
   /// Injects runtime dependencies without singletons.
   static func configure(
     offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)?,
-    tileProxyManager: (any TileProxyManagerProtocol)? = nil
+    tileProxyManager: (any TileProxyManagerProtocol)? = nil,
+    keychainManager: (any KeychainManaging)? = nil
   ) {
     dependenciesLock.withLock { state in
       state.offlineTileProvider = offlineTileProvider
       if let tileProxyManager {
         state.tileProxyManager = tileProxyManager
       }
+      if let keychainManager {
+        state.keychainManager = keychainManager
+      }
+    }
+  }
+
+  /// Resets all injected dependencies (for testing).
+  static func resetForTesting() {
+    dependenciesLock.withLock { state in
+      state.offlineTileProvider = nil
+      state.tileProxyManager = nil
+      state.keychainManager = nil
     }
   }
 
@@ -171,8 +187,8 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     }
 
     // 3. Intercept & Verify: Local Authorization Firewall for remote network calls
-    let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token")
-    guard let validToken = token, !validToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    let keychain = Self.keychainManager ?? KeychainManager.shared
+    guard await keychain.retrieveValidToken(for: "geogarage_access_token") != nil else {
       // Rule 2: Fail-Closed for remote network streaming if unauthenticated
       return nil
     }

@@ -15,6 +15,8 @@ import CoreLocation
 @MainActor
 final class OfflineSelectionViewModelTests: XCTestCase {
 
+  private var mockKeychain: MockKeychainManager!
+
   override func setUp() async throws {
     try await super.setUp()
     let prefs = PreferencesService()
@@ -22,7 +24,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     prefs.geoGarageCustomerID = nil
     prefs.savedChartSource = nil
     prefs.savedGeoGarageLayerID = nil
-    await KeychainManager.shared.save(token: "token123", for: "geogarage_access_token")
+    mockKeychain = MockKeychainManager()
+    await mockKeychain.save(token: "token123", for: "geogarage_access_token")
   }
 
   override func tearDown() async throws {
@@ -31,7 +34,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     prefs.geoGarageCustomerID = nil
     prefs.savedChartSource = nil
     prefs.savedGeoGarageLayerID = nil
-    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
+    mockKeychain = nil
     try await super.tearDown()
   }
 
@@ -308,6 +311,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       )
     }
 
+    let keychain = mockKeychain ?? MockKeychainManager()
     let downloadService: GeoGarageDownloadServiceProtocol = customDownloadService ?? GeoGarageDownloadService(
       packageService: packageService,
       downloader: downloader,
@@ -315,7 +319,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       preferencesService: preferences,
       networkMonitor: networkMonitor,
       diskSpaceProvider: diskSpaceProvider,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: keychain
     )
 
     let sut = OfflineSelectionViewModel(
@@ -324,7 +329,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       preferencesService: preferences,
       chartViewModel: chartVM,
       offlineMapManager: MockOfflineMapManager(),
-      downloader: downloader
+      downloader: downloader,
+      keychainManager: keychain
     )
     sut.selectedLayerID = "shom"
 
@@ -374,10 +380,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
   func testStartDownload_withoutAccessToken_failsWithoutCallingTheDownloadService() async {
     let mockDownloadService = MockGeoGarageDownloadService()
     let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
-    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
-    addTeardownBlock {
-      await KeychainManager.shared.save(token: "token123", for: "geogarage_access_token")
-    }
+    await mockKeychain.deleteToken(for: "geogarage_access_token")
 
     sut.startDownload(chartSource: nil)
 
@@ -389,6 +392,9 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertTrue(mockDownloadService.failDownloadCalled, "without a token the download must fail immediately")
     XCTAssertTrue(mockDownloadService.lastFailDownloadIsAuthError, "without a token the failure must be marked as an authentication error")
     XCTAssertFalse(mockDownloadService.startDownloadCalled, "no package must be requested")
+
+    // `setUp` assumes a token is present: put it back for the following tests.
+    await mockKeychain.save(token: "token123", for: "geogarage_access_token")
   }
 
   func testStartDownload_unauthenticated_setsFailedState() {
@@ -420,10 +426,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
   func testStartDownload_withoutAccessToken_postsAppMessage() async {
     let messageService = MessageService()
     let (sut, _, _, _, _, _, _, _) = makeSUT(authenticated: true, messageService: messageService)
-    await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
-    addTeardownBlock {
-      await KeychainManager.shared.save(token: "token123", for: "geogarage_access_token")
-    }
+    await mockKeychain.deleteToken(for: "geogarage_access_token")
 
     sut.startDownload(chartSource: nil)
 
@@ -437,6 +440,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(message?.category, .offlineCharts)
     XCTAssertEqual(message?.severity, .error)
     XCTAssertEqual(message?.intent, .openSettings(target: .geoGarage))
+
+    await mockKeychain.save(token: "token123", for: "geogarage_access_token")
   }
 
   func testStartDownload_withoutAvailableOrSelectedLayer_setsFailedState() {

@@ -24,9 +24,10 @@ final class ChartViewModelTests: XCTestCase {
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.shouldFailFetchAccountSettings = true
     let messageService = MessageService()
+    let mockKeychain = MockKeychainManager()
     
     // We need to set a dummy token so it actually attempts the silent fetch
-    KeychainManager.shared.saveSync(token: "dummy_token", for: "geogarage_access_token")
+    mockKeychain.saveSync(token: "dummy_token", for: "geogarage_access_token")
     
     let preferencesService = PreferencesService()
     let positioningService = MockPositioningService()
@@ -46,7 +47,8 @@ final class ChartViewModelTests: XCTestCase {
       anchorService: anchorService,
       anchorViewModel: anchorViewModel,
       waypointService: nil,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: mockKeychain
     )
     
     // Wait for the background task to complete
@@ -63,9 +65,6 @@ final class ChartViewModelTests: XCTestCase {
       XCTAssertEqual(firstMessage.category, .geoGarage)
       XCTAssertTrue(firstMessage.isDismissable, "The posted authentication error message must have its dismissable property set to true")
     }
-    
-    // Clean up
-    KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token")
   }
 
   func testSilentAuthNetworkFailureIgnoresMessage() async {
@@ -73,8 +72,9 @@ final class ChartViewModelTests: XCTestCase {
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.shouldFailWithNetworkError = true
     let messageService = MessageService()
+    let mockKeychain = MockKeychainManager()
     
-    KeychainManager.shared.saveSync(token: "dummy_token", for: "geogarage_access_token")
+    mockKeychain.saveSync(token: "dummy_token", for: "geogarage_access_token")
     
     // Create dependencies
     let positioningService = MockPositioningService()
@@ -95,7 +95,8 @@ final class ChartViewModelTests: XCTestCase {
       anchorService: anchorService,
       anchorViewModel: anchorViewModel,
       waypointService: nil,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: mockKeychain
     )
     
     // Wait for the background task to complete
@@ -105,9 +106,6 @@ final class ChartViewModelTests: XCTestCase {
     
     // Assert
     XCTAssertEqual(messageService.messages.count, 0, "No message should be posted to MessageService on network failure (offline mode)")
-    
-    // Clean up
-    KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token")
     _ = viewModel // Keep strong reference alive
   }
 
@@ -205,7 +203,8 @@ final class ChartViewModelTests: XCTestCase {
     messageService.post(initialMessage)
     XCTAssertEqual(messageService.messages.count, 1)
 
-    KeychainManager.shared.saveSync(token: "valid_token", for: "geogarage_access_token")
+    let mockKeychain = MockKeychainManager()
+    mockKeychain.saveSync(token: "valid_token", for: "geogarage_access_token")
 
     let positioningService = MockPositioningService()
     let preferencesService = PreferencesService()
@@ -224,7 +223,8 @@ final class ChartViewModelTests: XCTestCase {
       anchorService: anchorService,
       anchorViewModel: anchorViewModel,
       waypointService: nil,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: mockKeychain
     )
 
     // Wait for the background task to complete
@@ -234,9 +234,6 @@ final class ChartViewModelTests: XCTestCase {
 
     // Assert
     XCTAssertEqual(messageService.messages.count, 0, "Successful silent auth fetch should clear .geoGarage messages in MessageService")
-
-    // Clean up
-    KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token")
     _ = viewModel
   }
 
@@ -304,7 +301,8 @@ final class ChartViewModelTests: XCTestCase {
 
     XCTAssertEqual(messageService.messages.count, 3)
 
-    KeychainManager.shared.saveSync(token: "valid_token", for: "geogarage_access_token")
+    let mockKeychain = MockKeychainManager()
+    mockKeychain.saveSync(token: "valid_token", for: "geogarage_access_token")
 
     let positioningService = MockPositioningService()
     let preferencesService = PreferencesService()
@@ -323,7 +321,8 @@ final class ChartViewModelTests: XCTestCase {
       anchorService: anchorService,
       anchorViewModel: anchorViewModel,
       waypointService: nil,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: mockKeychain
     )
 
     // Wait for the background task to complete
@@ -337,9 +336,6 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertTrue(remainingCategories.contains(.network))
     XCTAssertTrue(remainingCategories.contains(.weather))
     XCTAssertFalse(remainingCategories.contains(.geoGarage))
-
-    // Clean up
-    KeychainManager.shared.deleteTokenSync(for: "geogarage_access_token")
     _ = viewModel
   }
 

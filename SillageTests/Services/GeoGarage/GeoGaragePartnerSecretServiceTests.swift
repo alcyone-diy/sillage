@@ -14,16 +14,17 @@ import XCTest
 @MainActor
 final class GeoGaragePartnerSecretServiceTests: XCTestCase {
   private var session: URLSession!
+  private var mockKeychain: MockKeychainManager!
 
   override func setUp() async throws {
     try await super.setUp()
     MockURLProtocol.reset()
     session = MockURLProtocol.makeMockSession()
-    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    mockKeychain = MockKeychainManager()
   }
 
   override func tearDown() async throws {
-    await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    mockKeychain = nil
     MockURLProtocol.reset()
     session = nil
     try await super.tearDown()
@@ -43,7 +44,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
       let json = #"{"client_id":"abc","customer_id":"cus_1","package_secret":"s3cret","tea_secret":""}"#
       return (Self.response(request, status: 200), Data(json.utf8))
     }
-    let service = GeoGaragePartnerSecretService(session: session)
+    let service = GeoGaragePartnerSecretService(session: session, keychainManager: mockKeychain)
 
     let secrets = try await service.refresh(accessToken: "tok")
 
@@ -51,7 +52,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     XCTAssertEqual(secrets.customerID, "cus_1")
     XCTAssertEqual(secrets.packageSecret, "s3cret")
     XCTAssertEqual(secrets.teaSecret, "")
-    let stored = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    let stored = await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
     XCTAssertEqual(stored, "s3cret")
   }
 
@@ -69,8 +70,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
 
   func testRefreshThrowsUnauthorizedOn403AndStoresNothing() async {
     MockURLProtocol.setHandler { request in (Self.response(request, status: 403), Data()) }
-    let service = GeoGaragePartnerSecretService(session: session)
-
+    let service = GeoGaragePartnerSecretService(session: session, keychainManager: mockKeychain)
     do {
       _ = try await service.refresh(accessToken: "tok")
       XCTFail("expected unauthorized")
@@ -79,7 +79,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     } catch {
       XCTFail("unexpected error: \(error)")
     }
-    let stored = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    let stored = await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
     XCTAssertNil(stored)
   }
 
@@ -87,7 +87,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
   /// policy as `GeoGarageAuthService.requestTokens`.
   func testRefreshMapsURLCancellationToCancelled() async {
     MockURLProtocol.setErrorHandler { _ in URLError(.cancelled) }
-    let service = GeoGaragePartnerSecretService(session: session)
+    let service = GeoGaragePartnerSecretService(session: session, keychainManager: mockKeychain)
 
     do {
       _ = try await service.refresh(accessToken: "tok")
@@ -104,7 +104,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
       let json = #"{"client_id":"abc","customer_id":"cus_1","package_secret":"","tea_secret":""}"#
       return (Self.response(request, status: 200), Data(json.utf8))
     }
-    let service = GeoGaragePartnerSecretService(session: session)
+    let service = GeoGaragePartnerSecretService(session: session, keychainManager: mockKeychain)
 
     do {
       _ = try await service.refresh(accessToken: "tok")
@@ -114,13 +114,13 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     } catch {
       XCTFail("unexpected error: \(error)")
     }
-    let stored = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    let stored = await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
     XCTAssertNil(stored, "an empty secret must not write anything to the Keychain")
   }
 
   func testRefreshThrowsNoProfileOn404() async {
     MockURLProtocol.setHandler { request in (Self.response(request, status: 404), Data(#"{"error":"unknown"}"#.utf8)) }
-    let service = GeoGaragePartnerSecretService(session: session)
+    let service = GeoGaragePartnerSecretService(session: session, keychainManager: mockKeychain)
 
     do {
       _ = try await service.refresh(accessToken: "tok")

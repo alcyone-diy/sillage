@@ -21,18 +21,26 @@ protocol TileProxyManagerProtocol: Sendable {
 actor TileProxyManager: TileProxyManagerProtocol {
   static let shared = TileProxyManager()
 
-  private let session: URLSession = {
-    let config = URLSessionConfiguration.default
-    config.httpMaximumConnectionsPerHost = 6
-    config.timeoutIntervalForRequest = 30
-    config.timeoutIntervalForResource = 60
-    
-    // 1. REMOVE DOUBLE CACHE (MapLibre Ambient Cache already handles this)
-    config.urlCache = nil
-    config.requestCachePolicy = .reloadIgnoringLocalCacheData
-    
-    return URLSession(configuration: config)
-  }()
+  private let session: URLSession
+  private let keychainManager: any KeychainManaging
+
+  init(
+    session: URLSession? = nil,
+    keychainManager: any KeychainManaging = KeychainManager.shared
+  ) {
+    self.keychainManager = keychainManager
+    if let session {
+      self.session = session
+    } else {
+      let config = URLSessionConfiguration.default
+      config.httpMaximumConnectionsPerHost = 6
+      config.timeoutIntervalForRequest = 30
+      config.timeoutIntervalForResource = 60
+      config.urlCache = nil
+      config.requestCachePolicy = .reloadIgnoringLocalCacheData
+      self.session = URLSession(configuration: config)
+    }
+  }
 
   func fetchTile(z: Int, x: Int, y: Int, layerID: String) async throws -> Data? {
     let clientID = await AppConfiguration.shared.geoGarageClientID
@@ -50,7 +58,7 @@ actor TileProxyManager: TileProxyManagerProtocol {
     // If MapLibre cancels the tile, the URLSession TCP connection is killed instantly.
     
     var request = URLRequest(url: url)
-    if let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token"), !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+    if let token = await keychainManager.retrieveValidToken(for: "geogarage_access_token") {
       request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 

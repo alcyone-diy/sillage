@@ -59,6 +59,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   private let networkMonitor: NetworkMonitorServiceProtocol
   private let diskSpaceProvider: DiskSpaceProviderProtocol
   private let messageService: MessageService?
+  private let keychainManager: any KeychainManaging
 
   // MARK: - State Properties
 
@@ -194,7 +195,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     preferencesService: PreferencesServiceProtocol,
     networkMonitor: NetworkMonitorServiceProtocol,
     diskSpaceProvider: DiskSpaceProviderProtocol = SystemDiskSpaceProvider(),
-    messageService: MessageService? = nil
+    messageService: MessageService? = nil,
+    keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     self.packageService = packageService
     self.downloader = downloader
@@ -203,6 +205,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     self.networkMonitor = networkMonitor
     self.diskSpaceProvider = diskSpaceProvider
     self.messageService = messageService
+    self.keychainManager = keychainManager
 
     // Restore any existing persisted pending downloads into queued state
     self.activeDownloads = preferencesService.pendingCAASDownloads.map {
@@ -442,13 +445,13 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
         downloadTasks[targetID] = Task { @MainActor [weak self] in
           guard let self = self else { return }
 
-          let resolvedCustomer = self.cachedCustomerID ?? self.preferencesService.geoGarageCustomerID ?? ""
+          let resolvedCustomer = self.cachedCustomerID ?? self.preferencesService.geoGarageCustomerID
           // The Keychain is authoritative (a mid-session refresh stores a fresh token there); the
           // token cached by `startDownload` is only a fallback, e.g. when the Keychain is empty in tests.
-          let token = await KeychainManager.shared.retrieveToken(for: "geogarage_access_token") ?? ""
-          let resolvedAccessToken = token.isEmpty ? (self.cachedAccessToken ?? "") : token
+          let resolvedAccessToken = await self.keychainManager.retrieveValidToken(for: "geogarage_access_token") ?? self.cachedAccessToken
 
-          guard !resolvedCustomer.isEmpty && !resolvedAccessToken.isEmpty else {
+          guard let resolvedCustomer, !resolvedCustomer.isEmpty,
+                let resolvedAccessToken, !resolvedAccessToken.isEmpty else {
             Logger.offline.warning("Cannot start queued download \(targetID.uuidString, privacy: .public): missing credentials.")
             self.failDownload(
               id: targetID,
