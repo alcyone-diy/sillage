@@ -74,6 +74,9 @@ struct ContentView: View {
         } else if anchorViewModel.isPreparingDropAnchor {
           AnchorDropHUD()
             .transition(.opacity)
+        } else if chartViewModel.waypointAdjustmentSession != nil {
+          WaypointAdjustHUD()
+            .transition(.opacity)
         }
 
         if let highlight = chartViewModel.highlightedOfflineRegion, !chartViewModel.isActionConfirmationCardActive {
@@ -269,29 +272,7 @@ struct ContentView: View {
     }
     .background {
       Color.clear.sheet(item: Bindable(appViewModel).waypointDraft) { item in
-        if let waypointService {
-          NavigationStack {
-            let viewModel = WaypointDetailViewModel(
-              waypointService: waypointService,
-              defaultName: item.defaultName,
-              initialCoordinate: item.coordinate
-            )
-            WaypointDetailView(
-              viewModel: viewModel,
-              onGoToRequested: { waypointID in
-                appViewModel.waypointDraft = nil
-                waypointService.setDestination(waypointID: waypointID)
-                panelManagerViewModel.closePanel()
-              },
-              onCancelNavigationRequested: {
-                appViewModel.waypointDraft = nil
-                waypointService.setDestination(waypointID: nil)
-              }
-            )
-          }
-          .presentationDetents([.medium, .large])
-          .presentationDragIndicator(.visible)
-        }
+        waypointDraftSheet(for: item)
       }
     }
     .background {
@@ -357,6 +338,51 @@ struct ContentView: View {
     .task {
       guard let checklistService else { return }
       await checklistOverlayViewModel.observe(service: checklistService)
+    }
+  }
+
+  @ViewBuilder
+  private func waypointDraftSheet(for item: CoordinateWrapper) -> some View {
+    if let waypointService {
+      NavigationStack {
+        WaypointDraftContainerView(
+          item: item,
+          waypointService: waypointService,
+          onGoToRequested: { waypointID in
+            appViewModel.waypointDraft = nil
+            chartViewModel.activeWaypointDetailViewModel = nil
+            waypointService.setDestination(waypointID: waypointID)
+            panelManagerViewModel.closePanel()
+          },
+          onCancelNavigationRequested: {
+            appViewModel.waypointDraft = nil
+            chartViewModel.activeWaypointDetailViewModel = nil
+            waypointService.setDestination(waypointID: nil)
+          },
+          onModifyPositionRequested: { viewModel in
+            appViewModel.waypointDraft = nil
+            chartViewModel.startWaypointPositionAdjustment(
+              viewModel: viewModel,
+              onCancel: {
+                let restoreCoord = viewModel.currentCoordinate ?? item.coordinate
+                appViewModel.waypointDraft = CoordinateWrapper(
+                  coordinate: restoreCoord,
+                  defaultName: viewModel.name
+                )
+              },
+              onConfirm: { newCoord in
+                viewModel.updateCoordinate(newCoord)
+                appViewModel.waypointDraft = CoordinateWrapper(
+                  coordinate: newCoord,
+                  defaultName: viewModel.name
+                )
+              }
+            )
+          }
+        )
+      }
+      .presentationDetents([.medium, .large])
+      .presentationDragIndicator(.visible)
     }
   }
 

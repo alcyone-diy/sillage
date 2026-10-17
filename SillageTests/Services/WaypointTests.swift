@@ -378,4 +378,202 @@ final class WaypointTests: XCTestCase {
       XCTFail("Expected CameraMoveEvent.positionAtScreenFraction after coordinate edit but got \(String(describing: receivedEvent))")
     }
   }
+
+  func testWaypointDetailViewModelUpdateCoordinate() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    
+    let initialCoord = CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      defaultName: "Test Point",
+      initialCoordinate: initialCoord
+    )
+    
+    let initialCurrentCoord = try XCTUnwrap(vm.currentCoordinate)
+    let initialDraftCoord = try XCTUnwrap(service.draftWaypoint?.coordinate)
+    XCTAssertEqual(initialCurrentCoord.latitude, 46.16, accuracy: 0.0001)
+    XCTAssertEqual(initialCurrentCoord.longitude, -1.15, accuracy: 0.0001)
+    XCTAssertEqual(initialDraftCoord.latitude, 46.16, accuracy: 0.0001)
+    
+    let newCoord = CLLocationCoordinate2D(latitude: 47.25, longitude: -2.30)
+    vm.updateCoordinate(newCoord)
+    
+    let updatedCurrentCoord = try XCTUnwrap(vm.currentCoordinate)
+    let updatedDraftCoord = try XCTUnwrap(service.draftWaypoint?.coordinate)
+    XCTAssertEqual(updatedCurrentCoord.latitude, 47.25, accuracy: 0.0001)
+    XCTAssertEqual(updatedCurrentCoord.longitude, -2.30, accuracy: 0.0001)
+    XCTAssertEqual(vm.latHemisphere, .north)
+    XCTAssertEqual(vm.latDegrees, 47)
+    XCTAssertEqual(vm.lonHemisphere, .west)
+    XCTAssertEqual(vm.lonDegrees, 2)
+    XCTAssertEqual(updatedDraftCoord.latitude, 47.25, accuracy: 0.0001)
+    XCTAssertEqual(updatedDraftCoord.longitude, -2.30, accuracy: 0.0001)
+  }
+
+  func testChartViewModelWaypointPositionAdjustmentLifecycle() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    
+    let chartVM = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: service,
+      messageService: messageService
+    )
+    
+    let initialCoord = CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      defaultName: "Test Waypoint",
+      initialCoordinate: initialCoord
+    )
+    
+    var didCancel = false
+    var confirmedCoordinate: CLLocationCoordinate2D?
+    
+    // 1. Start adjustment
+    chartVM.startWaypointPositionAdjustment(
+      viewModel: vm,
+      onCancel: { didCancel = true },
+      onConfirm: { confirmedCoordinate = $0 }
+    )
+    
+    XCTAssertNotNil(chartVM.waypointAdjustmentSession)
+    XCTAssertTrue(chartVM.isActionConfirmationCardActive)
+    XCTAssertTrue(chartVM.activeWaypointDetailViewModel === vm)
+    XCTAssertEqual(chartVM.trackingMode, .free)
+    
+    // 2. Confirm adjustment
+    let pickedCoordinate = CLLocationCoordinate2D(latitude: 47.50, longitude: -2.75)
+    chartVM.confirmWaypointPositionAdjustment(to: pickedCoordinate)
+    
+    XCTAssertEqual(confirmedCoordinate?.latitude, 47.50)
+    XCTAssertEqual(confirmedCoordinate?.longitude, -2.75)
+    XCTAssertNil(chartVM.waypointAdjustmentSession)
+    XCTAssertFalse(chartVM.isActionConfirmationCardActive)
+    XCTAssertFalse(didCancel)
+    // activeWaypointDetailViewModel is retained for the returning presentation
+    XCTAssertTrue(chartVM.activeWaypointDetailViewModel === vm)
+    
+    // 3. Completing the edit session clears activeWaypointDetailViewModel
+    chartVM.activeWaypointDetailViewModel = nil
+    XCTAssertNil(chartVM.activeWaypointDetailViewModel)
+    
+    // 4. Test Cancel flow
+    didCancel = false
+    confirmedCoordinate = nil
+    chartVM.startWaypointPositionAdjustment(
+      viewModel: vm,
+      onCancel: { didCancel = true },
+      onConfirm: { confirmedCoordinate = $0 }
+    )
+    XCTAssertNotNil(chartVM.waypointAdjustmentSession)
+    XCTAssertTrue(chartVM.isActionConfirmationCardActive)
+    
+    chartVM.cancelWaypointPositionAdjustment()
+    XCTAssertTrue(didCancel)
+    XCTAssertNil(confirmedCoordinate)
+    XCTAssertNil(chartVM.waypointAdjustmentSession)
+    XCTAssertFalse(chartVM.isActionConfirmationCardActive)
+    XCTAssertTrue(chartVM.activeWaypointDetailViewModel === vm)
+  }
+
+  func testCancelPositionAdjustmentPreservesManualEditsAndActiveViewModel() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    
+    let chartVM = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: service,
+      messageService: messageService
+    )
+    
+    let initialCoord = CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      defaultName: "Initial Draft",
+      initialCoordinate: initialCoord
+    )
+    
+    // 1. User performs manual edits in the detail view prior to tapping "Modify Position"
+    vm.name = "Custom Edited Name"
+    let manuallyEditedCoord = CLLocationCoordinate2D(latitude: 47.10, longitude: -2.20)
+    vm.updateCoordinate(manuallyEditedCoord)
+    
+    // 2. User taps "Modify Position"
+    var didCancel = false
+    var restoredWrapper: CoordinateWrapper?
+    
+    chartVM.startWaypointPositionAdjustment(
+      viewModel: vm,
+      onCancel: {
+        didCancel = true
+        let restoreCoord = vm.currentCoordinate ?? initialCoord
+        restoredWrapper = CoordinateWrapper(coordinate: restoreCoord, defaultName: vm.name)
+      },
+      onConfirm: { _ in }
+    )
+    
+    XCTAssertTrue(chartVM.activeWaypointDetailViewModel === vm)
+    
+    // 3. User cancels adjustment
+    chartVM.cancelWaypointPositionAdjustment()
+    
+    XCTAssertTrue(didCancel)
+    let restored = try XCTUnwrap(restoredWrapper)
+    XCTAssertEqual(restored.coordinate.latitude, 47.10, accuracy: 0.0001)
+    XCTAssertEqual(restored.coordinate.longitude, -2.20, accuracy: 0.0001)
+    XCTAssertEqual(restored.defaultName, "Custom Edited Name")
+    
+    // 4. Verify that the ViewModel itself retained the manual edits
+    XCTAssertEqual(vm.name, "Custom Edited Name")
+    let currentCoord = try XCTUnwrap(vm.currentCoordinate)
+    XCTAssertEqual(currentCoord.latitude, 47.10, accuracy: 0.0001)
+    XCTAssertEqual(currentCoord.longitude, -2.20, accuracy: 0.0001)
+    
+    // 5. Verify activeWaypointDetailViewModel remains preserved for presentation
+    XCTAssertTrue(chartVM.activeWaypointDetailViewModel === vm)
+  }
 }

@@ -69,6 +69,7 @@ final class ChartViewModel {
     get {
       return anchorViewModel.isAdjustingAnchor ||
              anchorViewModel.isPreparingDropAnchor ||
+             waypointAdjustmentSession != nil ||
              _isActionConfirmationCardActiveOverride
     }
     set {
@@ -182,6 +183,26 @@ final class ChartViewModel {
   private let messageService: MessageService?
   private var lastPositionedDraftID: String?
   private var lastPositionedDraftCoordinate: CLLocationCoordinate2D?
+  
+  // MARK: - Waypoint Position Adjustment State
+  public struct WaypointPositionAdjustmentSession {
+    public let initialCoordinate: CLLocationCoordinate2D?
+    public let onCancel: @MainActor () -> Void
+    public let onConfirm: @MainActor (CLLocationCoordinate2D) -> Void
+
+    public init(
+      initialCoordinate: CLLocationCoordinate2D?,
+      onCancel: @MainActor @escaping () -> Void,
+      onConfirm: @MainActor @escaping (CLLocationCoordinate2D) -> Void
+    ) {
+      self.initialCoordinate = initialCoordinate
+      self.onCancel = onCancel
+      self.onConfirm = onConfirm
+    }
+  }
+
+  public var waypointAdjustmentSession: WaypointPositionAdjustmentSession?
+  public var activeWaypointDetailViewModel: WaypointDetailViewModel?
   
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
   /// when the ViewModel is deallocated, adhering to Swift 6 strict concurrency rules
@@ -867,7 +888,7 @@ final class ChartViewModel {
     /// 1. While manual anchor position adjustment is active, to avoid pulling the camera while aiming with the crosshair.
     /// 2. While the user is actively touching/panning the map (`isMapMoving`), preventing GPS fixes from fighting
     ///    the user's touch within the tolerance margin. Once the gesture finishes, centering resumes deterministically.
-    if trackingMode != .free, !isMapMoving, !anchorViewModel.isAdjustingAnchor, let coordinate = safeState?.coordinate {
+    if trackingMode != .free, !isMapMoving, !anchorViewModel.isAdjustingAnchor, waypointAdjustmentSession == nil, let coordinate = safeState?.coordinate {
       let heading = (trackingMode == .courseUp) ? safeState?.smoothedCOG : nil
       let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: heading)
       for continuation in cameraMoveContinuations.values {
@@ -1206,6 +1227,35 @@ final class ChartViewModel {
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
     }
+  }
+
+  // MARK: - Waypoint Position Adjustment Actions
+
+  public func startWaypointPositionAdjustment(
+    viewModel: WaypointDetailViewModel,
+    onCancel: @MainActor @escaping () -> Void,
+    onConfirm: @MainActor @escaping (CLLocationCoordinate2D) -> Void
+  ) {
+    self.activeWaypointDetailViewModel = viewModel
+    let targetCoordinate = viewModel.currentCoordinate ?? centerCoordinate
+    centerCamera(on: targetCoordinate)
+    self.waypointAdjustmentSession = WaypointPositionAdjustmentSession(
+      initialCoordinate: targetCoordinate,
+      onCancel: onCancel,
+      onConfirm: onConfirm
+    )
+  }
+
+  public func cancelWaypointPositionAdjustment() {
+    let session = waypointAdjustmentSession
+    waypointAdjustmentSession = nil
+    session?.onCancel()
+  }
+
+  public func confirmWaypointPositionAdjustment(to coordinate: CLLocationCoordinate2D) {
+    let session = waypointAdjustmentSession
+    waypointAdjustmentSession = nil
+    session?.onConfirm(coordinate)
   }
 
   /// Returns whether a coordinate is currently visible in the visible map area.

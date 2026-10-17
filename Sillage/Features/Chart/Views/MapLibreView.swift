@@ -1043,6 +1043,7 @@ struct MapLibreView: UIViewRepresentable {
       // transition immediately to .free mode so the user experiences smooth, uninterrupted chart panning.
       if parent.viewModel.trackingMode != .free,
          !parent.viewModel.anchorViewModel.isAdjustingAnchor,
+         parent.viewModel.waypointAdjustmentSession == nil,
          !hasExceededTrackingMargin,
          let initialCoord = initialPanCenterCoordinate,
          let initialPoint = initialPanScreenPoint {
@@ -1216,7 +1217,7 @@ struct MapLibreView: UIViewRepresentable {
           }
         }
         
-        if self.parent.viewModel.trackingMode != .free && !self.parent.viewModel.anchorViewModel.isAdjustingAnchor {
+        if self.parent.viewModel.trackingMode != .free && !self.parent.viewModel.anchorViewModel.isAdjustingAnchor && self.parent.viewModel.waypointAdjustmentSession == nil {
           if shouldBreakTracking(for: reason) {
             // Technical Design Choice: Delayed Tracking Break on Pan Gesture
             // Instead of instantly dropping tracking mode at the first sub-pixel camera movement,
@@ -1336,7 +1337,9 @@ struct MapLibreView: UIViewRepresentable {
           if self.hasExceededTrackingMargin {
             self.parent.viewModel.chartInteractedByUser()
           } else if self.shouldBreakTracking(for: reason) {
-            if !self.parent.viewModel.anchorViewModel.isAdjustingAnchor && !self.parent.viewModel.calloutViewModel.isCalloutVisible {
+            if !self.parent.viewModel.anchorViewModel.isAdjustingAnchor &&
+               self.parent.viewModel.waypointAdjustmentSession == nil &&
+               !self.parent.viewModel.calloutViewModel.isCalloutVisible {
               Logger.chart.info("Manual drag remained within tolerance margin; recentering on vessel.")
               self.parent.viewModel.centerOnUserLocation()
             }

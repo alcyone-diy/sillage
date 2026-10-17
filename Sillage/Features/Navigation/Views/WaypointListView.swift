@@ -124,21 +124,39 @@ struct WaypointListView: View {
     .sheet(item: $newWaypointItem) { item in
       if let waypointService {
         NavigationStack {
-          let viewModel = WaypointDetailViewModel(
+          WaypointDraftContainerView(
+            item: item,
             waypointService: waypointService,
-            defaultName: item.defaultName,
-            initialCoordinate: item.coordinate
-          )
-          WaypointDetailView(
-            viewModel: viewModel,
             onGoToRequested: { waypointID in
               newWaypointItem = nil
+              chartViewModel.activeWaypointDetailViewModel = nil
               waypointService.setDestination(waypointID: waypointID)
               panelManager.closePanel()
             },
             onCancelNavigationRequested: {
               newWaypointItem = nil
+              chartViewModel.activeWaypointDetailViewModel = nil
               waypointService.setDestination(waypointID: nil)
+            },
+            onModifyPositionRequested: { viewModel in
+              newWaypointItem = nil
+              chartViewModel.startWaypointPositionAdjustment(
+                viewModel: viewModel,
+                onCancel: {
+                  let restoreCoord = viewModel.currentCoordinate ?? item.coordinate
+                  newWaypointItem = CoordinateWrapper(
+                    coordinate: restoreCoord,
+                    defaultName: viewModel.name
+                  )
+                },
+                onConfirm: { newCoord in
+                  viewModel.updateCoordinate(newCoord)
+                  newWaypointItem = CoordinateWrapper(
+                    coordinate: newCoord,
+                    defaultName: viewModel.name
+                  )
+                }
+              )
             }
           )
         }
@@ -214,6 +232,19 @@ struct WaypointDetailContainer: View {
           },
           onCancelNavigationRequested: {
             waypointService?.setDestination(waypointID: nil)
+          },
+          onModifyPositionRequested: {
+            chartViewModel.startWaypointPositionAdjustment(
+              viewModel: viewModel,
+              onCancel: {
+                panelManager.resumePanel()
+              },
+              onConfirm: { newCoord in
+                viewModel.updateCoordinate(newCoord)
+                panelManager.resumePanel()
+              }
+            )
+            panelManager.suspendPanel()
           }
         )
       case .error(let error):
@@ -244,6 +275,11 @@ struct WaypointDetailContainer: View {
   }
 
   private func loadData() async {
+    if let cachedVM = chartViewModel.activeWaypointDetailViewModel, cachedVM.editingWaypointID == waypointID {
+      self.state = .loaded(cachedVM)
+      return
+    }
+
     if case .loaded(let currentVM) = state, currentVM.editingWaypointID == waypointID {
       return
     }

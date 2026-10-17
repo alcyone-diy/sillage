@@ -91,6 +91,21 @@ public final class PanelManagerViewModel {
     }
   }
 
+  /// Suspends the active panel by closing it without clearing the command path,
+  /// allowing it to be resumed after an interactive chart action (e.g. waypoint position adjustment).
+  public func suspendPanel() {
+    withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
+      activePanel = .none
+    }
+  }
+
+  /// Resumes a previously suspended panel.
+  public func resumePanel() {
+    withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
+      activePanel = .command
+    }
+  }
+
 
   /// Toggles the visibility of the specified panel.
   /// If it is already active, it is closed. Otherwise, it is opened.

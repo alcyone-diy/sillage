@@ -163,6 +163,16 @@ public final class WaypointDetailViewModel {
     return (Int(d), mins)
   }
 
+  public var currentCoordinate: CLLocationCoordinate2D? {
+    guard let lat = exactLatitude ?? parsedLatitude,
+          let lon = exactLongitude ?? parsedLongitude else { return nil }
+    return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+  }
+
+  public func updateCoordinate(_ coordinate: CLLocationCoordinate2D) {
+    setCoordinate(coordinate, roundMinutes: false)
+  }
+
   private func setCoordinate(_ coordinate: CLLocationCoordinate2D, roundMinutes: Bool = false) {
     let wasSuppressing = isSuppressingDraftUpdates
     isSuppressingDraftUpdates = true

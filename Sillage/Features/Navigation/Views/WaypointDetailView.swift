@@ -14,6 +14,7 @@ import SwiftUI
 struct WaypointDetailView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(\.marineTheme) private var marineTheme
+  @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
   
   @Bindable var viewModel: WaypointDetailViewModel
   var onGoToRequested: ((String) -> Void)?
@@ -268,7 +269,11 @@ struct WaypointDetailView: View {
         Text(error.localizedDescription)
       }
       .onDisappear {
+        guard chartViewModel?.waypointAdjustmentSession == nil else { return }
         viewModel.cancelDraft()
+        if chartViewModel?.activeWaypointDetailViewModel === viewModel {
+          chartViewModel?.activeWaypointDetailViewModel = nil
+        }
       }
   }
 }
