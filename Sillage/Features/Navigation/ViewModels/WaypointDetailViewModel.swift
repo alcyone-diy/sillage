@@ -16,7 +16,12 @@ import SwiftUI
 @MainActor
 @Observable
 public final class WaypointDetailViewModel {
-  public var name: String = ""
+  public var name: String = "" {
+    didSet {
+      guard !isSuppressingDraftUpdates else { return }
+      updateDraftWaypoint()
+    }
+  }
   public var description: String = ""
   
   public var trimmedDescription: String? {
@@ -24,18 +29,64 @@ public final class WaypointDetailViewModel {
     return trimmed.isEmpty ? nil : trimmed
   }
   
-  public var latHemisphere: Hemisphere = .north
-  public var latDegrees: Int? = nil
-  public var latMinutes: Double? = nil
+  public var latHemisphere: Hemisphere = .north {
+    didSet {
+      guard !isSuppressingDraftUpdates else { return }
+      exactLatitude = nil
+      updateDraftWaypoint()
+    }
+  }
+  public var latDegrees: Int? = nil {
+    didSet {
+      guard !isSuppressingDraftUpdates else { return }
+      exactLatitude = nil
+      updateDraftWaypoint()
+    }
+  }
+  public var latMinutes: Double? = nil {
+    didSet {
+      guard !isSuppressingDraftUpdates else { return }
+      exactLatitude = nil
+      updateDraftWaypoint()
+    }
+  }
   
-  public var lonHemisphere: Hemisphere = .west
-  public var lonDegrees: Int? = nil
-  public var lonMinutes: Double? = nil
+  public var lonHemisphere: Hemisphere = .west {
+    didSet {
+      guard !isSuppressingDraftUpdates else { return }
+      exactLongitude = nil
+      updateDraftWaypoint()
+    }
+  }
+  public var lonDegrees: Int? = nil {
+    didSet {
+      guard !isSuppressingDraftUpdates else { return }
+      exactLongitude = nil
+      updateDraftWaypoint()
+    }
+  }
+  public var lonMinutes: Double? = nil {
+    didSet {
+      guard !isSuppressingDraftUpdates else { return }
+      exactLongitude = nil
+      updateDraftWaypoint()
+    }
+  }
   
   public var activeError: Error?
   public var isSaving: Bool = false
-  public var color: Color = Color(hex: Waypoint.defaultColorHex) ?? .blue
-  public var isVisible: Bool = true
+  public var color: Color = Color(hex: Waypoint.defaultColorHex) ?? .blue {
+    didSet {
+      guard !isSuppressingDraftUpdates else { return }
+      updateDraftWaypoint()
+    }
+  }
+  public var isVisible: Bool = true {
+    didSet {
+      guard !isSuppressingDraftUpdates else { return }
+      updateDraftWaypoint()
+    }
+  }
   public var isEditable: Bool
   
   public var isGoTo: Bool {
@@ -46,12 +97,19 @@ public final class WaypointDetailViewModel {
   private let waypointService: WaypointService
   public let editingWaypointID: String?
   private let originalWaypoint: Waypoint?
+  private let draftID: String?
+  private var isSaved: Bool = false
+  private var isSuppressingDraftUpdates: Bool = false
+  private var exactLatitude: CLLocationDegrees?
+  private var exactLongitude: CLLocationDegrees?
   
   public init(waypointService: WaypointService, defaultName: String? = nil, initialCoordinate: CLLocationCoordinate2D? = nil) {
     self.waypointService = waypointService
     self.editingWaypointID = nil
     self.originalWaypoint = nil
+    self.draftID = UUID().uuidString
     self.isEditable = true
+    self.isSuppressingDraftUpdates = true
     
     if let defaultName {
       self.name = defaultName
@@ -63,12 +121,16 @@ public final class WaypointDetailViewModel {
     if let coord = initialCoordinate {
       setCoordinate(coord, roundMinutes: true)
     }
+    
+    self.isSuppressingDraftUpdates = false
+    updateDraftWaypoint()
   }
   
   public init(waypointService: WaypointService, editingWaypoint: Waypoint, startEditable: Bool = false) {
     self.waypointService = waypointService
     self.editingWaypointID = editingWaypoint.id
     self.originalWaypoint = editingWaypoint
+    self.draftID = nil
     self.isEditable = startEditable
     self.name = editingWaypoint.name
     self.description = editingWaypoint.description ?? ""
@@ -102,6 +164,17 @@ public final class WaypointDetailViewModel {
   }
 
   private func setCoordinate(_ coordinate: CLLocationCoordinate2D, roundMinutes: Bool = false) {
+    let wasSuppressing = isSuppressingDraftUpdates
+    isSuppressingDraftUpdates = true
+    defer {
+      isSuppressingDraftUpdates = wasSuppressing
+      if !wasSuppressing {
+        updateDraftWaypoint()
+      }
+    }
+    exactLatitude = coordinate.latitude
+    exactLongitude = coordinate.longitude
+    
     latHemisphere = coordinate.latitude >= 0 ? .north : .south
     let latComponents = extractDegreesAndMinutes(from: coordinate.latitude, roundMinutes: roundMinutes)
     latDegrees = latComponents.degrees
@@ -139,14 +212,44 @@ public final class WaypointDetailViewModel {
     return decimal
   }
   
+  private func updateDraftWaypoint() {
+    guard !isSuppressingDraftUpdates else { return }
+    guard editingWaypointID == nil, let draftID else { return }
+    
+    guard let lat = exactLatitude ?? parsedLatitude,
+          let lon = exactLongitude ?? parsedLongitude else {
+      waypointService.setDraftWaypoint(nil)
+      return
+    }
+    
+    let draft = Waypoint(
+      id: draftID,
+      name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+      description: trimmedDescription,
+      symbol: nil,
+      colorHex: color.hexString,
+      isVisible: isVisible,
+      coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    )
+    waypointService.setDraftWaypoint(draft)
+  }
+
+  public func cancelDraft() {
+    guard editingWaypointID == nil, !isSaved else { return }
+    waypointService.setDraftWaypoint(nil)
+  }
+  
   public func save() async -> Bool {
-    guard isValid, let lat = parsedLatitude, let lon = parsedLongitude else { return false }
+    guard isValid,
+          let lat = exactLatitude ?? parsedLatitude,
+          let lon = exactLongitude ?? parsedLongitude else { return false }
     
     isSaving = true
     defer { isSaving = false }
     
+    let targetID = editingWaypointID ?? draftID ?? UUID().uuidString
     let waypoint = Waypoint(
-      id: editingWaypointID ?? UUID().uuidString,
+      id: targetID,
       name: name.trimmingCharacters(in: .whitespacesAndNewlines),
       description: trimmedDescription,
       symbol: nil,
@@ -157,6 +260,10 @@ public final class WaypointDetailViewModel {
     
     do {
       try await waypointService.saveWaypoint(waypoint)
+      isSaved = true
+      if editingWaypointID == nil {
+        waypointService.setDraftWaypoint(nil)
+      }
       return true
     } catch {
       self.activeError = error

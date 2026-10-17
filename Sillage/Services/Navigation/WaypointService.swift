@@ -30,6 +30,7 @@ public enum WaypointError: LocalizedError {
 public final class WaypointService {
   public private(set) var currentWaypoints: [Waypoint] = []
   public private(set) var goToWaypointID: String?
+  public private(set) var draftWaypoint: Waypoint?
   
   private let databaseManager: DatabaseManager
   private var observationTask: TaskCancellable?
@@ -129,5 +130,9 @@ public final class WaypointService {
 
   public func setDestination(waypointID: String?) {
     goToWaypointID = waypointID
+  }
+
+  public func setDraftWaypoint(_ waypoint: Waypoint?) {
+    draftWaypoint = waypoint
   }
 }

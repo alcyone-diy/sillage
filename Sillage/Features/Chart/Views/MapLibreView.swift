@@ -694,6 +694,10 @@ struct MapLibreView: UIViewRepresentable {
 
         if let feature = features.first as? MLNPointFeature,
            let id = feature.attributes[MapFeatureKey.id.rawValue] as? String {
+          if id == parent.viewModel.draftWaypointID {
+            // Interacting with the draft waypoint currently being created: ignore map callout presentation
+            break
+          }
           // Tapped on an existing waypoint: present callout immediately, defer camera adjustment until release (.ended)
           if let style = mapView.style {
             lastAimingCoordinate = nil
@@ -929,6 +933,23 @@ struct MapLibreView: UIViewRepresentable {
             } else {
               mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
             }
+          case .positionAtScreenFraction(let coordinate, let yFraction, let xFraction):
+            guard mapView.bounds.height > 0, mapView.bounds.width > 0 else {
+              mapView.setCenter(coordinate, animated: true)
+              break
+            }
+            if mapView.contentInset != .zero {
+              mapView.contentInset = .zero
+            }
+            let targetX = mapView.bounds.width * xFraction
+            let targetY = mapView.bounds.height * yFraction
+            let currentCoordPoint = mapView.convert(coordinate, toPointTo: mapView)
+            let deltaX = currentCoordPoint.x - targetX
+            let deltaY = currentCoordPoint.y - targetY
+            let viewCenter = CGPoint(x: mapView.bounds.midX, y: mapView.bounds.midY)
+            let newCenterPoint = CGPoint(x: viewCenter.x + deltaX, y: viewCenter.y + deltaY)
+            let newCenterCoordinate = mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
+            mapView.setCenter(newCenterCoordinate, animated: true)
           }
         }
       }

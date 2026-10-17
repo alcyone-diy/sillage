@@ -190,4 +190,38 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     XCTAssertEqual(polygon?.pointCount, 5)
     XCTAssertEqual(polygon?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineHighlight.rawValue)
   }
+
+  func testCreateVisibleWaypointsFeature_whenDraft_setsIsCalloutTargetTrue() {
+    let standardWaypoint = WaypointVisualState(
+      id: "std-1",
+      name: "Saved Point",
+      coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15),
+      colorHex: "#007AFF",
+      isDraft: false
+    )
+    let draftWaypoint = WaypointVisualState(
+      id: "draft-1",
+      name: "Draft Point",
+      coordinate: CLLocationCoordinate2D(latitude: 46.20, longitude: -1.20),
+      colorHex: "#FF9500",
+      isDraft: true
+    )
+
+    let collection = MapLibreFeatureFactory.createVisibleWaypointsFeature(
+      from: [standardWaypoint, draftWaypoint],
+      targetWaypointID: nil
+    )
+
+    XCTAssertNotNil(collection)
+    guard let features = collection?.shapes as? [MLNPointFeature], features.count == 2 else {
+      XCTFail("Expected 2 MLNPointFeature shapes")
+      return
+    }
+
+    let stdFeature = features[0]
+    let draftFeature = features[1]
+
+    XCTAssertEqual(stdFeature.attributes["isCalloutTarget"] as? Bool, false)
+    XCTAssertEqual(draftFeature.attributes["isCalloutTarget"] as? Bool, true)
+  }
 }

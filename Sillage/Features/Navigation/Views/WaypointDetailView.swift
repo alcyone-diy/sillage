@@ -196,6 +196,7 @@ struct WaypointDetailView: View {
           ToolbarItem(placement: .cancellationAction) {
             Button {
               if viewModel.editingWaypointID == nil {
+                viewModel.cancelDraft()
                 dismiss()
               } else {
                 viewModel.revert()
@@ -245,6 +246,9 @@ struct WaypointDetailView: View {
         Button("OK", role: .cancel) { }
       } message: { error in
         Text(error.localizedDescription)
-    }
+      }
+      .onDisappear {
+        viewModel.cancelDraft()
+      }
   }
 }

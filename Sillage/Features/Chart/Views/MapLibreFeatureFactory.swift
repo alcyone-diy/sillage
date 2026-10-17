@@ -157,7 +157,7 @@ enum MapLibreFeatureFactory {
     let features: [MLNPointFeature] = states.map { waypoint in
       let feature = MLNPointFeature()
       feature.coordinate = waypoint.coordinate
-      let isTarget = (targetWaypointID != nil && waypoint.id == targetWaypointID)
+      let isTarget = (targetWaypointID != nil && waypoint.id == targetWaypointID) || waypoint.isDraft
       feature.attributes = [
         MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
         MapFeatureKey.id.rawValue: waypoint.id,

@@ -17,12 +17,14 @@ public struct WaypointVisualState: Equatable, Sendable, Identifiable {
   public let name: String
   public let coordinate: CLLocationCoordinate2D
   public let colorHex: String
+  public let isDraft: Bool
   
-  public init(id: String, name: String, coordinate: CLLocationCoordinate2D, colorHex: String) {
+  public init(id: String, name: String, coordinate: CLLocationCoordinate2D, colorHex: String, isDraft: Bool = false) {
     self.id = id
     self.name = name
     self.coordinate = coordinate
     self.colorHex = colorHex
+    self.isDraft = isDraft
   }
 }
 

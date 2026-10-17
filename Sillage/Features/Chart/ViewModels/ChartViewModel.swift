@@ -18,6 +18,7 @@ import OSLog
 enum CameraMoveEvent {
   case center(coordinate: CLLocationCoordinate2D, zoom: Double?, heading: Measurement<UnitAngle>?)
   case fitBounds(bounds: GeographicBoundingBox, padding: UIEdgeInsets)
+  case positionAtScreenFraction(coordinate: CLLocationCoordinate2D, yFraction: CGFloat, xFraction: CGFloat)
 }
 
 /// The central state manager for the chart interface.
@@ -143,6 +144,9 @@ final class ChartViewModel {
   var savedTrackVisualState: SavedTrackVisualState?
   var goToWaypointVisualState: WaypointVisualState?
   var visibleWaypointVisualStates: [WaypointVisualState] = []
+  var draftWaypointID: String? {
+    waypointService?.draftWaypoint?.id
+  }
   var bearingLineVisualState: BearingLineVisualState?
   var goToWaypointID: String?
   var anchorVisualState: AnchorVisualState?
@@ -176,6 +180,8 @@ final class ChartViewModel {
   let calloutViewModel = MapCalloutViewModel()
   let measureToolViewModel = MeasureToolViewModel()
   private let messageService: MessageService?
+  private var lastPositionedDraftID: String?
+  private var lastPositionedDraftCoordinate: CLLocationCoordinate2D?
   
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
   /// when the ViewModel is deallocated, adhering to Swift 6 strict concurrency rules
@@ -438,17 +444,24 @@ final class ChartViewModel {
     func observeWaypoints() {
       withObservationTracking {
         _ = waypointService.currentWaypoints
+        _ = waypointService.draftWaypoint
       } onChange: { [weak self] in
         Task { @MainActor [weak self] in
           guard let self = self else { return }
-          self.handleWaypointsChange(waypoints: waypointService.currentWaypoints)
+          self.handleWaypointsChange(
+            waypoints: waypointService.currentWaypoints,
+            draftWaypoint: waypointService.draftWaypoint
+          )
           observeWaypoints()
         }
       }
     }
     
     // Initial handling
-    handleWaypointsChange(waypoints: waypointService.currentWaypoints)
+    handleWaypointsChange(
+      waypoints: waypointService.currentWaypoints,
+      draftWaypoint: waypointService.draftWaypoint
+    )
     handleGoToWaypointChange(id: waypointService.goToWaypointID)
     
     observeSelection()
@@ -532,8 +545,8 @@ final class ChartViewModel {
     }
   }
   
-  private func handleWaypointsChange(waypoints: [Waypoint]) {
-    self.visibleWaypointVisualStates = waypoints.compactMap { waypoint in
+  private func handleWaypointsChange(waypoints: [Waypoint], draftWaypoint: Waypoint? = nil) {
+    var states = waypoints.compactMap { waypoint -> WaypointVisualState? in
       guard waypoint.isVisible else { return nil }
       return WaypointVisualState(
         id: waypoint.id,
@@ -541,6 +554,41 @@ final class ChartViewModel {
         coordinate: waypoint.coordinate,
         colorHex: waypoint.validDisplayColorHex
       )
+    }
+    
+    if let draftWaypoint, draftWaypoint.isVisible {
+      if !states.contains(where: { $0.id == draftWaypoint.id }) {
+        states.append(
+          WaypointVisualState(
+            id: draftWaypoint.id,
+            name: draftWaypoint.name,
+            coordinate: draftWaypoint.coordinate,
+            colorHex: draftWaypoint.validDisplayColorHex,
+            isDraft: true
+          )
+        )
+      }
+    }
+    
+    self.visibleWaypointVisualStates = states
+    
+    if let draftWaypoint {
+      let coordinateChanged: Bool
+      if let lastCoord = lastPositionedDraftCoordinate {
+        coordinateChanged = (lastCoord.latitude != draftWaypoint.coordinate.latitude ||
+                             lastCoord.longitude != draftWaypoint.coordinate.longitude)
+      } else {
+        coordinateChanged = true
+      }
+      
+      if draftWaypoint.id != lastPositionedDraftID || coordinateChanged {
+        lastPositionedDraftID = draftWaypoint.id
+        lastPositionedDraftCoordinate = draftWaypoint.coordinate
+        positionCoordinateAtScreenFraction(draftWaypoint.coordinate, yFraction: 0.25)
+      }
+    } else {
+      lastPositionedDraftID = nil
+      lastPositionedDraftCoordinate = nil
     }
     
     // Check the persistence of the current target waypoint
@@ -1145,6 +1193,16 @@ final class ChartViewModel {
     self.trackingMode = .free
     self.preferencesService.lastMapTrackingMode = .free
     let event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
+    for continuation in cameraMoveContinuations.values {
+      continuation.yield(event)
+    }
+  }
+
+  /// Positions the chart camera such that the specified coordinate appears at the desired viewport fractions
+  /// (e.g. yFraction: 0.25 puts the coordinate at 1/4 from the top of the screen).
+  func positionCoordinateAtScreenFraction(_ coordinate: CLLocationCoordinate2D, yFraction: CGFloat = 0.25, xFraction: CGFloat = 0.5) {
+    self.trackingMode = .free
+    let event = CameraMoveEvent.positionAtScreenFraction(coordinate: coordinate, yFraction: yFraction, xFraction: xFraction)
     for continuation in cameraMoveContinuations.values {
       continuation.yield(event)
     }
