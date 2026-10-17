@@ -213,7 +213,9 @@ struct WaypointDetailView: View {
                 viewModel.cancelDraft()
                 dismiss()
               } else {
-                viewModel.revert()
+                withAnimation {
+                  viewModel.revert()
+                }
               }
             } label: {
               Image(marineIcon: .close)
@@ -229,7 +231,9 @@ struct WaypointDetailView: View {
                   if viewModel.editingWaypointID == nil {
                     dismiss()
                   } else {
-                    viewModel.isEditable = false
+                    withAnimation {
+                      viewModel.isEditable = false
+                    }
                   }
                 }
               }
@@ -244,7 +248,9 @@ struct WaypointDetailView: View {
         } else {
           ToolbarItem(placement: .primaryAction) {
             Button("Edit") {
-              viewModel.isEditable = true
+              withAnimation {
+                viewModel.isEditable = true
+              }
             }
           }
         }

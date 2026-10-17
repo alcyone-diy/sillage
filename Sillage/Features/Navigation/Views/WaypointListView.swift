@@ -21,7 +21,6 @@ struct WaypointListView: View {
   @Bindable var viewModel: WaypointListViewModel
   @State private var waypointToDelete: Waypoint?
   @State private var newWaypointItem: CoordinateWrapper?
-  @State private var editingWaypoint: Waypoint?
   
   var body: some View {
     List {
@@ -147,31 +146,6 @@ struct WaypointListView: View {
         .presentationDragIndicator(.visible)
       }
     }
-    .sheet(item: $editingWaypoint) { waypoint in
-      if let waypointService {
-        NavigationStack {
-          let viewModel = WaypointDetailViewModel(
-            waypointService: waypointService,
-            editingWaypoint: waypoint,
-            startEditable: true
-          )
-          WaypointDetailView(
-            viewModel: viewModel,
-            onGoToRequested: { waypointID in
-              editingWaypoint = nil
-              waypointService.setDestination(waypointID: waypointID)
-              panelManager.closePanel()
-            },
-            onCancelNavigationRequested: {
-              editingWaypoint = nil
-              waypointService.setDestination(waypointID: nil)
-            }
-          )
-        }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-      }
-    }
   }
 }
 
@@ -210,20 +184,27 @@ struct WaypointDetailContainer: View {
   }
 
   let waypointID: String
+  let initialWaypoint: Waypoint?
   @Environment(\.waypointService) private var waypointService
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManager
   @State private var state: LoadState = .loading
 
+  init(waypointID: String, waypoint: Waypoint? = nil) {
+    self.waypointID = waypointID
+    self.initialWaypoint = waypoint
+  }
+
   var body: some View {
     Group {
       switch state {
       case .loading:
-        ProgressView("Loading Waypoint...")
-          .marineFont(.body)
-          .task {
-            await loadData()
-          }
+        if initialWaypoint != nil {
+          Color.clear
+        } else {
+          ProgressView("Loading Waypoint...")
+            .marineFont(.body)
+        }
       case .loaded(let viewModel):
         WaypointDetailView(
           viewModel: viewModel,
@@ -257,25 +238,37 @@ struct WaypointDetailContainer: View {
         .padding()
       }
     }
+    .task(id: waypointID) {
+      await loadData()
+    }
   }
 
   private func loadData() async {
+    if case .loaded(let currentVM) = state, currentVM.editingWaypointID == waypointID {
+      return
+    }
+
     guard let service = waypointService else {
       state = .error(WaypointError.serviceUnavailable)
       return
     }
     
     do {
-      if let waypoint = try await service.fetchWaypoint(id: waypointID) {
-        let vm = WaypointDetailViewModel(
-          waypointService: service,
-          editingWaypoint: waypoint,
-          startEditable: false
-        )
-        state = .loaded(vm)
+      let waypointToUse: Waypoint
+      if let initialWaypoint, initialWaypoint.id == waypointID {
+        waypointToUse = initialWaypoint
+      } else if let fetched = try await service.fetchWaypoint(id: waypointID) {
+        waypointToUse = fetched
       } else {
         state = .error(WaypointError.notFound)
+        return
       }
+      let vm = WaypointDetailViewModel(
+        waypointService: service,
+        editingWaypoint: waypointToUse,
+        startEditable: false
+      )
+      state = .loaded(vm)
     } catch {
       state = .error(error)
     }

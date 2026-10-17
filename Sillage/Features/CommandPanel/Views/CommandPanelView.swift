@@ -257,25 +257,10 @@ struct CommandPanelView: View {
         }
       }
     case .waypointDetail(let id, let waypoint):
-      if let waypoint, let waypointService {
-        let vm = WaypointDetailViewModel(
-          waypointService: waypointService,
-          editingWaypoint: waypoint,
-          startEditable: false
-        )
-        WaypointDetailView(
-          viewModel: vm,
-          onGoToRequested: { waypointID in
-            waypointService.setDestination(waypointID: waypointID)
-            viewModel.closePanel()
-          },
-          onCancelNavigationRequested: {
-            waypointService.setDestination(waypointID: nil)
-          }
-        )
-      } else {
-        WaypointDetailContainer(waypointID: id)
-      }
+      WaypointDetailContainer(
+        waypointID: id,
+        waypoint: waypoint
+      )
     case .baroAlarm:
       BarometerAlarmView(viewModel: barometerViewModel)
     case .anchorAlarm:

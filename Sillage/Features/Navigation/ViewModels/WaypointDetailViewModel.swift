@@ -96,7 +96,7 @@ public final class WaypointDetailViewModel {
   
   private let waypointService: WaypointService
   public let editingWaypointID: String?
-  private let originalWaypoint: Waypoint?
+  private var originalWaypoint: Waypoint?
   private let draftID: String?
   private var isSaved: Bool = false
   private var isSuppressingDraftUpdates: Bool = false
@@ -261,6 +261,7 @@ public final class WaypointDetailViewModel {
     do {
       try await waypointService.saveWaypoint(waypoint)
       isSaved = true
+      self.originalWaypoint = waypoint
       if editingWaypointID == nil {
         waypointService.setDraftWaypoint(nil)
       }
