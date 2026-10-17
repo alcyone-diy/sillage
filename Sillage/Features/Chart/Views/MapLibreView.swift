@@ -39,7 +39,42 @@ struct MapLibreView: UIViewRepresentable {
   func makeUIView(context: Context) -> MLNMapView {
 
     // Initialization of the MapLibre view without a frame
-    let mapView = MLNMapView(frame: .zero)
+    let mapView = MarineMapView(frame: .zero)
+    
+    // Anchor one-finger quick zoom to the nautical aiming crosshair when displayed
+    mapView.customGestureAnchorProvider = { [weak coordinator = context.coordinator, weak mapView] gesture in
+      guard let coordinator, let mapView else { return nil }
+      let calloutVM = coordinator.parent.viewModel.calloutViewModel
+      let measureVM = coordinator.parent.viewModel.measureToolViewModel
+      
+      let isCrosshairDisplayed = calloutVM.isCalloutVisible &&
+        calloutVM.targetWaypointID == nil &&
+        !measureVM.isActive
+      
+      guard isCrosshairDisplayed, mapView.bounds.width > 0, mapView.bounds.height > 0 else {
+        return nil
+      }
+      
+      // Center quick zoom, double-tap zoom-in, and two-finger tap zoom-out on the aiming crosshair
+      if gesture is UILongPressGestureRecognizer {
+        return CGPoint(
+          x: mapView.bounds.midX,
+          y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
+        )
+      }
+      if let tapGesture = gesture as? UITapGestureRecognizer {
+        let isDoubleTapZoomIn = tapGesture.numberOfTapsRequired == 2 && tapGesture.numberOfTouchesRequired == 1
+        let isTwoFingerTapZoomOut = tapGesture.numberOfTapsRequired == 1 && tapGesture.numberOfTouchesRequired == 2
+        if isDoubleTapZoomIn || isTwoFingerTapZoomOut {
+          return CGPoint(
+            x: mapView.bounds.midX,
+            y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
+          )
+        }
+      }
+      
+      return nil
+    }
     
     // Explicitly disable automatic inset adjustments to avoid conflicts with SwiftUI Safe Areas
     mapView.automaticallyAdjustsContentInset = false
@@ -275,11 +310,17 @@ struct MapLibreView: UIViewRepresentable {
       if viewModel.calloutViewModel.isCentering,
          let target = viewModel.calloutViewModel.targetCoordinate,
          let style = uiView.style {
-        uiView.setCenter(target, animated: false)
+        let targetScreenPoint = CGPoint(
+          x: uiView.bounds.midX,
+          y: uiView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
+        )
+        let newCenterCoordinate = context.coordinator.centerCoordinateToPosition(target, at: targetScreenPoint, in: uiView)
+        uiView.setCenter(newCenterCoordinate, animated: false)
+        let targetCoord = uiView.convert(targetScreenPoint, toCoordinateFrom: uiView)
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-          viewModel.calloutViewModel.interruptCentering(at: target)
+          viewModel.calloutViewModel.interruptCentering(at: targetCoord)
         }
         context.coordinator.lastAimingCoordinate = nil
         MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style, theme: marineTheme)
@@ -759,19 +800,23 @@ struct MapLibreView: UIViewRepresentable {
               theme: parent.marineTheme
             )
           }
-          let screenCenter = CGPoint(x: mapView.bounds.midX, y: mapView.bounds.midY)
+          let targetScreenPoint = CGPoint(
+            x: mapView.bounds.midX,
+            y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
+          )
           let rawOffset = CGSize(
-            width: touchPoint.x - screenCenter.x,
-            height: touchPoint.y - screenCenter.y
+            width: touchPoint.x - targetScreenPoint.x,
+            height: touchPoint.y - targetScreenPoint.y
           )
           let isNearCenter = hypot(rawOffset.width, rawOffset.height) < 1.0
 
           if !isNearCenter {
-            // 1. Center the map with the MapLibre crosshair
+            // 1. Center the map with the MapLibre crosshair so targetCoordinate lands at targetScreenPoint
             parent.viewModel.calloutViewModel.beginAiming(at: targetCoordinate, needsCentering: true)
-            mapView.setCenter(targetCoordinate, animated: true)
+            let newCenterCoordinate = centerCoordinateToPosition(targetCoordinate, at: targetScreenPoint, in: mapView)
+            mapView.setCenter(newCenterCoordinate, animated: true)
           } else {
-            // Already at center:
+            // Already at target screen point:
             // Trigger SwiftUI crosshair opacity = 1.0; MapLibreView.updateUIView will hide the MapLibre
             // crosshair layer in the exact same SwiftUI render transaction.
             var transaction = Transaction()
@@ -893,13 +938,30 @@ struct MapLibreView: UIViewRepresentable {
       )
     }
 
+    /// Computes the new center coordinate such that `coordinate` will appear at `targetPoint` on screen.
+    func centerCoordinateToPosition(
+      _ coordinate: CLLocationCoordinate2D,
+      at targetPoint: CGPoint,
+      in mapView: MLNMapView
+    ) -> CLLocationCoordinate2D {
+      if mapView.contentInset != .zero {
+        mapView.contentInset = .zero
+      }
+      let currentCoordPoint = mapView.convert(coordinate, toPointTo: mapView)
+      let deltaX = currentCoordPoint.x - targetPoint.x
+      let deltaY = currentCoordPoint.y - targetPoint.y
+      let viewCenter = CGPoint(x: mapView.bounds.midX, y: mapView.bounds.midY)
+      let newCenterPoint = CGPoint(x: viewCenter.x + deltaX, y: viewCenter.y + deltaY)
+      return mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
+    }
+
     func setupSubscription(for mapView: MLNMapView) {
       // Connect ensureVisible callback from MapCalloutViewModel
       parent.viewModel.calloutViewModel.onEnsureVisibleRequested = { [weak self, weak mapView] sheetHeight in
         guard let self = self, let mapView = mapView else { return }
         // Never move the camera while the user is actively touching or dragging on the map!
         guard !self.isUserActivelyInteractingWithPins else { return }
-        // EnsureVisible is only applied to waypoints; crosshairs remain strictly at the center of the viewport
+        // EnsureVisible is only applied to waypoints; crosshairs remain positioned at aimingCrosshairYFraction (40% from top)
         guard self.parent.viewModel.calloutViewModel.isCalloutVisible,
               self.parent.viewModel.calloutViewModel.targetWaypointID != nil,
               let targetCoord = self.parent.viewModel.calloutViewModel.targetCoordinate else { return }
@@ -938,17 +1000,8 @@ struct MapLibreView: UIViewRepresentable {
               mapView.setCenter(coordinate, animated: true)
               break
             }
-            if mapView.contentInset != .zero {
-              mapView.contentInset = .zero
-            }
-            let targetX = mapView.bounds.width * xFraction
-            let targetY = mapView.bounds.height * yFraction
-            let currentCoordPoint = mapView.convert(coordinate, toPointTo: mapView)
-            let deltaX = currentCoordPoint.x - targetX
-            let deltaY = currentCoordPoint.y - targetY
-            let viewCenter = CGPoint(x: mapView.bounds.midX, y: mapView.bounds.midY)
-            let newCenterPoint = CGPoint(x: viewCenter.x + deltaX, y: viewCenter.y + deltaY)
-            let newCenterCoordinate = mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
+            let targetPoint = CGPoint(x: mapView.bounds.width * xFraction, y: mapView.bounds.height * yFraction)
+            let newCenterCoordinate = centerCoordinateToPosition(coordinate, at: targetPoint, in: mapView)
             mapView.setCenter(newCenterCoordinate, animated: true)
           }
         }
@@ -975,7 +1028,12 @@ struct MapLibreView: UIViewRepresentable {
         let now = CACurrentMediaTime()
         if now - lastCalloutTargetUpdateTime >= 0.032 {
           lastCalloutTargetUpdateTime = now
-          parent.viewModel.calloutViewModel.updateTarget(coordinate: mapView.centerCoordinate)
+          let aimingPoint = CGPoint(
+            x: mapView.bounds.midX,
+            y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
+          )
+          let targetCoord = mapView.convert(aimingPoint, toCoordinateFrom: mapView)
+          parent.viewModel.calloutViewModel.updateTarget(coordinate: targetCoord)
         }
       }
       
@@ -1231,10 +1289,15 @@ struct MapLibreView: UIViewRepresentable {
          self.parent.viewModel.calloutViewModel.isCalloutVisible &&
          self.parent.viewModel.calloutViewModel.targetWaypointID == nil &&
          !self.parent.viewModel.measureToolViewModel.isActive {
+        let aimingPoint = CGPoint(
+          x: mapView.bounds.midX,
+          y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
+        )
+        let aimingCoord = mapView.convert(aimingPoint, toCoordinateFrom: mapView)
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-          self.parent.viewModel.calloutViewModel.completeCentering(at: mapView.centerCoordinate)
+          self.parent.viewModel.calloutViewModel.completeCentering(at: aimingCoord)
         }
       }
 

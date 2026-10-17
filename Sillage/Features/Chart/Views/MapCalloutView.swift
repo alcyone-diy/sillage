@@ -47,25 +47,31 @@ struct MapCalloutView: View {
   }
 
   var body: some View {
-    ZStack {
-      Color.clear
-        .allowsHitTesting(false)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    GeometryReader { proxy in
+      ZStack {
+        Color.clear
+          .allowsHitTesting(false)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-      // Aiming crosshair for contextual map target selection (visible once centering flight completes).
-      // Kept permanently mounted in the view hierarchy so its CALayer and shadow buffer are pre-warmed,
-      // guaranteeing a 0-frame opacity toggle in the exact same CATransaction as MapLibre layer hiding.
-      let isSwiftUICrosshairVisible =
-        calloutViewModel.isCalloutVisible &&
-        calloutViewModel.targetWaypointID == nil &&
-        !calloutViewModel.isCentering &&
-        calloutViewModel.aimingCoordinate == nil &&
-        !chartViewModel.measureToolViewModel.isActive
+        // Aiming crosshair for contextual map target selection (visible once centering flight completes).
+        // Kept permanently mounted in the view hierarchy so its CALayer and shadow buffer are pre-warmed,
+        // guaranteeing a 0-frame opacity toggle in the exact same CATransaction as MapLibre layer hiding.
+        let isSwiftUICrosshairVisible =
+          calloutViewModel.isCalloutVisible &&
+          calloutViewModel.targetWaypointID == nil &&
+          !calloutViewModel.isCentering &&
+          calloutViewModel.aimingCoordinate == nil &&
+          !chartViewModel.measureToolViewModel.isActive
 
-      MarineCrosshairView.targetAiming(theme: marineTheme)
-        .opacity(isSwiftUICrosshairVisible ? 1.0 : 0.0)
-        .transaction { $0.disablesAnimations = true }
-        .allowsHitTesting(false)
+        MarineCrosshairView.targetAiming(theme: marineTheme)
+          .position(
+            x: proxy.size.width / 2.0,
+            y: proxy.size.height * AppConstants.Map.aimingCrosshairYFraction
+          )
+          .opacity(isSwiftUICrosshairVisible ? 1.0 : 0.0)
+          .transaction { $0.disablesAnimations = true }
+          .allowsHitTesting(false)
+      }
     }
     .sheet(isPresented: isSheetPresented) {
       calloutSheetContent

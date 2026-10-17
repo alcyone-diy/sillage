@@ -584,7 +584,7 @@ final class ChartViewModel {
       if draftWaypoint.id != lastPositionedDraftID || coordinateChanged {
         lastPositionedDraftID = draftWaypoint.id
         lastPositionedDraftCoordinate = draftWaypoint.coordinate
-        positionCoordinateAtScreenFraction(draftWaypoint.coordinate, yFraction: 0.25)
+        positionCoordinateAtScreenFraction(draftWaypoint.coordinate, yFraction: AppConstants.Map.aimingCrosshairYFraction)
       }
     } else {
       lastPositionedDraftID = nil
@@ -1199,8 +1199,8 @@ final class ChartViewModel {
   }
 
   /// Positions the chart camera such that the specified coordinate appears at the desired viewport fractions
-  /// (e.g. yFraction: 0.25 puts the coordinate at 1/4 from the top of the screen).
-  func positionCoordinateAtScreenFraction(_ coordinate: CLLocationCoordinate2D, yFraction: CGFloat = 0.25, xFraction: CGFloat = 0.5) {
+  /// (e.g. yFraction: AppConstants.Map.aimingCrosshairYFraction places the coordinate comfortably above bottom sheets).
+  func positionCoordinateAtScreenFraction(_ coordinate: CLLocationCoordinate2D, yFraction: CGFloat = AppConstants.Map.aimingCrosshairYFraction, xFraction: CGFloat = 0.5) {
     self.trackingMode = .free
     let event = CameraMoveEvent.positionAtScreenFraction(coordinate: coordinate, yFraction: yFraction, xFraction: xFraction)
     for continuation in cameraMoveContinuations.values {

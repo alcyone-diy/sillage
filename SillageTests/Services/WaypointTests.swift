@@ -276,7 +276,7 @@ final class WaypointTests: XCTestCase {
     if case .positionAtScreenFraction(let coordinate, let yFraction, let xFraction) = receivedEvent {
       XCTAssertEqual(coordinate.latitude, initialCoord.latitude, accuracy: 0.0001)
       XCTAssertEqual(coordinate.longitude, initialCoord.longitude, accuracy: 0.0001)
-      XCTAssertEqual(yFraction, 0.25, accuracy: 0.001)
+      XCTAssertEqual(yFraction, AppConstants.Map.aimingCrosshairYFraction, accuracy: 0.001)
       XCTAssertEqual(xFraction, 0.5, accuracy: 0.001)
     } else {
       XCTFail("Expected CameraMoveEvent.positionAtScreenFraction but got \(String(describing: receivedEvent))")
@@ -372,7 +372,7 @@ final class WaypointTests: XCTestCase {
     if case .positionAtScreenFraction(let coordinate, let yFraction, let xFraction) = receivedEvent {
       let expectedLat = 47.0 + (vm.latMinutes ?? 0.0) / 60.0
       XCTAssertEqual(coordinate.latitude, expectedLat, accuracy: 0.0001)
-      XCTAssertEqual(yFraction, 0.25, accuracy: 0.001)
+      XCTAssertEqual(yFraction, AppConstants.Map.aimingCrosshairYFraction, accuracy: 0.001)
       XCTAssertEqual(xFraction, 0.5, accuracy: 0.001)
     } else {
       XCTFail("Expected CameraMoveEvent.positionAtScreenFraction after coordinate edit but got \(String(describing: receivedEvent))")

@@ -69,6 +69,10 @@ public enum AppConstants {
     /// MapLibre GL Native Mercator scale at zoom 0 based on 512pt world tile extent:
     /// 40_075_016.686m / 512.0 = 78_271.51696 meters per point at the equator.
     nonisolated public static let earthEquatorialMetersPerPointAtZoomZero: Double = 78_271.51696
+
+    /// Vertical screen fraction for positioning the aiming crosshair and centering contextual targets,
+    /// placing it comfortably 40% (2/5) from the top of the screen above the bottom sheet dialog.
+    nonisolated public static let aimingCrosshairYFraction: CGFloat = 4.0 / 10.0
   }
 
   /// GeoGarage sign-in over OAuth2 authorization code + PKCE using HTTPS callback with Associated Domains.
