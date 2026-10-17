@@ -36,4 +36,14 @@ struct CoreLocationPositioningServiceTests {
     service.setPausesLocationUpdatesAutomatically(true)
     #expect(service.pausesLocationUpdatesAutomatically == true)
   }
+
+  @Test("CoreLocationPositioningService activityType is configured according to iOS version")
+  func testActivityTypeAccordingToIOSVersion() {
+    let service = CoreLocationPositioningService(initialAccuracyMode: .best)
+    if #available(iOS 27.0, *) {
+      #expect(service.activityType == .maritime)
+    } else {
+      #expect(service.activityType == .otherNavigation)
+    }
+  }
 }

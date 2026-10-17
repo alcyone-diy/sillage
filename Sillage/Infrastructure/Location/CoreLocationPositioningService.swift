@@ -41,6 +41,11 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   var currentDistanceFilter: Measurement<UnitLength> {
     Measurement(value: locationManager.distanceFilter, unit: .meters)
   }
+
+  /// Exposed for unit testing verification of the underlying CLLocationManager configuration.
+  var activityType: CLActivityType {
+    locationManager.activityType
+  }
   
   public private(set) var lastKnownLocation: NavigationFix?
   
@@ -122,8 +127,13 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     // Hardware Throttling: Managed in meters by locationd to prevent unnecessary CPU wakeups (Rule 10).
     self.locationManager.distanceFilter = PositioningConfig.defaultDistanceFilter
 
-    // Marine Activity Type: Informs locationd of marine navigation, preventing coastal road snapping.
-    self.locationManager.activityType = .otherNavigation
+    // Marine Activity Type: Configures locationd with native marine Kalman filtering and
+    // prevents coastal road snapping on iOS 27+ (.maritime), falling back to .otherNavigation on earlier iOS versions.
+    if #available(iOS 27.0, *) {
+      self.locationManager.activityType = .maritime
+    } else {
+      self.locationManager.activityType = .otherNavigation
+    }
 
     // Marine Safety: A vessel is never paused. Defaults to false to prevent
     // iOS from silently suspending GPS updates during slow drifting or anchor watch.
