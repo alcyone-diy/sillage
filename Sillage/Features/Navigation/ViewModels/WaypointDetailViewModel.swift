@@ -103,6 +103,9 @@ public final class WaypointDetailViewModel {
   private var exactLatitude: CLLocationDegrees?
   private var exactLongitude: CLLocationDegrees?
   
+  @ObservationIgnored
+  public var onStateChanged: (@MainActor () -> Void)?
+  
   public init(waypointService: WaypointService, defaultName: String? = nil, initialCoordinate: CLLocationCoordinate2D? = nil) {
     self.waypointService = waypointService
     self.editingWaypointID = nil
@@ -141,6 +144,14 @@ public final class WaypointDetailViewModel {
   
   public func revert() {
     guard let original = originalWaypoint else { return }
+    let wasSuppressing = isSuppressingDraftUpdates
+    isSuppressingDraftUpdates = true
+    defer {
+      isSuppressingDraftUpdates = wasSuppressing
+      if !wasSuppressing {
+        updateDraftWaypoint()
+      }
+    }
     self.name = original.name
     self.description = original.description ?? ""
     self.color = original.displayColor
@@ -224,24 +235,28 @@ public final class WaypointDetailViewModel {
   
   private func updateDraftWaypoint() {
     guard !isSuppressingDraftUpdates else { return }
-    guard editingWaypointID == nil, let draftID else { return }
     
-    guard let lat = exactLatitude ?? parsedLatitude,
-          let lon = exactLongitude ?? parsedLongitude else {
-      waypointService.setDraftWaypoint(nil)
-      return
+    if editingWaypointID == nil, let draftID {
+      guard let lat = exactLatitude ?? parsedLatitude,
+            let lon = exactLongitude ?? parsedLongitude else {
+        waypointService.setDraftWaypoint(nil)
+        onStateChanged?()
+        return
+      }
+      
+      let draft = Waypoint(
+        id: draftID,
+        name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+        description: trimmedDescription,
+        symbol: nil,
+        colorHex: color.hexString,
+        isVisible: isVisible,
+        coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+      )
+      waypointService.setDraftWaypoint(draft)
     }
     
-    let draft = Waypoint(
-      id: draftID,
-      name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-      description: trimmedDescription,
-      symbol: nil,
-      colorHex: color.hexString,
-      isVisible: isVisible,
-      coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)
-    )
-    waypointService.setDraftWaypoint(draft)
+    onStateChanged?()
   }
 
   public func cancelDraft() {

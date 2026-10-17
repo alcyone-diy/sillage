@@ -576,4 +576,181 @@ final class WaypointTests: XCTestCase {
     // 5. Verify activeWaypointDetailViewModel remains preserved for presentation
     XCTAssertTrue(chartVM.activeWaypointDetailViewModel === vm)
   }
+
+  func testExistingWaypointPositionAdjustmentLivePreviewAndRevert() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    
+    let chartVM = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: service,
+      messageService: messageService
+    )
+    
+    // 1. Save an existing waypoint to database
+    let originalCoord = CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    let waypoint = Waypoint(
+      id: UUID().uuidString,
+      name: "Existing Waypoint",
+      colorHex: "#FF0000",
+      coordinate: originalCoord
+    )
+    try await service.saveWaypoint(waypoint)
+    
+    // Allow background ValueObservation to populate service.currentWaypoints and notify ChartViewModel
+    for _ in 0..<50 {
+      if !chartVM.visibleWaypointVisualStates.isEmpty { break }
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    
+    XCTAssertEqual(chartVM.visibleWaypointVisualStates.count, 1)
+    let initialVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first)
+    XCTAssertEqual(initialVisualState.coordinate.latitude, 46.16, accuracy: 0.0001)
+    XCTAssertEqual(initialVisualState.coordinate.longitude, -1.15, accuracy: 0.0001)
+    
+    // 2. Open Waypoint in detail view and adjust position
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      editingWaypoint: waypoint,
+      startEditable: true
+    )
+    
+    chartVM.startWaypointPositionAdjustment(
+      viewModel: vm,
+      onCancel: {},
+      onConfirm: { newCoord in
+        vm.updateCoordinate(newCoord)
+      }
+    )
+    
+    let adjustedCoord = CLLocationCoordinate2D(latitude: 47.25, longitude: -2.35)
+    chartVM.confirmWaypointPositionAdjustment(to: adjustedCoord)
+    
+    // 3. Verify that DB is unchanged, but chart visually previews the new position
+    let dbWaypoint = try XCTUnwrap(service.currentWaypoints.first(where: { $0.id == waypoint.id }))
+    XCTAssertEqual(dbWaypoint.coordinate.latitude, 46.16, accuracy: 0.0001)
+    XCTAssertEqual(dbWaypoint.coordinate.longitude, -1.15, accuracy: 0.0001)
+    
+    let previewVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
+    XCTAssertEqual(previewVisualState.coordinate.latitude, 47.25, accuracy: 0.0001)
+    XCTAssertEqual(previewVisualState.coordinate.longitude, -2.35, accuracy: 0.0001)
+    
+    // 4. User cancels / reverts edits without saving
+    vm.revert()
+    
+    let revertedVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
+    XCTAssertEqual(revertedVisualState.coordinate.latitude, 46.16, accuracy: 0.0001)
+    XCTAssertEqual(revertedVisualState.coordinate.longitude, -1.15, accuracy: 0.0001)
+    
+    // 5. Test dismissing / cleaning up activeWaypointDetailViewModel restores original coordinates
+    vm.updateCoordinate(CLLocationCoordinate2D(latitude: 48.0, longitude: -3.0))
+    let modifiedVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
+    XCTAssertEqual(modifiedVisualState.coordinate.latitude, 48.0, accuracy: 0.0001)
+    
+    chartVM.activeWaypointDetailViewModel = nil
+    let restoredVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
+    XCTAssertEqual(restoredVisualState.coordinate.latitude, 46.16, accuracy: 0.0001)
+    XCTAssertEqual(restoredVisualState.coordinate.longitude, -1.15, accuracy: 0.0001)
+  }
+
+  func testExistingGoToWaypointLivePreviewAndRevert() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    
+    let positioningService = MockPositioningService()
+    let preferencesService = PreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    
+    let chartVM = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: service,
+      messageService: messageService
+    )
+    
+    let originalCoord = CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    let waypoint = Waypoint(
+      id: UUID().uuidString,
+      name: "Nav Target",
+      colorHex: "#0000FF",
+      coordinate: originalCoord
+    )
+    try await service.saveWaypoint(waypoint)
+    service.setDestination(waypointID: waypoint.id)
+    
+    // Allow background ValueObservation to populate service.currentWaypoints and ChartViewModel
+    for _ in 0..<50 {
+      if chartVM.goToWaypointVisualState != nil { break }
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    
+    let initialGoTo = try XCTUnwrap(chartVM.goToWaypointVisualState)
+    XCTAssertEqual(initialGoTo.coordinate.latitude, 46.16, accuracy: 0.0001)
+    XCTAssertEqual(initialGoTo.coordinate.longitude, -1.15, accuracy: 0.0001)
+    
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      editingWaypoint: waypoint,
+      startEditable: true
+    )
+    
+    chartVM.startWaypointPositionAdjustment(
+      viewModel: vm,
+      onCancel: {},
+      onConfirm: { newCoord in
+        vm.updateCoordinate(newCoord)
+      }
+    )
+    
+    let adjustedCoord = CLLocationCoordinate2D(latitude: 47.50, longitude: -2.80)
+    chartVM.confirmWaypointPositionAdjustment(to: adjustedCoord)
+    
+    let previewGoTo = try XCTUnwrap(chartVM.goToWaypointVisualState)
+    XCTAssertEqual(previewGoTo.coordinate.latitude, 47.50, accuracy: 0.0001)
+    XCTAssertEqual(previewGoTo.coordinate.longitude, -2.80, accuracy: 0.0001)
+    
+    vm.revert()
+    
+    let revertedGoTo = try XCTUnwrap(chartVM.goToWaypointVisualState)
+    XCTAssertEqual(revertedGoTo.coordinate.latitude, 46.16, accuracy: 0.0001)
+    XCTAssertEqual(revertedGoTo.coordinate.longitude, -1.15, accuracy: 0.0001)
+  }
 }
+

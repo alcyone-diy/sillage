@@ -202,7 +202,15 @@ final class ChartViewModel {
   }
 
   public var waypointAdjustmentSession: WaypointPositionAdjustmentSession?
-  public var activeWaypointDetailViewModel: WaypointDetailViewModel?
+  public var activeWaypointDetailViewModel: WaypointDetailViewModel? {
+    didSet {
+      oldValue?.onStateChanged = nil
+      activeWaypointDetailViewModel?.onStateChanged = { [weak self] in
+        self?.refreshWaypoints()
+      }
+      refreshWaypoints()
+    }
+  }
   
   /// TaskCancellable wrappers ensure that async tasks are automatically cancelled
   /// when the ViewModel is deallocated, adhering to Swift 6 strict concurrency rules
@@ -527,14 +535,7 @@ final class ChartViewModel {
     }
     
     // 3. Application of the valid state
-    let coordinate = waypoint.coordinate
-    let visualState = WaypointVisualState(
-      id: waypoint.id,
-      name: waypoint.name,
-      coordinate: waypoint.coordinate,
-      colorHex: waypoint.validDisplayColorHex
-    )
-    
+    let visualState = resolvedVisualState(for: waypoint)
     self.goToWaypointID = id
     self.goToWaypointVisualState = visualState
     self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
@@ -545,10 +546,10 @@ final class ChartViewModel {
     // 4. Emit the event
     let event: CameraMoveEvent
     if let boatCoordinate = instrumentDampingService.state?.coordinate {
-      let minLat = min(coordinate.latitude, boatCoordinate.latitude)
-      let maxLat = max(coordinate.latitude, boatCoordinate.latitude)
-      let minLon = min(coordinate.longitude, boatCoordinate.longitude)
-      let maxLon = max(coordinate.longitude, boatCoordinate.longitude)
+      let minLat = min(visualState.coordinate.latitude, boatCoordinate.latitude)
+      let maxLat = max(visualState.coordinate.latitude, boatCoordinate.latitude)
+      let minLon = min(visualState.coordinate.longitude, boatCoordinate.longitude)
+      let maxLon = max(visualState.coordinate.longitude, boatCoordinate.longitude)
       
       let bounds = GeographicBoundingBox(
         southWest: CLLocationCoordinate2D(latitude: minLat, longitude: minLon),
@@ -558,7 +559,7 @@ final class ChartViewModel {
       // Use padding to ensure points are not hidden behind UI panels
       event = CameraMoveEvent.fitBounds(bounds: bounds, padding: UIEdgeInsets(top: 100, left: 100, bottom: 100, right: 100))
     } else {
-      event = CameraMoveEvent.center(coordinate: coordinate, zoom: nil, heading: nil)
+      event = CameraMoveEvent.center(coordinate: visualState.coordinate, zoom: nil, heading: nil)
     }
     
     for continuation in self.cameraMoveContinuations.values {
@@ -566,15 +567,47 @@ final class ChartViewModel {
     }
   }
   
-  private func handleWaypointsChange(waypoints: [Waypoint], draftWaypoint: Waypoint? = nil) {
-    var states = waypoints.compactMap { waypoint -> WaypointVisualState? in
-      guard waypoint.isVisible else { return nil }
+  /// Refreshes all waypoint annotations and GoTo targets from the service,
+  /// factoring in any active waypoint currently undergoing draft or position adjustment.
+  public func refreshWaypoints() {
+    guard let waypointService else { return }
+    handleWaypointsChange(
+      waypoints: waypointService.currentWaypoints,
+      draftWaypoint: waypointService.draftWaypoint
+    )
+  }
+
+  /// Resolves the current visual state for a waypoint, merging any in-flight edits
+  /// from an active `WaypointDetailViewModel` session prior to database persistence.
+  private func resolvedVisualState(for waypoint: Waypoint) -> WaypointVisualState {
+    if let activeVM = activeWaypointDetailViewModel, activeVM.editingWaypointID == waypoint.id {
+      let trimmed = activeVM.name.trimmingCharacters(in: .whitespacesAndNewlines)
+      let resolvedName = trimmed.isEmpty ? waypoint.name : trimmed
       return WaypointVisualState(
         id: waypoint.id,
-        name: waypoint.name,
-        coordinate: waypoint.coordinate,
-        colorHex: waypoint.validDisplayColorHex
+        name: resolvedName,
+        coordinate: activeVM.currentCoordinate ?? waypoint.coordinate,
+        colorHex: activeVM.color.hexString ?? waypoint.validDisplayColorHex
       )
+    }
+    return WaypointVisualState(
+      id: waypoint.id,
+      name: waypoint.name,
+      coordinate: waypoint.coordinate,
+      colorHex: waypoint.validDisplayColorHex
+    )
+  }
+
+  private func handleWaypointsChange(waypoints: [Waypoint], draftWaypoint: Waypoint? = nil) {
+    var states = waypoints.compactMap { waypoint -> WaypointVisualState? in
+      let isVisible: Bool
+      if let activeVM = activeWaypointDetailViewModel, activeVM.editingWaypointID == waypoint.id {
+        isVisible = activeVM.isVisible
+      } else {
+        isVisible = waypoint.isVisible
+      }
+      guard isVisible else { return nil }
+      return resolvedVisualState(for: waypoint)
     }
     
     if let draftWaypoint, draftWaypoint.isVisible {
@@ -635,12 +668,7 @@ final class ChartViewModel {
     
     // The waypoint still exists, update its data (color, name, position)
     self.goToWaypointID = targetID
-    self.goToWaypointVisualState = WaypointVisualState(
-      id: waypoint.id,
-      name: waypoint.name,
-      coordinate: waypoint.coordinate,
-      colorHex: waypoint.validDisplayColorHex
-    )
+    self.goToWaypointVisualState = resolvedVisualState(for: waypoint)
     self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
     self.updateBearingLine(state: self.instrumentDampingService.state)
   }
@@ -1256,6 +1284,7 @@ final class ChartViewModel {
     let session = waypointAdjustmentSession
     waypointAdjustmentSession = nil
     session?.onConfirm(coordinate)
+    refreshWaypoints()
   }
 
   /// Returns whether a coordinate is currently visible in the visible map area.

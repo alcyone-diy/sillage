@@ -304,6 +304,7 @@ struct WaypointDetailContainer: View {
         editingWaypoint: waypointToUse,
         startEditable: false
       )
+      chartViewModel.activeWaypointDetailViewModel = vm
       state = .loaded(vm)
     } catch {
       state = .error(error)
