@@ -288,5 +288,27 @@ enum MapLibreFeatureFactory {
   static func createOfflineHighlightFeature(from bounds: GeographicBoundingBox) -> MLNShape? {
     createPolygonShape(from: [bounds.polygonCoordinates], featureType: .offlineHighlight)
   }
+
+  /// Creates a polygon feature representing the active offline selection zone.
+  static func createOfflineSelectionFeature(from bounds: GeographicBoundingBox) -> MLNShape? {
+    createPolygonShape(from: [bounds.polygonCoordinates], featureType: .offlineSelection)
+  }
+
+  /// Creates point features representing the 4 draggable corner handles of the active offline selection zone.
+  static func createOfflineSelectionCornersFeature(from bounds: GeographicBoundingBox) -> MLNShape? {
+    let corners = [
+      CLLocationCoordinate2D(latitude: bounds.northEast.latitude, longitude: bounds.southWest.longitude), // NW
+      CLLocationCoordinate2D(latitude: bounds.northEast.latitude, longitude: bounds.northEast.longitude), // NE
+      CLLocationCoordinate2D(latitude: bounds.southWest.latitude, longitude: bounds.northEast.longitude), // SE
+      CLLocationCoordinate2D(latitude: bounds.southWest.latitude, longitude: bounds.southWest.longitude)  // SW
+    ]
+    let pointFeatures = corners.map { coord -> MLNPointFeature in
+      let feature = MLNPointFeature()
+      feature.coordinate = coord
+      feature.attributes = [MapFeatureKey.type.rawValue: MapFeatureType.offlineSelectionCorners.rawValue]
+      return feature
+    }
+    return MLNShapeCollectionFeature(shapes: pointFeatures)
+  }
 }
 

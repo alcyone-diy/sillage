@@ -31,8 +31,8 @@ final class OfflineSelectionViewModel {
 
   // MARK: - Selection State Properties
 
-  /// The geographically accurate bounding box derived from the UI crop box.
-  @ObservationIgnored private(set) var selectedBounds: GeographicBoundingBox?
+  /// The geographically accurate bounding box defining the offline region to download.
+  private(set) var selectedBounds: GeographicBoundingBox?
 
   /// Indicates whether the user is currently actively selecting an offline region.
   var isSelectionModeActive: Bool = false {
@@ -243,6 +243,27 @@ final class OfflineSelectionViewModel {
       selectedBounds: nil,
       downloads: []
     )
+  }
+
+  /// Enters region selection mode for creating a new offline chart.
+  /// If `initialBounds` is provided, sets it as the starting bounding box.
+  /// Otherwise, computes a centered box from the visible viewport.
+  func startNewSelection(initialBounds: GeographicBoundingBox? = nil) {
+    self.chartToModify = nil
+    self.pendingCustomName = nil
+    self.initialBounds = nil
+    self.cropRect = nil
+    chartViewModel.clearOfflineRegionHighlight()
+
+    self.isSelectionModeActive = true
+
+    if let initialBounds {
+      self.updateBoundingBox(initialBounds)
+    } else {
+      self.selectedBounds = nil
+      self.estimatedArea = nil
+      self.isValidSize = false
+    }
   }
 
   /// Enters region selection mode to modify the geographic boundary of an existing downloaded chart.

@@ -135,7 +135,7 @@ struct OfflineRegionsManagerView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          offlineSelectionViewModel.isSelectionModeActive = true
+          offlineSelectionViewModel.startNewSelection()
           panelManagerViewModel.closePanel()
         } label: {
           Image(systemName: "plus")

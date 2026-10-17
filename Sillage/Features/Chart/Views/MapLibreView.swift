@@ -297,6 +297,13 @@ struct MapLibreView: UIViewRepresentable {
         MapStyleController.updateOfflineHighlight(region: highlightedOfflineRegion, in: style, theme: marineTheme)
       }
 
+      // Active offline selection zone update
+      let activeSelectionBounds = (offlineSelectionViewModel?.isSelectionModeActive == true) ? offlineSelectionViewModel?.selectedBounds : nil
+      if activeSelectionBounds != context.coordinator.lastOfflineSelectionBounds {
+        context.coordinator.lastOfflineSelectionBounds = activeSelectionBounds
+        MapStyleController.updateOfflineSelection(bounds: activeSelectionBounds, in: style, theme: marineTheme)
+      }
+
       // Data Stale state update (Opacity)
       if isDataStale != context.coordinator.lastDataStale {
         MapStyleController.updateDataStaleState(isStale: isDataStale, in: style)
@@ -331,49 +338,32 @@ struct MapLibreView: UIViewRepresentable {
     if let offlineVM = offlineSelectionViewModel, offlineVM.isSelectionModeActive {
       uiView.isRotateEnabled = false
 
-      if let initialBounds = offlineVM.initialBounds, uiView.bounds.width > 0, uiView.bounds.height > 0 {
-        // When modifying an existing chart's zone, separate the camera leveling and bounding box framing
-        // from general animated transitions to guarantee instantaneous, deterministic screen coordinate projection.
-        uiView.direction = 0
+      // Restore North-Up orientation and level pitch immediately without animation.
+      // Mathematical integrity: animated transitions cause uiView.convert() to project against
+      // a transient tilted/rotated perspective, producing corrupted coordinates.
+      if uiView.direction != 0 {
+        uiView.setDirection(0, animated: false)
+      }
+      if uiView.camera.pitch != 0 {
         let camera = uiView.camera
         camera.pitch = 0
-        uiView.camera = camera
-
-        let mlnBounds = MLNCoordinateBounds(sw: initialBounds.southWest, ne: initialBounds.northEast)
-        let padding = marineTheme.offlineSelectionEdgeInsets
-        uiView.setVisibleCoordinateBounds(mlnBounds, edgePadding: padding, animated: false, completionHandler: nil)
-
-        let swPoint = uiView.convert(initialBounds.southWest, toPointTo: uiView)
-        let nePoint = uiView.convert(initialBounds.northEast, toPointTo: uiView)
-        let minX = min(swPoint.x, nePoint.x)
-        let maxX = max(swPoint.x, nePoint.x)
-        let minY = min(swPoint.y, nePoint.y)
-        let maxY = max(swPoint.y, nePoint.y)
-        let width = maxX - minX
-        let height = maxY - minY
-        let rect = (width > 10 && height > 10) ? CGRect(x: minX, y: minY, width: width, height: height) : nil
-
-        // SwiftUI Lifecycle: Defer mutation of observable ViewModel state to a Task
-        // to avoid modifying state during view update (updateUIView).
-        Task { @MainActor [weak offlineVM] in
-          if let rect {
-            offlineVM?.updateCropRect(rect)
-          }
-          offlineVM?.consumeInitialBounds()
-        }
-      } else {
-        // Standard selection mode: smoothly restore North-Up orientation and level pitch with animation.
-        if uiView.direction != 0 {
-          uiView.setDirection(0, animated: true)
-        }
-        if uiView.camera.pitch != 0 {
-          let camera = uiView.camera
-          camera.pitch = 0
-          uiView.setCamera(camera, animated: true)
-        }
+        uiView.setCamera(camera, animated: false)
       }
 
-      context.coordinator.updateOfflineSelectionBounds(mapView: uiView)
+      // If selection mode just started without explicit bounds, initialize them once from map center
+      if offlineVM.selectedBounds == nil, uiView.bounds.width > 0, uiView.bounds.height > 0 {
+        let baseSize = min(uiView.bounds.width, uiView.bounds.height) * offlineVM.cropBoxWidthRatio
+        let size = CGSize(width: baseSize, height: baseSize * offlineVM.cropBoxAspect)
+        let x = (uiView.bounds.width - size.width) / 2.0
+        let y = (uiView.bounds.height - size.height) / 2.0
+        let rect = CGRect(x: x, y: y, width: size.width, height: size.height)
+        let mlnBounds = uiView.convert(rect, toCoordinateBoundsFrom: uiView)
+        let initialBounds = GeographicBoundingBox(southWest: mlnBounds.sw, northEast: mlnBounds.ne)
+
+        Task { @MainActor [weak offlineVM] in
+          offlineVM?.updateBoundingBox(initialBounds)
+        }
+      }
     } else {
       uiView.isRotateEnabled = true
     }
@@ -467,7 +457,7 @@ struct MapLibreView: UIViewRepresentable {
     private var isLongPressActive: Bool = false
     private var measurePinDragOffset: CGPoint = .zero
     private var isUserActivelyInteractingWithPins: Bool {
-      isLongPressActive || activeDraggedPin != nil || parent.viewModel.measureToolViewModel.isDraggingPin
+      isLongPressActive || activeDraggedPin != nil || parent.viewModel.measureToolViewModel.isDraggingPin || activeDraggedSelectionCorner != nil
     }
     private var lastPanUpdateTime: CFTimeInterval = 0
     private var lastCalloutTargetUpdateTime: CFTimeInterval = 0
@@ -476,6 +466,17 @@ struct MapLibreView: UIViewRepresentable {
     var lastAnchorVisualState: AnchorVisualState?
     var lastOfflineMaskVisualState: OfflineMaskVisualState?
     var lastHighlightedOfflineRegion: HighlightedOfflineRegion?
+    var lastOfflineSelectionBounds: GeographicBoundingBox?
+
+    enum ActiveSelectionCorner {
+      case topLeft      // NW
+      case topRight     // NE
+      case bottomLeft   // SW
+      case bottomRight  // SE
+    }
+    private var activeDraggedSelectionCorner: ActiveSelectionCorner?
+    private var activeSelectionDragInitialBounds: GeographicBoundingBox?
+    private var activeSelectionDragCurrentBounds: GeographicBoundingBox?
     
     var lastActiveTrackCount: Int?
     var lastActiveTrackTimestamp: Date?
@@ -557,6 +558,9 @@ struct MapLibreView: UIViewRepresentable {
         if parent.viewModel.measureToolViewModel.isActive {
           return hitTestMeasurePin(at: touchPoint, in: mapView) != nil
         }
+        if let offlineVM = parent.offlineSelectionViewModel, offlineVM.isSelectionModeActive {
+          return hitTestSelectionCorner(at: touchPoint, in: mapView) != nil
+        }
         return false
       }
       return true
@@ -585,6 +589,12 @@ struct MapLibreView: UIViewRepresentable {
       // Route according to active measure tool pin drag
       if activeDraggedPin != nil || parent.viewModel.measureToolViewModel.isActive {
         handleMeasurePinPan(sender, in: mapView)
+        return
+      }
+
+      if activeDraggedSelectionCorner != nil || (parent.offlineSelectionViewModel?.isSelectionModeActive == true && hitTestSelectionCorner(at: sender.location(in: mapView), in: mapView) != nil) {
+        handleSelectionCornerPan(sender, in: mapView)
+        return
       }
     }
 
@@ -1183,6 +1193,11 @@ struct MapLibreView: UIViewRepresentable {
       MapStyleController.updateOfflineHighlight(region: highlightRegion, in: style, theme: parent.marineTheme)
       lastHighlightedOfflineRegion = highlightRegion
 
+      // Active offline selection zone initialization
+      let activeSelection = (parent.offlineSelectionViewModel?.isSelectionModeActive == true) ? parent.offlineSelectionViewModel?.selectedBounds : nil
+      MapStyleController.updateOfflineSelection(bounds: activeSelection, in: style, theme: parent.marineTheme)
+      lastOfflineSelectionBounds = activeSelection
+
       let isStale = parent.viewModel.isDataStale
       MapStyleController.updateDataStaleState(isStale: isStale, in: style)
       lastDataStale = isStale
@@ -1270,51 +1285,142 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
     
-    @MainActor
-    func updateOfflineSelectionBounds(mapView: MLNMapView) {
-      if let offlineVM = self.parent.offlineSelectionViewModel, offlineVM.isSelectionModeActive {
-        // If initial bounds are pending asynchronous projection into cropRect, defer recalculation
-        // to avoid overwriting selectedBounds with the default centered box.
-        guard offlineVM.initialBounds == nil || offlineVM.cropRect != nil else { return }
+    // MARK: - Offline Selection Corner Drag Gestures
 
-        let rect = offlineVM.cropRect ?? {
-            let baseSize = min(mapView.bounds.width, mapView.bounds.height) * offlineVM.cropBoxWidthRatio
-            let size = CGSize(width: baseSize, height: baseSize * offlineVM.cropBoxAspect)
-            let x = (mapView.bounds.width - size.width) / 2.0
-            let y = (mapView.bounds.height - size.height) / 2.0
-            return CGRect(x: x, y: y, width: size.width, height: size.height)
-        }()
-        
-        let mlnBounds = mapView.convert(rect, toCoordinateBoundsFrom: mapView)
-        
-        let bounds = GeographicBoundingBox(
-          southWest: mlnBounds.sw,
-          northEast: mlnBounds.ne
-        )
-        
-        // Prevent redundant recalculations by only updating if bounds have changed significantly
-        // This avoids infinite loops caused by MapLibre floating point conversion drift
-        if let current = offlineVM.selectedBounds, current.isApproximatelyEqual(to: bounds) {
-            return
+    /// Tests whether a screen touch point is within the touch hit target of one of the 4 selection corners.
+    func hitTestSelectionCorner(at point: CGPoint, in mapView: MLNMapView) -> ActiveSelectionCorner? {
+      guard let offlineVM = parent.offlineSelectionViewModel,
+            offlineVM.isSelectionModeActive,
+            let bounds = offlineVM.selectedBounds else {
+        return nil
+      }
+
+      let nw = CLLocationCoordinate2D(latitude: bounds.northEast.latitude, longitude: bounds.southWest.longitude)
+      let ne = CLLocationCoordinate2D(latitude: bounds.northEast.latitude, longitude: bounds.northEast.longitude)
+      let se = CLLocationCoordinate2D(latitude: bounds.southWest.latitude, longitude: bounds.northEast.longitude)
+      let sw = CLLocationCoordinate2D(latitude: bounds.southWest.latitude, longitude: bounds.southWest.longitude)
+
+      let ptNW = mapView.convert(nw, toPointTo: mapView)
+      let ptNE = mapView.convert(ne, toPointTo: mapView)
+      let ptSE = mapView.convert(se, toPointTo: mapView)
+      let ptSW = mapView.convert(sw, toPointTo: mapView)
+
+      let hitRadius: CGFloat = parent.marineTheme.isGloveMode ? 48.0 : 36.0
+
+      let distNW = hypot(point.x - ptNW.x, point.y - ptNW.y)
+      let distNE = hypot(point.x - ptNE.x, point.y - ptNE.y)
+      let distSE = hypot(point.x - ptSE.x, point.y - ptSE.y)
+      let distSW = hypot(point.x - ptSW.x, point.y - ptSW.y)
+
+      let corners: [(ActiveSelectionCorner, CGFloat)] = [
+        (.topLeft, distNW),
+        (.topRight, distNE),
+        (.bottomRight, distSE),
+        (.bottomLeft, distSW)
+      ]
+
+      if let closest = corners.min(by: { $0.1 < $1.1 }), closest.1 <= hitRadius {
+        return closest.0
+      }
+      return nil
+    }
+
+    private func computeUpdatedBounds(
+      from current: GeographicBoundingBox,
+      dragging corner: ActiveSelectionCorner,
+      to coord: CLLocationCoordinate2D
+    ) -> GeographicBoundingBox {
+      let minSpan: Double = 0.005 // ~500m to prevent inversion
+      var sw = current.southWest
+      var ne = current.northEast
+
+      switch corner {
+      case .topLeft: // NW: updates latitude of North, longitude of West
+        ne.latitude = max(coord.latitude, sw.latitude + minSpan)
+        sw.longitude = min(coord.longitude, ne.longitude - minSpan)
+      case .topRight: // NE: updates latitude of North, longitude of East
+        ne.latitude = max(coord.latitude, sw.latitude + minSpan)
+        ne.longitude = max(coord.longitude, sw.longitude + minSpan)
+      case .bottomLeft: // SW: updates latitude of South, longitude of West
+        sw.latitude = min(coord.latitude, ne.latitude - minSpan)
+        sw.longitude = min(coord.longitude, ne.longitude - minSpan)
+      case .bottomRight: // SE: updates latitude of South, longitude of East
+        sw.latitude = min(coord.latitude, ne.latitude - minSpan)
+        ne.longitude = max(coord.longitude, sw.longitude + minSpan)
+      }
+
+      return GeographicBoundingBox(southWest: sw, northEast: ne)
+    }
+
+    private func handleSelectionCornerPan(_ sender: UIPanGestureRecognizer, in mapView: MLNMapView) {
+      guard let offlineVM = parent.offlineSelectionViewModel,
+            offlineVM.isSelectionModeActive else {
+        activeDraggedSelectionCorner = nil
+        activeSelectionDragInitialBounds = nil
+        activeSelectionDragCurrentBounds = nil
+        return
+      }
+
+      let touchPoint = sender.location(in: mapView)
+
+      switch sender.state {
+      case .began:
+        guard let corner = hitTestSelectionCorner(at: touchPoint, in: mapView),
+              let initialBounds = offlineVM.selectedBounds else { return }
+        activeDraggedSelectionCorner = corner
+        activeSelectionDragInitialBounds = initialBounds
+        activeSelectionDragCurrentBounds = initialBounds
+        lastPanUpdateTime = CACurrentMediaTime()
+        parent.viewModel.chartInteractedByUser()
+
+      case .changed:
+        guard let corner = activeDraggedSelectionCorner,
+              let initialBounds = activeSelectionDragInitialBounds else { return }
+        let now = CACurrentMediaTime()
+        guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { return }
+        lastPanUpdateTime = now
+
+        let coord = mapView.convert(touchPoint, toCoordinateFrom: mapView)
+        let updatedBounds = computeUpdatedBounds(from: initialBounds, dragging: corner, to: coord)
+        activeSelectionDragCurrentBounds = updatedBounds
+
+        // Isolated visual update: directly mutate MapLibre vector layers to prevent SwiftUI render storm
+        if let style = mapView.style {
+          MapStyleController.updateOfflineSelection(
+            bounds: updatedBounds,
+            in: style,
+            theme: parent.marineTheme
+          )
         }
-        
-        // Cancel any pending bounds update to avoid saturating the MainActor with redundant tasks.
-        pendingBoundsUpdateTask?.cancel()
-        
-        // Defer the mutation and debounce it by 50ms to avoid
-        // "Modifying state during view update" runtime warnings in SwiftUI
-        // and to prevent CPU saturation from rapid MapLibre layout passes.
-        pendingBoundsUpdateTask = Task { @MainActor [weak offlineVM] in
-            do {
-                try await Task.sleep(for: .milliseconds(50))
-                guard !Task.isCancelled else { return }
-                offlineVM?.updateBoundingBox(bounds)
-            } catch is CancellationError {
-                // Task was cancelled by a newer layout update, exit cleanly.
-            } catch {
-                // Ignore other potential sleep errors.
-            }
+
+      case .ended:
+        if let corner = activeDraggedSelectionCorner,
+           let initialBounds = activeSelectionDragInitialBounds {
+          let coord = mapView.convert(touchPoint, toCoordinateFrom: mapView)
+          let finalBounds = computeUpdatedBounds(from: initialBounds, dragging: corner, to: coord)
+          offlineVM.updateBoundingBox(finalBounds)
+        } else if let finalBounds = activeSelectionDragCurrentBounds {
+          offlineVM.updateBoundingBox(finalBounds)
         }
+        activeDraggedSelectionCorner = nil
+        activeSelectionDragInitialBounds = nil
+        activeSelectionDragCurrentBounds = nil
+
+      case .cancelled, .failed:
+        // Restore MapLibre visual layers to the uncommitted model bounds
+        if let style = mapView.style {
+          MapStyleController.updateOfflineSelection(
+            bounds: offlineVM.selectedBounds,
+            in: style,
+            theme: parent.marineTheme
+          )
+        }
+        activeDraggedSelectionCorner = nil
+        activeSelectionDragInitialBounds = nil
+        activeSelectionDragCurrentBounds = nil
+
+      default:
+        break
       }
     }
     
@@ -1358,8 +1464,6 @@ struct MapLibreView: UIViewRepresentable {
           northEast: visibleBounds.ne
         )
         
-        // Compute geographic bounding box for offline selection locally and pass it down
-        self.updateOfflineSelectionBounds(mapView: mapView)
         self.parent.viewModel.updateOfflineRegionScreenPositions(
           projection: { mapView.convert($0, toPointTo: mapView) },
           bounds: mapView.bounds

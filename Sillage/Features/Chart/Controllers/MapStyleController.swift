@@ -21,6 +21,9 @@ enum MapLayerIdentifier: String, CaseIterable, Comparable {
   case offlineRegionsBorder = "offline-regions-border-layer"
   case offlineHighlightFill = "offline-highlight-fill-layer"
   case offlineHighlightBorder = "offline-highlight-border-layer"
+  case offlineSelectionFill = "offline-selection-fill-layer"
+  case offlineSelectionBorder = "offline-selection-border-layer"
+  case offlineSelectionCorners = "offline-selection-corners-layer"
   case gpsAccuracyFill = "gps-accuracy-layer"
   case gpsAccuracyStroke = "gps-accuracy-stroke-layer"
   case savedTrack = "saved-track-layer"
@@ -57,6 +60,8 @@ enum MapSourceIdentifier: String, CaseIterable {
   case offlineMask = "offline-mask-source"
   case offlineRegionsBorder = "offline-regions-border-source"
   case offlineHighlight = "offline-highlight-source"
+  case offlineSelection = "offline-selection-source"
+  case offlineSelectionCorners = "offline-selection-corners-source"
   case gpsAccuracy = "gps-accuracy-source"
   case savedTrack = "saved-track-source"
   case activeTrack = "active-track-source"
@@ -185,7 +190,7 @@ struct MapStyleController {
     borderColor: UIColor,
     borderWidth: Double,
     borderOpacity: Double,
-    dashPattern: [Double],
+    dashPattern: [Double]? = nil,
     in style: MLNStyle
   ) {
     let fillSource: MLNShapeSource
@@ -222,7 +227,9 @@ struct MapStyleController {
       borderLayer.lineColor = NSExpression(forConstantValue: borderColor)
       borderLayer.lineWidth = NSExpression(forConstantValue: borderWidth)
       borderLayer.lineOpacity = NSExpression(forConstantValue: borderOpacity)
-      borderLayer.lineDashPattern = NSExpression(forConstantValue: dashPattern)
+      if let dashPattern {
+        borderLayer.lineDashPattern = NSExpression(forConstantValue: dashPattern)
+      }
       insertLayer(borderLayer, identifier: borderLayerID, into: style)
     }
   }
@@ -334,6 +341,79 @@ struct MapStyleController {
 
     if let source = style.source(withIdentifier: MapSourceIdentifier.offlineHighlight.rawValue) as? MLNShapeSource {
       source.shape = MapLibreFeatureFactory.createOfflineHighlightFeature(from: region.bounds)
+    }
+  }
+
+  // MARK: - Offline Selection Zone (Active Region Selection)
+
+  /// Ensures offline selection fill, border, and corner handles sources/layers exist in the MapLibre style.
+  static func ensureOfflineSelectionLayersExist(in style: MLNStyle, theme: MarineTheme) {
+    ensureRegionLayersExist(
+      sourceID: .offlineSelection,
+      fillLayerID: .offlineSelectionFill,
+      fillColor: UIColor(theme.colors.accent),
+      fillOpacity: 0.12,
+      borderLayerID: .offlineSelectionBorder,
+      borderColor: UIColor(theme.colors.accent),
+      borderWidth: Double(MarineTheme.Metrics.borderWidth * 2.5),
+      borderOpacity: 1.0,
+      dashPattern: nil,
+      in: style
+    )
+
+    let cornersSource: MLNShapeSource
+    if let existing = style.source(withIdentifier: MapSourceIdentifier.offlineSelectionCorners.rawValue) as? MLNShapeSource {
+      cornersSource = existing
+    } else {
+      let newSource = MLNShapeSource(identifier: MapSourceIdentifier.offlineSelectionCorners.rawValue, shape: nil, options: nil)
+      style.addSource(newSource)
+      cornersSource = newSource
+    }
+
+    let cornersLayer: MLNCircleStyleLayer
+    if let existing = style.layer(withIdentifier: MapLayerIdentifier.offlineSelectionCorners.rawValue) as? MLNCircleStyleLayer {
+      cornersLayer = existing
+    } else {
+      let newLayer = MLNCircleStyleLayer(
+        identifier: MapLayerIdentifier.offlineSelectionCorners.rawValue,
+        source: cornersSource
+      )
+      insertLayer(newLayer, identifier: .offlineSelectionCorners, into: style)
+      cornersLayer = newLayer
+    }
+
+    // Dynamic Design System attributes (updated unconditionally on every pass for Glove Mode & Theme changes)
+    cornersLayer.circleRadius = NSExpression(forConstantValue: theme.isGloveMode ? 14.0 : 10.0)
+    cornersLayer.circleColor = NSExpression(forConstantValue: UIColor(theme.colors.accent))
+    cornersLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor(theme.colors.panelBackground))
+    cornersLayer.circleStrokeWidth = NSExpression(forConstantValue: MarineTheme.Metrics.borderWidth * 2.0)
+  }
+
+  /// Completely removes all offline selection layers and sources from the style stack.
+  static func removeOfflineSelectionLayers(from style: MLNStyle) {
+    removeLayersAndSources(
+      layers: [.offlineSelectionCorners, .offlineSelectionBorder, .offlineSelectionFill],
+      sources: [.offlineSelectionCorners, .offlineSelection],
+      from: style
+    )
+  }
+
+  /// Updates the active offline selection zone and corner handles on the MapLibre style.
+  /// If bounds is nil, cleanly removes all selection layers and sources.
+  static func updateOfflineSelection(bounds: GeographicBoundingBox?, in style: MLNStyle, theme: MarineTheme) {
+    guard let bounds else {
+      removeOfflineSelectionLayers(from: style)
+      return
+    }
+
+    ensureOfflineSelectionLayersExist(in: style, theme: theme)
+
+    if let source = style.source(withIdentifier: MapSourceIdentifier.offlineSelection.rawValue) as? MLNShapeSource {
+      source.shape = MapLibreFeatureFactory.createOfflineSelectionFeature(from: bounds)
+    }
+
+    if let cornerSource = style.source(withIdentifier: MapSourceIdentifier.offlineSelectionCorners.rawValue) as? MLNShapeSource {
+      cornerSource.shape = MapLibreFeatureFactory.createOfflineSelectionCornersFeature(from: bounds)
     }
   }
 

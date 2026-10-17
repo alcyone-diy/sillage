@@ -1751,6 +1751,33 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertTrue(mockDownloader.deletedIDs.contains(oldChartID), "When resuming under constrained disk space, retained old chart must be deleted immediately")
     XCTAssertNil(prefs.pendingCAASDownloads.first?.replacesChartID, "Pending download's replacesChartID must be cleared once old chart is deleted")
   }
+
+  func testStartNewSelection_withoutExplicitBounds_leavesSelectedBoundsNilForMapToInitialize() {
+    let (sut, _, _, _, _, _, _, _) = makeSUT(setupVisibleBounds: true)
+
+    XCTAssertFalse(sut.isSelectionModeActive)
+    XCTAssertNil(sut.selectedBounds)
+
+    sut.startNewSelection()
+
+    XCTAssertTrue(sut.isSelectionModeActive)
+    XCTAssertNil(sut.selectedBounds, "selectedBounds is left nil so MapLibreView can calculate screen-accurate default bounds")
+    XCTAssertNil(sut.estimatedArea)
+    XCTAssertFalse(sut.isValidSize)
+  }
+
+  func testStartNewSelection_withExplicitBounds_setsProvidedBounds() {
+    let (sut, _, _, _, _, _, _, _) = makeSUT(setupVisibleBounds: true)
+    let explicit = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 43.0, longitude: 5.0),
+      northEast: CLLocationCoordinate2D(latitude: 44.0, longitude: 6.0)
+    )
+
+    sut.startNewSelection(initialBounds: explicit)
+
+    XCTAssertTrue(sut.isSelectionModeActive)
+    XCTAssertEqual(sut.selectedBounds, explicit)
+  }
 }
 
 

@@ -282,4 +282,41 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     XCTAssertEqual(feature1?.attributes["isCalloutTarget"] as? Bool, false)
     XCTAssertEqual(feature2?.attributes["isCalloutTarget"] as? Bool, true)
   }
+
+  // MARK: - Offline Selection Tests
+
+  func testCreateOfflineSelectionFeature_createsPolygonFeature() {
+    let bounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      northEast: CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0)
+    )
+
+    let shape = MapLibreFeatureFactory.createOfflineSelectionFeature(from: bounds)
+    XCTAssertNotNil(shape)
+    guard let polygon = shape as? MLNPolygonFeature else {
+      XCTFail("Expected MLNPolygonFeature for offline selection")
+      return
+    }
+    XCTAssertEqual(polygon.pointCount, 5)
+    XCTAssertEqual(polygon.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineSelection.rawValue)
+  }
+
+  func testCreateOfflineSelectionCornersFeature_creates4PointFeatures() {
+    let bounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      northEast: CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0)
+    )
+
+    let shape = MapLibreFeatureFactory.createOfflineSelectionCornersFeature(from: bounds)
+    XCTAssertNotNil(shape)
+    guard let collection = shape as? MLNShapeCollectionFeature,
+          let points = collection.shapes as? [MLNPointFeature] else {
+      XCTFail("Expected MLNShapeCollectionFeature with MLNPointFeatures for corners")
+      return
+    }
+    XCTAssertEqual(points.count, 4)
+    for point in points {
+      XCTAssertEqual(point.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineSelectionCorners.rawValue)
+    }
+  }
 }

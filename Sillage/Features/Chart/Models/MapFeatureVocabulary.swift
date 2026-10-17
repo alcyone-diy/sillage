@@ -35,4 +35,6 @@ enum MapFeatureType: String {
   case offlineMask = "offlineMask"
   case offlineRegionsBorder = "offlineRegionsBorder"
   case offlineHighlight = "offlineHighlight"
+  case offlineSelection = "offlineSelection"
+  case offlineSelectionCorners = "offlineSelectionCorners"
 }
