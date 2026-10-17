@@ -339,7 +339,7 @@ struct MapCalloutView: View {
     VStack(spacing: MarineTheme.Spacing.small) {
       // 1. Primary Action Button (Prominent)
       Button {
-        Task { @MainActor [weak waypointService, weak calloutViewModel] in
+        Task { @MainActor [weak waypointService = waypointService, weak calloutViewModel = calloutViewModel] in
           guard let waypointService, let calloutViewModel else { return }
           if isSelected {
             Logger.navigation.info("Deselecting destination waypoint ID: \(waypointID, privacy: .public)")
@@ -363,7 +363,7 @@ struct MapCalloutView: View {
       // 2. Secondary Actions Row (Horizontal side-by-side)
       HStack(spacing: MarineTheme.Spacing.small) {
         Button {
-          Task { @MainActor [weak panelManager, weak calloutViewModel] in
+          Task { @MainActor [weak panelManager = panelManager, weak calloutViewModel = calloutViewModel] in
             guard let panelManager, let calloutViewModel else { return }
             Logger.navigation.info("Opening waypoint detail for ID: \(waypointID, privacy: .public)")
             panelManager.commandPath = [.waypoints, .waypointDetail(waypointID)]
@@ -400,7 +400,7 @@ struct MapCalloutView: View {
       // 1. Primary Action Button (Prominent)
       Button {
         guard let targetCoord = calloutViewModel.targetCoordinate else { return }
-        Task { @MainActor [weak waypointService, weak appViewModel, weak calloutViewModel] in
+        Task { @MainActor [weak waypointService = waypointService, weak appViewModel = appViewModel, weak calloutViewModel = calloutViewModel] in
           guard let appViewModel, let calloutViewModel else { return }
           var defaultName: String? = nil
           if let service = waypointService {
@@ -436,7 +436,7 @@ struct MapCalloutView: View {
         
         if hasActiveTarget {
           Button {
-            Task { @MainActor [weak waypointService, weak calloutViewModel] in
+            Task { @MainActor [weak waypointService = waypointService, weak calloutViewModel = calloutViewModel] in
               guard let waypointService, let calloutViewModel else { return }
               Logger.navigation.info("Deselecting active target from map callout")
               waypointService.setDestination(waypointID: nil)

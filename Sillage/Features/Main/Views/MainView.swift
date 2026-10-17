@@ -122,7 +122,7 @@ struct ContentView: View {
                 if let gate = panelManagerViewModel.executeOrRequestPermission(
                     type: .location(trigger: .mapTracking),
                     in: permissionService,
-                    action: { [weak chartViewModel] in
+                    action: { [weak chartViewModel = chartViewModel] in
                         chartViewModel?.toggleTrackingMode()
                     }
                 ) {

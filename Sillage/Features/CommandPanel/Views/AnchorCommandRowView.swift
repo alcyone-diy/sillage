@@ -43,7 +43,7 @@ struct AnchorCommandRowView: View {
       if let gate = panelViewModel.executeOrRequestPermission(
         type: .location(trigger: .anchorAlarm),
         in: permissionService,
-        action: { [weak panelViewModel] in
+        action: { [weak panelViewModel = panelViewModel] in
           panelViewModel?.commandPath.append(.anchorAlarm)
         }
       ) {

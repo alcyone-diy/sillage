@@ -86,7 +86,7 @@ public final class BarometricService {
     
     withObservationTracking {
       _ = preferencesService.isBaroAlarmEnabled
-    } onChange: {
+    } onChange: { [weak self] in
       Task { @MainActor [weak self] in
         guard let self else { return }
         // The recursive call will handle the initial check again when re-arming

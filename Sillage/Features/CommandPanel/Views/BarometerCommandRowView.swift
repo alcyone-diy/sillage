@@ -41,7 +41,7 @@ struct BarometerCommandRowView: View {
       if let gate = panelViewModel.executeOrRequestPermission(
         type: .motion,
         in: permissionService,
-        action: { [weak panelViewModel] in
+        action: { [weak panelViewModel = panelViewModel] in
           panelViewModel?.commandPath.append(.baroAlarm)
         }
       ) {

@@ -10,7 +10,7 @@
 
 import Foundation
 import UIKit
-import MapLibre
+@preconcurrency import MapLibre
 import OSLog
 import os
 import Observation

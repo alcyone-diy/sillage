@@ -113,7 +113,7 @@ final class AppEnvironment {
       func observeCOGDampingDuration() {
         withObservationTracking {
           _ = developerSettingsService.cogDampingDuration
-        } onChange: {
+        } onChange: { [weak instrumentDampingService, weak developerSettingsService] in
           Task { @MainActor [weak instrumentDampingService, weak developerSettingsService] in
             guard let instrument = instrumentDampingService, let settings = developerSettingsService else { return }
             instrument.cogDampingDuration = settings.cogDampingDuration
@@ -159,10 +159,10 @@ final class AppEnvironment {
       func observeWaypointGoTo() {
         withObservationTracking {
           _ = waypointService.goToWaypointID
-        } onChange: {
+        } onChange: { [weak waypointService, weak preferencesService] in
           Task { @MainActor [weak waypointService, weak preferencesService] in
-            guard let service = waypointService else { return }
-            preferencesService?.goToWaypointID = service.goToWaypointID
+            guard let service = waypointService, let preferences = preferencesService else { return }
+            preferences.goToWaypointID = service.goToWaypointID
             observeWaypointGoTo()
           }
         }
@@ -185,24 +185,35 @@ final class AppEnvironment {
         tileProxyManager: TileProxyManager.shared
       )
 
-      // Empty until the user signs in; `reloadDownloads` then skips it with a warning.
-      let sharedSecret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount) ?? ""
-      let initialCustomerID = preferencesService.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
-      await geoGarageOfflineTileProvider.reloadDownloads(
-        geoGarageDownloadRepository.downloads,
-        sharedSecret: sharedSecret,
-        customerID: initialCustomerID
-      )
+      // Empty until the user signs in; skip tile loading until a valid secret is present.
+      if let sharedSecret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount),
+         !sharedSecret.isEmpty {
+        let initialCustomerID = preferencesService.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
+        await geoGarageOfflineTileProvider.reloadDownloads(
+          geoGarageDownloadRepository.downloads,
+          sharedSecret: sharedSecret,
+          customerID: initialCustomerID
+        )
+      } else {
+        await geoGarageOfflineTileProvider.close()
+      }
 
       func observeGeoGarageDownloads() {
         withObservationTracking {
           _ = geoGarageDownloadRepository.downloads
           _ = preferencesService.geoGarageCustomerID
-        } onChange: {
+        } onChange: { [weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider, weak preferencesService] in
           Task { @MainActor [weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider, weak preferencesService] in
-            guard let repo = geoGarageDownloadRepository, let provider = geoGarageOfflineTileProvider else { return }
-            let secret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount) ?? ""
-            let client = preferencesService?.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
+            guard let repo = geoGarageDownloadRepository,
+                  let provider = geoGarageOfflineTileProvider,
+                  let preferences = preferencesService else { return }
+            guard let secret = await KeychainManager.shared.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount),
+                  !secret.isEmpty else {
+              await provider.close()
+              observeGeoGarageDownloads()
+              return
+            }
+            let client = preferences.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
             await provider.reloadDownloads(repo.downloads, sharedSecret: secret, customerID: client)
             observeGeoGarageDownloads()
           }
