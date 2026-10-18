@@ -29,8 +29,8 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   private var service: GeoGarageAuthService!
   private var presenter: MockGeoGarageAuthorizationPresenter!
   private var preferencesService: PreferencesService!
+  private var dbManager: DatabaseManager!
   private var layerRepository: GeoGarageLayerRepository!
-  private var cacheURL: URL!
   private var mockKeychain: MockKeychainManager!
   private var isolatedDefaults: IsolatedUserDefaults!
 
@@ -39,11 +39,11 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     MockURLProtocol.reset()
     session = MockURLProtocol.makeMockSession()
     mockKeychain = MockKeychainManager()
-    cacheURL = FileManager.default.temporaryDirectory.appendingPathComponent("layers-\(UUID().uuidString).json")
+    dbManager = try DatabaseManager.inMemory()
     isolatedDefaults = IsolatedUserDefaults(prefix: "test-auth")
     preferencesService = PreferencesService(defaults: isolatedDefaults.defaults)
     preferencesService.clearAll()
-    layerRepository = GeoGarageLayerRepository(cacheFileURL: cacheURL)
+    layerRepository = GeoGarageLayerRepository(databaseManager: dbManager)
     service = GeoGarageAuthService(
       preferencesService: preferencesService,
       layerRepository: layerRepository,
@@ -54,19 +54,16 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   }
 
   override func tearDown() async throws {
-    if let cacheURL, FileManager.default.fileExists(atPath: cacheURL.path) {
-      try? FileManager.default.removeItem(at: cacheURL)
-    }
     preferencesService?.clearAll()
     isolatedDefaults?.tearDown()
     isolatedDefaults = nil
     MockURLProtocol.reset()
     service = nil
     session = nil
+    layerRepository = nil
+    dbManager = nil
     presenter = nil
     preferencesService = nil
-    layerRepository = nil
-    cacheURL = nil
     mockKeychain = nil
     try await super.tearDown()
   }

@@ -492,6 +492,17 @@ public final class DatabaseManager: Sendable {
       }
     }
 
+    // v11: GeoGarage layer permissions table and index
+    migrator.registerMigration("v11") { db in
+      try db.create(table: "geogarage_layer") { t in
+        t.column("layer", .text).primaryKey()
+        t.column("brand_name", .text).notNull()
+        t.column("version_date", .text).notNull()
+        t.column("valid_until", .text).notNull()
+      }
+      try db.create(index: "idx_geogarage_layer_brand_name", on: "geogarage_layer", columns: ["brand_name"])
+    }
+
     return migrator
   }
 }

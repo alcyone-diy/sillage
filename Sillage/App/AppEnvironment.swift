@@ -33,6 +33,7 @@ final class AppEnvironment {
     let trackService: TrackService
     let waypointService: WaypointService
     let geoGarageAuthService: GeoGarageAuthService
+    let geoGarageLayerRepository: GeoGarageLayerRepository
     let geoGarageDownloadRepository: GeoGarageDownloadRepository
     let geoGaragePackageService: GeoGaragePackageService
     let geoGarageChartDownloader: GeoGarageChartDownloader
@@ -191,7 +192,13 @@ final class AppEnvironment {
       let checklistService = ChecklistService(databaseManager: databaseManager, userDefaults: self.userDefaults)
       try await checklistService.seedDefaultTemplatesIfNeeded()
 
-      let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService, keychainManager: keychainManager, session: authSession)
+      let geoGarageLayerRepository = GeoGarageLayerRepository(databaseManager: databaseManager)
+      let geoGarageAuthService = GeoGarageAuthService(
+        preferencesService: preferencesService,
+        layerRepository: geoGarageLayerRepository,
+        keychainManager: keychainManager,
+        session: authSession
+      )
       await geoGarageAuthService.bootstrap()
 
 
@@ -338,6 +345,7 @@ final class AppEnvironment {
         trackService: trackService,
         waypointService: waypointService,
         geoGarageAuthService: geoGarageAuthService,
+        geoGarageLayerRepository: geoGarageLayerRepository,
         geoGarageDownloadRepository: geoGarageDownloadRepository,
         geoGaragePackageService: geoGaragePackageService,
         geoGarageChartDownloader: geoGarageChartDownloader,
@@ -511,6 +519,11 @@ final class AppEnvironment {
   var geoGarageDownloadRepository: GeoGarageDownloadRepository? {
     guard case .ready(let container) = state else { return nil }
     return container.geoGarageDownloadRepository
+  }
+
+  var geoGarageLayerRepository: GeoGarageLayerRepository? {
+    guard case .ready(let container) = state else { return nil }
+    return container.geoGarageLayerRepository
   }
 
   var geoGarageOfflineTileProvider: GeoGarageOfflineTileProvider? {

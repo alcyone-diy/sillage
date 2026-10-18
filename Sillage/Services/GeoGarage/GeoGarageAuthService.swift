@@ -81,11 +81,12 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
 
   init(
     preferencesService: PreferencesServiceProtocol,
+    databaseManager: DatabaseManager,
     keychainManager: any KeychainManaging = KeychainManager.shared,
     session: URLSession = .shared
   ) {
     self.preferencesService = preferencesService
-    self.layerRepository = GeoGarageLayerRepository()
+    self.layerRepository = GeoGarageLayerRepository(databaseManager: databaseManager)
     self.keychainManager = keychainManager
     self.session = session
   }

@@ -309,6 +309,29 @@ final class DatabaseManagerTests {
     }
   }
 
+  @Test("Database schema creates geogarage_layer table and brand_name index")
+  func testDatabaseSchema_createsGeoGarageLayerTableAndIndex() async throws {
+    let queue = try DatabaseQueue()
+    try DatabaseManager.migrator.migrate(queue)
+
+    try await queue.read { db in
+      #expect(try db.tableExists(GeoGarageLayerRecord.databaseTableName))
+
+      let columns = try db.columns(in: GeoGarageLayerRecord.databaseTableName).map(\.name)
+      #expect(columns.contains("layer"))
+      #expect(columns.contains("brand_name"))
+      #expect(columns.contains("version_date"))
+      #expect(columns.contains("valid_until"))
+
+      let primaryKey = try db.primaryKey(GeoGarageLayerRecord.databaseTableName)
+      #expect(primaryKey.columns == ["layer"])
+
+      let indexes = try db.indexes(on: GeoGarageLayerRecord.databaseTableName)
+      let indexNames = Set(indexes.map(\.name))
+      #expect(indexNames.contains("idx_geogarage_layer_brand_name"))
+    }
+  }
+
   @Test("fetchLastDownloadDate aggregates MAX timestamp in O(1) and uses index")
   func testFetchLastDownloadDate_aggregatesMaxAndUsesIndex() async throws {
     let id1 = UUID().uuidString

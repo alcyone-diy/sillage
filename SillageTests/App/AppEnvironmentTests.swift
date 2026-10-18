@@ -99,6 +99,30 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertNotNil(environment.geoGaragePackageService)
     XCTAssertNotNil(environment.geoGarageChartDownloader)
     XCTAssertNotNil(environment.geoGarageOfflineTileProvider)
+    XCTAssertNotNil(environment.geoGarageLayerRepository)
+  }
+
+  func testBootstrap_executesLifecycleWithInMemoryDatabaseWithoutResidualCachesFile() async {
+    let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+    let legacyCacheFile = cachesDir?.appendingPathComponent("geogarage_layers.json")
+
+    if let path = legacyCacheFile?.path, FileManager.default.fileExists(atPath: path) {
+      try? FileManager.default.removeItem(atPath: path)
+    }
+
+    await environment.bootstrap()
+
+    if case .ready = environment.state {
+      // Expected
+    } else {
+      XCTFail("State should be ready after bootstrap")
+    }
+
+    XCTAssertNotNil(environment.geoGarageLayerRepository)
+
+    if let path = legacyCacheFile?.path {
+      XCTAssertFalse(FileManager.default.fileExists(atPath: path), "No geogarage_layers.json file should be written to Library/Caches during bootstrap.")
+    }
   }
 
   func testBootstrap_triggersPendingDownloadRecoveryOnOfflineSelectionViewModel() async {
