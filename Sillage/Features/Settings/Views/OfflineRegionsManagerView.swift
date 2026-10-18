@@ -39,41 +39,35 @@ struct OfflineRegionsManagerView: View {
         ContentUnavailableView {
           Label("No Offline Charts", systemImage: "map.slash")
         } description: {
-          if chartViewModel.showOfflineAreaWarning {
+          switch chartViewModel.offlineAreaWarningReason {
+          case .unauthenticated:
+            Text("⚠️ Sign in to GeoGarage to download offline charts.")
+          case .nonGeoGarageChartActive:
             Text("⚠️ Offline maps require GeoGarage. Switch to GeoGarage in Chart Preferences to download offline charts.")
-          } else {
+          case .none:
             Text("Tap '+' to select an area on the chart to download.")
           }
         } actions: {
-          if chartViewModel.showOfflineAreaWarning {
+          switch chartViewModel.offlineAreaWarningReason {
+          case .unauthenticated:
+            NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin(context: .initialSetup)) {
+              Text("Sign in to GeoGarage")
+            }
+            .buttonStyle(.borderedProminent)
+          case .nonGeoGarageChartActive:
             NavigationLink(value: PanelManagerViewModel.CommandDestination.chartPreferences) {
               Text("Chart Preferences")
             }
             .buttonStyle(.borderedProminent)
+          case .none:
+            EmptyView()
           }
         }
       } else {
         List {
-          if chartViewModel.showOfflineAreaWarning {
+          if let warningReason = chartViewModel.offlineAreaWarningReason {
             Section {
-              NavigationLink(value: PanelManagerViewModel.CommandDestination.chartPreferences) {
-                HStack(alignment: .top, spacing: 12) {
-                  Text("⚠️")
-                    .font(.title2)
-
-                  VStack(alignment: .leading, spacing: 4) {
-                    Text("GeoGarage Required")
-                      .marineFont(.headline)
-                      .foregroundStyle(.primary)
-
-                    Text("Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences.")
-                      .marineFont(.subheadline)
-                      .foregroundStyle(.secondary)
-                      .fixedSize(horizontal: false, vertical: true)
-                  }
-                }
-              }
-              .marineListCell()
+              OfflineAreaWarningBannerView(reason: warningReason)
             }
           }
 
@@ -209,6 +203,58 @@ struct OfflineRegionsManagerView: View {
 }
 
 // MARK: - Subviews
+
+private struct OfflineAreaWarningBannerView: View {
+  let reason: ChartViewModel.OfflineAreaWarningReason
+
+  private var destination: PanelManagerViewModel.CommandDestination {
+    switch reason {
+    case .unauthenticated:
+      return .geoGarageLogin(context: .reauthentication)
+    case .nonGeoGarageChartActive:
+      return .chartPreferences
+    }
+  }
+
+  private var title: LocalizedStringKey {
+    switch reason {
+    case .unauthenticated:
+      return "GeoGarage Sign-In Required"
+    case .nonGeoGarageChartActive:
+      return "GeoGarage Required"
+    }
+  }
+
+  private var subtitle: LocalizedStringKey {
+    switch reason {
+    case .unauthenticated:
+      return "Sign in to your GeoGarage account to download new offline charts."
+    case .nonGeoGarageChartActive:
+      return "Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences."
+    }
+  }
+
+  var body: some View {
+    NavigationLink(value: destination) {
+      HStack(alignment: .top, spacing: 12) {
+        Text("⚠️")
+          .marineFont(.title2)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text(title)
+            .marineFont(.headline)
+            .foregroundStyle(.primary)
+
+          Text(subtitle)
+            .marineFont(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .marineListCell()
+  }
+}
 
 private struct OfflineRegionsHeaderView: View {
   @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel

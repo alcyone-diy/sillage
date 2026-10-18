@@ -136,6 +136,9 @@
     "⚠️ Offline maps require GeoGarage. Switch to GeoGarage in Chart Preferences to download offline charts." : {
 
     },
+    "⚠️ Sign in to GeoGarage to download offline charts." : {
+
+    },
     "🔇 Silence" : {
 
     },
@@ -737,6 +740,9 @@
     "GeoGarage sign-in failed (%@). Please try again." : {
 
     },
+    "GeoGarage Sign-In Required" : {
+
+    },
     "GeoGarage sign-in was refused. Please try again and allow Sillage to access your account." : {
 
     },
@@ -1242,6 +1248,12 @@
 
     },
     "Sign in on accounts.geogarage.com to stream and download your GeoGarage charts. Sillage never sees your password." : {
+
+    },
+    "Sign in to GeoGarage" : {
+
+    },
+    "Sign in to your GeoGarage account to download new offline charts." : {
 
     },
     "Sign in with GeoGarage" : {

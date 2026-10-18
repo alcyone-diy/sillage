@@ -86,15 +86,31 @@ final class ChartViewModel {
   
   // MARK: - Offline Area State
   
-  var isOfflineAreaEnabled: Bool {
-    if case .remoteGeoGarage = currentChartSource {
-      return true
+  /// The underlying cause preventing offline region selection or package downloading.
+  enum OfflineAreaWarningReason: Equatable, Sendable {
+    case unauthenticated
+    case nonGeoGarageChartActive
+  }
+
+  /// Returns the specific reason why offline chart operations are currently disabled, or `nil` if enabled.
+  var offlineAreaWarningReason: OfflineAreaWarningReason? {
+    if !isGeoGarageAuthenticated {
+      return .unauthenticated
     }
-    return false
+    if case .remoteGeoGarage = currentChartSource {
+      return nil
+    }
+    return .nonGeoGarageChartActive
+  }
+
+  /// Indicates whether offline area selection and downloads are currently permitted.
+  /// Requires both an authenticated GeoGarage session and an active GeoGarage chart layer.
+  var isOfflineAreaEnabled: Bool {
+    offlineAreaWarningReason == nil
   }
   
   var showOfflineAreaWarning: Bool {
-    return !isOfflineAreaEnabled
+    offlineAreaWarningReason != nil
   }
 
   /// Returns the identifier of the active GeoGarage layer if one is currently selected.

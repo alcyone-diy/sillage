@@ -1786,6 +1786,59 @@ final class ChartViewModelTests: XCTestCase {
 
     XCTAssertEqual(viewModel.currentChartSource, .remoteGeoGarage(clientID: "test_client", layerID: "shom"), "Active GeoGarage chart must never be crushed when auth is lost, preserving offline chart visibility")
   }
+
+  @MainActor
+  func testIsOfflineAreaEnabled_whenAuthenticatedAndGeoGarageActive_returnsTrue() {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = true
+    let viewModel = makeSUT(authService: mockAuthService)
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+
+    XCTAssertTrue(viewModel.isOfflineAreaEnabled)
+    XCTAssertFalse(viewModel.showOfflineAreaWarning)
+    XCTAssertNil(viewModel.offlineAreaWarningReason)
+  }
+
+  @MainActor
+  func testIsOfflineAreaEnabled_whenUnauthenticatedAndGeoGarageActive_returnsFalse() {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = false
+    let viewModel = makeSUT(authService: mockAuthService)
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+
+    XCTAssertFalse(viewModel.isOfflineAreaEnabled, "Offline area must be disabled when unauthenticated even if GeoGarage chart is active")
+    XCTAssertTrue(viewModel.showOfflineAreaWarning)
+    XCTAssertEqual(viewModel.offlineAreaWarningReason, .unauthenticated)
+  }
+
+  @MainActor
+  func testIsOfflineAreaEnabled_whenAuthenticatedAndNonGeoGarageActive_returnsFalse() {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = true
+    let viewModel = makeSUT(authService: mockAuthService)
+
+    viewModel.switchChartSource(to: .openSeaMap)
+
+    XCTAssertFalse(viewModel.isOfflineAreaEnabled)
+    XCTAssertTrue(viewModel.showOfflineAreaWarning)
+    XCTAssertEqual(viewModel.offlineAreaWarningReason, .nonGeoGarageChartActive)
+  }
+
+  @MainActor
+  func testIsOfflineAreaEnabled_whenUnauthenticatedAndNonGeoGarageActive_returnsFalseWithUnauthenticatedReason() {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = false
+    let viewModel = makeSUT(authService: mockAuthService)
+
+    viewModel.switchChartSource(to: .openSeaMap)
+
+    XCTAssertFalse(viewModel.isOfflineAreaEnabled)
+    XCTAssertTrue(viewModel.showOfflineAreaWarning)
+    XCTAssertEqual(viewModel.offlineAreaWarningReason, .unauthenticated, "Unauthenticated reason has precedence over chart source reason")
+  }
 }
+
 
 
