@@ -1719,7 +1719,8 @@ final class ChartViewModelTests: XCTestCase {
   @MainActor
   private func makeSUT(
     preferencesService: PreferencesServiceProtocol? = nil,
-    authService: GeoGarageAuthServiceProtocol? = nil
+    authService: GeoGarageAuthServiceProtocol? = nil,
+    messageService: MessageService? = nil
   ) -> ChartViewModel {
     let prefs = preferencesService ?? PreferencesService()
     let auth = authService ?? MockGeoGarageAuthService()
@@ -1736,7 +1737,8 @@ final class ChartViewModelTests: XCTestCase {
       preferencesService: prefs,
       authService: auth,
       anchorService: anchorService,
-      anchorViewModel: anchorViewModel
+      anchorViewModel: anchorViewModel,
+      messageService: messageService
     )
   }
 
@@ -1837,6 +1839,102 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isOfflineAreaEnabled)
     XCTAssertTrue(viewModel.showOfflineAreaWarning)
     XCTAssertEqual(viewModel.offlineAreaWarningReason, .unauthenticated, "Unauthenticated reason has precedence over chart source reason")
+  }
+
+  // MARK: - Unauthenticated GeoGarage Chart Warning Tests
+
+  @MainActor
+  func testSwitchChartSourceToGeoGarage_whenUnauthenticated_postsSignRequiredWarningMessage() {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = false
+    let messageService = MessageService()
+    let viewModel = makeSUT(authService: mockAuthService, messageService: messageService)
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+
+    XCTAssertEqual(messageService.messages.count, 1)
+    let message = messageService.messages.first
+    XCTAssertEqual(message?.id, ChartViewModel.unauthenticatedGeoGarageChartMessageID)
+    XCTAssertEqual(message?.category, .geoGarage)
+    XCTAssertEqual(message?.severity, .warning)
+    XCTAssertEqual(message?.intent, .openSettings(target: .geoGarage))
+    XCTAssertTrue(message?.isDismissable == true)
+  }
+
+  @MainActor
+  func testSwitchChartSourceToGeoGarage_whenAuthenticated_doesNotPostWarningMessage() {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = true
+    let messageService = MessageService()
+    let viewModel = makeSUT(authService: mockAuthService, messageService: messageService)
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+
+    XCTAssertTrue(messageService.messages.isEmpty)
+  }
+
+  @MainActor
+  func testSwitchChartSourceAwayFromGeoGarage_clearsSignRequiredWarningMessage() {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = false
+    let messageService = MessageService()
+    let viewModel = makeSUT(authService: mockAuthService, messageService: messageService)
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+    XCTAssertEqual(messageService.messages.count, 1)
+
+    viewModel.switchChartSource(to: .openSeaMap)
+    XCTAssertTrue(messageService.messages.isEmpty)
+  }
+
+  @MainActor
+  func testAuthStateChangeToUnauthenticated_whenGeoGarageActive_postsWarningMessage() async throws {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = true
+    let messageService = MessageService()
+    let viewModel = makeSUT(authService: mockAuthService, messageService: messageService)
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+    XCTAssertTrue(messageService.messages.isEmpty)
+
+    // Simulate session loss
+    mockAuthService.isGeoGarageAuthenticated = false
+    try await Task.sleep(for: .milliseconds(50))
+
+    XCTAssertEqual(messageService.messages.count, 1)
+    XCTAssertEqual(messageService.messages.first?.id, ChartViewModel.unauthenticatedGeoGarageChartMessageID)
+  }
+
+  @MainActor
+  func testAuthStateChangeToAuthenticated_whenGeoGarageActive_clearsWarningMessage() async throws {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = false
+    let messageService = MessageService()
+    let viewModel = makeSUT(authService: mockAuthService, messageService: messageService)
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+    XCTAssertEqual(messageService.messages.count, 1)
+
+    // Simulate sign-in
+    mockAuthService.isGeoGarageAuthenticated = true
+    try await Task.sleep(for: .milliseconds(50))
+
+    XCTAssertTrue(messageService.messages.isEmpty)
+  }
+
+  @MainActor
+  func testUpdateUnauthenticatedGeoGarageWarning_whenAlreadyPosted_doesNotReinsertOrDuplicate() {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = false
+    let messageService = MessageService()
+    let viewModel = makeSUT(authService: mockAuthService, messageService: messageService)
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+    XCTAssertEqual(messageService.messages.count, 1)
+
+    // Call again to simulate redundant observation or layout trigger
+    viewModel.updateUnauthenticatedGeoGarageWarning()
+    XCTAssertEqual(messageService.messages.count, 1, "Must not duplicate or re-insert message when already present")
   }
 }
 

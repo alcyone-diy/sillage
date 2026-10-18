@@ -438,16 +438,19 @@ final class ChartViewModel {
     func observeLayers() {
       withObservationTracking {
         _ = authService.availableLayers
+        _ = authService.isGeoGarageAuthenticated
       } onChange: { [weak self] in
         Task { @MainActor [weak self] in
           guard let self = self else { return }
           self.updateAvailableGeoGarageLayers()
+          self.updateUnauthenticatedGeoGarageWarning()
           observeLayers()
         }
       }
     }
 
     updateAvailableGeoGarageLayers()
+    updateUnauthenticatedGeoGarageWarning()
     observeLayers()
   }
 
@@ -801,6 +804,39 @@ final class ChartViewModel {
     )
     self.messageService?.post(appMessage)
   }
+
+  static let unauthenticatedGeoGarageChartMessageID: UUID = {
+    if let id = UUID(uuidString: "73B1516A-C648-4C9D-9F6F-E8D56A633F2E") {
+      return id
+    }
+    return UUID()
+  }()
+
+  /// Evaluates whether the currently active chart is a remote GeoGarage chart while the user is unauthenticated.
+  /// If so, posts a warning message to guide the user to sign in or choose another chart source.
+  /// When authenticated or when using another chart source, removes the warning.
+  func updateUnauthenticatedGeoGarageWarning() {
+    guard let messageService else { return }
+
+    if case .remoteGeoGarage = currentChartSource, !isGeoGarageAuthenticated {
+      // Prevent redundant message re-posting and carousel churn if the warning is already displayed
+      if messageService.messages.contains(where: { $0.id == Self.unauthenticatedGeoGarageChartMessageID }) {
+        return
+      }
+      let message = AppMessage(
+        id: Self.unauthenticatedGeoGarageChartMessageID,
+        title: LocalizedStringResource("GeoGarage Sign-In Required"),
+        detail: LocalizedStringResource("Sign in to your GeoGarage account to display online marine charts, or switch to OpenSeaMap in Chart Preferences."),
+        severity: .warning,
+        category: .geoGarage,
+        intent: .openSettings(target: .geoGarage),
+        isDismissable: true
+      )
+      messageService.post(message)
+    } else {
+      messageService.removeMessage(id: Self.unauthenticatedGeoGarageChartMessageID)
+    }
+  }
   
   // MARK: - Anchor Observation
   
@@ -1040,6 +1076,8 @@ final class ChartViewModel {
       resetToDefaultsIfNeeded(defaultZoom: 10.0, defaultCenter: instrumentDampingService.state?.coordinate)
       self.isOpenSeaMapOverlayEnabled = true
     }
+
+    updateUnauthenticatedGeoGarageWarning()
   }
   
   /// Applies default chart position settings only if the user hasn't previously saved a camera state.
