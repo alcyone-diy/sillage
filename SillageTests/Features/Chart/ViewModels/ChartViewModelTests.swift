@@ -1713,6 +1713,79 @@ final class ChartViewModelTests: XCTestCase {
 
     XCTAssertEqual(distance.converted(to: .meters).value, expectedDistanceMeters, accuracy: 10.0)
   }
+
+  // MARK: - Test Factory Helpers
+
+  @MainActor
+  private func makeSUT(
+    preferencesService: PreferencesServiceProtocol? = nil,
+    authService: GeoGarageAuthServiceProtocol? = nil
+  ) -> ChartViewModel {
+    let prefs = preferencesService ?? PreferencesService()
+    let auth = authService ?? MockGeoGarageAuthService()
+    let positioningService = MockPositioningService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: prefs, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    return ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: prefs,
+      authService: auth,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+  }
+
+  @MainActor
+  func testLoadSavedChartSource_whenGeoGarage_restoresSavedSourceEvenIfUnauthenticatedForOfflineAccess() {
+    let preferencesService = PreferencesService()
+    defer {
+      preferencesService.savedChartSource = nil
+      preferencesService.savedGeoGarageLayerID = nil
+    }
+
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = false
+    preferencesService.savedChartSource = "remoteGeoGarage"
+    preferencesService.savedGeoGarageLayerID = "shom"
+
+    let viewModel = makeSUT(
+      preferencesService: preferencesService,
+      authService: mockAuthService
+    )
+
+    XCTAssertEqual(viewModel.currentChartSource, .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: "shom"), "Saved GeoGarage chart source must be restored so offline packages can be displayed even when unauthenticated")
+  }
+
+  @MainActor
+  func testAuthStateChange_whenGeoGarageActiveAndAuthLost_preservesActiveChartSource() async throws {
+    let preferencesService = PreferencesService()
+    defer {
+      preferencesService.savedChartSource = nil
+      preferencesService.savedGeoGarageLayerID = nil
+    }
+
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageAuthenticated = true
+
+    let viewModel = makeSUT(
+      preferencesService: preferencesService,
+      authService: mockAuthService
+    )
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+    XCTAssertEqual(viewModel.currentChartSource, .remoteGeoGarage(clientID: "test_client", layerID: "shom"))
+
+    // Simulate session loss
+    mockAuthService.isGeoGarageAuthenticated = false
+    try await Task.sleep(for: .milliseconds(50))
+
+    XCTAssertEqual(viewModel.currentChartSource, .remoteGeoGarage(clientID: "test_client", layerID: "shom"), "Active GeoGarage chart must never be crushed when auth is lost, preserving offline chart visibility")
+  }
 }
 
 

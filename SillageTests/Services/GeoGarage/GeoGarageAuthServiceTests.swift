@@ -28,15 +28,20 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   private var session: URLSession!
   private var service: GeoGarageAuthService!
   private var presenter: MockGeoGarageAuthorizationPresenter!
+  private var preferencesService: PreferencesService!
+  private var layerRepository: GeoGarageLayerRepository!
+  private var cacheURL: URL!
 
   override func setUp() async throws {
     try await super.setUp()
     MockURLProtocol.reset()
     session = MockURLProtocol.makeMockSession()
-    let cacheURL = FileManager.default.temporaryDirectory.appendingPathComponent("layers-\(UUID().uuidString).json")
+    cacheURL = FileManager.default.temporaryDirectory.appendingPathComponent("layers-\(UUID().uuidString).json")
+    preferencesService = PreferencesService()
+    layerRepository = GeoGarageLayerRepository(cacheFileURL: cacheURL)
     service = GeoGarageAuthService(
-      preferencesService: PreferencesService(),
-      layerRepository: GeoGarageLayerRepository(cacheFileURL: cacheURL),
+      preferencesService: preferencesService,
+      layerRepository: layerRepository,
       session: session
     )
     presenter = MockGeoGarageAuthorizationPresenter()
@@ -49,10 +54,18 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     await KeychainManager.shared.deleteToken(for: "geogarage_access_token")
     await KeychainManager.shared.deleteToken(for: "geogarage_refresh_token")
     await KeychainManager.shared.deleteToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    preferencesService?.geoGarageCustomerID = nil
+    preferencesService?.geoGarageUsername = nil
+    if let cacheURL, FileManager.default.fileExists(atPath: cacheURL.path) {
+      try? FileManager.default.removeItem(at: cacheURL)
+    }
     MockURLProtocol.reset()
     service = nil
     session = nil
     presenter = nil
+    preferencesService = nil
+    layerRepository = nil
+    cacheURL = nil
     try await super.tearDown()
   }
 
@@ -478,4 +491,58 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     XCTAssertEqual(service.accountManagementURL, URL(string: "https://accounts.geogarage.com/"))
     XCTAssertEqual(service.createAccountURL, URL(string: "https://accounts.geogarage.com/"))
   }
+
+  @MainActor
+  func testBootstrapWithoutTokenLoadsCachedLayersForOfflineUse() async {
+    preferencesService.geoGarageCustomerID = "cus_123"
+    let testLayer = GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-01-01", validUntil: "2027-01-01")
+    await layerRepository.saveLayers([testLayer])
+
+    await service.bootstrap()
+
+    XCTAssertFalse(service.isGeoGarageAuthenticated)
+    XCTAssertEqual(preferencesService.geoGarageCustomerID, "cus_123", "customerID must be preserved for offline package decryption")
+    XCTAssertEqual(service.availableLayers.count, 1, "availableLayers must retain cached layers for offline charts")
+    XCTAssertEqual(service.availableLayers.first?.layer, "shom")
+  }
+
+  @MainActor
+  func testBootstrapWithTokenLoadsCachedLayers() async {
+    await KeychainManager.shared.save(token: "valid-access", for: "geogarage_access_token")
+    let testLayer = GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-01-01", validUntil: "2027-01-01")
+    await layerRepository.saveLayers([testLayer])
+
+    await service.bootstrap()
+
+    XCTAssertTrue(service.isGeoGarageAuthenticated)
+    XCTAssertEqual(service.availableLayers.count, 1)
+    XCTAssertEqual(service.availableLayers.first?.layer, "shom")
+  }
+
+  @MainActor
+  func testAvailableLayersReturnsCachedLayersEvenWhenOffline() async {
+    let testLayer = GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-01-01", validUntil: "2027-01-01")
+    await layerRepository.saveLayers([testLayer])
+    _ = await layerRepository.loadCachedLayers()
+
+    service.isGeoGarageAuthenticated = false
+    XCTAssertEqual(service.availableLayers.count, 1, "availableLayers must remain accessible offline to enable layer selection")
+  }
+
+  @MainActor
+  func testLogoutClearsCustomerIDAndCache() async {
+    preferencesService.geoGarageCustomerID = "cus_456"
+    preferencesService.geoGarageUsername = "user"
+    await KeychainManager.shared.save(token: "valid-access", for: "geogarage_access_token")
+    let testLayer = GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-01-01", validUntil: "2027-01-01")
+    await layerRepository.saveLayers([testLayer])
+
+    await service.logout()
+
+    XCTAssertNil(preferencesService.geoGarageCustomerID)
+    XCTAssertNil(preferencesService.geoGarageUsername)
+    XCTAssertFalse(service.isGeoGarageAuthenticated)
+    XCTAssertTrue(service.availableLayers.isEmpty)
+  }
 }
+

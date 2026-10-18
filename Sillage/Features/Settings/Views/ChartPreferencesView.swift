@@ -95,7 +95,7 @@ struct ChartPreferencesView: View {
           .buttonStyle(.plain)
         }
         
-        // List all authorized GeoGarage layers fetched from the API
+        // List all authorized GeoGarage layers fetched from the API or cache
         if !chartViewModel.availableGeoGarageLayers.isEmpty {
           ForEach(chartViewModel.availableGeoGarageLayers) { layer in
             let isSelected = currentSelection == .remote && {

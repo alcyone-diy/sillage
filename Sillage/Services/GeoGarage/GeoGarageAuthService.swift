@@ -108,6 +108,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     self.authError = nil
     // Installs migrated from the password-based sign-in: the stored username has no further use.
     preferencesService.geoGarageUsername = nil
+    preferencesService.geoGarageCustomerID = nil
     self.isGeoGarageAuthenticated = false
     await layerRepository.clearCache()
   }
