@@ -61,10 +61,7 @@ struct VesselKinematicsServiceTests {
   }
 
   private func makeTestDefaults() -> UserDefaults {
-    let suite = "test.kinematics.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defaults.removePersistentDomain(forName: suite)
-    return defaults
+    makeIsolatedUserDefaults(prefix: "test.kinematics").defaults
   }
 
   @Test("Lifecycle: Acquires and releases upstream token")

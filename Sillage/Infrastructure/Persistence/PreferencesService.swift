@@ -161,6 +161,9 @@ protocol PreferencesServiceProtocol: AnyObject {
 
   // MARK: - GPS Debug Settings
   var gpsAccuracyMode: GPSAccuracyMode { get set }
+
+  // MARK: - Reset
+  func clearAll()
 }
 
 @Observable
@@ -421,5 +424,34 @@ class PreferencesService: PreferencesServiceProtocol {
 
   func clearActiveTrackSessionID() {
     self.activeTrackSessionID = nil
+  }
+
+  func clearAll() {
+    savedChartSource = nil
+    savedGeoGarageLayerID = nil
+    savedLatitude = nil
+    savedLongitude = nil
+    savedZoom = nil
+    savedDirection = nil
+    savedTrackingMode = nil
+    lastMapTrackingMode = nil
+    gloveModeEnabled = false
+    hasAcceptedDisclaimer = false
+    isOpenSeaMapOverlayEnabled = false
+    geoGarageUsername = nil
+    geoGarageCustomerID = nil
+    pendingCAASDownloads = []
+    isCOGVectorEnabled = true
+    isCOGVectorTicksEnabled = true
+    cogVectorTimeHorizon = Measurement(value: 3600, unit: .seconds)
+    activeTrackSessionID = nil
+    goToWaypointID = nil
+    displayedTrackSessionID = nil
+    isBaroAlarmEnabled = false
+    baroAlarmSensitivity = .medium
+    barometerOffset = Measurement(value: 0, unit: .hectopascals)
+    savedAnchorRadius = Measurement(value: 25.0, unit: .meters)
+    hudEditOpenCount = 0
+    gpsAccuracyMode = .bestForNavigation
   }
 }

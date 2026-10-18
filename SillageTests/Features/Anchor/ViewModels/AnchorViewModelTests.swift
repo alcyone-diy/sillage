@@ -70,6 +70,7 @@ final class AnchorViewModelTests: XCTestCase {
 
   func testPreparingDropAnchorLifecycle() async throws {
     let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
     let positioningService = AnchorViewModelMockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
@@ -125,6 +126,7 @@ final class AnchorViewModelTests: XCTestCase {
 
   func testRadiusIncrementAndDecrement() async throws {
     let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
     let positioningService = AnchorViewModelMockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)

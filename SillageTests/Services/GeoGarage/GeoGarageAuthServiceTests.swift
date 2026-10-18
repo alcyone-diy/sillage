@@ -32,6 +32,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
   private var layerRepository: GeoGarageLayerRepository!
   private var cacheURL: URL!
   private var mockKeychain: MockKeychainManager!
+  private var isolatedDefaults: IsolatedUserDefaults!
 
   override func setUp() async throws {
     try await super.setUp()
@@ -39,9 +40,9 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     session = MockURLProtocol.makeMockSession()
     mockKeychain = MockKeychainManager()
     cacheURL = FileManager.default.temporaryDirectory.appendingPathComponent("layers-\(UUID().uuidString).json")
-    let suiteName = "test-auth-\(UUID().uuidString)"
-    let testDefaults = UserDefaults(suiteName: suiteName) ?? .standard
-    preferencesService = PreferencesService(defaults: testDefaults)
+    isolatedDefaults = IsolatedUserDefaults(prefix: "test-auth")
+    preferencesService = PreferencesService(defaults: isolatedDefaults.defaults)
+    preferencesService.clearAll()
     layerRepository = GeoGarageLayerRepository(cacheFileURL: cacheURL)
     service = GeoGarageAuthService(
       preferencesService: preferencesService,
@@ -56,6 +57,9 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     if let cacheURL, FileManager.default.fileExists(atPath: cacheURL.path) {
       try? FileManager.default.removeItem(at: cacheURL)
     }
+    preferencesService?.clearAll()
+    isolatedDefaults?.tearDown()
+    isolatedDefaults = nil
     MockURLProtocol.reset()
     service = nil
     session = nil

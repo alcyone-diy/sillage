@@ -19,21 +19,11 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
   override func setUp() async throws {
     try await super.setUp()
-    let prefs = PreferencesService()
-    prefs.pendingCAASDownloads = []
-    prefs.geoGarageCustomerID = nil
-    prefs.savedChartSource = nil
-    prefs.savedGeoGarageLayerID = nil
     mockKeychain = MockKeychainManager()
     await mockKeychain.save(token: "token123", for: "geogarage_access_token")
   }
 
   override func tearDown() async throws {
-    let prefs = PreferencesService()
-    prefs.pendingCAASDownloads = []
-    prefs.geoGarageCustomerID = nil
-    prefs.savedChartSource = nil
-    prefs.savedGeoGarageLayerID = nil
     mockKeychain = nil
     try await super.tearDown()
   }
@@ -264,7 +254,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     chartVM: ChartViewModel,
     downloadRepo: MockDownloadRepository,
     networkMonitor: MockNetworkMonitorService,
-    prefs: PreferencesService
+    prefs: MockPreferencesService
   ) {
     let downloader = downloader ?? MockChartDownloader()
     let packageService = packageService ?? MockPackageService()
@@ -272,8 +262,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let networkMonitor = networkMonitor ?? MockNetworkMonitorService()
     let diskSpaceProvider = diskSpaceProvider ?? MockDiskSpaceProvider()
     let messageService = messageService ?? MessageService()
-    let preferences = PreferencesService()
-    preferences.pendingCAASDownloads = []
+    let preferences = MockPreferencesService()
+    preferences.clearAll()
     if authenticated {
       preferences.geoGarageCustomerID = "cust123"
     } else {

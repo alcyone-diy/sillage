@@ -16,10 +16,7 @@ import Foundation
 struct DeveloperSettingsServiceTests {
 
   private func makeTestDefaults() -> UserDefaults {
-    let suite = "test.developersettings.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defaults.removePersistentDomain(forName: suite)
-    return defaults
+    makeIsolatedUserDefaults(prefix: "test.developersettings").defaults
   }
 
   @Test("Defaults are properly initialized")

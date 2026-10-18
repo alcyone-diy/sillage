@@ -14,60 +14,41 @@ import XCTest
 @MainActor
 final class PreferencesServiceTests: XCTestCase {
 
+  private var isolatedDefaults: IsolatedUserDefaults?
+
+  override func setUp() {
+    super.setUp()
+    isolatedDefaults = IsolatedUserDefaults(prefix: "PreferencesServiceTests")
+  }
+
+  override func tearDown() {
+    isolatedDefaults?.tearDown()
+    isolatedDefaults = nil
+    super.tearDown()
+  }
+
   func testBarometerAlarmIsDisabledByDefault() throws {
-    // 1. Backup existing value
-    let defaults = UserDefaults.standard
-    let key = "isBaroAlarmEnabled"
-    let backupValue = defaults.object(forKey: key)
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let service = PreferencesService(defaults: defaults)
 
-    // 2. Clear the value to simulate a fresh install
-    defaults.removeObject(forKey: key)
-
-    // 3. Instantiate PreferencesService
-    let service = PreferencesService()
-
-    // 4. Verify default value is false
     XCTAssertFalse(service.isBaroAlarmEnabled, "Barometer alarm should be disabled by default")
-
-    // 5. Restore the backup value
-    if let backup = backupValue {
-      defaults.set(backup, forKey: key)
-    } else {
-      defaults.removeObject(forKey: key)
-    }
   }
 
   func testHUDEditOpenCount_DefaultsToZeroAndIncrementsCorrectly() throws {
-    let defaults = UserDefaults.standard
-    let key = "sillage.prefs.hudEditOpenCount"
-    let backupValue = defaults.object(forKey: key)
-
-    defaults.removeObject(forKey: key)
-
-    let service = PreferencesService()
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let service = PreferencesService(defaults: defaults)
     XCTAssertEqual(service.hudEditOpenCount, 0)
 
     service.hudEditOpenCount += 1
     XCTAssertEqual(service.hudEditOpenCount, 1)
 
-    let reloadedService = PreferencesService()
+    let reloadedService = PreferencesService(defaults: defaults)
     XCTAssertEqual(reloadedService.hudEditOpenCount, 1)
-
-    if let backup = backupValue {
-      defaults.set(backup, forKey: key)
-    } else {
-      defaults.removeObject(forKey: key)
-    }
   }
 
   func testPendingCAASDownloads_persistenceRoundTrip() throws {
-    let defaults = UserDefaults.standard
-    let key = "pendingCAASDownloads"
-    let backupValue = defaults.object(forKey: key)
-
-    defaults.removeObject(forKey: key)
-
-    let service = PreferencesService()
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let service = PreferencesService(defaults: defaults)
     XCTAssertTrue(service.pendingCAASDownloads.isEmpty)
 
     let packageID1 = UUID()
@@ -99,7 +80,7 @@ final class PreferencesServiceTests: XCTestCase {
     XCTAssertEqual(service.pendingCAASDownloads[1], pending2)
 
     // Reload from new instance
-    let reloadedService = PreferencesService()
+    let reloadedService = PreferencesService(defaults: defaults)
     XCTAssertEqual(reloadedService.pendingCAASDownloads.count, 2)
     XCTAssertEqual(reloadedService.pendingCAASDownloads[0], pending1)
     XCTAssertEqual(reloadedService.pendingCAASDownloads[1], pending2)
@@ -108,14 +89,8 @@ final class PreferencesServiceTests: XCTestCase {
     service.pendingCAASDownloads = []
     XCTAssertTrue(service.pendingCAASDownloads.isEmpty)
 
-    let clearedService = PreferencesService()
+    let clearedService = PreferencesService(defaults: defaults)
     XCTAssertTrue(clearedService.pendingCAASDownloads.isEmpty)
-
-    if let backup = backupValue {
-      defaults.set(backup, forKey: key)
-    } else {
-      defaults.removeObject(forKey: key)
-    }
   }
 
   func testPendingCAASDownload_updatingPackageID() {
@@ -165,6 +140,53 @@ final class PreferencesServiceTests: XCTestCase {
     let updatedNew = updatedCleared.updating(replacesChartID: newReplacesID)
     XCTAssertEqual(updatedNew.replacesChartID, newReplacesID)
   }
+
+  func testClearAll_ResetsAllPreferencesToDefaults() throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let service = PreferencesService(defaults: defaults)
+
+    service.savedChartSource = "customSource"
+    service.savedGeoGarageLayerID = "customLayer"
+    service.saveCameraState(coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0), zoom: 12.0, direction: 90.0)
+    service.savedTrackingMode = .courseUp
+    service.gloveModeEnabled = true
+    service.hasAcceptedDisclaimer = true
+    service.isOpenSeaMapOverlayEnabled = true
+    service.geoGarageCustomerID = "cust123"
+    service.hudEditOpenCount = 5
+    service.isBaroAlarmEnabled = true
+    service.barometerOffset = Measurement(value: 2.5, unit: .hectopascals)
+    service.pendingCAASDownloads = [
+      PendingCAASDownload(layerID: "test", layerName: "Test", boundsWKT: "POLYGON(())", zoomMax: 10)
+    ]
+
+    service.clearAll()
+
+    XCTAssertNil(service.savedChartSource)
+    XCTAssertNil(service.savedGeoGarageLayerID)
+    XCTAssertNil(service.loadCameraState())
+    XCTAssertNil(service.savedTrackingMode)
+    XCTAssertFalse(service.gloveModeEnabled)
+    XCTAssertFalse(service.hasAcceptedDisclaimer)
+    XCTAssertFalse(service.isOpenSeaMapOverlayEnabled)
+    XCTAssertNil(service.geoGarageCustomerID)
+    XCTAssertEqual(service.hudEditOpenCount, 0)
+    XCTAssertFalse(service.isBaroAlarmEnabled)
+    XCTAssertEqual(service.barometerOffset.value, 0.0)
+    XCTAssertTrue(service.pendingCAASDownloads.isEmpty)
+
+    let reloaded = PreferencesService(defaults: defaults)
+    XCTAssertNil(reloaded.savedChartSource)
+    XCTAssertNil(reloaded.savedGeoGarageLayerID)
+    XCTAssertNil(reloaded.loadCameraState())
+    XCTAssertNil(reloaded.savedTrackingMode)
+    XCTAssertFalse(reloaded.gloveModeEnabled)
+    XCTAssertFalse(reloaded.hasAcceptedDisclaimer)
+    XCTAssertFalse(reloaded.isOpenSeaMapOverlayEnabled)
+    XCTAssertNil(reloaded.geoGarageCustomerID)
+    XCTAssertEqual(reloaded.hudEditOpenCount, 0)
+    XCTAssertFalse(reloaded.isBaroAlarmEnabled)
+    XCTAssertEqual(reloaded.barometerOffset.value, 0.0)
+    XCTAssertTrue(reloaded.pendingCAASDownloads.isEmpty)
+  }
 }
-
-

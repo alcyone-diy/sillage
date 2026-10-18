@@ -25,6 +25,7 @@ final class BarometerViewModelTests {
     }
   }
   
+  let isolatedDefaults: IsolatedUserDefaults
   let dbManager: DatabaseManager
   let store: BarometricHistoryStore
   let preferencesService: PreferencesService
@@ -43,9 +44,14 @@ final class BarometerViewModelTests {
     self.simulatedNow = nowBox
     let dateProvider: @Sendable () -> Date = { nowBox.mutex.withLock { $0 } }
     
+    let isolated = IsolatedUserDefaults(prefix: "BarometerViewModelTests")
+    self.isolatedDefaults = isolated
+    
     dbManager = try DatabaseManager.inMemory()
     store = BarometricHistoryStore(databaseManager: dbManager, dateProvider: dateProvider)
-    preferencesService = PreferencesService()
+    let prefs = PreferencesService(defaults: isolated.defaults)
+    prefs.clearAll()
+    preferencesService = prefs
     notificationService = LocalNotificationService()
     positioningService = CoreLocationPositioningService(initialAccuracyMode: .best)
     permissionService = PermissionService(

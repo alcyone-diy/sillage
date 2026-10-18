@@ -169,7 +169,8 @@ final class WaypointTests: XCTestCase {
     let service = WaypointService(databaseManager: dbManager)
     
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -231,7 +232,8 @@ final class WaypointTests: XCTestCase {
     let service = WaypointService(databaseManager: dbManager)
     
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -321,7 +323,8 @@ final class WaypointTests: XCTestCase {
     let service = WaypointService(databaseManager: dbManager)
     
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -416,7 +419,8 @@ final class WaypointTests: XCTestCase {
     let service = WaypointService(databaseManager: dbManager)
     
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -504,7 +508,8 @@ final class WaypointTests: XCTestCase {
     let service = WaypointService(databaseManager: dbManager)
     
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -582,7 +587,8 @@ final class WaypointTests: XCTestCase {
     let service = WaypointService(databaseManager: dbManager)
     
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -683,7 +689,8 @@ final class WaypointTests: XCTestCase {
     let service = WaypointService(databaseManager: dbManager)
     
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -768,7 +775,8 @@ final class WaypointTests: XCTestCase {
     let service = WaypointService(databaseManager: dbManager)
     
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(

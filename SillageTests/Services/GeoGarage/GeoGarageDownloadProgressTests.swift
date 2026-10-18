@@ -118,10 +118,10 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     }
   }
 
-  private func makePreferencesService() -> PreferencesService {
-    let service = PreferencesService()
+  private func makePreferencesService() -> MockPreferencesService {
+    let service = MockPreferencesService()
+    service.clearAll()
     service.geoGarageCustomerID = "test_customer_id"
-    service.pendingCAASDownloads.removeAll()
     return service
   }
 

@@ -17,10 +17,16 @@ import CoreLocation
 public final class ChecklistService: ChecklistServiceProtocol {
   private let databaseManager: DatabaseManager
   private let throttler: ChecklistThrottler
+  private let userDefaults: UserDefaults
 
-  public init(databaseManager: DatabaseManager, throttler: ChecklistThrottler = ChecklistThrottler()) {
+  public init(
+    databaseManager: DatabaseManager,
+    throttler: ChecklistThrottler = ChecklistThrottler(),
+    userDefaults: UserDefaults = .standard
+  ) {
     self.databaseManager = databaseManager
     self.throttler = throttler
+    self.userDefaults = userDefaults
   }
 
   // MARK: - Static Pure Mappings (Zero Self-Capture, Zero Dummy Values)
@@ -846,8 +852,12 @@ public final class ChecklistService: ChecklistServiceProtocol {
   }
 
   public func seedDefaultTemplatesIfNeeded() async throws {
+    let shouldSeedCategories = !userDefaults.bool(forKey: ChecklistSeeder.hasSeededInitialCategoriesKey)
     try await databaseManager.write { db in
-      try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db)
+      try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db, shouldSeedCategories: shouldSeedCategories)
+    }
+    if shouldSeedCategories {
+      userDefaults.set(true, forKey: ChecklistSeeder.hasSeededInitialCategoriesKey)
     }
   }
 

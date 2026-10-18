@@ -59,12 +59,18 @@ final class AppEnvironment {
   private let authSession: URLSession
   let keychainManager: any KeychainManaging
   private let tileProxyManager: TileProxyManager
+  private let preferencesServiceOverride: PreferencesService?
+  private let userDefaults: UserDefaults
+  private let databaseManagerOverride: DatabaseManager?
 
   public init(
     metadata: AppMetadata? = nil,
     partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil,
     authSession: URLSession = .shared,
-    keychainManager: any KeychainManaging = KeychainManager.shared
+    keychainManager: any KeychainManaging = KeychainManager.shared,
+    preferencesService: PreferencesService? = nil,
+    userDefaults: UserDefaults = .standard,
+    databaseManager: DatabaseManager? = nil
   ) {
     self.metadata = metadata ?? AppMetadataProvider.resolve()
     self.bootDate = Date.now
@@ -74,6 +80,9 @@ final class AppEnvironment {
     self.tileProxyManager = TileProxyManager(keychainManager: keychainManager)
     self.geoGaragePartnerSecretService = partnerSecretService ?? GeoGaragePartnerSecretService(keychainManager: keychainManager)
     self.authSession = authSession
+    self.preferencesServiceOverride = preferencesService
+    self.userDefaults = userDefaults
+    self.databaseManagerOverride = databaseManager
     setupMapLibreProgressObservation()
   }
   
@@ -89,15 +98,20 @@ final class AppEnvironment {
       }.value
       
       // b. DatabaseManager async initialization
-      let databaseManager = try await Task.detached {
-        try DatabaseManager()
-      }.value
+      let databaseManager: DatabaseManager
+      if let databaseManagerOverride {
+        databaseManager = databaseManagerOverride
+      } else {
+        databaseManager = try await Task.detached {
+          try DatabaseManager()
+        }.value
+      }
       
       // c. Other Services instantiation (injecting the ready DB)
       let messageService = MessageService()
       
-      let preferencesService = PreferencesService()
-      let developerSettingsService = DeveloperSettingsService()
+      let preferencesService = self.preferencesServiceOverride ?? PreferencesService(defaults: self.userDefaults)
+      let developerSettingsService = DeveloperSettingsService(defaults: self.userDefaults)
       
       let positioningService = CoreLocationPositioningService(
         initialAccuracyMode: preferencesService.gpsAccuracyMode,
@@ -174,7 +188,7 @@ final class AppEnvironment {
       }
       observeWaypointGoTo()
 
-      let checklistService = ChecklistService(databaseManager: databaseManager)
+      let checklistService = ChecklistService(databaseManager: databaseManager, userDefaults: self.userDefaults)
       try await checklistService.seedDefaultTemplatesIfNeeded()
 
       let geoGarageAuthService = GeoGarageAuthService(preferencesService: preferencesService, keychainManager: keychainManager, session: authSession)

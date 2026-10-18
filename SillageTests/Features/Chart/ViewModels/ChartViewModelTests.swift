@@ -29,7 +29,7 @@ final class ChartViewModelTests: XCTestCase {
     // We need to set a dummy token so it actually attempts the silent fetch
     mockKeychain.saveSync(token: "dummy_token", for: "geogarage_access_token")
     
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let positioningService = MockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
@@ -78,7 +78,7 @@ final class ChartViewModelTests: XCTestCase {
     
     // Create dependencies
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -123,7 +123,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 1)
 
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -157,7 +157,7 @@ final class ChartViewModelTests: XCTestCase {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -207,7 +207,7 @@ final class ChartViewModelTests: XCTestCase {
     mockKeychain.saveSync(token: "valid_token", for: "geogarage_access_token")
 
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -255,7 +255,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 4)
 
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -305,7 +305,7 @@ final class ChartViewModelTests: XCTestCase {
     mockKeychain.saveSync(token: "valid_token", for: "geogarage_access_token")
 
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -353,7 +353,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 1)
 
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -384,7 +384,7 @@ final class ChartViewModelTests: XCTestCase {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -426,7 +426,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 1)
 
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -460,7 +460,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testSwitchChartSourceToOpenSeaMapEnablesSeamarksOverlay() async {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -487,7 +487,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testSwitchChartSourceToGeoGarageDisablesSeamarksOverlay() async {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -513,7 +513,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testIsActionConfirmationCardActive_StateToggle() {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -546,7 +546,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testCenterOnUserLocation_PreservesZoom() async {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -610,7 +610,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testThrottledUpdateCenterCoordinate_AppliesTrailingEdgeThrottlingAndThreshold() async throws {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -662,7 +662,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testThrottledUpdateMapScaleAndZoom_AppliesTrailingEdgeThrottling() async throws {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -699,7 +699,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testUpdateOfflineMaskState_FiltersDownloadsStrictlyBySelectedLayer() async throws {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -773,7 +773,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testUpdateOfflineMaskState_GeneratesValidatedRegionLabels() async throws {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -883,7 +883,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testIsGeoGarageLayerActive() {
     let mockAuthService = MockGeoGarageAuthService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let positioningService = MockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
@@ -915,7 +915,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testCenterOnMeasurePinIfNeeded_WhenPinIsOffScreen_CentersCameraWithPreservedZoom() async throws {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -976,7 +976,7 @@ final class ChartViewModelTests: XCTestCase {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -1016,7 +1016,7 @@ final class ChartViewModelTests: XCTestCase {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -1056,7 +1056,7 @@ final class ChartViewModelTests: XCTestCase {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -1096,7 +1096,7 @@ final class ChartViewModelTests: XCTestCase {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
@@ -1145,6 +1145,7 @@ final class ChartViewModelTests: XCTestCase {
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
     let preferencesService = PreferencesService(defaults: defaults)
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -1174,6 +1175,7 @@ final class ChartViewModelTests: XCTestCase {
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
     let preferencesService = PreferencesService(defaults: defaults)
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -1234,6 +1236,7 @@ final class ChartViewModelTests: XCTestCase {
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
     let preferencesService = PreferencesService(defaults: defaults)
+    preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -1280,7 +1283,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testAutoCenteringOnGPS_SuspendedWhileMapIsMoving() async throws {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -1336,7 +1339,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testAutoCenteringOnGPS_SuspendedWhileAnchorAdjustmentIsActive() async throws {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -1559,7 +1562,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testComputeInitialMeasureEndCoordinate_withMapScale() {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -1598,7 +1601,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testStartMeasuring_activatesMeasureToolAtFixedScreenDistance() {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -1631,7 +1634,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testComputeInitialMeasureEndCoordinate_withRotatedChartDirection() {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -1674,7 +1677,7 @@ final class ChartViewModelTests: XCTestCase {
 
   func testComputeInitialMeasureEndCoordinate_withoutMapScale_fallbackToZoomLevel() {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -1718,7 +1721,14 @@ final class ChartViewModelTests: XCTestCase {
     authService: GeoGarageAuthServiceProtocol? = nil,
     messageService: MessageService? = nil
   ) -> ChartViewModel {
-    let prefs = preferencesService ?? PreferencesService()
+    let prefs: PreferencesServiceProtocol
+    if let preferencesService {
+      prefs = preferencesService
+    } else {
+      let mock = MockPreferencesService()
+      mock.clearAll()
+      prefs = mock
+    }
     let auth = authService ?? MockGeoGarageAuthService()
     let positioningService = MockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
@@ -1740,11 +1750,8 @@ final class ChartViewModelTests: XCTestCase {
 
   @MainActor
   func testLoadSavedChartSource_whenGeoGarage_restoresSavedSourceEvenIfUnauthenticatedForOfflineAccess() {
-    let preferencesService = PreferencesService()
-    defer {
-      preferencesService.savedChartSource = nil
-      preferencesService.savedGeoGarageLayerID = nil
-    }
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
 
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.isGeoGarageAuthenticated = false
@@ -1761,11 +1768,8 @@ final class ChartViewModelTests: XCTestCase {
 
   @MainActor
   func testAuthStateChange_whenGeoGarageActiveAndAuthLost_preservesActiveChartSource() async throws {
-    let preferencesService = PreferencesService()
-    defer {
-      preferencesService.savedChartSource = nil
-      preferencesService.savedGeoGarageLayerID = nil
-    }
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
 
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.isGeoGarageAuthenticated = true

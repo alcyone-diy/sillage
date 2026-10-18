@@ -17,17 +17,22 @@ import GRDB
 final class ChecklistServiceTests: XCTestCase {
   private var databaseManager: DatabaseManager!
   private var checklistService: ChecklistService!
+  private var isolatedDefaults: IsolatedUserDefaults!
 
   override func setUp() async throws {
     try await super.setUp()
+    isolatedDefaults = IsolatedUserDefaults(prefix: "ChecklistServiceTests")
     databaseManager = try DatabaseManager.inMemory()
     checklistService = ChecklistService(
       databaseManager: databaseManager,
-      throttler: ChecklistThrottler(window: .zero)
+      throttler: ChecklistThrottler(window: .zero),
+      userDefaults: isolatedDefaults.defaults
     )
   }
 
   override func tearDown() async throws {
+    isolatedDefaults?.tearDown()
+    isolatedDefaults = nil
     checklistService = nil
     databaseManager = nil
     try await super.tearDown()

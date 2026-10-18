@@ -13,40 +13,41 @@ import XCTest
 
 @MainActor
 final class TelemetryPreferencesTests: XCTestCase {
-  private var userDefaults: UserDefaults!
-  private let suiteName = "TelemetryPreferencesTestsSuite"
+  private var isolatedDefaults: IsolatedUserDefaults?
 
   override func setUp() {
     super.setUp()
-    userDefaults = UserDefaults(suiteName: suiteName)
-    userDefaults.removePersistentDomain(forName: suiteName)
+    isolatedDefaults = IsolatedUserDefaults(prefix: "TelemetryPreferencesTests")
   }
 
   override func tearDown() {
-    userDefaults.removePersistentDomain(forName: suiteName)
-    userDefaults = nil
+    isolatedDefaults?.tearDown()
+    isolatedDefaults = nil
     super.tearDown()
   }
 
-  func testDefaultMetrics_LoadedWhenNoSavedPreferencesExist() {
-    let preferences = TelemetryPreferences(userDefaults: userDefaults)
+  func testDefaultMetrics_LoadedWhenNoSavedPreferencesExist() throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let preferences = TelemetryPreferences(userDefaults: defaults)
     XCTAssertEqual(preferences.activeMetrics, TelemetryPreferences.defaultMetrics)
     XCTAssertEqual(preferences.activeMetrics, [.sog, .cog, .btw, .rng])
   }
 
-  func testSaveAndLoadActiveMetrics_PersistsCorrectly() {
-    let preferences = TelemetryPreferences(userDefaults: userDefaults)
+  func testSaveAndLoadActiveMetrics_PersistsCorrectly() throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let preferences = TelemetryPreferences(userDefaults: defaults)
     let customMetrics: [TelemetryMetric] = [.sog, .cog, .battery]
 
     preferences.activeMetrics = customMetrics
 
     // Re-instantiate TelemetryPreferences with the same UserDefaults to verify persistence
-    let reloadedPreferences = TelemetryPreferences(userDefaults: userDefaults)
+    let reloadedPreferences = TelemetryPreferences(userDefaults: defaults)
     XCTAssertEqual(reloadedPreferences.activeMetrics, customMetrics)
   }
 
-  func testResetToDefaults_RestoresDefaultConfiguration() {
-    let preferences = TelemetryPreferences(userDefaults: userDefaults)
+  func testResetToDefaults_RestoresDefaultConfiguration() throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let preferences = TelemetryPreferences(userDefaults: defaults)
     preferences.activeMetrics = [.battery, .xte]
 
     XCTAssertEqual(preferences.activeMetrics, [.battery, .xte])

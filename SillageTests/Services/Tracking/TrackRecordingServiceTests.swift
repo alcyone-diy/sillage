@@ -96,49 +96,6 @@ struct TrackRecordingServiceTests {
     }
   }
 
-  @Observable
-  class MockPreferencesService: PreferencesServiceProtocol {
-    var savedChartSource: String?
-    var savedGeoGarageLayerID: String?
-    var geoGarageUsername: String?
-    var geoGarageCustomerID: String?
-    var savedLatitude: Double?
-    var savedLongitude: Double?
-    var savedZoom: Double?
-    var savedDirection: Double?
-    var savedTrackingMode: ChartTrackingMode? = .northUp
-    var lastMapTrackingMode: ChartTrackingMode? = nil
-    var gloveModeEnabled: Bool = false
-    var hasAcceptedDisclaimer: Bool = false
-    var isOpenSeaMapOverlayEnabled: Bool = false
-    var isCOGVectorEnabled: Bool = false
-    var cogVectorTimeHorizon: Measurement<UnitDuration> = Measurement(value: 3600, unit: .seconds)
-    var isCOGVectorTicksEnabled: Bool = false
-    
-    func saveCameraState(coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double) {}
-    func loadCameraState() -> (coordinate: CLLocationCoordinate2D, zoom: Double, direction: Double)? { return nil }
-    
-    var activeTrackSessionID: String?
-    func saveActiveTrackSessionID(_ id: String) {
-      activeTrackSessionID = id
-    }
-    func clearActiveTrackSessionID() {
-      activeTrackSessionID = nil
-    }
-    
-    var goToWaypointID: String?
-    var displayedTrackSessionID: String?
-    
-    var isBaroAlarmEnabled: Bool = false
-    var baroAlarmSensitivity: BaroAlarmSensitivity = .medium
-    var barometerOffset: Measurement<UnitPressure> = Measurement(value: 0, unit: .hectopascals)
-    
-    var savedAnchorRadius: Measurement<UnitLength> = Measurement(value: 25.0, unit: .meters)
-    var hudEditOpenCount: Int = 0
-    var gpsAccuracyMode: GPSAccuracyMode = .best
-    var pendingCAASDownloads: [PendingCAASDownload] = []
-  }
-
   // MARK: - Helpers
   
   func makeDatabaseManager() throws -> DatabaseManager {
@@ -172,6 +129,7 @@ struct TrackRecordingServiceTests {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     
     let service = TrackRecordingService(
       positioningService: mockPositioning,
@@ -191,6 +149,7 @@ struct TrackRecordingServiceTests {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     
     let service = TrackRecordingService(
       positioningService: mockPositioning,
@@ -212,6 +171,7 @@ struct TrackRecordingServiceTests {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     
     let service = TrackRecordingService(
       positioningService: mockPositioning,
@@ -252,6 +212,7 @@ struct TrackRecordingServiceTests {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     
     let service = TrackRecordingService(
       positioningService: mockPositioning,
@@ -277,6 +238,7 @@ struct TrackRecordingServiceTests {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     
     let service = TrackRecordingService(
       positioningService: mockPositioning,
@@ -301,6 +263,7 @@ struct TrackRecordingServiceTests {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     
     let service = TrackRecordingService(
       positioningService: mockPositioning,
@@ -329,6 +292,7 @@ struct TrackRecordingServiceTests {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     
     let service = TrackRecordingService(
       positioningService: mockPositioning,
@@ -358,6 +322,7 @@ struct TrackRecordingServiceTests {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     
     let service = TrackRecordingService(
       positioningService: mockPositioning,
@@ -389,6 +354,7 @@ struct TrackRecordingServiceTests {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     
     let service = TrackRecordingService(
       positioningService: mockPositioning,
@@ -421,6 +387,7 @@ struct TrackRecordingServiceTests {
     let dbManager = try makeDatabaseManager()
     let mockPositioning = MockPositioningService()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     
     let service = TrackRecordingService(
       positioningService: mockPositioning,
@@ -468,6 +435,7 @@ struct TrackRecordingServiceTests {
     let mockPositioning = MockPositioningService()
     let databaseManager = try makeDatabaseManager()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     let mockMessages = MessageService()
     
     let service = TrackRecordingService(
@@ -490,6 +458,7 @@ struct TrackRecordingServiceTests {
     let mockPositioning = MockPositioningService()
     let databaseManager = try makeDatabaseManager()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     let mockMessages = MessageService()
     
     let service = TrackRecordingService(
@@ -520,6 +489,7 @@ struct TrackRecordingServiceTests {
     let mockPositioning = MockPositioningService()
     let databaseManager = try makeDatabaseManager()
     let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
     let mockMessages = MessageService()
     
     let service = TrackRecordingService(

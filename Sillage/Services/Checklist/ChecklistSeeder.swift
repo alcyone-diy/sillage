@@ -34,6 +34,11 @@ public struct ChecklistSeeder: Sendable {
       return
     }
 
+    try seedDefaultCategories(in: db)
+    userDefaults.set(true, forKey: hasSeededInitialCategoriesKey)
+  }
+
+  nonisolated public static func seedDefaultCategories(in db: Database) throws {
     let now = Date()
     for category in initialCategories {
       try db.execute(
@@ -44,15 +49,26 @@ public struct ChecklistSeeder: Sendable {
         arguments: [category.id, category.name, category.icon, category.sortOrder, now, now]
       )
     }
-
-    userDefaults.set(true, forKey: hasSeededInitialCategoriesKey)
   }
 
   nonisolated public static func seedDefaultTemplatesIfNeeded(
     in db: Database,
     userDefaults: UserDefaults = .standard
   ) throws {
-    try seedDefaultCategoriesIfNeeded(in: db, userDefaults: userDefaults)
+    let shouldSeedCategories = !userDefaults.bool(forKey: hasSeededInitialCategoriesKey)
+    try seedDefaultTemplatesIfNeeded(in: db, shouldSeedCategories: shouldSeedCategories)
+    if shouldSeedCategories {
+      userDefaults.set(true, forKey: hasSeededInitialCategoriesKey)
+    }
+  }
+
+  nonisolated public static func seedDefaultTemplatesIfNeeded(
+    in db: Database,
+    shouldSeedCategories: Bool
+  ) throws {
+    if shouldSeedCategories {
+      try seedDefaultCategories(in: db)
+    }
 
     try db.create(table: "checklist_seeding_state", ifNotExists: true) { t in
       t.column("id", .text).primaryKey()

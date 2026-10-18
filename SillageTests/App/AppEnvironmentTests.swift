@@ -34,6 +34,9 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   private var mockKeychain: MockKeychainManager!
+  private var isolatedDefaults: IsolatedUserDefaults!
+  private var testPreferencesService: PreferencesService!
+  private var testDatabaseManager: DatabaseManager!
 
   override func setUp() async throws {
     try await super.setUp()
@@ -43,16 +46,26 @@ final class AppEnvironmentTests: XCTestCase {
     authSession = MockURLProtocol.makeMockSession()
     partnerSecretService = MockGeoGaragePartnerSecretService()
     mockKeychain = MockKeychainManager()
-    environment = AppEnvironment(partnerSecretService: partnerSecretService, authSession: authSession, keychainManager: mockKeychain)
-    let prefs = PreferencesService()
-    prefs.pendingCAASDownloads = []
-    prefs.geoGarageCustomerID = nil
+    isolatedDefaults = IsolatedUserDefaults(prefix: "AppEnvironmentTests")
+    testPreferencesService = PreferencesService(defaults: isolatedDefaults.defaults)
+    testPreferencesService.clearAll()
+    testDatabaseManager = try DatabaseManager.inMemory()
+    environment = AppEnvironment(
+      partnerSecretService: partnerSecretService,
+      authSession: authSession,
+      keychainManager: mockKeychain,
+      preferencesService: testPreferencesService,
+      userDefaults: isolatedDefaults.defaults,
+      databaseManager: testDatabaseManager
+    )
   }
 
   override func tearDown() async throws {
-    let prefs = PreferencesService()
-    prefs.pendingCAASDownloads = []
-    prefs.geoGarageCustomerID = nil
+    testDatabaseManager = nil
+    testPreferencesService?.clearAll()
+    isolatedDefaults?.tearDown()
+    isolatedDefaults = nil
+    testPreferencesService = nil
     mockKeychain = nil
     MockURLProtocol.reset()
     TileProxyProtocol.resetForTesting()
@@ -89,8 +102,7 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   func testBootstrap_triggersPendingDownloadRecoveryOnOfflineSelectionViewModel() async {
-    let directPrefs = PreferencesService()
-    directPrefs.geoGarageCustomerID = "cust_recovery_test"
+    testPreferencesService.geoGarageCustomerID = "cust_recovery_test"
 
     let pending = PendingCAASDownload(
       packageID: UUID(),
@@ -100,16 +112,11 @@ final class AppEnvironmentTests: XCTestCase {
       zoomMax: 14,
       createdAt: Date()
     )
-    directPrefs.pendingCAASDownloads = [pending]
+    testPreferencesService.pendingCAASDownloads = [pending]
 
     await mockKeychain.save(token: "test_access_token", for: "geogarage_access_token")
 
     addTeardownBlock { [weak self] in
-      await MainActor.run {
-        let cleanupPrefs = PreferencesService()
-        cleanupPrefs.pendingCAASDownloads = []
-        cleanupPrefs.geoGarageCustomerID = nil
-      }
       await self?.mockKeychain.deleteToken(for: "geogarage_access_token")
     }
 
