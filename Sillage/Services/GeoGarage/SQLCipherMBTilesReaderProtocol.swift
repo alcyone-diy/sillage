@@ -12,6 +12,9 @@ import Foundation
 
 /// Protocol defining the interface for reading encrypted MBTiles tile archives using SQLCipher in RAM.
 protocol SQLCipherMBTilesReaderProtocol: Sendable {
+  /// The effective SQLCipher 3 compatibility mode determined upon opening the database.
+  var effectiveRequiresV3Compatibility: Bool { get }
+
   /// Retrieves the decrypted raw raster tile bytes for XYZ tile coordinates (internally converting to TMS).
   /// - Parameters:
   ///   - z: Zoom level.

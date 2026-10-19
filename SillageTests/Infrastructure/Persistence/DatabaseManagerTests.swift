@@ -492,6 +492,36 @@ final class DatabaseManagerTests {
     }
   }
 
+  @Test("Migration v13 updates existing geogarage_download records to requires_v3_compatibility = 0")
+  func testMigration_v13_updatesExistingDownloadsToSQLCipher4() async throws {
+    let queue = try DatabaseQueue()
+
+    // 1. Run migrations up to v12
+    try DatabaseManager.migrator.migrate(queue, upTo: "v12")
+
+    try await queue.write { db in
+      try db.execute(sql: """
+      INSERT INTO geogarage_download (
+        id, layer_id, layer_name, download_timestamp_unix, relative_path, md5, zoom_max, bounds_wkt, requires_v3_compatibility
+      ) VALUES (
+        'test-uuid-v12', 'shom', 'SHOM', 1700000000.0, 'Charts/test.mbtiles', 'md5_v12', 12, 'POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 1
+      )
+      """)
+    }
+
+    // 2. Run migration v13
+    try DatabaseManager.migrator.migrate(queue)
+
+    // 3. Verify requires_v3_compatibility was flipped from 1 to 0
+    try await queue.read { db in
+      let requiresV3 = try Int.fetchOne(
+        db,
+        sql: "SELECT requires_v3_compatibility FROM geogarage_download WHERE id = 'test-uuid-v12'"
+      )
+      #expect(requiresV3 == 0)
+    }
+  }
+
   // MARK: - Helpers
   
   private func makeTrackPoint(sessionID: String, timestamp: Date, segmentIndex: Int = 0) -> TrackPointRecord {

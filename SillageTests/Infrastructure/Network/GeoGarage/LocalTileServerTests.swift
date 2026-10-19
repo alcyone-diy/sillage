@@ -17,6 +17,7 @@ final class LocalTileServerTests: XCTestCase {
   private final class MockReader: SQLCipherMBTilesReaderProtocol, @unchecked Sendable {
     var tiles: [String: Data] = [:]
     var isClosed = false
+    var effectiveRequiresV3Compatibility: Bool = false
 
     func tile(z: Int, x: Int, y: Int) async -> Data? {
       tiles["\(z)/\(x)/\(y)"]

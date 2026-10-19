@@ -181,4 +181,48 @@ final class SQLiteConnectionPoolTests: XCTestCase {
       }
     }
   }
+
+  func testPool_adaptiveFallback_opensV3ArchiveWhenDefaultIsV4() async throws {
+    let key = "adaptive_v3_key"
+    let dbURL = try createTestEncryptedDB(fileName: "pool_adaptive_v3.mbtiles", key: key, v3Compatibility: true)
+
+    // Initializing with default requiresV3Compatibility (false = SQLCipher 4)
+    // Adaptive fallback must seamlessly fall back to v3 compatibility
+    let pool = try SQLiteConnectionPool(
+      fileURL: dbURL,
+      encryptionKey: key,
+      requiresV3Compatibility: false,
+      maxConnections: 2,
+      prewarmCount: 1
+    )
+
+    let isV3 = await pool.effectiveRequiresV3Compatibility
+    XCTAssertTrue(isV3, "Pool must adaptively resolve to v3 compatibility when v4 HMAC check fails")
+
+    let handle = try await pool.borrow()
+    await pool.returnHandle(handle)
+    await pool.close()
+  }
+
+  func testPool_adaptiveFallback_opensV4ArchiveWhenV3Requested() async throws {
+    let key = "adaptive_v4_key"
+    let dbURL = try createTestEncryptedDB(fileName: "pool_adaptive_v4.mbtiles", key: key, v3Compatibility: false)
+
+    // Initializing with explicit requiresV3Compatibility = true on a v4 archive
+    // Adaptive fallback must seamlessly fall back to v4
+    let pool = try SQLiteConnectionPool(
+      fileURL: dbURL,
+      encryptionKey: key,
+      requiresV3Compatibility: true,
+      maxConnections: 2,
+      prewarmCount: 1
+    )
+
+    let isV3 = await pool.effectiveRequiresV3Compatibility
+    XCTAssertFalse(isV3, "Pool must adaptively resolve to v4 compatibility when v3 PRAGMA fails")
+
+    let handle = try await pool.borrow()
+    await pool.returnHandle(handle)
+    await pool.close()
+  }
 }

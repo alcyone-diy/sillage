@@ -30,7 +30,7 @@ actor SQLiteConnectionPool {
 
   private let fileURL: URL
   private let encryptionKey: String
-  private let requiresV3Compatibility: Bool
+  nonisolated let effectiveRequiresV3Compatibility: Bool
   private let maxConnections: Int
 
   private var availableHandles: [SQLiteConnectionHandle] = []
@@ -43,7 +43,7 @@ actor SQLiteConnectionPool {
   init(
     fileURL: URL,
     encryptionKey: String,
-    requiresV3Compatibility: Bool = true,
+    requiresV3Compatibility: Bool = false,
     maxConnections: Int = 6,
     prewarmCount: Int = 2
   ) throws(CaasError) {
@@ -52,22 +52,31 @@ actor SQLiteConnectionPool {
     }
     self.fileURL = fileURL
     self.encryptionKey = encryptionKey
-    self.requiresV3Compatibility = requiresV3Compatibility
     self.maxConnections = maxConnections
 
-    // Pre-warm initial connection handles to eliminate runtime SQLCipher key derivation overhead
+    // Open first connection using adaptive fallback (trying requested mode first, then alternative)
+    let (firstHandle, resolvedV3) = try Self.openWithAdaptiveFallback(
+      fileURL: fileURL,
+      encryptionKey: encryptionKey,
+      preferredV3Compatibility: requiresV3Compatibility
+    )
+    self.effectiveRequiresV3Compatibility = resolvedV3
+    self.availableHandles.append(firstHandle)
+    self.totalCreated += 1
+
+    // Pre-warm remaining connection handles directly using the resolved compatibility
     let initialCount = min(max(1, prewarmCount), maxConnections)
-    for _ in 0..<initialCount {
+    for _ in 1..<initialCount {
       let handle = try Self.openAndPrepare(
         fileURL: fileURL,
         encryptionKey: encryptionKey,
-        requiresV3Compatibility: requiresV3Compatibility
+        requiresV3Compatibility: resolvedV3
       )
       self.availableHandles.append(handle)
       self.totalCreated += 1
     }
 
-    Logger.caas.info("SQLiteConnectionPool initialized with \(initialCount, privacy: .public)/\(maxConnections, privacy: .public) pre-warmed connection(s) for \(fileURL.lastPathComponent, privacy: .public)")
+    Logger.caas.info("SQLiteConnectionPool initialized with \(initialCount, privacy: .public)/\(maxConnections, privacy: .public) pre-warmed connection(s) [SQLCipher \(resolvedV3 ? "v3" : "v4", privacy: .public)] for \(fileURL.lastPathComponent, privacy: .public)")
   }
 
   deinit {
@@ -95,7 +104,7 @@ actor SQLiteConnectionPool {
       let handle = try Self.openAndPrepare(
         fileURL: fileURL,
         encryptionKey: encryptionKey,
-        requiresV3Compatibility: requiresV3Compatibility
+        requiresV3Compatibility: effectiveRequiresV3Compatibility
       )
       totalCreated += 1
       return handle
@@ -161,6 +170,35 @@ actor SQLiteConnectionPool {
   }
 
   // MARK: - Open & Prepare Helpers
+
+  /// Probes the MBTiles file by attempting to open it with the preferred format.
+  /// If HMAC check or decryption fails, seamlessly falls back to the alternative format (v4 <-> v3).
+  private static func openWithAdaptiveFallback(
+    fileURL: URL,
+    encryptionKey: String,
+    preferredV3Compatibility: Bool
+  ) throws(CaasError) -> (handle: SQLiteConnectionHandle, effectiveRequiresV3: Bool) {
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
+      throw CaasError.fileSystemError(underlying: "MBTiles file does not exist at \(fileURL.path)")
+    }
+
+    let keyData = Data(encryptionKey.utf8)
+
+    // 1. Attempt with preferred format (v4 by default, or v3 if explicitly requested)
+    if let result = tryOpen(fileURL: fileURL, keyData: keyData, v3Compatibility: preferredV3Compatibility) {
+      return (SQLiteConnectionHandle(db: result.db, statement: result.statement), preferredV3Compatibility)
+    }
+
+    // 2. Adaptive Fallback: Attempt with alternative format (v3 if v4 failed, or v4 if v3 failed)
+    let fallbackV3Compatibility = !preferredV3Compatibility
+    if let fallbackResult = tryOpen(fileURL: fileURL, keyData: keyData, v3Compatibility: fallbackV3Compatibility) {
+      Logger.caas.info("Adaptive fallback: opened '\(fileURL.lastPathComponent, privacy: .public)' using SQLCipher \(fallbackV3Compatibility ? "v3" : "v4", privacy: .public) compatibility.")
+      return (SQLiteConnectionHandle(db: fallbackResult.db, statement: fallbackResult.statement), fallbackV3Compatibility)
+    }
+
+    // 3. Both formats failed HMAC check or decryption
+    throw CaasError.decryptionFailed(reason: "Invalid encryption key or corrupt MBTiles database.")
+  }
 
   private static func openAndPrepare(
     fileURL: URL,

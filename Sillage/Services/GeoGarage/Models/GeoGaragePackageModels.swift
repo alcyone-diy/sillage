@@ -124,7 +124,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
   /// Physical package size on disk, populated asynchronously at load or download time.
   let fileSize: Measurement<UnitInformationStorage>?
 
-  /// Whether the package requires SQLCipher 3 compatibility mode (true for current GeoGarage packages, false for native SQLCipher 4).
+  /// Whether the package requires legacy SQLCipher 3 compatibility mode (false for native modern SQLCipher 4, true for legacy v3 packages).
   let requiresV3Compatibility: Bool
 
   init(
@@ -138,7 +138,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
     boundsWKT: String,
     fileSize: Measurement<UnitInformationStorage>? = nil,
     customName: String? = nil,
-    requiresV3Compatibility: Bool = true
+    requiresV3Compatibility: Bool = false
   ) {
     self.id = id
     self.layerID = layerID
@@ -198,6 +198,23 @@ nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
       fileSize: newFileSize,
       customName: customName,
       requiresV3Compatibility: requiresV3Compatibility
+    )
+  }
+
+  /// Creates a copy of this download record with an updated requiresV3Compatibility flag.
+  func updatingRequiresV3Compatibility(_ newRequiresV3: Bool) -> OfflineChartDownload {
+    OfflineChartDownload(
+      id: id,
+      layerID: layerID,
+      layerName: layerName,
+      downloadDate: downloadDate,
+      relativePath: relativePath,
+      md5: md5,
+      zoomMax: zoomMax,
+      boundsWKT: boundsWKT,
+      fileSize: fileSize,
+      customName: customName,
+      requiresV3Compatibility: newRequiresV3
     )
   }
 

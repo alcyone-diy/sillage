@@ -38,7 +38,7 @@ public struct GeoGarageDownloadRecord: Codable, FetchableRecord, PersistableReco
     bounds_wkt: String,
     custom_name: String? = nil,
     file_size_bytes: Int64? = nil,
-    requires_v3_compatibility: Bool = true
+    requires_v3_compatibility: Bool = false
   ) {
     self.id = id
     self.layer_id = layer_id

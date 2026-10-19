@@ -247,12 +247,71 @@ final class SQLCipherMBTilesReaderTests: XCTestCase {
 
     let reader = try SQLCipherMBTilesReader(
       fileURL: dbURL,
-      encryptionKey: encryptionKey,
-      requiresV3Compatibility: false
+      encryptionKey: encryptionKey
     )
     let retrievedData = await reader.tile(z: z, x: x, y: y)
 
-    XCTAssertEqual(retrievedData, tileData, "Reader must decrypt and retrieve tile bytes from SQLCipher 4 databases")
+    XCTAssertEqual(retrievedData, tileData, "Reader must decrypt and retrieve tile bytes from SQLCipher 4 databases by default")
+    await reader.close()
+  }
+
+  func testReader_adaptiveFallback_readsTileFromV3DatabaseWithDefaultV4Setting() async throws {
+    guard let tempDirURL else {
+      XCTFail("tempDirURL must be non-nil")
+      return
+    }
+    let dbURL = tempDirURL.appendingPathComponent("adaptive_reader_v3.mbtiles")
+    let encryptionKey = "test_passphrase_adaptive_v3"
+
+    var db: OpaquePointer?
+    XCTAssertEqual(sqlite3_open_v2(dbURL.path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil), SQLITE_OK)
+
+    let keyData = Data(encryptionKey.utf8)
+    let keyResult = keyData.withUnsafeBytes { rawBuffer in
+      sqlite3_key(db, rawBuffer.baseAddress, Int32(keyData.count))
+    }
+    XCTAssertEqual(keyResult, SQLITE_OK)
+
+    let pragmaCommands = "PRAGMA cipher_compatibility = 3;"
+    XCTAssertEqual(sqlite3_exec(db, pragmaCommands, nil, nil, nil), SQLITE_OK)
+
+    let createTableSQL = """
+    CREATE TABLE metadata (name text, value text);
+    CREATE TABLE tiles (zoom_level integer, tile_column integer, tile_row integer, tile_data blob);
+    """
+    XCTAssertEqual(sqlite3_exec(db, createTableSQL, nil, nil, nil), SQLITE_OK)
+
+    let z = 6
+    let x = 12
+    let y = 14
+    let tmsY = (1 << z) - 1 - y
+    guard let tileData = "PNG_V3_FALLBACK_PAYLOAD".data(using: .utf8) else {
+      XCTFail("Failed to encode tileData")
+      return
+    }
+
+    var insertStmt: OpaquePointer?
+    let insertSQL = "INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?, ?, ?, ?);"
+    XCTAssertEqual(sqlite3_prepare_v2(db, insertSQL, -1, &insertStmt, nil), SQLITE_OK)
+    sqlite3_bind_int(insertStmt, 1, Int32(z))
+    sqlite3_bind_int(insertStmt, 2, Int32(x))
+    sqlite3_bind_int(insertStmt, 3, Int32(tmsY))
+    tileData.withUnsafeBytes { rawBuffer in
+      sqlite3_bind_blob(insertStmt, 4, rawBuffer.baseAddress, Int32(tileData.count), nil)
+      XCTAssertEqual(sqlite3_step(insertStmt), SQLITE_DONE)
+    }
+    sqlite3_finalize(insertStmt)
+    sqlite3_close_v2(db)
+
+    // Open without specifying requiresV3Compatibility (defaults to false / SQLCipher 4)
+    // The reader must adaptively fall back to v3 and read the tile
+    let reader = try SQLCipherMBTilesReader(
+      fileURL: dbURL,
+      encryptionKey: encryptionKey
+    )
+    let retrievedData = await reader.tile(z: z, x: x, y: y)
+
+    XCTAssertEqual(retrievedData, tileData, "Reader must adaptively fall back to v3 and read tile when v4 default fails")
     await reader.close()
   }
 }

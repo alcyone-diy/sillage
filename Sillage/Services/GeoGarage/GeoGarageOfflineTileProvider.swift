@@ -27,12 +27,19 @@ final class GeoGarageOfflineTileProvider: GeoGarageOfflineTileProviderProtocol, 
     let reader: any SQLCipherMBTilesReaderProtocol
   }
 
+  typealias CompatibilityReconciliationHandler = @Sendable (UUID, Bool) async -> Void
+
   /// Lock-protected registry mapping `layerID` to active package readers.
   private let readersLock = OSAllocatedUnfairLock<[String: [ReaderEntry]]>(initialState: [:])
 
+  /// Optional handler invoked when an MBTiles package resolves to a different compatibility mode than recorded.
+  private let onCompatibilityMismatch: CompatibilityReconciliationHandler?
+
   // MARK: - Initializer
 
-  init() {}
+  init(onCompatibilityMismatch: CompatibilityReconciliationHandler? = nil) {
+    self.onCompatibilityMismatch = onCompatibilityMismatch
+  }
 
   // MARK: - Tile Retrieval (Concurrent & Non-blocking)
 
@@ -84,6 +91,7 @@ final class GeoGarageOfflineTileProvider: GeoGarageOfflineTileProviderProtocol, 
     let currentRegistry = readersLock.withLock { $0 }
     var newRegistry: [String: [ReaderEntry]] = [:]
     var readersToClose: [any SQLCipherMBTilesReaderProtocol] = []
+    var reconciliations: [(id: UUID, requiresV3: Bool)] = []
 
     for (layerID, layerDownloads) in targetDownloadsByLayer {
       var layerEntries: [ReaderEntry] = []
@@ -108,6 +116,12 @@ final class GeoGarageOfflineTileProvider: GeoGarageOfflineTileProviderProtocol, 
             )
             layerEntries.append(ReaderEntry(downloadID: download.id, fileURL: fileURL, reader: reader))
             Logger.caas.info("Opened offline reader for layer \(layerID, privacy: .public) [\(download.layerName, privacy: .public)]")
+
+            if reader.effectiveRequiresV3Compatibility != download.requiresV3Compatibility {
+              let resolvedMode = reader.effectiveRequiresV3Compatibility
+              Logger.caas.notice("Detected SQLCipher version mismatch for package \(download.id.uuidString, privacy: .public): persisted requiresV3=\(download.requiresV3Compatibility, privacy: .public), actual=\(resolvedMode, privacy: .public). Queued for reconciliation.")
+              reconciliations.append((id: download.id, requiresV3: resolvedMode))
+            }
           } catch {
             Logger.caas.error("Failed to open SQLCipher reader for \(fileURL.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
           }
@@ -136,6 +150,13 @@ final class GeoGarageOfflineTileProvider: GeoGarageOfflineTileProviderProtocol, 
     // Close decommissioned readers asynchronously
     for reader in readersToClose {
       await reader.close()
+    }
+
+    // Reconcile compatibility mismatches asynchronously with repository
+    if let onCompatibilityMismatch, !reconciliations.isEmpty {
+      for item in reconciliations {
+        await onCompatibilityMismatch(item.id, item.requiresV3)
+      }
     }
 
     Logger.caas.info("Reloaded offline tile provider with \(newRegistry.values.reduce(0, { $0 + $1.count }), privacy: .public) active package reader(s).")

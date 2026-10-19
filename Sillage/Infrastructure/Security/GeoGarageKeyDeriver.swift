@@ -9,12 +9,12 @@
 //
 
 import Foundation
-import CryptoKit
 
-/// Helper utility for deriving the SQLCipher encryption key from the customer ID and shared secret.
+/// Canonical utility for deriving the SQLCipher encryption key from the customer ID and shared secret.
+/// GeoGarage specification strictly mandates direct concatenation "\(customerID)\(sharedSecret)".
 nonisolated enum GeoGarageKeyDeriver {
   /// Derives the passphrase string used for SQLCipher PRAGMA key.
-  /// Computed as the direct concatenation "\(customerID)\(sharedSecret)".
+  /// Computed strictly as the canonical concatenation "\(customerID)\(sharedSecret)".
   /// - Parameters:
   ///   - sharedSecret: Partner shared secret issued by GeoGarage.
   ///   - customerID: User's GeoGarage customer identifier (`customer_id`).

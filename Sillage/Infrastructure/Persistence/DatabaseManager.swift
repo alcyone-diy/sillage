@@ -515,6 +515,12 @@ public final class DatabaseManager: Sendable {
       }
     }
 
+    // v13: Migrates existing offline GeoGarage downloads to SQLCipher 4 by default (requires_v3_compatibility = 0)
+    migrator.registerMigration("v13") { db in
+      guard try db.tableExists("geogarage_download") else { return }
+      try db.execute(sql: "UPDATE geogarage_download SET requires_v3_compatibility = 0")
+    }
+
     return migrator
   }
 }

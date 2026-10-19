@@ -17,6 +17,10 @@ final class SQLCipherMBTilesReader: SQLCipherMBTilesReaderProtocol, Sendable {
 
   private let pool: SQLiteConnectionPool
 
+  var effectiveRequiresV3Compatibility: Bool {
+    pool.effectiveRequiresV3Compatibility
+  }
+
   // MARK: - Initializer
 
   /// Initializes the reader and pre-warms the SQLite connection pool.
@@ -29,7 +33,7 @@ final class SQLCipherMBTilesReader: SQLCipherMBTilesReaderProtocol, Sendable {
   init(
     fileURL: URL,
     encryptionKey: String,
-    requiresV3Compatibility: Bool = true,
+    requiresV3Compatibility: Bool = false,
     maxConnections: Int = 6,
     prewarmCount: Int = 2
   ) throws(CaasError) {

@@ -373,4 +373,103 @@ final class GeoGarageOfflineTileProviderTests: XCTestCase {
 
     await provider.close()
   }
+
+  func testTile_adaptiveFallback_readsTileEvenIfRequiresV3CompatibilityIsMismatched() async throws {
+    let secret = "mock_secret_mismatch"
+    let customerID = "mock_customer_mismatch"
+    let key = GeoGarageKeyDeriver.derivePassphrase(sharedSecret: secret, customerID: customerID)
+
+    guard let tileData = "ADAPTIVE_TILE_PAYLOAD".data(using: .utf8) else {
+      XCTFail("Failed to encode tileData")
+      return
+    }
+
+    // Create a legacy SQLCipher v3 package
+    let fileName = "shom_adaptive_mismatch.mbtiles"
+    _ = try createEncryptedMBTiles(
+      fileName: fileName,
+      encryptionKey: key,
+      tiles: [(z: 11, x: 1024, y: 680, data: tileData)],
+      v3Compatibility: true
+    )
+
+    // Download record defaults to requiresV3Compatibility = false (modern v4 format)
+    // The adaptive pool must transparently fall back to v3 and read the tile
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France Adaptive",
+      downloadDate: Date(),
+      relativePath: "\(testSubdirName)/\(fileName)",
+      md5: "mock_adaptive_md5",
+      zoomMax: 12,
+      boundsWKT: "POLYGON((-5 48, -4 48, -4 49, -5 49, -5 48))"
+    )
+
+    let provider = GeoGarageOfflineTileProvider()
+    await provider.reloadDownloads([download], sharedSecret: secret, customerID: customerID)
+
+    let result = await provider.tile(layerID: "shom", z: 11, x: 1024, y: 680)
+    XCTAssertEqual(result, tileData, "Must adaptively fall back and decrypt tile from v3 package even if record defaulted to v4")
+
+    await provider.close()
+  }
+
+  func testReloadDownloads_triggersReconciliationCallbackOnMismatch() async throws {
+    let secret = "reconcile_secret"
+    let customerID = "reconcile_customer"
+    let key = GeoGarageKeyDeriver.derivePassphrase(sharedSecret: secret, customerID: customerID)
+
+    guard let tileData = "RECONCILE_PAYLOAD".data(using: .utf8) else {
+      XCTFail("Failed to encode tileData")
+      return
+    }
+
+    // 1. Create a legacy v3 MBTiles package on disk
+    let fileName = "shom_reconcile_test.mbtiles"
+    _ = try createEncryptedMBTiles(
+      fileName: fileName,
+      encryptionKey: key,
+      tiles: [(z: 8, x: 100, y: 50, data: tileData)],
+      v3Compatibility: true
+    )
+
+    let downloadID = UUID()
+    // Record initially claims false (v4) -> Mismatch!
+    let downloadMismatch = OfflineChartDownload(
+      id: downloadID,
+      layerID: "shom",
+      layerName: "SHOM Reconcile Test",
+      downloadDate: Date(),
+      relativePath: "\(testSubdirName)/\(fileName)",
+      md5: "mock_md5",
+      zoomMax: 10,
+      boundsWKT: "POLYGON((-5 48, -4 48, -4 49, -5 49, -5 48))",
+      requiresV3Compatibility: false
+    )
+
+    final class ReconciliationBox: @unchecked Sendable {
+      var calls: [(UUID, Bool)] = []
+    }
+    let box = ReconciliationBox()
+
+    let provider = GeoGarageOfflineTileProvider(
+      onCompatibilityMismatch: { id, correctedMode in
+        box.calls.append((id, correctedMode))
+      }
+    )
+
+    // First reload: mismatch detected -> callback must be fired
+    await provider.reloadDownloads([downloadMismatch], sharedSecret: secret, customerID: customerID)
+
+    XCTAssertEqual(box.calls.count, 1, "Reconciliation callback must be invoked exactly once")
+    XCTAssertEqual(box.calls.first?.0, downloadID)
+    XCTAssertEqual(box.calls.first?.1, true, "Corrected mode must be true (v3)")
+
+    // Tile is readable immediately
+    let tile = await provider.tile(layerID: "shom", z: 8, x: 100, y: 50)
+    XCTAssertEqual(tile, tileData)
+
+    await provider.close()
+  }
 }

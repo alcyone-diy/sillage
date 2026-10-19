@@ -205,7 +205,21 @@ final class AppEnvironment {
       let geoGarageDownloadRepository = GeoGarageDownloadRepository(databaseManager: databaseManager)
       await geoGarageDownloadRepository.load()
 
-      let geoGarageOfflineTileProvider = GeoGarageOfflineTileProvider()
+      let geoGarageOfflineTileProvider = GeoGarageOfflineTileProvider(
+        onCompatibilityMismatch: { [weak geoGarageDownloadRepository] downloadID, correctedRequiresV3 in
+          guard let repo = geoGarageDownloadRepository else { return }
+          guard let download = await MainActor.run(body: {
+            repo.downloads.first(where: { $0.id == downloadID })
+          }) else { return }
+          let updated = download.updatingRequiresV3Compatibility(correctedRequiresV3)
+          do {
+            try await repo.save(updated)
+            Logger.caas.info("Reconciled requiresV3Compatibility=\(correctedRequiresV3, privacy: .public) for package \(downloadID.uuidString, privacy: .public) in database.")
+          } catch {
+            Logger.caas.error("Failed to reconcile requiresV3Compatibility for package \(downloadID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+          }
+        }
+      )
       TileProxyProtocol.configure(
         offlineTileProvider: geoGarageOfflineTileProvider,
         tileProxyManager: tileProxyManager,
