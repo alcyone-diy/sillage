@@ -244,12 +244,13 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     layerID: String,
     layerName: String,
     zoneWKT: String,
-    zoomMax: Int,
+    zoomMax: Int?,
     accessToken: String,
     customerID: String,
     customName: String? = nil,
     replacesChartID: UUID? = nil
   ) {
+    let appliedZoomMax = zoomMax ?? AppConstants.Cartography.Zoom.defaultOfflineZoomMax
     lastTerminalPhase = nil
 
     // Technical Design: Generate stable local UUID before network execution starts
@@ -260,7 +261,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
       layerID: layerID,
       layerName: layerName,
       boundsWKT: zoneWKT,
-      zoomMax: zoomMax,
+      zoomMax: appliedZoomMax,
       createdAt: Date(),
       customName: customName,
       replacesChartID: replacesChartID

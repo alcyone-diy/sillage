@@ -29,6 +29,9 @@ public enum AppConstants {
       // Offline download bounds
       public static let offlineMinimum: Double = 0.0
       public static let offlineMaximum: Double = 16.0
+      /// It is critical that `defaultOfflineZoomMax` strictly matches `offlineMaximum` so that
+      /// downloaded offline charts deliver the exact same hydrographic detail level as online navigation without user surprise.
+      public static let defaultOfflineZoomMax: Int = Int(offlineMaximum)
       
       // Specific remote source limits
       public static let geoGarageMaximum: Float = 16.0

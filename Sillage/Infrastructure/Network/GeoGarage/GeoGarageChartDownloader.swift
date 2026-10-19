@@ -84,11 +84,12 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
     layerID: String,
     layerName: String,
     boundsWKT: String,
-    zoomMax: Int,
+    zoomMax: Int? = nil,
     accessToken: String,
     localID: UUID? = nil,
     progressHandler: (@Sendable (Int64, Int64) -> Void)? = nil
   ) async throws(CaasError) -> OfflineChartDownload {
+    let appliedZoomMax = zoomMax ?? AppConstants.Cartography.Zoom.defaultOfflineZoomMax
     Logger.caas.info("Initiating background download for package \(packageID.uuidString, privacy: .public) from \(downloadURL.absoluteString, privacy: .public)")
 
     let downloadTask = session.downloadTask(with: downloadURL)
@@ -187,7 +188,7 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
       downloadDate: Date(),
       relativePath: relativePath,
       md5: expectedMD5.lowercased(),
-      zoomMax: zoomMax,
+      zoomMax: appliedZoomMax,
       boundsWKT: boundsWKT,
       fileSize: fileSize
     )

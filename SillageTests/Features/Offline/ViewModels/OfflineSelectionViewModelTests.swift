@@ -42,11 +42,12 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       layerID: String,
       layerName: String,
       boundsWKT: String,
-      zoomMax: Int,
+      zoomMax: Int?,
       accessToken: String,
       localID: UUID? = nil,
       progressHandler: (@Sendable (Int64, Int64) -> Void)? = nil
     ) async throws(CaasError) -> OfflineChartDownload {
+      let appliedZoomMax = zoomMax ?? AppConstants.Cartography.Zoom.defaultOfflineZoomMax
       if let error = shouldThrowError {
         if let caas = error as? CaasError {
           throw caas
@@ -66,7 +67,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
         downloadDate: Date(),
         relativePath: "Charts/\(recordID.uuidString.lowercased()).mbtiles",
         md5: expectedMD5,
-        zoomMax: zoomMax,
+        zoomMax: appliedZoomMax,
         boundsWKT: boundsWKT
       )
     }
@@ -333,6 +334,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     let (viewModel, _, _, _, _, _, _, _) = makeSUT()
 
     viewModel.isSelectionModeActive = true
+    viewModel.zoomMax = 12
     let bounds = GeographicBoundingBox(southWest: .init(latitude: 44, longitude: 0), northEast: .init(latitude: 45, longitude: 1))
     viewModel.updateBoundingBox(bounds)
     viewModel.updateCropRect(CGRect(x: 0, y: 0, width: 100, height: 100))
@@ -342,12 +344,14 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isSelectionModeActive, "isSelectionModeActive should be false immediately after startDownload")
     XCTAssertNil(viewModel.selectedBounds, "selectedBounds should be reset")
     XCTAssertNil(viewModel.cropRect, "cropRect should be reset")
+    XCTAssertEqual(viewModel.zoomMax, 12, "zoomMax should be preserved during async download initiation to preserve UI state in case of failure")
   }
 
   func testInitialState_isIdle() {
     let (sut, _, _, _, _, _, _, _) = makeSUT()
     XCTAssertEqual(sut.downloadPhase, .idle)
     XCTAssertFalse(sut.isDownloading)
+    XCTAssertEqual(sut.zoomMax, AppConstants.Cartography.Zoom.defaultOfflineZoomMax)
   }
 
   func testStartDownload_withoutVisibleBounds_setsFailedState() {
@@ -1544,6 +1548,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertNil(sut.chartToModify)
     XCTAssertNil(sut.pendingCustomName)
     XCTAssertNil(sut.initialBounds)
+    XCTAssertEqual(sut.zoomMax, AppConstants.Cartography.Zoom.defaultOfflineZoomMax)
   }
 
   func testStartDownload_whenModifyingZone_withSufficientSpace_retainsOldChartDuringDownload_andDeletesUponCompletion() async throws {
@@ -1811,6 +1816,26 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     XCTAssertTrue(sut.isSelectionModeActive)
     XCTAssertEqual(sut.selectedBounds, explicit)
+  }
+
+  func testStartNewSelection_resetsZoomMaxToDefault() {
+    let (sut, _, _, _, _, _, _, _) = makeSUT(setupVisibleBounds: true)
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "Charts/test.mbtiles",
+      md5: "md5",
+      zoomMax: 12,
+      boundsWKT: "POLYGON((-5.0 48.0, -4.0 48.0, -4.0 49.0, -5.0 49.0, -5.0 48.0))"
+    )
+
+    sut.startModifyingZone(for: download, padding: MarineTheme.standard.offlineSelectionEdgeInsets)
+    XCTAssertEqual(sut.zoomMax, 12)
+
+    sut.startNewSelection()
+    XCTAssertEqual(sut.zoomMax, AppConstants.Cartography.Zoom.defaultOfflineZoomMax)
   }
 }
 

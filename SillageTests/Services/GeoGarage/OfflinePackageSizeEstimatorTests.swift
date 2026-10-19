@@ -34,8 +34,10 @@ final class OfflinePackageSizeEstimatorTests: XCTestCase {
 
     let sizeAt12 = OfflinePackageSizeEstimator.estimatePackageSize(bounds: bounds, zoomMax: 12)
     let sizeAt14 = OfflinePackageSizeEstimator.estimatePackageSize(bounds: bounds, zoomMax: 14)
+    let sizeAt16 = OfflinePackageSizeEstimator.estimatePackageSize(bounds: bounds, zoomMax: AppConstants.Cartography.Zoom.defaultOfflineZoomMax)
 
     XCTAssertGreaterThan(sizeAt14.value, sizeAt12.value, "Higher zoom level must yield a larger estimated size")
+    XCTAssertGreaterThan(sizeAt16.value, sizeAt14.value, "Zoom 16 must yield a larger estimated size than zoom 14")
   }
 
   func testEstimatePackageSize_largerBoundingBoxIncreasesEstimatedSize() {

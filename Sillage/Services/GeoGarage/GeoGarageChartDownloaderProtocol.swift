@@ -21,7 +21,7 @@ protocol GeoGarageChartDownloaderProtocol: Sendable {
     layerID: String,
     layerName: String,
     boundsWKT: String,
-    zoomMax: Int,
+    zoomMax: Int?,
     accessToken: String,
     localID: UUID?,
     progressHandler: (@Sendable (Int64, Int64) -> Void)?
@@ -39,7 +39,7 @@ extension GeoGarageChartDownloaderProtocol {
     layerID: String,
     layerName: String,
     boundsWKT: String,
-    zoomMax: Int,
+    zoomMax: Int? = nil,
     accessToken: String,
     localID: UUID? = nil
   ) async throws(CaasError) -> OfflineChartDownload {

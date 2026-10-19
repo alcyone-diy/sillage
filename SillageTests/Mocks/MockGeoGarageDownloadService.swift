@@ -89,18 +89,21 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
 
   var lastCustomName: String? = nil
   var lastReplacesChartID: UUID? = nil
+  var lastZoomMax: Int? = nil
 
   func startDownload(
     layerID: String,
     layerName: String,
     zoneWKT: String,
-    zoomMax: Int,
+    zoomMax: Int?,
     accessToken: String,
     customerID: String,
     customName: String? = nil,
     replacesChartID: UUID? = nil
   ) {
+    let appliedZoomMax = zoomMax ?? AppConstants.Cartography.Zoom.defaultOfflineZoomMax
     startDownloadCalled = true
+    lastZoomMax = appliedZoomMax
     lastCustomName = customName
     lastReplacesChartID = replacesChartID
   }

@@ -79,7 +79,7 @@ final class OfflineSelectionViewModel {
       }
     }
   }
-  var zoomMax: Int = 14
+  var zoomMax: Int = AppConstants.Cartography.Zoom.defaultOfflineZoomMax
 
   @ObservationIgnored
   private var calculationTask: Task<Void, Never>?
@@ -244,6 +244,7 @@ final class OfflineSelectionViewModel {
     chartToModify = nil
     pendingCustomName = nil
     initialBounds = nil
+    zoomMax = AppConstants.Cartography.Zoom.defaultOfflineZoomMax
     chartViewModel.clearOfflineRegionHighlight()
     calculationTask?.cancel()
     chartViewModel.updateOfflineMaskState(
@@ -262,6 +263,7 @@ final class OfflineSelectionViewModel {
     self.pendingCustomName = nil
     self.initialBounds = nil
     self.cropRect = nil
+    self.zoomMax = AppConstants.Cartography.Zoom.defaultOfflineZoomMax
     chartViewModel.clearOfflineRegionHighlight()
 
     self.isSelectionModeActive = true

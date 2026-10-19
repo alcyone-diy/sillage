@@ -75,11 +75,12 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       layerID: String,
       layerName: String,
       boundsWKT: String,
-      zoomMax: Int,
+      zoomMax: Int?,
       accessToken: String,
       localID: UUID?,
       progressHandler: (@Sendable (Int64, Int64) -> Void)?
     ) async throws(CaasError) -> OfflineChartDownload {
+      let appliedZoomMax = zoomMax ?? AppConstants.Cartography.Zoom.defaultOfflineZoomMax
       if shouldFailDownload {
         throw CaasError.downloadFailed(underlying: "Disk full or simulated failure")
       }
@@ -93,7 +94,7 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
         downloadDate: Date(),
         relativePath: "GeoGarage/\(layerID).mbtiles",
         md5: expectedMD5,
-        zoomMax: zoomMax,
+        zoomMax: appliedZoomMax,
         boundsWKT: boundsWKT
       )
     }
