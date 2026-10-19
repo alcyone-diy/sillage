@@ -30,6 +30,7 @@ actor SQLiteConnectionPool {
 
   private let fileURL: URL
   private let encryptionKey: String
+  private let requiresV3Compatibility: Bool
   private let maxConnections: Int
 
   private var availableHandles: [SQLiteConnectionHandle] = []
@@ -42,6 +43,7 @@ actor SQLiteConnectionPool {
   init(
     fileURL: URL,
     encryptionKey: String,
+    requiresV3Compatibility: Bool = true,
     maxConnections: Int = 6,
     prewarmCount: Int = 2
   ) throws(CaasError) {
@@ -50,12 +52,17 @@ actor SQLiteConnectionPool {
     }
     self.fileURL = fileURL
     self.encryptionKey = encryptionKey
+    self.requiresV3Compatibility = requiresV3Compatibility
     self.maxConnections = maxConnections
 
     // Pre-warm initial connection handles to eliminate runtime SQLCipher key derivation overhead
     let initialCount = min(max(1, prewarmCount), maxConnections)
     for _ in 0..<initialCount {
-      let handle = try Self.openAndPrepare(fileURL: fileURL, encryptionKey: encryptionKey)
+      let handle = try Self.openAndPrepare(
+        fileURL: fileURL,
+        encryptionKey: encryptionKey,
+        requiresV3Compatibility: requiresV3Compatibility
+      )
       self.availableHandles.append(handle)
       self.totalCreated += 1
     }
@@ -85,7 +92,11 @@ actor SQLiteConnectionPool {
 
     // 2. Instantiate a new handle up to maxConnections
     if totalCreated < maxConnections {
-      let handle = try Self.openAndPrepare(fileURL: fileURL, encryptionKey: encryptionKey)
+      let handle = try Self.openAndPrepare(
+        fileURL: fileURL,
+        encryptionKey: encryptionKey,
+        requiresV3Compatibility: requiresV3Compatibility
+      )
       totalCreated += 1
       return handle
     }
@@ -153,7 +164,8 @@ actor SQLiteConnectionPool {
 
   private static func openAndPrepare(
     fileURL: URL,
-    encryptionKey: String
+    encryptionKey: String,
+    requiresV3Compatibility: Bool
   ) throws(CaasError) -> SQLiteConnectionHandle {
     guard FileManager.default.fileExists(atPath: fileURL.path) else {
       throw CaasError.fileSystemError(underlying: "MBTiles file does not exist at \(fileURL.path)")
@@ -161,17 +173,11 @@ actor SQLiteConnectionPool {
 
     let keyData = Data(encryptionKey.utf8)
 
-    // 1. Try opening with SQLCipher 4 (default)
-    if let result = tryOpen(fileURL: fileURL, keyData: keyData, v3Compatibility: false) {
-      return SQLiteConnectionHandle(db: result.db, statement: result.statement)
+    guard let result = tryOpen(fileURL: fileURL, keyData: keyData, v3Compatibility: requiresV3Compatibility) else {
+      throw CaasError.decryptionFailed(reason: "Invalid encryption key or corrupt MBTiles database.")
     }
 
-    // 2. Fallback: Try opening with SQLCipher 3 legacy compatibility
-    if let result = tryOpen(fileURL: fileURL, keyData: keyData, v3Compatibility: true) {
-      return SQLiteConnectionHandle(db: result.db, statement: result.statement)
-    }
-
-    throw CaasError.decryptionFailed(reason: "Invalid encryption key or corrupt MBTiles database.")
+    return SQLiteConnectionHandle(db: result.db, statement: result.statement)
   }
 
   private static func tryOpen(

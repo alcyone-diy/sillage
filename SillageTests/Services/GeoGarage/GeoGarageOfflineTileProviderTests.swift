@@ -40,7 +40,8 @@ final class GeoGarageOfflineTileProviderTests: XCTestCase {
   private func createEncryptedMBTiles(
     fileName: String,
     encryptionKey: String,
-    tiles: [(z: Int, x: Int, y: Int, data: Data)]
+    tiles: [(z: Int, x: Int, y: Int, data: Data)],
+    v3Compatibility: Bool = true
   ) throws -> URL {
     guard let tempDirURL else {
       throw CaasError.fileSystemError(underlying: "Missing tempDirURL")
@@ -61,14 +62,21 @@ final class GeoGarageOfflineTileProviderTests: XCTestCase {
       throw CaasError.decryptionFailed(reason: "sqlite3_key failed")
     }
 
-    let pragmaCommands = "PRAGMA cipher_compatibility = 3;"
-    var pragmaErrMsg: UnsafeMutablePointer<CChar>?
-    let pragmaCode = sqlite3_exec(db, pragmaCommands, nil, nil, &pragmaErrMsg)
-    if pragmaCode != SQLITE_OK {
-      let msg = pragmaErrMsg != nil ? String(cString: pragmaErrMsg!) : "Unknown"
-      sqlite3_free(pragmaErrMsg)
-      sqlite3_close_v2(db)
-      throw CaasError.decryptionFailed(reason: "PRAGMA failed: \(msg)")
+    if v3Compatibility {
+      let pragmaCommands = "PRAGMA cipher_compatibility = 3;"
+      var pragmaErrMsg: UnsafeMutablePointer<CChar>?
+      let pragmaCode = sqlite3_exec(db, pragmaCommands, nil, nil, &pragmaErrMsg)
+      if pragmaCode != SQLITE_OK {
+        let msg: String
+        if let pragmaErrMsg {
+          msg = String(cString: pragmaErrMsg)
+          sqlite3_free(pragmaErrMsg)
+        } else {
+          msg = "Unknown"
+        }
+        sqlite3_close_v2(db)
+        throw CaasError.decryptionFailed(reason: "PRAGMA failed: \(msg)")
+      }
     }
 
     let createTableSQL = """
@@ -283,6 +291,85 @@ final class GeoGarageOfflineTileProviderTests: XCTestCase {
     XCTAssertNil(res1After, "Old package 1 should no longer be queried")
     let res2After = await provider.tile(layerID: "shom", z: 8, x: 20, y: 20)
     XCTAssertEqual(res2After, tileData2)
+
+    await provider.close()
+  }
+
+  func testTile_returnsNilWhenPassphraseIsInvalid() async throws {
+    let validSecret = "correct_secret"
+    let wrongSecret = "wrong_secret"
+    let customerID = "cus_123"
+    let validKey = GeoGarageKeyDeriver.derivePassphrase(sharedSecret: validSecret, customerID: customerID)
+
+    guard let tileData = "VALID_TILE_DATA".data(using: .utf8) else {
+      XCTFail("Failed to encode tileData")
+      return
+    }
+
+    let fileName = "invalid_key_test.mbtiles"
+    _ = try createEncryptedMBTiles(
+      fileName: fileName,
+      encryptionKey: validKey,
+      tiles: [(z: 10, x: 500, y: 300, data: tileData)],
+      v3Compatibility: true
+    )
+
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France",
+      downloadDate: Date(),
+      relativePath: "\(testSubdirName)/\(fileName)",
+      md5: "mock_md5",
+      zoomMax: 12,
+      boundsWKT: "POLYGON((-5 48, -4 48, -4 49, -5 49, -5 48))"
+    )
+
+    let provider = GeoGarageOfflineTileProvider()
+    // Attempt reload with wrong secret -> decryption fails during reader initialization
+    await provider.reloadDownloads([download], sharedSecret: wrongSecret, customerID: customerID)
+
+    let result = await provider.tile(layerID: "shom", z: 10, x: 500, y: 300)
+    XCTAssertNil(result, "Reader initialization failure due to wrong secret must result in nil tile")
+
+    await provider.close()
+  }
+
+  func testTile_returnsTileFromSQLCipher4Package() async throws {
+    let secret = "mock_secret_v4_test"
+    let customerID = "mock_customer_v4_test"
+    let key = GeoGarageKeyDeriver.derivePassphrase(sharedSecret: secret, customerID: customerID)
+
+    guard let tileData = "SQLCIPHER4_TILE_PAYLOAD".data(using: .utf8) else {
+      XCTFail("Failed to encode tileData")
+      return
+    }
+
+    let fileName = "shom_v4_test.mbtiles"
+    _ = try createEncryptedMBTiles(
+      fileName: fileName,
+      encryptionKey: key,
+      tiles: [(z: 10, x: 500, y: 300, data: tileData)],
+      v3Compatibility: false
+    )
+
+    let download = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM France V4",
+      downloadDate: Date(),
+      relativePath: "\(testSubdirName)/\(fileName)",
+      md5: "mock_v4_md5",
+      zoomMax: 12,
+      boundsWKT: "POLYGON((-5 48, -4 48, -4 49, -5 49, -5 48))",
+      requiresV3Compatibility: false
+    )
+
+    let provider = GeoGarageOfflineTileProvider()
+    await provider.reloadDownloads([download], sharedSecret: secret, customerID: customerID)
+
+    let result = await provider.tile(layerID: "shom", z: 10, x: 500, y: 300)
+    XCTAssertEqual(result, tileData, "Must decrypt and read tiles from SQLCipher 4 package when requiresV3Compatibility is false")
 
     await provider.close()
   }

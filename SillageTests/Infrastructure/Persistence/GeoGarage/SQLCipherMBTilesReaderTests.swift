@@ -98,8 +98,13 @@ final class SQLCipherMBTilesReaderTests: XCTestCase {
     var pragmaErrMsg: UnsafeMutablePointer<CChar>?
     let pragmaCode = sqlite3_exec(db, pragmaCommands, nil, nil, &pragmaErrMsg)
     if pragmaCode != SQLITE_OK {
-      let msg = pragmaErrMsg != nil ? String(cString: pragmaErrMsg!) : "Unknown"
-      sqlite3_free(pragmaErrMsg)
+      let msg: String
+      if let pragmaErrMsg {
+        msg = String(cString: pragmaErrMsg)
+        sqlite3_free(pragmaErrMsg)
+      } else {
+        msg = "Unknown"
+      }
       XCTFail("PRAGMA failed: \(msg)")
     }
 
@@ -135,7 +140,11 @@ final class SQLCipherMBTilesReaderTests: XCTestCase {
     sqlite3_close_v2(db)
 
     // 2. Open via SQLCipherMBTilesReader and retrieve tile using XYZ (z, x, y)
-    let reader = try SQLCipherMBTilesReader(fileURL: dbURL, encryptionKey: encryptionKey)
+    let reader = try SQLCipherMBTilesReader(
+      fileURL: dbURL,
+      encryptionKey: encryptionKey,
+      requiresV3Compatibility: true
+    )
     let retrievedData = await reader.tile(z: z, x: x, y: y)
 
     XCTAssertEqual(retrievedData, tileData, "Reader must decrypt and retrieve exact tile bytes using TMS flipped row")
@@ -171,7 +180,11 @@ final class SQLCipherMBTilesReaderTests: XCTestCase {
     sqlite3_exec(db, createTableSQL, nil, nil, nil)
     sqlite3_close_v2(db)
 
-    let reader = try SQLCipherMBTilesReader(fileURL: dbURL, encryptionKey: encryptionKey)
+    let reader = try SQLCipherMBTilesReader(
+      fileURL: dbURL,
+      encryptionKey: encryptionKey,
+      requiresV3Compatibility: true
+    )
 
     // Launch task and cancel it immediately
     let task = Task { () -> Data? in
@@ -183,6 +196,63 @@ final class SQLCipherMBTilesReaderTests: XCTestCase {
     // If the task was cancelled before/during execution, it returns nil cleanly
     XCTAssertNil(result)
 
+    await reader.close()
+  }
+
+  func testReader_decryptsAndReadsTileFromSQLCipher4Database() async throws {
+    guard let tempDirURL else {
+      XCTFail("tempDirURL must be non-nil")
+      return
+    }
+    let dbURL = tempDirURL.appendingPathComponent("encrypted_v4.mbtiles")
+    let encryptionKey = "test_passphrase_v4"
+
+    // Create a native SQLCipher v4 encrypted MBTiles database (without cipher_compatibility = 3)
+    var db: OpaquePointer?
+    XCTAssertEqual(sqlite3_open_v2(dbURL.path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nil), SQLITE_OK)
+
+    let keyData = Data(encryptionKey.utf8)
+    let keyResult = keyData.withUnsafeBytes { rawBuffer in
+      sqlite3_key(db, rawBuffer.baseAddress, Int32(keyData.count))
+    }
+    XCTAssertEqual(keyResult, SQLITE_OK)
+
+    let createTableSQL = """
+    CREATE TABLE metadata (name text, value text);
+    CREATE TABLE tiles (zoom_level integer, tile_column integer, tile_row integer, tile_data blob);
+    """
+    XCTAssertEqual(sqlite3_exec(db, createTableSQL, nil, nil, nil), SQLITE_OK)
+
+    let z = 8
+    let x = 120
+    let y = 80
+    let tmsY = (1 << z) - 1 - y
+    guard let tileData = "PNG_V4_DECRYPTED_TILE_PAYLOAD".data(using: .utf8) else {
+      XCTFail("Failed to encode tileData")
+      return
+    }
+
+    var insertStmt: OpaquePointer?
+    let insertSQL = "INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (?, ?, ?, ?);"
+    XCTAssertEqual(sqlite3_prepare_v2(db, insertSQL, -1, &insertStmt, nil), SQLITE_OK)
+    sqlite3_bind_int(insertStmt, 1, Int32(z))
+    sqlite3_bind_int(insertStmt, 2, Int32(x))
+    sqlite3_bind_int(insertStmt, 3, Int32(tmsY))
+    tileData.withUnsafeBytes { rawBuffer in
+      sqlite3_bind_blob(insertStmt, 4, rawBuffer.baseAddress, Int32(tileData.count), nil)
+      XCTAssertEqual(sqlite3_step(insertStmt), SQLITE_DONE)
+    }
+    sqlite3_finalize(insertStmt)
+    sqlite3_close_v2(db)
+
+    let reader = try SQLCipherMBTilesReader(
+      fileURL: dbURL,
+      encryptionKey: encryptionKey,
+      requiresV3Compatibility: false
+    )
+    let retrievedData = await reader.tile(z: z, x: x, y: y)
+
+    XCTAssertEqual(retrievedData, tileData, "Reader must decrypt and retrieve tile bytes from SQLCipher 4 databases")
     await reader.close()
   }
 }

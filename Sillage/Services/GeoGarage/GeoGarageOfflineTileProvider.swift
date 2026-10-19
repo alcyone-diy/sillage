@@ -101,7 +101,11 @@ final class GeoGarageOfflineTileProvider: GeoGarageOfflineTileProviderProtocol, 
           layerEntries.append(existing)
         } else {
           do {
-            let reader = try SQLCipherMBTilesReader(fileURL: fileURL, encryptionKey: encryptionKey)
+            let reader = try SQLCipherMBTilesReader(
+              fileURL: fileURL,
+              encryptionKey: encryptionKey,
+              requiresV3Compatibility: download.requiresV3Compatibility
+            )
             layerEntries.append(ReaderEntry(downloadID: download.id, fileURL: fileURL, reader: reader))
             Logger.caas.info("Opened offline reader for layer \(layerID, privacy: .public) [\(download.layerName, privacy: .public)]")
           } catch {

@@ -31,7 +31,7 @@ final class SQLiteConnectionPoolTests: XCTestCase {
     super.tearDown()
   }
 
-  private func createTestEncryptedDB(fileName: String, key: String) throws -> URL {
+  private func createTestEncryptedDB(fileName: String, key: String, v3Compatibility: Bool = true) throws -> URL {
     guard let tempDirURL else {
       throw CaasError.fileSystemError(underlying: "Missing tempDirURL")
     }
@@ -51,8 +51,10 @@ final class SQLiteConnectionPoolTests: XCTestCase {
       throw CaasError.decryptionFailed(reason: "sqlite3_key failed")
     }
 
-    let pragmaCommands = "PRAGMA cipher_compatibility = 3;"
-    sqlite3_exec(db, pragmaCommands, nil, nil, nil)
+    if v3Compatibility {
+      let pragmaCommands = "PRAGMA cipher_compatibility = 3;"
+      sqlite3_exec(db, pragmaCommands, nil, nil, nil)
+    }
 
     let createTableSQL = """
     CREATE TABLE metadata (name text, value text);
@@ -74,6 +76,7 @@ final class SQLiteConnectionPoolTests: XCTestCase {
     let pool = try SQLiteConnectionPool(
       fileURL: dbURL,
       encryptionKey: key,
+      requiresV3Compatibility: true,
       maxConnections: 3,
       prewarmCount: 2
     )
@@ -97,6 +100,7 @@ final class SQLiteConnectionPoolTests: XCTestCase {
     let pool = try SQLiteConnectionPool(
       fileURL: dbURL,
       encryptionKey: key,
+      requiresV3Compatibility: true,
       maxConnections: 1,
       prewarmCount: 1
     )
@@ -120,5 +124,61 @@ final class SQLiteConnectionPoolTests: XCTestCase {
     XCTAssertTrue(result, "Waiter must be resumed once a connection handle is returned")
 
     await pool.close()
+  }
+
+  func testPool_opensSQLCipher3Archive() async throws {
+    let key = "mock_secret_v3_passphrase"
+    let dbURL = try createTestEncryptedDB(fileName: "pool_v3_test.mbtiles", key: key, v3Compatibility: true)
+
+    let pool = try SQLiteConnectionPool(
+      fileURL: dbURL,
+      encryptionKey: key,
+      requiresV3Compatibility: true,
+      maxConnections: 2,
+      prewarmCount: 1
+    )
+
+    let handle = try await pool.borrow()
+    await pool.returnHandle(handle)
+    await pool.close()
+  }
+
+  func testPool_opensSQLCipher4Archive() async throws {
+    let key = "mock_secret_v4_passphrase"
+    let dbURL = try createTestEncryptedDB(fileName: "pool_v4_test.mbtiles", key: key, v3Compatibility: false)
+
+    let pool = try SQLiteConnectionPool(
+      fileURL: dbURL,
+      encryptionKey: key,
+      requiresV3Compatibility: false,
+      maxConnections: 2,
+      prewarmCount: 1
+    )
+
+    let handle = try await pool.borrow()
+    await pool.returnHandle(handle)
+    await pool.close()
+  }
+
+  func testPool_throwsDecryptionFailedOnInvalidKey() async throws {
+    let actualKey = "real_key_12345"
+    let wrongKey = "wrong_attacker_key"
+    let dbURL = try createTestEncryptedDB(fileName: "pool_invalid_key_test.mbtiles", key: actualKey, v3Compatibility: true)
+
+    do {
+      _ = try SQLiteConnectionPool(
+        fileURL: dbURL,
+        encryptionKey: wrongKey,
+        requiresV3Compatibility: true,
+        maxConnections: 1,
+        prewarmCount: 1
+      )
+      XCTFail("Must throw CaasError.decryptionFailed when key is invalid")
+    } catch {
+      guard case CaasError.decryptionFailed = error else {
+        XCTFail("Expected CaasError.decryptionFailed, got \(error)")
+        return
+      }
+    }
   }
 }

@@ -124,6 +124,9 @@ nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
   /// Physical package size on disk, populated asynchronously at load or download time.
   let fileSize: Measurement<UnitInformationStorage>?
 
+  /// Whether the package requires SQLCipher 3 compatibility mode (true for current GeoGarage packages, false for native SQLCipher 4).
+  let requiresV3Compatibility: Bool
+
   init(
     id: UUID,
     layerID: String,
@@ -134,7 +137,8 @@ nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
     zoomMax: Int,
     boundsWKT: String,
     fileSize: Measurement<UnitInformationStorage>? = nil,
-    customName: String? = nil
+    customName: String? = nil,
+    requiresV3Compatibility: Bool = true
   ) {
     self.id = id
     self.layerID = layerID
@@ -146,6 +150,7 @@ nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
     self.boundsWKT = boundsWKT
     self.fileSize = fileSize
     self.customName = customName
+    self.requiresV3Compatibility = requiresV3Compatibility
   }
 
   static func == (lhs: OfflineChartDownload, rhs: OfflineChartDownload) -> Bool {
@@ -158,7 +163,8 @@ nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
     lhs.zoomMax == rhs.zoomMax &&
     lhs.boundsWKT == rhs.boundsWKT &&
     lhs.customName == rhs.customName &&
-    lhs.fileSize == rhs.fileSize
+    lhs.fileSize == rhs.fileSize &&
+    lhs.requiresV3Compatibility == rhs.requiresV3Compatibility
   }
 
   /// Creates a copy of this download record with an updated custom name.
@@ -173,7 +179,8 @@ nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
       zoomMax: zoomMax,
       boundsWKT: boundsWKT,
       fileSize: fileSize,
-      customName: newCustomName
+      customName: newCustomName,
+      requiresV3Compatibility: requiresV3Compatibility
     )
   }
 
@@ -189,7 +196,8 @@ nonisolated struct OfflineChartDownload: Identifiable, Equatable, Sendable {
       zoomMax: zoomMax,
       boundsWKT: boundsWKT,
       fileSize: newFileSize,
-      customName: customName
+      customName: customName,
+      requiresV3Compatibility: requiresV3Compatibility
     )
   }
 

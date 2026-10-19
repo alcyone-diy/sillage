@@ -275,6 +275,7 @@ public final class DatabaseManager: Sendable {
         t.column("bounds_wkt", .text).notNull()
         t.column("custom_name", .text)
         t.column("file_size_bytes", .integer)
+        t.column("requires_v3_compatibility", .boolean).notNull().defaults(to: true)
 
         t.check(sql: "zoom_max >= 0")
         t.check(sql: "file_size_bytes IS NULL OR file_size_bytes >= 0")
@@ -501,6 +502,17 @@ public final class DatabaseManager: Sendable {
         t.column("valid_until", .text).notNull()
       }
       try db.create(index: "idx_geogarage_layer_brand_name", on: "geogarage_layer", columns: ["brand_name"])
+    }
+
+    // v12: Ensures geogarage_download table has requires_v3_compatibility column (default true)
+    migrator.registerMigration("v12") { db in
+      guard try db.tableExists("geogarage_download") else { return }
+      let columns = try db.columns(in: "geogarage_download").map { $0.name }
+      if !columns.contains("requires_v3_compatibility") {
+        try db.alter(table: "geogarage_download") { t in
+          t.add(column: "requires_v3_compatibility", .boolean).notNull().defaults(to: true)
+        }
+      }
     }
 
     return migrator

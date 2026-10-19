@@ -141,4 +141,25 @@ final class GeoGarageDownloadRecordTests: XCTestCase {
       accuracy: 0.001
     )
   }
+
+  func testDomainToRecordMapping_preservesRequiresV3Compatibility() {
+    let domainV4 = OfflineChartDownload(
+      id: UUID(),
+      layerID: "shom",
+      layerName: "SHOM V4",
+      downloadDate: Date(),
+      relativePath: "Charts/shom_v4.mbtiles",
+      md5: "abc123md5",
+      zoomMax: 12,
+      boundsWKT: "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))",
+      requiresV3Compatibility: false
+    )
+
+    let record = GeoGarageDownloadRecord(domainModel: domainV4)
+    XCTAssertFalse(record.requires_v3_compatibility)
+
+    let roundTrip = record.toDomain()
+    XCTAssertNotNil(roundTrip)
+    XCTAssertEqual(roundTrip?.requiresV3Compatibility, false)
+  }
 }

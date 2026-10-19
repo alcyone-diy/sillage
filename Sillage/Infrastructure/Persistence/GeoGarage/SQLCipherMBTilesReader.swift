@@ -29,12 +29,14 @@ final class SQLCipherMBTilesReader: SQLCipherMBTilesReaderProtocol, Sendable {
   init(
     fileURL: URL,
     encryptionKey: String,
+    requiresV3Compatibility: Bool = true,
     maxConnections: Int = 6,
     prewarmCount: Int = 2
   ) throws(CaasError) {
     self.pool = try SQLiteConnectionPool(
       fileURL: fileURL,
       encryptionKey: encryptionKey,
+      requiresV3Compatibility: requiresV3Compatibility,
       maxConnections: maxConnections,
       prewarmCount: prewarmCount
     )

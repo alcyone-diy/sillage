@@ -23,6 +23,7 @@ public struct GeoGarageDownloadRecord: Codable, FetchableRecord, PersistableReco
   public var bounds_wkt: String
   public var custom_name: String?
   public var file_size_bytes: Int64?
+  public var requires_v3_compatibility: Bool
 
   public static let databaseTableName = "geogarage_download"
 
@@ -36,7 +37,8 @@ public struct GeoGarageDownloadRecord: Codable, FetchableRecord, PersistableReco
     zoom_max: Int,
     bounds_wkt: String,
     custom_name: String? = nil,
-    file_size_bytes: Int64? = nil
+    file_size_bytes: Int64? = nil,
+    requires_v3_compatibility: Bool = true
   ) {
     self.id = id
     self.layer_id = layer_id
@@ -48,6 +50,7 @@ public struct GeoGarageDownloadRecord: Codable, FetchableRecord, PersistableReco
     self.bounds_wkt = bounds_wkt
     self.custom_name = custom_name
     self.file_size_bytes = file_size_bytes
+    self.requires_v3_compatibility = requires_v3_compatibility
   }
 
   public enum Columns: String, ColumnExpression {
@@ -61,6 +64,7 @@ public struct GeoGarageDownloadRecord: Codable, FetchableRecord, PersistableReco
     case bounds_wkt
     case custom_name
     case file_size_bytes
+    case requires_v3_compatibility
   }
 }
 
@@ -91,7 +95,8 @@ extension GeoGarageDownloadRecord {
       zoomMax: zoom_max,
       boundsWKT: bounds_wkt,
       fileSize: fileSize,
-      customName: custom_name
+      customName: custom_name,
+      requiresV3Compatibility: requires_v3_compatibility
     )
   }
 
@@ -106,6 +111,7 @@ extension GeoGarageDownloadRecord {
     self.zoom_max = domainModel.zoomMax
     self.bounds_wkt = domainModel.boundsWKT
     self.custom_name = domainModel.customName
+    self.requires_v3_compatibility = domainModel.requiresV3Compatibility
     if let size = domainModel.fileSize {
       self.file_size_bytes = Int64(size.converted(to: .bytes).value)
     } else {
