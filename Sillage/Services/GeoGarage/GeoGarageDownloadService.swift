@@ -449,7 +449,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
           let resolvedCustomer = self.cachedCustomerID ?? self.preferencesService.geoGarageCustomerID
           // The Keychain is authoritative (a mid-session refresh stores a fresh token there); the
           // token cached by `startDownload` is only a fallback, e.g. when the Keychain is empty in tests.
-          let resolvedAccessToken = await self.keychainManager.retrieveValidToken(for: "geogarage_access_token") ?? self.cachedAccessToken
+          let resolvedAccessToken = await self.keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) ?? self.cachedAccessToken
 
           guard let resolvedCustomer, !resolvedCustomer.isEmpty,
                 let resolvedAccessToken, !resolvedAccessToken.isEmpty else {

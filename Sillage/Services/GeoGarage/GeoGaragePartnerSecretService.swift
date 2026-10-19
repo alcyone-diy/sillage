@@ -48,7 +48,7 @@ protocol GeoGaragePartnerSecretServiceProtocol: Sendable {
 /// secret ships in the binary. The secret lives in the Keychain under `keychainAccount`, never in
 /// UserDefaults nor in logs.
 actor GeoGaragePartnerSecretService: GeoGaragePartnerSecretServiceProtocol {
-  static let keychainAccount = "geogarage_package_secret"
+  static let keychainAccount = GeoGarageKeychainKeys.packageSecret
 
   private let endpoint: URL?
   private let session: URLSession
@@ -104,6 +104,9 @@ actor GeoGaragePartnerSecretService: GeoGaragePartnerSecretServiceProtocol {
         throw PartnerSecretError.invalidResponse
       }
       await keychainManager.save(token: secrets.packageSecret, for: Self.keychainAccount)
+      if let customerID = secrets.customerID, !customerID.isEmpty {
+        await keychainManager.save(token: customerID, for: GeoGarageKeychainKeys.customerID)
+      }
       Logger.network.info("Partner package secret refreshed for client \(secrets.clientID, privacy: .public).")
       return secrets
     case 401, 403:

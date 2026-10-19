@@ -27,7 +27,7 @@ final class ChartViewModelTests: XCTestCase {
     let mockKeychain = MockKeychainManager()
     
     // We need to set a dummy token so it actually attempts the silent fetch
-    mockKeychain.saveSync(token: "dummy_token", for: "geogarage_access_token")
+    mockKeychain.saveSync(token: "dummy_token", for: GeoGarageKeychainKeys.accessToken)
     
     let preferencesService = MockPreferencesService()
     let positioningService = MockPositioningService()
@@ -74,7 +74,7 @@ final class ChartViewModelTests: XCTestCase {
     let messageService = MessageService()
     let mockKeychain = MockKeychainManager()
     
-    mockKeychain.saveSync(token: "dummy_token", for: "geogarage_access_token")
+    mockKeychain.saveSync(token: "dummy_token", for: GeoGarageKeychainKeys.accessToken)
     
     // Create dependencies
     let positioningService = MockPositioningService()
@@ -204,7 +204,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 1)
 
     let mockKeychain = MockKeychainManager()
-    mockKeychain.saveSync(token: "valid_token", for: "geogarage_access_token")
+    mockKeychain.saveSync(token: "valid_token", for: GeoGarageKeychainKeys.accessToken)
 
     let positioningService = MockPositioningService()
     let preferencesService = MockPreferencesService()
@@ -302,7 +302,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 3)
 
     let mockKeychain = MockKeychainManager()
-    mockKeychain.saveSync(token: "valid_token", for: "geogarage_access_token")
+    mockKeychain.saveSync(token: "valid_token", for: GeoGarageKeychainKeys.accessToken)
 
     let positioningService = MockPositioningService()
     let preferencesService = MockPreferencesService()

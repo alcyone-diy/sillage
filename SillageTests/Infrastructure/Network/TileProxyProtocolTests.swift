@@ -82,7 +82,7 @@ final class TileProxyProtocolTests: XCTestCase {
     mockNetworkManager = network
     mockKeychain = keychain
 
-    keychain.saveSync(token: "test_valid_token", for: "geogarage_access_token")
+    keychain.saveSync(token: "test_valid_token", for: GeoGarageKeychainKeys.accessToken)
 
     TileProxyProtocol.configure(
       offlineTileProvider: offline,
@@ -243,7 +243,7 @@ final class TileProxyProtocolTests: XCTestCase {
     }
 
     // Simulate airplane mode or expired token
-    mockKeychain?.deleteTokenSync(for: "geogarage_access_token")
+    mockKeychain?.deleteTokenSync(for: GeoGarageKeychainKeys.accessToken)
 
     guard let sampleOfflineData = "OFFLINE_LA_ROCHELLE_BYTES".data(using: .utf8) else {
       XCTFail("Failed to encode test tile data")

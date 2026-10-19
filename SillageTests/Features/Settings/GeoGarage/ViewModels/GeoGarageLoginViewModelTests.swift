@@ -151,7 +151,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .unauthenticated(error: "boom"))
 
     viewModel.errorMessage = nil
-    mockKeychain.saveSync(token: "tok", for: "geogarage_access_token")
+    mockKeychain.saveSync(token: "tok", for: GeoGarageKeychainKeys.accessToken)
     XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .authenticated)
 
     mockAuthService.authError = AuthError.tokenExpired

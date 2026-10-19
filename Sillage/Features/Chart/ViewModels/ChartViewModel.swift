@@ -769,7 +769,7 @@ final class ChartViewModel {
   
   /// Authenticates with GeoGarage in the background using stored credentials to populate available layers.
   private func silentlyFetchGeoGarageLayers() {
-    guard let accessToken = keychainManager.retrieveValidTokenSync(for: "geogarage_access_token") else {
+    guard let accessToken = keychainManager.retrieveValidTokenSync(for: GeoGarageKeychainKeys.accessToken) else {
       Task { @MainActor [weak self] in
         self?.authService.authError = nil
       }

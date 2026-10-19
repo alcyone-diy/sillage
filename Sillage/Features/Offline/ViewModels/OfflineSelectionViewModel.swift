@@ -401,7 +401,7 @@ final class OfflineSelectionViewModel {
       guard let self else { return }
 
       // The package is requested with the user's token, not an embedded key: no token, no request.
-      guard let token = await self.keychainManager.retrieveValidToken(for: "geogarage_access_token") else {
+      guard let token = await self.keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) else {
         self.failWithFeedback(
           String(localized: "User is not authenticated with GeoGarage. Please login first."),
           isAuthenticationError: true

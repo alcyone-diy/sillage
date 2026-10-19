@@ -58,7 +58,7 @@ actor TileProxyManager: TileProxyManagerProtocol {
     // If MapLibre cancels the tile, the URLSession TCP connection is killed instantly.
     
     var request = URLRequest(url: url)
-    if let token = await keychainManager.retrieveValidToken(for: "geogarage_access_token") {
+    if let token = await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) {
       request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 

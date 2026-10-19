@@ -129,8 +129,9 @@ protocol PreferencesServiceProtocol: AnyObject {
   var hasAcceptedDisclaimer: Bool { get set }
   var isOpenSeaMapOverlayEnabled: Bool { get set }
   var geoGarageUsername: String? { get set }
-  /// Unique GeoGarage customer account identifier. Non-sensitive — used to reconstruct
-  /// the SQLCipher decryption key dynamically at runtime (never stored alongside the shared secret).
+  /// Unique GeoGarage customer account identifier.
+  /// Reconstructs the SQLCipher decryption key dynamically at runtime (`customerID + sharedSecret`).
+  /// Persisted in both UserDefaults and Keychain to survive app reinstallation.
   var geoGarageCustomerID: String? { get set }
   var pendingCAASDownloads: [PendingCAASDownload] { get set }
 
@@ -183,6 +184,7 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let geoGarageUsernameKey = "geogarage_username"
   @ObservationIgnored private let geoGarageCustomerIDKey = "geogarage_customer_id"
   @ObservationIgnored private let pendingCAASDownloadsKey = "pendingCAASDownloads"
+  @ObservationIgnored private let keychainManager: (any KeychainManaging)?
 
   @ObservationIgnored private let isCOGVectorEnabledKey = "isCOGVectorEnabled"
   @ObservationIgnored private let cogVectorTimeHorizonSecondsKey = "cogVectorTimeHorizonSeconds"
@@ -270,8 +272,10 @@ class PreferencesService: PreferencesServiceProtocol {
     didSet {
       if let value = geoGarageCustomerID {
         defaults.set(value, forKey: geoGarageCustomerIDKey)
+        keychainManager?.saveSync(token: value, for: GeoGarageKeychainKeys.customerID)
       } else {
         defaults.removeObject(forKey: geoGarageCustomerIDKey)
+        keychainManager?.deleteTokenSync(for: GeoGarageKeychainKeys.customerID)
       }
     }
   }
@@ -364,8 +368,12 @@ class PreferencesService: PreferencesServiceProtocol {
     set { rawGPSAccuracyMode = newValue.rawValue }
   }
 
-  init(defaults: UserDefaults = .standard) {
+  init(
+    defaults: UserDefaults = .standard,
+    keychainManager: (any KeychainManaging)? = nil
+  ) {
     self.defaults = defaults
+    self.keychainManager = keychainManager
     self.savedChartSource = defaults.string(forKey: chartSourceKey)
     self.savedGeoGarageLayerID = defaults.string(forKey: savedGeoGarageLayerIDKey)
     self.savedLatitude = defaults.object(forKey: savedLatitudeKey) as? Double
@@ -378,7 +386,17 @@ class PreferencesService: PreferencesServiceProtocol {
     self.hasAcceptedDisclaimer = defaults.bool(forKey: hasAcceptedDisclaimerKey)
     self.isOpenSeaMapOverlayEnabled = defaults.bool(forKey: isOpenSeaMapOverlayEnabledKey)
     self.geoGarageUsername = defaults.string(forKey: geoGarageUsernameKey)
-    self.geoGarageCustomerID = defaults.string(forKey: geoGarageCustomerIDKey)
+
+    let customerIDFromDefaults = defaults.string(forKey: geoGarageCustomerIDKey)
+    let customerIDFromKeychain = keychainManager?.retrieveValidTokenSync(for: GeoGarageKeychainKeys.customerID)
+    let resolvedCustomerID = customerIDFromDefaults ?? customerIDFromKeychain
+    self.geoGarageCustomerID = resolvedCustomerID
+    if customerIDFromDefaults == nil, let customerIDFromKeychain {
+      defaults.set(customerIDFromKeychain, forKey: geoGarageCustomerIDKey)
+    }
+    if customerIDFromKeychain == nil, let customerIDFromDefaults {
+      keychainManager?.saveSync(token: customerIDFromDefaults, for: GeoGarageKeychainKeys.customerID)
+    }
 
     if let data = defaults.data(forKey: pendingCAASDownloadsKey),
        let list = try? JSONDecoder().decode([PendingCAASDownload].self, from: data) {

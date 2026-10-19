@@ -23,10 +23,10 @@ final class DebugViewModel {
   }
   
   func invalidateGeoGarageToken() {
-    keychainManager.saveSync(token: "invalid_debug_token", for: "geogarage_access_token")
+    keychainManager.saveSync(token: "invalid_debug_token", for: GeoGarageKeychainKeys.accessToken)
     // An invalid access token is refreshed silently: simulating an expired session also requires
     // corrupting the refresh token.
-    keychainManager.saveSync(token: "invalid_debug_refresh_token", for: "geogarage_refresh_token")
+    keychainManager.saveSync(token: "invalid_debug_refresh_token", for: GeoGarageKeychainKeys.refreshToken)
   }
   
   func scheduleDebugBarometerNotification(permissionService: PermissionServiceProtocol, notificationService: NotificationService) async throws {

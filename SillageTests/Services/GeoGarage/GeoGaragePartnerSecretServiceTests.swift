@@ -54,6 +54,8 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     XCTAssertEqual(secrets.teaSecret, "")
     let stored = await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
     XCTAssertEqual(stored, "s3cret")
+    let storedCustomerID = await mockKeychain.retrieveToken(for: GeoGarageKeychainKeys.customerID)
+    XCTAssertEqual(storedCustomerID, "cus_1")
   }
 
   func testRefreshDecodesNullCustomerID() async throws {

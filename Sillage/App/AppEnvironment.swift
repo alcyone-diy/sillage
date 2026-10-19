@@ -111,7 +111,10 @@ final class AppEnvironment {
       // c. Other Services instantiation (injecting the ready DB)
       let messageService = MessageService()
       
-      let preferencesService = self.preferencesServiceOverride ?? PreferencesService(defaults: self.userDefaults)
+      let preferencesService = self.preferencesServiceOverride ?? PreferencesService(
+        defaults: self.userDefaults,
+        keychainManager: self.keychainManager
+      )
       let developerSettingsService = DeveloperSettingsService(defaults: self.userDefaults)
       
       let positioningService = CoreLocationPositioningService(
@@ -226,9 +229,9 @@ final class AppEnvironment {
         keychainManager: keychainManager
       )
 
-      // Empty until the user signs in; skip tile loading until a valid secret is present.
-      if let sharedSecret = await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount) {
-        let initialCustomerID = preferencesService.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
+      // Empty until the user signs in; skip tile loading until valid credentials (secret & customerID) are present.
+      if let sharedSecret = await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
+         let initialCustomerID = preferencesService.geoGarageCustomerID, !initialCustomerID.isEmpty {
         await geoGarageOfflineTileProvider.reloadDownloads(
           geoGarageDownloadRepository.downloads,
           sharedSecret: sharedSecret,
@@ -248,13 +251,13 @@ final class AppEnvironment {
                   let repo = geoGarageDownloadRepository,
                   let provider = geoGarageOfflineTileProvider,
                   let preferences = preferencesService else { return }
-            guard let secret = await self.keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount) else {
+            guard let secret = await self.keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
+                  let customerID = preferences.geoGarageCustomerID, !customerID.isEmpty else {
               await provider.close()
               observeGeoGarageDownloads()
               return
             }
-            let client = preferences.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
-            await provider.reloadDownloads(repo.downloads, sharedSecret: secret, customerID: client)
+            await provider.reloadDownloads(repo.downloads, sharedSecret: secret, customerID: customerID)
             observeGeoGarageDownloads()
           }
         }
@@ -410,9 +413,7 @@ final class AppEnvironment {
   @ObservationIgnored
   private(set) var packageSecretRestoreTask: Task<Void, Never>?
 
-  /// One-shot recovery of a package secret missing from the Keychain at launch. An install signed
-  /// in before the secret existed (or whose `/partners/me/` call failed at sign-in) keeps its tokens
-  /// but has no secret; without this, `reloadDownloads` silently closed every offline reader.
+  /// One-shot recovery of package credentials (secret and/or customerID) missing at launch.
   private func restorePackageSecretIfMissing(
     authService: GeoGarageAuthService,
     messageService: MessageService,
@@ -421,19 +422,33 @@ final class AppEnvironment {
     preferencesService: PreferencesService
   ) async {
     guard authService.isGeoGarageAuthenticated else { return }
-    guard await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount) == nil else { return }
-    guard let accessToken = await keychainManager.retrieveValidToken(for: "geogarage_access_token") else { return }
+    let currentSecret = await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    let currentCustomerID = preferencesService.geoGarageCustomerID
+    let isSecretMissing = currentSecret == nil
+    let isCustomerMissing = currentCustomerID == nil || currentCustomerID?.isEmpty == true
+    guard isSecretMissing || isCustomerMissing else { return }
+    guard let accessToken = await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) else { return }
 
     do {
       let secrets = try await geoGaragePartnerSecretService.refresh(accessToken: accessToken)
       Logger.network.info("Partner package secret restored at startup.")
-      await openOfflineReaders(
-        with: secrets.packageSecret,
-        messageService: messageService,
-        downloadRepository: downloadRepository,
-        offlineTileProvider: offlineTileProvider,
-        preferencesService: preferencesService
-      )
+      if let newCust = secrets.customerID, !newCust.isEmpty {
+        preferencesService.geoGarageCustomerID = newCust
+      }
+      if preferencesService.geoGarageCustomerID == nil {
+        _ = try? await authService.fetchAccountSettings(accessToken: accessToken)
+      }
+      let newSecret = secrets.packageSecret.isEmpty ? nil : secrets.packageSecret
+      let resolvedSecret = newSecret ?? currentSecret
+      if let resolvedSecret, let resolvedCust = preferencesService.geoGarageCustomerID, !resolvedCust.isEmpty {
+        await openOfflineReaders(
+          with: resolvedSecret,
+          customerID: resolvedCust,
+          messageService: messageService,
+          downloadRepository: downloadRepository,
+          offlineTileProvider: offlineTileProvider
+        )
+      }
       return
     } catch PartnerSecretError.unauthorized {
       // Access token expired since the last launch: refresh once, then a single retry.
@@ -455,13 +470,23 @@ final class AppEnvironment {
       let tokens = try await authService.refreshTokens()
       let secrets = try await geoGaragePartnerSecretService.refresh(accessToken: tokens.access_token)
       Logger.network.info("Partner package secret restored at startup after a token refresh.")
-      await openOfflineReaders(
-        with: secrets.packageSecret,
-        messageService: messageService,
-        downloadRepository: downloadRepository,
-        offlineTileProvider: offlineTileProvider,
-        preferencesService: preferencesService
-      )
+      if let newCust = secrets.customerID, !newCust.isEmpty {
+        preferencesService.geoGarageCustomerID = newCust
+      }
+      if preferencesService.geoGarageCustomerID == nil {
+        _ = try? await authService.fetchAccountSettings(accessToken: tokens.access_token)
+      }
+      let newSecret = secrets.packageSecret.isEmpty ? nil : secrets.packageSecret
+      let resolvedSecret = newSecret ?? currentSecret
+      if let resolvedSecret, let resolvedCust = preferencesService.geoGarageCustomerID, !resolvedCust.isEmpty {
+        await openOfflineReaders(
+          with: resolvedSecret,
+          customerID: resolvedCust,
+          messageService: messageService,
+          downloadRepository: downloadRepository,
+          offlineTileProvider: offlineTileProvider
+        )
+      }
     } catch AuthError.tokenExpired {
       // Refresh token replaced, revoked or purged: the real cause is "session expired", already
       // published in `authError` and shown by Settings. A second message would mislead the user.
@@ -481,18 +506,19 @@ final class AppEnvironment {
     }
   }
 
-  /// Reopens the offline readers with the freshly fetched secret. The launch `reloadDownloads` ran
-  /// with an empty Keychain, and neither `downloads` nor `geoGarageCustomerID` changed since, so
-  /// observation never fires on its own.
+  /// Reopens the offline readers with the freshly fetched credentials.
   private func openOfflineReaders(
     with packageSecret: String,
+    customerID: String,
     messageService: MessageService,
     downloadRepository: GeoGarageDownloadRepository,
-    offlineTileProvider: GeoGarageOfflineTileProvider,
-    preferencesService: PreferencesService
+    offlineTileProvider: GeoGarageOfflineTileProvider
   ) async {
     messageService.clear(category: .offlineCharts)
-    let customerID = preferencesService.geoGarageCustomerID ?? AppConfiguration.shared.geoGarageClientID
+    guard !customerID.isEmpty else {
+      await offlineTileProvider.close()
+      return
+    }
     await offlineTileProvider.reloadDownloads(
       downloadRepository.downloads,
       sharedSecret: packageSecret,
