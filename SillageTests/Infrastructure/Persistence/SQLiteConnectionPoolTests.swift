@@ -196,7 +196,7 @@ final class SQLiteConnectionPoolTests: XCTestCase {
       prewarmCount: 1
     )
 
-    let isV3 = await pool.effectiveRequiresV3Compatibility
+    let isV3 = pool.effectiveRequiresV3Compatibility
     XCTAssertTrue(isV3, "Pool must adaptively resolve to v3 compatibility when v4 HMAC check fails")
 
     let handle = try await pool.borrow()
@@ -218,7 +218,7 @@ final class SQLiteConnectionPoolTests: XCTestCase {
       prewarmCount: 1
     )
 
-    let isV3 = await pool.effectiveRequiresV3Compatibility
+    let isV3 = pool.effectiveRequiresV3Compatibility
     XCTAssertFalse(isV3, "Pool must adaptively resolve to v4 compatibility when v3 PRAGMA fails")
 
     let handle = try await pool.borrow()
