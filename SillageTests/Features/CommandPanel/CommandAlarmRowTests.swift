@@ -120,7 +120,7 @@ final class CommandAlarmRowTests: XCTestCase {
   func testBarometerAlarmStateMapping() async throws {
     let dbManager = try DatabaseManager.inMemory()
     let store = BarometricHistoryStore(databaseManager: dbManager)
-    let preferences = PreferencesService()
+    let preferences = MockPreferencesService()
     let notifications = LocalNotificationService()
     let positioning = MockPositioningService()
     let permissions = PermissionService(positioningService: positioning, notificationService: notifications)

@@ -14,20 +14,26 @@ import GRDB
 
 @MainActor
 final class ChecklistTemplateDetailViewModelTests: XCTestCase {
-  private var databaseManager: DatabaseManager!
-  private var checklistService: ChecklistService!
-  private var template: ChecklistTemplate!
-  private var viewModel: ChecklistTemplateDetailViewModel!
+  private var databaseManager: DatabaseManager?
+  private var checklistService: ChecklistService?
+  private var template: ChecklistTemplate?
+  private var viewModel: ChecklistTemplateDetailViewModel?
+  private var isolatedDefaults: IsolatedUserDefaults?
 
   override func setUp() async throws {
     try await super.setUp()
-    databaseManager = try DatabaseManager.inMemory()
-    checklistService = ChecklistService(
-      databaseManager: databaseManager,
-      throttler: ChecklistThrottler(window: .zero)
+    let isolated = IsolatedUserDefaults(prefix: "ChecklistTemplateDetailViewModelTests")
+    self.isolatedDefaults = isolated
+    let db = try DatabaseManager.inMemory()
+    self.databaseManager = db
+    let service = ChecklistService(
+      databaseManager: db,
+      throttler: ChecklistThrottler(window: .zero),
+      userDefaults: isolated.defaults
     )
+    self.checklistService = service
 
-    template = try await checklistService.createCustomTemplate(
+    let createdTemplate = try await service.createCustomTemplate(
       title: "Pre-Sail Brief",
       description: "Safety walkaround",
       categoryId: "safety_emergency",
@@ -36,10 +42,11 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
         (title: "EPIRB check", detail: "Battery valid")
       ]
     )
+    self.template = createdTemplate
 
-    viewModel = ChecklistTemplateDetailViewModel(
-      templateId: template.id,
-      checklistService: checklistService
+    self.viewModel = ChecklistTemplateDetailViewModel(
+      templateId: createdTemplate.id,
+      checklistService: service
     )
   }
 
@@ -48,113 +55,131 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     template = nil
     checklistService = nil
     databaseManager = nil
+    isolatedDefaults?.tearDown()
+    isolatedDefaults = nil
     try await super.tearDown()
   }
 
   // MARK: - Consultation & Loading Tests
 
-  func testInitialState() {
-    XCTAssertEqual(viewModel.templateId, template.id)
-    XCTAssertNil(viewModel.template)
-    XCTAssertNil(viewModel.activeSession)
-    XCTAssertNil(viewModel.latestCompletionDate)
-    XCTAssertNil(viewModel.activeSessionWithProgress)
-    XCTAssertEqual(viewModel.usageStatus, .neverUsed)
-    XCTAssertFalse(viewModel.isLoading)
-    XCTAssertNil(viewModel.errorMessage)
-    XCTAssertEqual(viewModel.title, "")
-    XCTAssertNil(viewModel.description)
-    XCTAssertEqual(viewModel.categoryId, "")
-    XCTAssertTrue(viewModel.items.isEmpty)
-    XCTAssertFalse(viewModel.hasActiveSession)
-    XCTAssertFalse(viewModel.isEditable)
-    XCTAssertTrue(viewModel.isEditing)
-    XCTAssertTrue(viewModel.canDelete)
+  func testInitialState() throws {
+    let vm = try XCTUnwrap(viewModel)
+    let tmpl = try XCTUnwrap(template)
+
+    XCTAssertEqual(vm.templateId, tmpl.id)
+    XCTAssertNil(vm.template)
+    XCTAssertNil(vm.activeSession)
+    XCTAssertNil(vm.latestCompletionDate)
+    XCTAssertNil(vm.activeSessionWithProgress)
+    XCTAssertEqual(vm.usageStatus, .neverUsed)
+    XCTAssertFalse(vm.isLoading)
+    XCTAssertNil(vm.errorMessage)
+    XCTAssertEqual(vm.title, "")
+    XCTAssertNil(vm.description)
+    XCTAssertEqual(vm.categoryId, "")
+    XCTAssertTrue(vm.items.isEmpty)
+    XCTAssertFalse(vm.hasActiveSession)
+    XCTAssertFalse(vm.isEditable)
+    XCTAssertTrue(vm.isEditing)
+    XCTAssertTrue(vm.canDelete)
   }
 
-  func testLoadTemplate() async {
-    await viewModel.load()
+  func testLoadTemplate() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
-    XCTAssertNotNil(viewModel.template)
-    XCTAssertEqual(viewModel.title, "Pre-Sail Brief")
-    XCTAssertEqual(viewModel.description, "Safety walkaround")
-    XCTAssertEqual(viewModel.categoryId, "safety_emergency")
-    guard viewModel.items.count == 2 else {
+    XCTAssertNotNil(vm.template)
+    XCTAssertEqual(vm.title, "Pre-Sail Brief")
+    XCTAssertEqual(vm.description, "Safety walkaround")
+    XCTAssertEqual(vm.categoryId, "safety_emergency")
+    guard vm.items.count == 2 else {
       XCTFail("Expected 2 items after loading")
       return
     }
-    XCTAssertEqual(viewModel.items[0].title, "Lifejackets")
-    XCTAssertEqual(viewModel.items[1].title, "EPIRB check")
-    XCTAssertFalse(viewModel.hasActiveSession)
-    XCTAssertNil(viewModel.latestCompletionDate)
-    XCTAssertEqual(viewModel.usageStatus, .neverUsed)
-    XCTAssertEqual(viewModel.usageStatusDescription, "Never used")
+    XCTAssertEqual(vm.items[0].title, "Lifejackets")
+    XCTAssertEqual(vm.items[1].title, "EPIRB check")
+    XCTAssertFalse(vm.hasActiveSession)
+    XCTAssertNil(vm.latestCompletionDate)
+    XCTAssertEqual(vm.usageStatus, .neverUsed)
+    XCTAssertEqual(vm.usageStatusDescription, "Never used")
   }
 
   func testUsageStatusWithActiveSessionAndProgress() async throws {
-    let session = try await checklistService.startSession(templateId: template.id)
+    let service = try XCTUnwrap(checklistService)
+    let tmpl = try XCTUnwrap(template)
+    let vm = try XCTUnwrap(viewModel)
+
+    let session = try await service.startSession(templateId: tmpl.id)
     guard let firstItem = session.items.first else {
       XCTFail("Expected session to have items")
       return
     }
-    _ = try await checklistService.setItemChecked(
+    _ = try await service.setItemChecked(
       sessionId: session.id,
       itemId: firstItem.id,
       isChecked: true,
       coordinate: nil
     )
 
-    await viewModel.load()
+    await vm.load()
 
-    XCTAssertTrue(viewModel.hasActiveSession)
-    XCTAssertNotNil(viewModel.activeSessionWithProgress)
-    if case .inProgress(let currentSession) = viewModel.usageStatus {
+    XCTAssertTrue(vm.hasActiveSession)
+    XCTAssertNotNil(vm.activeSessionWithProgress)
+    if case .inProgress(let currentSession) = vm.usageStatus {
       XCTAssertEqual(currentSession.id, session.id)
       XCTAssertEqual(currentSession.completedCount, 1)
     } else {
-      XCTFail("Expected usageStatus to be .inProgress, got \(viewModel.usageStatus)")
+      XCTFail("Expected usageStatus to be .inProgress, got \(vm.usageStatus)")
     }
-    XCTAssertTrue(viewModel.usageStatusDescription.contains("1/"))
+    XCTAssertTrue(vm.usageStatusDescription.contains("1/"))
   }
 
   func testUsageStatusWithCompletedSession() async throws {
-    let session = try await checklistService.startSession(templateId: template.id)
+    let service = try XCTUnwrap(checklistService)
+    let tmpl = try XCTUnwrap(template)
+    let vm = try XCTUnwrap(viewModel)
+
+    let session = try await service.startSession(templateId: tmpl.id)
     for item in session.items {
-      _ = try await checklistService.setItemChecked(
+      _ = try await service.setItemChecked(
         sessionId: session.id,
         itemId: item.id,
         isChecked: true,
         coordinate: nil
       )
     }
-    _ = try await checklistService.completeSession(sessionId: session.id, notes: nil)
+    _ = try await service.completeSession(sessionId: session.id, notes: nil)
 
-    await viewModel.load()
+    await vm.load()
 
-    XCTAssertFalse(viewModel.hasActiveSession)
-    XCTAssertNil(viewModel.activeSessionWithProgress)
-    XCTAssertNotNil(viewModel.latestCompletionDate)
-    if case .completed(let date) = viewModel.usageStatus {
-      XCTAssertEqual(date, viewModel.latestCompletionDate)
+    XCTAssertFalse(vm.hasActiveSession)
+    XCTAssertNil(vm.activeSessionWithProgress)
+    XCTAssertNotNil(vm.latestCompletionDate)
+    if case .completed(let date) = vm.usageStatus {
+      XCTAssertEqual(date, vm.latestCompletionDate)
     } else {
-      XCTFail("Expected usageStatus to be .completed, got \(viewModel.usageStatus)")
+      XCTFail("Expected usageStatus to be .completed, got \(vm.usageStatus)")
     }
-    XCTAssertTrue(viewModel.usageStatusDescription.contains("Completed"))
+    XCTAssertTrue(vm.usageStatusDescription.contains("Completed"))
   }
 
   func testObservationUpdatesActiveAndCompletedSessions() async throws {
-    let observeTask = Task { [weak viewModel] in
-      await viewModel?.startObserving()
+    let service = try XCTUnwrap(checklistService)
+    let tmpl = try XCTUnwrap(template)
+    let vm = try XCTUnwrap(viewModel)
+
+    let observeTask = Task { [weak vm] in
+      await vm?.startObserving()
     }
 
     try await Task.sleep(nanoseconds: 50_000_000)
 
-    let session = try await checklistService.startSession(templateId: template.id)
+    let session = try await service.startSession(templateId: tmpl.id)
     guard let firstItem = session.items.first else {
       XCTFail("Expected session to have items")
       return
     }
-    _ = try await checklistService.setItemChecked(
+    _ = try await service.setItemChecked(
       sessionId: session.id,
       itemId: firstItem.id,
       isChecked: true,
@@ -163,112 +188,123 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
 
     try await Task.sleep(nanoseconds: 100_000_000)
 
-    XCTAssertTrue(viewModel.hasActiveSession)
-    XCTAssertNotNil(viewModel.activeSessionWithProgress)
-    if case .inProgress(let currentSession) = viewModel.usageStatus {
+    XCTAssertTrue(vm.hasActiveSession)
+    XCTAssertNotNil(vm.activeSessionWithProgress)
+    if case .inProgress(let currentSession) = vm.usageStatus {
       XCTAssertEqual(currentSession.id, session.id)
       XCTAssertEqual(currentSession.completedCount, 1)
     } else {
-      XCTFail("Expected usageStatus to be .inProgress, got \(viewModel.usageStatus)")
+      XCTFail("Expected usageStatus to be .inProgress, got \(vm.usageStatus)")
     }
 
     // Complete session
     for item in session.items {
-      _ = try await checklistService.setItemChecked(
+      _ = try await service.setItemChecked(
         sessionId: session.id,
         itemId: item.id,
         isChecked: true,
         coordinate: nil
       )
     }
-    _ = try await checklistService.completeSession(sessionId: session.id, notes: nil)
+    _ = try await service.completeSession(sessionId: session.id, notes: nil)
 
     try await Task.sleep(nanoseconds: 100_000_000)
 
-    XCTAssertFalse(viewModel.hasActiveSession)
-    XCTAssertNil(viewModel.activeSessionWithProgress)
-    XCTAssertNotNil(viewModel.latestCompletionDate)
-    if case .completed(let date) = viewModel.usageStatus {
-      XCTAssertEqual(date, viewModel.latestCompletionDate)
+    XCTAssertFalse(vm.hasActiveSession)
+    XCTAssertNil(vm.activeSessionWithProgress)
+    XCTAssertNotNil(vm.latestCompletionDate)
+    if case .completed(let date) = vm.usageStatus {
+      XCTAssertEqual(date, vm.latestCompletionDate)
     } else {
-      XCTFail("Expected usageStatus to be .completed, got \(viewModel.usageStatus)")
+      XCTFail("Expected usageStatus to be .completed, got \(vm.usageStatus)")
     }
 
     observeTask.cancel()
   }
 
-  func testStartOrResumeSessionCreatesAndReturnsSessionId() async {
-    await viewModel.load()
+  func testStartOrResumeSessionCreatesAndReturnsSessionId() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
-    let sessionId = await viewModel.startOrResumeSession()
+    let sessionId = await vm.startOrResumeSession()
     XCTAssertNotNil(sessionId)
-    XCTAssertNotNil(viewModel.activeSession)
-    XCTAssertEqual(viewModel.activeSession?.id, sessionId)
+    XCTAssertNotNil(vm.activeSession)
+    XCTAssertEqual(vm.activeSession?.id, sessionId)
   }
 
-  func testDeleteTemplate() async {
-    await viewModel.load()
+  func testDeleteTemplate() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    let service = try XCTUnwrap(checklistService)
+    let tmpl = try XCTUnwrap(template)
 
-    let success = await viewModel.deleteTemplate()
+    await vm.load()
+
+    let success = await vm.deleteTemplate()
     XCTAssertTrue(success)
 
-    let reloaded = try? await checklistService.fetchTemplate(id: template.id)
+    let reloaded = try? await service.fetchTemplate(id: tmpl.id)
     XCTAssertNil(reloaded)
   }
 
   // MARK: - Editing & Mutation Tests
 
-  func testRevertRestoresOriginalValues() async {
-    await viewModel.load()
+  func testRevertRestoresOriginalValues() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
-    guard !viewModel.items.isEmpty else {
+    guard !vm.items.isEmpty else {
       XCTFail("Expected items to not be empty after loading template")
       return
     }
 
-    viewModel.isEditable = true
-    viewModel.title = "Modified Title"
-    viewModel.items[0].title = "Modified Step"
+    vm.isEditable = true
+    vm.title = "Modified Title"
+    vm.items[0].title = "Modified Step"
 
-    viewModel.revert()
+    vm.revert()
 
-    XCTAssertFalse(viewModel.isEditable)
-    XCTAssertEqual(viewModel.title, "Pre-Sail Brief")
-    guard !viewModel.items.isEmpty else {
+    XCTAssertFalse(vm.isEditable)
+    XCTAssertEqual(vm.title, "Pre-Sail Brief")
+    guard !vm.items.isEmpty else {
       XCTFail("Expected items to not be empty after reverting")
       return
     }
-    XCTAssertEqual(viewModel.items[0].title, "Lifejackets")
+    XCTAssertEqual(vm.items[0].title, "Lifejackets")
   }
 
-  func testSaveUpdatesTemplateAndSwitchesEditMode() async {
-    await viewModel.load()
+  func testSaveUpdatesTemplateAndSwitchesEditMode() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    let service = try XCTUnwrap(checklistService)
+    let tmpl = try XCTUnwrap(template)
 
-    guard !viewModel.items.isEmpty else {
+    await vm.load()
+
+    guard !vm.items.isEmpty else {
       XCTFail("Expected items to not be empty after loading template")
       return
     }
 
-    viewModel.isEditable = true
-    viewModel.title = "Updated Title"
-    viewModel.items[0].title = "Updated Step 1"
-    viewModel.addItem(title: "New Step 3")
+    vm.isEditable = true
+    vm.title = "Updated Title"
+    vm.items[0].title = "Updated Step 1"
+    vm.addItem(title: "New Step 3")
 
-    let saved = await viewModel.save()
+    let saved = await vm.save()
     XCTAssertNotNil(saved)
-    XCTAssertFalse(viewModel.isEditable)
-    XCTAssertEqual(viewModel.title, "Updated Title")
-    XCTAssertEqual(viewModel.items.count, 3)
+    XCTAssertFalse(vm.isEditable)
+    XCTAssertEqual(vm.title, "Updated Title")
+    XCTAssertEqual(vm.items.count, 3)
 
-    let reloaded = try? await checklistService.fetchTemplate(id: template.id)
+    let reloaded = try? await service.fetchTemplate(id: tmpl.id)
     XCTAssertEqual(reloaded?.title, "Updated Title")
   }
 
   // MARK: - Creation Mode Tests
 
-  func testCreationInitialState() {
+  func testCreationInitialState() throws {
+    let service = try XCTUnwrap(checklistService)
     let creationVM = ChecklistTemplateDetailViewModel(
-      checklistService: checklistService,
+      checklistService: service,
       initialCategoryId: "routine"
     )
 
@@ -287,9 +323,10 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertNil(creationVM.errorMessage)
   }
 
-  func testValidationRequiresCategoryTitleAndNonEmptyItem() {
+  func testValidationRequiresCategoryTitleAndNonEmptyItem() throws {
+    let service = try XCTUnwrap(checklistService)
     let creationVM = ChecklistTemplateDetailViewModel(
-      checklistService: checklistService,
+      checklistService: service,
       initialCategoryId: "routine"
     )
 
@@ -329,8 +366,9 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertTrue(creationVM.isValid)
   }
 
-  func testAddRemoveAndMoveItems() {
-    let creationVM = ChecklistTemplateDetailViewModel(checklistService: checklistService)
+  func testAddRemoveAndMoveItems() throws {
+    let service = try XCTUnwrap(checklistService)
+    let creationVM = ChecklistTemplateDetailViewModel(checklistService: service)
     guard !creationVM.items.isEmpty else {
       XCTFail("Expected items to not be empty")
       return
@@ -363,8 +401,9 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertEqual(creationVM.items[1].title, "Step 1")
   }
 
-  func testMoveItemUpAndDown() {
-    let creationVM = ChecklistTemplateDetailViewModel(checklistService: checklistService)
+  func testMoveItemUpAndDown() throws {
+    let service = try XCTUnwrap(checklistService)
+    let creationVM = ChecklistTemplateDetailViewModel(checklistService: service)
     guard !creationVM.items.isEmpty else {
       XCTFail("Expected items to not be empty")
       return
@@ -385,8 +424,9 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertEqual(creationVM.items.map(\.title), ["A", "B", "C"])
   }
 
-  func testSaveNewTemplate() async {
-    let creationVM = ChecklistTemplateDetailViewModel(checklistService: checklistService)
+  func testSaveNewTemplate() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let creationVM = ChecklistTemplateDetailViewModel(checklistService: service)
     creationVM.title = "Passage Prep"
     creationVM.descriptionText = "Pre-passage safety checklist"
     creationVM.categoryId = "safety_emergency"
@@ -410,7 +450,8 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testEditExistingTemplateViaDirectInit() async throws {
-    let existing = try await checklistService.createCustomTemplate(
+    let service = try XCTUnwrap(checklistService)
+    let existing = try await service.createCustomTemplate(
       title: "Original Title",
       description: "Original description",
       categoryId: "routine",
@@ -422,7 +463,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
 
     let existingVM = ChecklistTemplateDetailViewModel(
       template: existing,
-      checklistService: checklistService,
+      checklistService: service,
       startEditable: true
     )
 
@@ -446,24 +487,26 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertEqual(updated?.title, "Updated Title")
     XCTAssertEqual(updated?.items.count, 3)
 
-    let reloaded = try await checklistService.fetchTemplate(id: existing.id)
+    let reloaded = try await service.fetchTemplate(id: existing.id)
     XCTAssertEqual(reloaded?.title, "Updated Title")
     XCTAssertEqual(reloaded?.items.count, 3)
   }
 
   // MARK: - Category Support Tests
 
-  func testAvailableCategoriesLoadedOnLoad() async {
-    await viewModel.load()
-    XCTAssertFalse(viewModel.availableCategories.isEmpty)
-    XCTAssertNotNil(viewModel.selectedCategoryItem)
-    XCTAssertEqual(viewModel.categoryId, "safety_emergency")
-    XCTAssertEqual(viewModel.selectedCategoryItem?.id, "safety_emergency")
+  func testAvailableCategoriesLoadedOnLoad() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
+    XCTAssertFalse(vm.availableCategories.isEmpty)
+    XCTAssertNotNil(vm.selectedCategoryItem)
+    XCTAssertEqual(vm.categoryId, "safety_emergency")
+    XCTAssertEqual(vm.selectedCategoryItem?.id, "safety_emergency")
   }
 
-  func testCategoryIdSelectionAndHelpers() {
+  func testCategoryIdSelectionAndHelpers() throws {
+    let service = try XCTUnwrap(checklistService)
     let vm = ChecklistTemplateDetailViewModel(
-      checklistService: checklistService,
+      checklistService: service,
       initialCategoryId: "routine"
     )
     XCTAssertEqual(vm.categoryId, "routine")
@@ -484,7 +527,8 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testSaveTemplateWithCustomCategory() async throws {
-    let customCategory = try await checklistService.createCategory(
+    let service = try XCTUnwrap(checklistService)
+    let customCategory = try await service.createCategory(
       id: "custom_electronics",
       name: "Marine Electronics",
       icon: "antenna.radiowaves.left.and.right",
@@ -492,7 +536,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     )
 
     let creationVM = ChecklistTemplateDetailViewModel(
-      checklistService: checklistService,
+      checklistService: service,
       initialCategoryId: customCategory.id
     )
     XCTAssertEqual(creationVM.categoryId, "custom_electronics")
@@ -505,7 +549,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     let savedTemplate = try XCTUnwrap(saved)
     XCTAssertEqual(savedTemplate.categoryId, "custom_electronics")
 
-    let reloaded = try await checklistService.fetchTemplate(id: savedTemplate.id)
+    let reloaded = try await service.fetchTemplate(id: savedTemplate.id)
     XCTAssertEqual(reloaded?.categoryId, "custom_electronics")
   }
 }

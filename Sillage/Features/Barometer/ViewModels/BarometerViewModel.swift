@@ -18,7 +18,7 @@ public final class BarometerViewModel {
   
   // MARK: - Dependencies
   public let service: BarometricService
-  private var preferencesService: PreferencesService
+  private var preferencesService: PreferencesServiceProtocol
   private let clock: any Clock<Duration>
   private let dateProvider: @Sendable () -> Date
   
@@ -84,7 +84,7 @@ public final class BarometerViewModel {
   
   init(
     service: BarometricService,
-    preferencesService: PreferencesService,
+    preferencesService: PreferencesServiceProtocol,
     clock: any Clock<Duration> = ContinuousClock(),
     dateProvider: @escaping @Sendable () -> Date = { Date.now }
   ) {

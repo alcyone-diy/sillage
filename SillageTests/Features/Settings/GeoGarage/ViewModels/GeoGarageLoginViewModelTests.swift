@@ -17,7 +17,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
 
   private func makeChartViewModel(authService: MockGeoGarageAuthService, messageService: MessageService) -> ChartViewModel {
     let positioningService = MockPositioningService()
-    let preferencesService = PreferencesService()
+    let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
@@ -31,7 +31,8 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
       anchorService: anchorService,
       anchorViewModel: anchorViewModel,
       waypointService: nil,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: MockKeychainManager()
     )
   }
 
@@ -359,5 +360,19 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.discoverURL(authService: mockAuthService), URL(string: "https://geogarage.com/"))
     XCTAssertEqual(viewModel.accountManagementURL(authService: mockAuthService), URL(string: "https://accounts.geogarage.com/"))
     XCTAssertEqual(viewModel.createAccountURL(authService: mockAuthService), URL(string: "https://accounts.geogarage.com/"))
+  }
+
+  func testLogoutDoesNotPolluteStandardUserDefaults() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    let chartViewModel = makeChartViewModel(authService: mockAuthService, messageService: messageService)
+    chartViewModel.currentChartSource = .remoteGeoGarage(clientID: "test", layerID: "shom")
+    let viewModel = GeoGarageLoginViewModel(offlineMapManager: MockOfflineMapManager(), partnerSecretService: MockGeoGaragePartnerSecretService())
+
+    let beforeValue = UserDefaults.standard.string(forKey: "chartSource")
+    await viewModel.performLogout(authService: mockAuthService, messageService: messageService, chartViewModel: chartViewModel)
+    let afterValue = UserDefaults.standard.string(forKey: "chartSource")
+
+    XCTAssertEqual(beforeValue, afterValue, "Running performLogout in tests must not mutate UserDefaults.standard")
   }
 }

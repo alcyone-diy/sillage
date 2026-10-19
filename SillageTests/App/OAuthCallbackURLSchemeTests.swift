@@ -22,7 +22,7 @@ final class OAuthCallbackURLSchemeTests: XCTestCase {
   }
 
   func testOAuthCallbackURLIsIgnoredByChartImport() throws {
-    let viewModel = AppViewModel(preferencesService: PreferencesService())
+    let viewModel = AppViewModel(preferencesService: MockPreferencesService())
     let url = try XCTUnwrap(URL(string: "\(AppConstants.GeoGarage.oauthRedirectURI)?code=abc&state=xyz"))
     viewModel.handleIncomingURL(url)
     XCTAssertFalse(viewModel.showImportError)
@@ -30,7 +30,7 @@ final class OAuthCallbackURLSchemeTests: XCTestCase {
   }
 
   func testNonHTTPSCallbackURLIsNotIgnoredByChartImport() throws {
-    let viewModel = AppViewModel(preferencesService: PreferencesService())
+    let viewModel = AppViewModel(preferencesService: MockPreferencesService())
     let url = try XCTUnwrap(URL(string: "http://\(AppConstants.GeoGarage.oauthCallbackHost)\(AppConstants.GeoGarage.oauthCallbackPath)?code=abc&state=xyz"))
     viewModel.handleIncomingURL(url)
     XCTAssertTrue(viewModel.showImportError)

@@ -14,23 +14,29 @@ import CoreLocation
 
 @MainActor
 final class ChecklistSessionViewModelTests: XCTestCase {
-  private var databaseManager: DatabaseManager!
-  private var checklistService: ChecklistService!
-  private var template: ChecklistTemplate!
-  private var session: ChecklistSession!
-  private var viewModel: ChecklistSessionViewModel!
+  private var databaseManager: DatabaseManager?
+  private var checklistService: ChecklistService?
+  private var template: ChecklistTemplate?
+  private var session: ChecklistSession?
+  private var viewModel: ChecklistSessionViewModel?
   private var simulatedFix: NavigationFix?
   private var observeTask: Task<Void, Never>?
+  private var isolatedDefaults: IsolatedUserDefaults?
 
   override func setUp() async throws {
     try await super.setUp()
-    databaseManager = try DatabaseManager.inMemory()
-    checklistService = ChecklistService(
-      databaseManager: databaseManager,
-      throttler: ChecklistThrottler(window: .zero)
+    let isolated = IsolatedUserDefaults(prefix: "ChecklistSessionViewModelTests")
+    self.isolatedDefaults = isolated
+    let db = try DatabaseManager.inMemory()
+    self.databaseManager = db
+    let service = ChecklistService(
+      databaseManager: db,
+      throttler: ChecklistThrottler(window: .zero),
+      userDefaults: isolated.defaults
     )
+    self.checklistService = service
 
-    template = try await checklistService.createCustomTemplate(
+    let createdTemplate = try await service.createCustomTemplate(
       title: "Engine Check",
       description: "Pre-departure engine inspection",
       categoryId: "engine_technical",
@@ -40,12 +46,14 @@ final class ChecklistSessionViewModelTests: XCTestCase {
         (title: "Visual belt check", detail: "Check tension and wear")
       ]
     )
+    self.template = createdTemplate
 
-    session = try await checklistService.startSession(templateId: template.id)
+    let createdSession = try await service.startSession(templateId: createdTemplate.id)
+    self.session = createdSession
 
-    viewModel = ChecklistSessionViewModel(
-      sessionId: session.id,
-      checklistService: checklistService,
+    self.viewModel = ChecklistSessionViewModel(
+      sessionId: createdSession.id,
+      checklistService: service,
       locationProvider: { [weak self] in
         self?.simulatedFix
       }
@@ -61,16 +69,21 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     template = nil
     checklistService = nil
     databaseManager = nil
+    isolatedDefaults?.tearDown()
+    isolatedDefaults = nil
     try await super.tearDown()
   }
 
   // MARK: - Load Tests
 
-  func testInitWithPreloadedSessionExposesTitleInstantly() {
+  func testInitWithPreloadedSessionExposesTitleInstantly() throws {
+    let currentSession = try XCTUnwrap(session)
+    let service = try XCTUnwrap(checklistService)
+
     let preloadedVM = ChecklistSessionViewModel(
-      sessionId: session.id,
-      session: session,
-      checklistService: checklistService
+      sessionId: currentSession.id,
+      session: currentSession,
+      checklistService: service
     )
 
     XCTAssertEqual(preloadedVM.title, "Engine Check")
@@ -79,30 +92,33 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     XCTAssertNotNil(preloadedVM.session)
   }
 
-  func testLoadFetchesSessionAndTemplate() async {
-    XCTAssertNil(viewModel.session)
-    XCTAssertNil(viewModel.template)
+  func testLoadFetchesSessionAndTemplate() async throws {
+    let vm = try XCTUnwrap(viewModel)
 
-    await viewModel.load()
+    XCTAssertNil(vm.session)
+    XCTAssertNil(vm.template)
 
-    XCTAssertNotNil(viewModel.session)
-    XCTAssertNotNil(viewModel.template)
-    XCTAssertEqual(viewModel.title, "Engine Check")
-    XCTAssertEqual(viewModel.description, "Pre-departure engine inspection")
-    XCTAssertEqual(viewModel.categoryId, "engine_technical")
-    XCTAssertEqual(viewModel.items.count, 3)
-    XCTAssertEqual(viewModel.completedCount, 0)
-    XCTAssertEqual(viewModel.totalCount, 3)
-    XCTAssertEqual(viewModel.progressRatio, 0.0)
-    XCTAssertFalse(viewModel.isCompleted)
-    XCTAssertFalse(viewModel.canComplete)
-    XCTAssertFalse(viewModel.canReset)
+    await vm.load()
+
+    XCTAssertNotNil(vm.session)
+    XCTAssertNotNil(vm.template)
+    XCTAssertEqual(vm.title, "Engine Check")
+    XCTAssertEqual(vm.description, "Pre-departure engine inspection")
+    XCTAssertEqual(vm.categoryId, "engine_technical")
+    XCTAssertEqual(vm.items.count, 3)
+    XCTAssertEqual(vm.completedCount, 0)
+    XCTAssertEqual(vm.totalCount, 3)
+    XCTAssertEqual(vm.progressRatio, 0.0)
+    XCTAssertFalse(vm.isCompleted)
+    XCTAssertFalse(vm.canComplete)
+    XCTAssertFalse(vm.canReset)
   }
 
   // MARK: - Toggle Item & GPS Audit Tests
 
   func testToggleItemWithAccurateLocationAuditing() async throws {
-    await viewModel.load()
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
     simulatedFix = NavigationFix(
       coordinate: CLLocationCoordinate2D(latitude: 47.654, longitude: -3.123),
@@ -114,18 +130,18 @@ final class ChecklistSessionViewModelTests: XCTestCase {
       timestamp: Date()
     )
 
-    guard let firstItem = viewModel.items.first else {
+    guard let firstItem = vm.items.first else {
       XCTFail("Items should not be empty")
       return
     }
 
-    await viewModel.toggleItem(firstItem)
+    await vm.toggleItem(firstItem)
 
-    XCTAssertEqual(viewModel.completedCount, 1)
-    XCTAssertTrue(viewModel.canReset)
-    XCTAssertFalse(viewModel.canComplete)
+    XCTAssertEqual(vm.completedCount, 1)
+    XCTAssertTrue(vm.canReset)
+    XCTAssertFalse(vm.canComplete)
 
-    let updatedItem = viewModel.items.first(where: { $0.id == firstItem.id })
+    let updatedItem = vm.items.first(where: { $0.id == firstItem.id })
     XCTAssertTrue(updatedItem?.isChecked == true)
     XCTAssertNotNil(updatedItem?.checkedAt)
     XCTAssertEqual(updatedItem?.coordinate?.latitude ?? 0, 47.654, accuracy: 0.0001)
@@ -133,7 +149,8 @@ final class ChecklistSessionViewModelTests: XCTestCase {
   }
 
   func testToggleItemRejectsInaccurateGPSFix() async throws {
-    await viewModel.load()
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
     // Accuracy 55m > 50m threshold -> coordinate must be dropped
     simulatedFix = NavigationFix(
@@ -146,172 +163,183 @@ final class ChecklistSessionViewModelTests: XCTestCase {
       timestamp: Date()
     )
 
-    guard let firstItem = viewModel.items.first else {
+    guard let firstItem = vm.items.first else {
       XCTFail("Items should not be empty")
       return
     }
 
-    await viewModel.toggleItem(firstItem)
+    await vm.toggleItem(firstItem)
 
-    let updatedItem = viewModel.items.first(where: { $0.id == firstItem.id })
+    let updatedItem = vm.items.first(where: { $0.id == firstItem.id })
     XCTAssertTrue(updatedItem?.isChecked == true)
     XCTAssertNil(updatedItem?.coordinate)
   }
 
-  func testToggleItemDoesNotTriggerIsPerformingAction() async {
-    await viewModel.load()
+  func testToggleItemDoesNotTriggerIsPerformingAction() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
-    guard let firstItem = viewModel.items.first else {
+    guard let firstItem = vm.items.first else {
       XCTFail("Items should not be empty")
       return
     }
 
-    XCTAssertFalse(viewModel.isPerformingAction)
-    await viewModel.toggleItem(firstItem)
+    XCTAssertFalse(vm.isPerformingAction)
+    await vm.toggleItem(firstItem)
     // isPerformingAction must remain false so buttons (e.g. Reset) don't flicker disabled/enabled
-    XCTAssertFalse(viewModel.isPerformingAction)
+    XCTAssertFalse(vm.isPerformingAction)
   }
 
-  func testResetAvailabilityRemainsStableWhileTogglingSubsequentItems() async {
-    await viewModel.load()
+  func testResetAvailabilityRemainsStableWhileTogglingSubsequentItems() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
-    guard viewModel.items.count >= 2 else {
+    guard vm.items.count >= 2 else {
       XCTFail("At least 2 items expected")
       return
     }
 
-    let item0 = viewModel.items[0]
-    let item1 = viewModel.items[1]
+    let item0 = vm.items[0]
+    let item1 = vm.items[1]
 
-    XCTAssertFalse(viewModel.canReset)
+    XCTAssertFalse(vm.canReset)
 
-    await viewModel.toggleItem(item0)
-    XCTAssertTrue(viewModel.canReset)
-    XCTAssertFalse(viewModel.isPerformingAction)
+    await vm.toggleItem(item0)
+    XCTAssertTrue(vm.canReset)
+    XCTAssertFalse(vm.isPerformingAction)
 
-    await viewModel.toggleItem(item1)
-    XCTAssertTrue(viewModel.canReset)
-    XCTAssertFalse(viewModel.isPerformingAction)
+    await vm.toggleItem(item1)
+    XCTAssertTrue(vm.canReset)
+    XCTAssertFalse(vm.isPerformingAction)
 
-    await viewModel.toggleItem(item1)
-    XCTAssertTrue(viewModel.canReset)
-    XCTAssertFalse(viewModel.isPerformingAction)
+    await vm.toggleItem(item1)
+    XCTAssertTrue(vm.canReset)
+    XCTAssertFalse(vm.isPerformingAction)
   }
 
   // MARK: - Complete & Reset Tests
 
-  func testCompleteRequiresAllItemsChecked() async {
-    await viewModel.load()
+  func testCompleteRequiresAllItemsChecked() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
-    for item in viewModel.items {
-      await viewModel.toggleItem(item)
+    for item in vm.items {
+      await vm.toggleItem(item)
     }
 
-    XCTAssertTrue(viewModel.canComplete)
-    await viewModel.complete()
+    XCTAssertTrue(vm.canComplete)
+    await vm.complete()
 
-    XCTAssertTrue(viewModel.isCompleted)
-    XCTAssertFalse(viewModel.canComplete)
-    XCTAssertTrue(viewModel.canReset)
+    XCTAssertTrue(vm.isCompleted)
+    XCTAssertFalse(vm.canComplete)
+    XCTAssertTrue(vm.canReset)
 
-    await viewModel.delete()
-    XCTAssertNil(viewModel.session)
-    XCTAssertTrue(viewModel.isSessionDeleted)
+    await vm.delete()
+    XCTAssertNil(vm.session)
+    XCTAssertTrue(vm.isSessionDeleted)
   }
 
-  func testDeleteRemovesSession() async {
-    await viewModel.load()
+  func testDeleteRemovesSession() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
-    guard let firstItem = viewModel.items.first else {
+    guard let firstItem = vm.items.first else {
       XCTFail("Items should not be empty")
       return
     }
 
-    await viewModel.toggleItem(firstItem)
-    XCTAssertEqual(viewModel.completedCount, 1)
+    await vm.toggleItem(firstItem)
+    XCTAssertEqual(vm.completedCount, 1)
 
-    await viewModel.delete()
-    XCTAssertNil(viewModel.session)
-    XCTAssertTrue(viewModel.isSessionDeleted)
+    await vm.delete()
+    XCTAssertNil(vm.session)
+    XCTAssertTrue(vm.isSessionDeleted)
   }
 
   func testTemplateDeletionMarksSessionAsDeleted() async throws {
-    await viewModel.load()
-    XCTAssertNotNil(viewModel.session)
-    XCTAssertFalse(viewModel.isSessionDeleted)
+    let vm = try XCTUnwrap(viewModel)
+    let service = try XCTUnwrap(checklistService)
+    let currentTemplate = try XCTUnwrap(template)
 
-    let task = Task { [weak viewModel] in
-      await viewModel?.observe()
+    await vm.load()
+    XCTAssertNotNil(vm.session)
+    XCTAssertFalse(vm.isSessionDeleted)
+
+    let task = Task { [weak vm] in
+      await vm?.observe()
     }
     defer { task.cancel() }
 
-    try await checklistService.deleteTemplate(id: template.id)
+    try await service.deleteTemplate(id: currentTemplate.id)
 
     let start = Date()
-    while !viewModel.isSessionDeleted && Date().timeIntervalSince(start) < 2.0 {
+    while !vm.isSessionDeleted && Date().timeIntervalSince(start) < 2.0 {
       try await Task.sleep(nanoseconds: 20_000_000)
     }
 
-    XCTAssertTrue(viewModel.isSessionDeleted)
-    XCTAssertNil(viewModel.session)
+    XCTAssertTrue(vm.isSessionDeleted)
+    XCTAssertNil(vm.session)
   }
 
-  func testToggleItemIgnoredWhenSessionIsCompleted() async {
-    await viewModel.load()
+  func testToggleItemIgnoredWhenSessionIsCompleted() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
-    for item in viewModel.items {
-      await viewModel.toggleItem(item)
+    for item in vm.items {
+      await vm.toggleItem(item)
     }
 
-    await viewModel.complete()
-    XCTAssertTrue(viewModel.isCompleted)
-    XCTAssertNil(viewModel.errorMessage)
+    await vm.complete()
+    XCTAssertTrue(vm.isCompleted)
+    XCTAssertNil(vm.errorMessage)
 
-    guard let firstItem = viewModel.items.first else {
+    guard let firstItem = vm.items.first else {
       XCTFail("Items should not be empty")
       return
     }
 
     // Tapping on an item when completed must be ignored: no state change, no error message
-    await viewModel.toggleItem(firstItem)
-    XCTAssertTrue(viewModel.isCompleted)
-    XCTAssertNil(viewModel.errorMessage)
-    XCTAssertEqual(viewModel.completedCount, 3)
-    let rechecked = viewModel.items.first(where: { $0.id == firstItem.id })
+    await vm.toggleItem(firstItem)
+    XCTAssertTrue(vm.isCompleted)
+    XCTAssertNil(vm.errorMessage)
+    XCTAssertEqual(vm.completedCount, 3)
+    let rechecked = vm.items.first(where: { $0.id == firstItem.id })
     XCTAssertTrue(rechecked?.isChecked == true)
   }
 
   // MARK: - Category Support Tests
 
-  func testLoadFetchesCategoryItem() async {
-    await viewModel.load()
+  func testLoadFetchesCategoryItem() async throws {
+    let vm = try XCTUnwrap(viewModel)
+    await vm.load()
 
-    XCTAssertNotNil(viewModel.categoryItem)
-    XCTAssertEqual(viewModel.categoryId, "engine_technical")
-    XCTAssertEqual(viewModel.categoryName, viewModel.categoryItem?.name)
-    XCTAssertFalse(viewModel.categoryName.isEmpty)
+    XCTAssertNotNil(vm.categoryItem)
+    XCTAssertEqual(vm.categoryId, "engine_technical")
+    XCTAssertEqual(vm.categoryName, vm.categoryItem?.name)
+    XCTAssertFalse(vm.categoryName.isEmpty)
   }
 
   func testCategoryItemResolvesForCustomCategory() async throws {
-    let customCategory = try await checklistService.createCategory(
+    let service = try XCTUnwrap(checklistService)
+    let customCategory = try await service.createCategory(
       id: "custom_hull",
       name: "Hull & Keel",
       icon: "shield",
       sortOrder: 15
     )
 
-    let customTemplate = try await checklistService.createCustomTemplate(
+    let customTemplate = try await service.createCustomTemplate(
       title: "Hull Inspection",
       description: "Thru-hulls and zincs",
       categoryId: customCategory.id,
       items: [("Check seacocks", nil)]
     )
 
-    let customSession = try await checklistService.startSession(templateId: customTemplate.id)
+    let customSession = try await service.startSession(templateId: customTemplate.id)
 
     let customVM = ChecklistSessionViewModel(
       sessionId: customSession.id,
-      checklistService: checklistService
+      checklistService: service
     )
 
     await customVM.load()
