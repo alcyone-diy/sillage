@@ -31,16 +31,19 @@ final class GeoGarageLoginViewModel {
 
   private let offlineMapManager: OfflineMapManagerProtocol
   private let partnerSecretService: GeoGaragePartnerSecretServiceProtocol
+  private let downloadRepository: (any GeoGarageDownloadRepositoryProtocol)?
   private let keychainManager: any KeychainManaging
 
   init(
     offlineMapManager: OfflineMapManagerProtocol,
     partnerSecretService: GeoGaragePartnerSecretServiceProtocol,
+    downloadRepository: (any GeoGarageDownloadRepositoryProtocol)? = nil,
     context: GeoGarageLoginContext = .initialSetup,
     keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     self.offlineMapManager = offlineMapManager
     self.partnerSecretService = partnerSecretService
+    self.downloadRepository = downloadRepository
     self.context = context
     self.keychainManager = keychainManager
   }
@@ -82,8 +85,12 @@ final class GeoGarageLoginViewModel {
     return .unauthenticated(error: currentErrorMsg)
   }
 
-  func requiresOfflineMapsWarning() -> Bool {
-    return !offlineMapManager.downloadedRegions.isEmpty
+  var offlineChartsCount: Int {
+    (downloadRepository?.downloads.count ?? 0) + offlineMapManager.downloadedRegions.count
+  }
+
+  var hasOfflineCharts: Bool {
+    offlineChartsCount > 0
   }
 
   func performLogout(
@@ -112,6 +119,56 @@ final class GeoGarageLoginViewModel {
         category: .geoGarage
       )
       messageService?.post(appMessage)
+    }
+
+    // Delete downloaded CAAS MBTiles files and corresponding database records
+    if let downloadRepository {
+      var targets: [(id: UUID, url: URL)] = []
+      var unresolvableIDs: [UUID] = []
+
+      for download in downloadRepository.downloads {
+        if let url = download.resolvedFileURL() {
+          targets.append((id: download.id, url: url))
+        } else {
+          unresolvableIDs.append(download.id)
+        }
+      }
+
+      let (successfulIDs, deletionErrors) = await Task.detached(priority: .utility) { () -> ([UUID], [String]) in
+        let fileManager = FileManager.default
+        var successful: [UUID] = []
+        var errors: [String] = []
+
+        for target in targets {
+          do {
+            try fileManager.removeItem(at: target.url)
+            successful.append(target.id)
+          } catch let error as CocoaError where error.code == .fileNoSuchFile {
+            successful.append(target.id)
+          } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+            successful.append(target.id)
+          } catch {
+            errors.append("\(target.url.lastPathComponent): \(error.localizedDescription)")
+          }
+        }
+
+        return (successful, errors)
+      }.value
+
+      var idsToDeleteFromDB = successfulIDs
+      idsToDeleteFromDB.append(contentsOf: unresolvableIDs)
+
+      if !idsToDeleteFromDB.isEmpty {
+        do {
+          try await downloadRepository.delete(ids: idsToDeleteFromDB)
+        } catch {
+          Logger.caas.error("Failed to delete offline chart records from database during logout: \(error.localizedDescription, privacy: .public)")
+        }
+      }
+
+      for errorMsg in deletionErrors {
+        Logger.caas.error("Failed to delete physical MBTiles file during logout: \(errorMsg, privacy: .public)")
+      }
     }
 
     try? await offlineMapManager.clearAmbientCache()

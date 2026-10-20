@@ -20,8 +20,18 @@ protocol GeoGarageDownloadRepositoryProtocol: AnyObject, Sendable {
   @MainActor func load() async
   @MainActor func save(_ download: OfflineChartDownload) async throws
   @MainActor func delete(id: UUID) async throws
+  @MainActor func delete(ids: [UUID]) async throws
   @MainActor func lastDownloadDate(for layerID: String) -> Date?
   @MainActor func fetchLastDownloadDate(for layerID: String) async throws -> Date?
+}
+
+extension GeoGarageDownloadRepositoryProtocol {
+  @MainActor
+  func delete(ids: [UUID]) async throws {
+    for id in ids {
+      try await delete(id: id)
+    }
+  }
 }
 
 // MARK: - Implementation
@@ -106,6 +116,24 @@ final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
       Logger.caas.debug("Deleted download \(id.uuidString, privacy: .public) from database.")
     } catch {
       Logger.caas.error("Failed to delete download \(id.uuidString, privacy: .public) from database: \(error, privacy: .public)")
+      throw error
+    }
+  }
+
+  /// Batch deletes download records matching `ids` from SQLite and updates memory state.
+  /// Note: Does not delete the actual `.mbtiles` files on disk.
+  func delete(ids: [UUID]) async throws {
+    guard !ids.isEmpty else { return }
+    let idStrings = ids.map(\.uuidString)
+    let idsSet = Set(ids)
+    do {
+      _ = try await databaseManager.writer.write { db in
+        try GeoGarageDownloadRecord.deleteAll(db, keys: idStrings)
+      }
+      self.downloads.removeAll { idsSet.contains($0.id) }
+      Logger.caas.debug("Deleted \(idStrings.count, privacy: .public) downloads from database.")
+    } catch {
+      Logger.caas.error("Failed to delete downloads from database: \(error, privacy: .public)")
       throw error
     }
   }

@@ -262,6 +262,9 @@
     "Are you sure you want to delete this waypoint? This action cannot be undone." : {
 
     },
+    "Are you sure you want to log out of your GeoGarage account?" : {
+
+    },
     "Are you sure you want to permanently delete this category?" : {
 
     },
@@ -902,9 +905,6 @@
     "Log Out" : {
 
     },
-    "Logging out will permanently delete all offline maps to comply with GeoGarage licensing. You will need an active internet connection to download them again. Proceed?" : {
-
-    },
     "Login to GeoGarage" : {
 
     },
@@ -1260,9 +1260,6 @@
     "Sign in to GeoGarage" : {
 
     },
-    "Sign in to your GeoGarage account to download new offline charts." : {
-
-    },
     "Sign in to your GeoGarage account to display online marine charts, or switch to OpenSeaMap in Chart Preferences." : {
       "localizations" : {
         "en" : {
@@ -1272,6 +1269,9 @@
           }
         }
       }
+    },
+    "Sign in to your GeoGarage account to download new offline charts." : {
+
     },
     "Sign in with GeoGarage" : {
 
@@ -1583,6 +1583,9 @@
 
     },
     "You can change this at any time in the Settings app." : {
+
+    },
+    "You have ^[%lld offline chart](inflect: true) downloaded with this account. If you log out, your offline charts will be deleted. Are you sure you want to log out?" : {
 
     },
     "Your session has expired. Please log in again." : {

@@ -28,11 +28,13 @@ struct GeoGarageLoginView: View {
   init(
     offlineMapManager: OfflineMapManager,
     partnerSecretService: GeoGaragePartnerSecretServiceProtocol,
+    downloadRepository: (any GeoGarageDownloadRepositoryProtocol)? = nil,
     context: GeoGarageLoginContext = .initialSetup
   ) {
     self._viewModel = State(initialValue: GeoGarageLoginViewModel(
       offlineMapManager: offlineMapManager,
       partnerSecretService: partnerSecretService,
+      downloadRepository: downloadRepository,
       context: context
     ))
   }
@@ -85,7 +87,11 @@ struct GeoGarageLoginView: View {
       Button("Cancel", role: .cancel) {}
       Button("Log Out", role: .destructive, action: performLogout)
     } message: {
-      Text("Logging out will permanently delete all offline maps to comply with GeoGarage licensing. You will need an active internet connection to download them again. Proceed?")
+      if viewModel.hasOfflineCharts {
+        Text("You have ^[\(viewModel.offlineChartsCount) offline chart](inflect: true) downloaded with this account. If you log out, your offline charts will be deleted. Are you sure you want to log out?")
+      } else {
+        Text("Are you sure you want to log out of your GeoGarage account?")
+      }
     }
   }
 
@@ -195,11 +201,7 @@ struct GeoGarageLoginView: View {
   }
 
   private func initiateLogout() {
-    if viewModel.requiresOfflineMapsWarning() {
-      showLogoutConfirmation = true
-    } else {
-      performLogout()
-    }
+    showLogoutConfirmation = true
   }
 
   private func performLogout() {

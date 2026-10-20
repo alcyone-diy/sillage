@@ -269,6 +269,7 @@ struct CommandPanelView: View {
       GeoGarageLoginView(
         offlineMapManager: appEnvironment.offlineMapManager,
         partnerSecretService: appEnvironment.geoGaragePartnerSecretService,
+        downloadRepository: appEnvironment.geoGarageDownloadRepository,
         context: context
       )
     case .offlineCharts:
