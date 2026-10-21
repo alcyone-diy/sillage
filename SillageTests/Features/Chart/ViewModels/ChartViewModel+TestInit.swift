@@ -21,8 +21,8 @@ extension ChartViewModel {
     authService: GeoGarageAuthServiceProtocol,
     anchorService: AnchorService,
     anchorViewModel: AnchorViewModel,
-    waypointService: WaypointService? = nil,
-    messageService: MessageService? = nil,
+    waypointService: WaypointService,
+    messageService: MessageService,
     keychainManager: (any KeychainManaging)? = nil
   ) {
     let db = (try? DatabaseManager.inMemory()) ?? {

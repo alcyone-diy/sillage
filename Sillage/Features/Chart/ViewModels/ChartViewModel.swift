@@ -162,7 +162,7 @@ final class ChartViewModel {
   var goToWaypointVisualState: WaypointVisualState?
   var visibleWaypointVisualStates: [WaypointVisualState] = []
   var draftWaypointID: String? {
-    waypointService?.draftWaypoint?.id
+    waypointService.draftWaypoint?.id
   }
   var bearingLineVisualState: BearingLineVisualState?
   var goToWaypointID: String?
@@ -189,14 +189,14 @@ final class ChartViewModel {
   private let chartStorageService = ChartStorageService()
   private var preferencesService: PreferencesServiceProtocol
   private let authService: GeoGarageAuthServiceProtocol
-  private let waypointService: WaypointService?
+  private let waypointService: WaypointService
   private let trackService: TrackService
   private let trackRecordingService: TrackRecordingService
   private let anchorService: AnchorService
   let anchorViewModel: AnchorViewModel
   let calloutViewModel = MapCalloutViewModel()
   let measureToolViewModel = MeasureToolViewModel()
-  private let messageService: MessageService?
+  private let messageService: MessageService
   private let keychainManager: any KeychainManaging
   private var lastPositionedDraftID: String?
   private var lastPositionedDraftCoordinate: CLLocationCoordinate2D?
@@ -386,9 +386,8 @@ final class ChartViewModel {
     cameraMoveContinuations[id] = continuation
     
     continuation.onTermination = { [weak self] _ in
-      guard let self = self else { return }
-      Task { @MainActor in
-        self.cameraMoveContinuations.removeValue(forKey: id)
+      Task { @MainActor [weak self] in
+        self?.cameraMoveContinuations.removeValue(forKey: id)
       }
     }
     return stream
@@ -406,8 +405,8 @@ final class ChartViewModel {
     anchorViewModel: AnchorViewModel,
     trackService: TrackService,
     trackRecordingService: TrackRecordingService,
-    waypointService: WaypointService? = nil,
-    messageService: MessageService? = nil,
+    waypointService: WaypointService,
+    messageService: MessageService,
     keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     self.positioningService = positioningService
@@ -438,6 +437,8 @@ final class ChartViewModel {
   // MARK: - Data Observation & Management
   
   private func setupGeoGarageLayersObservation() {
+    let authService = self.authService
+
     func observeLayers() {
       withObservationTracking {
         _ = authService.availableLayers
@@ -478,8 +479,8 @@ final class ChartViewModel {
   }
   
   private func setupWaypointService() {
-    guard let waypointService = waypointService else { return }
-    
+    let waypointService = self.waypointService
+
     func observeSelection() {
       withObservationTracking {
         _ = waypointService.goToWaypointID
@@ -547,7 +548,7 @@ final class ChartViewModel {
   private func handleGoToWaypointChange(id: String?) {
     // 1. Strict validation
     guard let id = id,
-          let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == id }) else {
+          let waypoint = waypointService.currentWaypoints.first(where: { $0.id == id }) else {
       // 2. Safe fallback: Total reset if invalid or nil
       self.goToWaypointID = nil
       self.goToWaypointVisualState = nil
@@ -596,7 +597,6 @@ final class ChartViewModel {
   /// Refreshes all waypoint annotations and GoTo targets from the service,
   /// factoring in any active waypoint currently undergoing draft or position adjustment.
   public func refreshWaypoints() {
-    guard let waypointService else { return }
     handleWaypointsChange(
       waypoints: waypointService.currentWaypoints,
       draftWaypoint: waypointService.draftWaypoint
@@ -680,7 +680,7 @@ final class ChartViewModel {
     // Note: We read the intent from waypointService instead of self.goToWaypointID
     // This allows correctly restoring navigation upon app startup,
     // as handleGoToWaypointChange might have temporarily purged the state if waypoints were not yet loaded.
-    guard let targetID = waypointService?.goToWaypointID else {
+    guard let targetID = waypointService.goToWaypointID else {
       self.goToWaypointID = nil
       self.goToWaypointVisualState = nil
       self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
@@ -706,19 +706,19 @@ final class ChartViewModel {
   
   /// Initiates the asynchronous import of an MBTiles file and switches the chart to it upon success.
   func importOfflineChart(from url: URL) {
-    Task {
+    Task { [weak self] in
       do {
         let importedURL = try await LocalChartManager.shared.importChart(from: url)
-        self.switchChartSource(to: .localMBTiles(url: importedURL))
+        self?.switchChartSource(to: .localMBTiles(url: importedURL))
       } catch {
-        self.chartImportError = error.localizedDescription
-        self.showImportError = true
+        self?.chartImportError = error.localizedDescription
+        self?.showImportError = true
       }
     }
   }
   
   func clearGeoGarageMessages() {
-    self.messageService?.clear(category: .geoGarage)
+    self.messageService.clear(category: .geoGarage)
   }
 
   /// Handles post-login domain orchestration for GeoGarage.
@@ -763,7 +763,7 @@ final class ChartViewModel {
     silentFetchTask?.cancel()
     Task { [weak self] in
       await self?.authService.logout()
-      self?.messageService?.clear(category: .geoGarage)
+      self?.messageService.clear(category: .geoGarage)
     }
   }
   
@@ -805,7 +805,7 @@ final class ChartViewModel {
       category: .geoGarage,
       intent: .openSettings(target: .geoGarage),
     )
-    self.messageService?.post(appMessage)
+    self.messageService.post(appMessage)
   }
 
   static let unauthenticatedGeoGarageChartMessageID: UUID = {
@@ -819,8 +819,6 @@ final class ChartViewModel {
   /// If so, posts a warning message to guide the user to sign in or choose another chart source.
   /// When authenticated or when using another chart source, removes the warning.
   func updateUnauthenticatedGeoGarageWarning() {
-    guard let messageService else { return }
-
     if case .remoteGeoGarage = currentChartSource, !isGeoGarageAuthenticated {
       // Prevent redundant message re-posting and carousel churn if the warning is already displayed
       if messageService.messages.contains(where: { $0.id == Self.unauthenticatedGeoGarageChartMessageID }) {
@@ -856,6 +854,8 @@ final class ChartViewModel {
       }
     })
     
+    let anchorViewModel = self.anchorViewModel
+
     func observeSetupMode() {
       withObservationTracking {
         _ = anchorViewModel.isDisplayingSetupVisuals
