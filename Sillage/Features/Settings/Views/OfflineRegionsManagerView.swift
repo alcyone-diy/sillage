@@ -36,33 +36,7 @@ struct OfflineRegionsManagerView: View {
   var body: some View {
     Group {
       if allChartItems.isEmpty {
-        ContentUnavailableView {
-          Label("No Offline Charts", systemImage: "map.slash")
-        } description: {
-          switch chartViewModel.offlineAreaWarningReason {
-          case .unauthenticated:
-            Text("⚠️ Sign in to GeoGarage to download offline charts.")
-          case .nonGeoGarageChartActive:
-            Text("⚠️ Offline maps require GeoGarage. Switch to GeoGarage in Chart Preferences to download offline charts.")
-          case .none:
-            Text("Tap '+' to select an area on the chart to download.")
-          }
-        } actions: {
-          switch chartViewModel.offlineAreaWarningReason {
-          case .unauthenticated:
-            NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin(context: .initialSetup)) {
-              Text("Sign in to GeoGarage")
-            }
-            .buttonStyle(.borderedProminent)
-          case .nonGeoGarageChartActive:
-            NavigationLink(value: PanelManagerViewModel.CommandDestination.chartPreferences) {
-              Text("Chart Preferences")
-            }
-            .buttonStyle(.borderedProminent)
-          case .none:
-            EmptyView()
-          }
-        }
+        emptyStateView
       } else {
         List {
           if let warningReason = chartViewModel.offlineAreaWarningReason {
@@ -121,9 +95,9 @@ struct OfflineRegionsManagerView: View {
         }
         .animation(.default, value: allChartItems)
         .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
-        .marineListBackground()
       }
     }
+    .marineListBackground()
     .navigationTitle("Offline Charts")
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
@@ -200,12 +174,77 @@ struct OfflineRegionsManagerView: View {
       errorMessage = error.localizedDescription
     }
   }
+
+  // MARK: - Empty State
+
+  @ViewBuilder
+  private var emptyStateView: some View {
+    switch chartViewModel.offlineAreaWarningReason {
+    case .unauthenticated:
+      ContentUnavailableView {
+        Label {
+          Text("GeoGarage Sign-In Required")
+        } icon: {
+          Image(systemName: "person.crop.circle.badge.plus")
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(marineTheme.colors.primary)
+        }
+      } description: {
+        Text("Sign in to your GeoGarage account to download and access certified marine charts offline.")
+      } actions: {
+        NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin(context: .initialSetup)) {
+          Text("Sign in to GeoGarage")
+        }
+        .buttonStyle(MarineButtonStyle(.primary))
+      }
+
+    case .nonGeoGarageChartActive:
+      ContentUnavailableView {
+        Label {
+          Text("GeoGarage Required")
+        } icon: {
+          Image(systemName: "map")
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(marineTheme.colors.primary)
+        }
+      } description: {
+        Text("Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences to download offline charts.")
+      } actions: {
+        NavigationLink(value: PanelManagerViewModel.CommandDestination.chartPreferences) {
+          Text("Chart Preferences")
+        }
+        .buttonStyle(MarineButtonStyle(.primary))
+      }
+
+    case .none:
+      ContentUnavailableView {
+        Label {
+          Text("No Offline Charts")
+        } icon: {
+          Image(systemName: "arrow.down.circle")
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(marineTheme.colors.primary)
+        }
+      } description: {
+        Text("Select an area on the chart to download marine charts for offline navigation.")
+      } actions: {
+        Button {
+          offlineSelectionViewModel.startNewSelection()
+          panelManagerViewModel.closePanel()
+        } label: {
+          Text("Download a Chart")
+        }
+        .buttonStyle(MarineButtonStyle(.primary))
+      }
+    }
+  }
 }
 
 // MARK: - Subviews
 
 private struct OfflineAreaWarningBannerView: View {
   let reason: ChartViewModel.OfflineAreaWarningReason
+  @Environment(\.marineTheme) private var marineTheme
 
   private var destination: PanelManagerViewModel.CommandDestination {
     switch reason {
@@ -213,6 +252,15 @@ private struct OfflineAreaWarningBannerView: View {
       return .geoGarageLogin(context: .reauthentication)
     case .nonGeoGarageChartActive:
       return .chartPreferences
+    }
+  }
+
+  private var iconSystemName: String {
+    switch reason {
+    case .unauthenticated:
+      return "person.crop.circle.badge.exclamationmark"
+    case .nonGeoGarageChartActive:
+      return "exclamationmark.triangle.fill"
     }
   }
 
@@ -236,11 +284,13 @@ private struct OfflineAreaWarningBannerView: View {
 
   var body: some View {
     NavigationLink(value: destination) {
-      HStack(alignment: .top, spacing: 12) {
-        Text("⚠️")
+      HStack(alignment: .center, spacing: MarineTheme.Spacing.actionRowHorizontal) {
+        Image(systemName: iconSystemName)
           .marineFont(.title2)
+          .foregroundStyle(marineTheme.colors.warning)
+          .accessibilityHidden(true)
 
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
           Text(title)
             .marineFont(.headline)
             .foregroundStyle(.primary)

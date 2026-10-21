@@ -35,6 +35,7 @@ struct MarineButtonStyle: ButtonStyle {
       .font(variant == .custom ? nil : .headline)
       .fontWeight(variant == .custom ? nil : .semibold)
       .foregroundStyle(foregroundColor(for: variant))
+      .padding(.horizontal, variant == .custom ? 0 : MarineTheme.Spacing.medium)
       .frame(
         minWidth: variant == .custom ? marineTheme.minTouchTarget * scaleFactor : nil,
         maxWidth: variant == .custom ? nil : .infinity,

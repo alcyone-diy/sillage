@@ -121,9 +121,6 @@
     "⚓️ DRAGGING ANCHOR! (Debug)" : {
 
     },
-    "⚠️" : {
-
-    },
     "⚠️ Anchor Alarm: GPS Degraded" : {
 
     },
@@ -131,12 +128,6 @@
 
     },
     "⚠️ Monitoring Suspended" : {
-
-    },
-    "⚠️ Offline maps require GeoGarage. Switch to GeoGarage in Chart Preferences to download offline charts." : {
-
-    },
-    "⚠️ Sign in to GeoGarage to download offline charts." : {
 
     },
     "🔇 Silence" : {
@@ -557,6 +548,9 @@
 
     },
     "Download" : {
+
+    },
+    "Download a Chart" : {
 
     },
     "Download failed: %@." : {
@@ -1067,6 +1061,9 @@
     "Offline Maps Error" : {
 
     },
+    "Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences to download offline charts." : {
+
+    },
     "Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences." : {
 
     },
@@ -1230,6 +1227,9 @@
     "Segments" : {
 
     },
+    "Select an area on the chart to download marine charts for offline navigation." : {
+
+    },
     "Select Drop Point" : {
 
     },
@@ -1269,6 +1269,9 @@
           }
         }
       }
+    },
+    "Sign in to your GeoGarage account to download and access certified marine charts offline." : {
+
     },
     "Sign in to your GeoGarage account to download new offline charts." : {
 
@@ -1360,9 +1363,6 @@
 
     },
     "System Information" : {
-
-    },
-    "Tap '+' to select an area on the chart to download." : {
 
     },
     "Tap Reorder to change category order." : {
