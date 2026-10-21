@@ -337,16 +337,27 @@ struct CommandPanelView: View {
 
   @ViewBuilder
   private func checklistServiceUnavailableView(for feature: String) -> some View {
-    ContentUnavailableView {
-      Label("Service Unavailable", systemImage: "exclamationmark.triangle.fill")
-        .foregroundStyle(marineTheme.colors.warning)
-    } description: {
-      Text("Checklist Service Unavailable")
-        .marineFont(.body)
-    }
-    .marineListBackground()
+    serviceUnavailableView(
+      titleKey: "Service Unavailable",
+      messageKey: "Checklist service is currently unavailable."
+    )
     .onAppear {
       Logger.checklist.fault("ChecklistService is unavailable when navigating to \(feature, privacy: .public)")
     }
+  }
+
+  @ViewBuilder
+  private func serviceUnavailableView(
+    titleKey: LocalizedStringKey,
+    messageKey: LocalizedStringKey
+  ) -> some View {
+    ContentUnavailableView {
+      Label(titleKey, systemImage: "exclamationmark.triangle.fill")
+        .foregroundStyle(marineTheme.colors.warning)
+    } description: {
+      Text(messageKey)
+        .marineFont(.body)
+    }
+    .marineListBackground()
   }
 }
