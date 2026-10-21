@@ -17,7 +17,7 @@ struct ContentView: View {
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(ChartViewModel.self) var chartViewModel
   @Environment(TrackRecordingService.self) private var trackRecordingService
-  @Environment(\.waypointService) private var waypointService
+  @Environment(WaypointService.self) private var waypointService
   @Environment(AnchorViewModel.self) private var anchorViewModel
   @Environment(PermissionService.self) private var permissionService
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
@@ -343,47 +343,45 @@ struct ContentView: View {
 
   @ViewBuilder
   private func waypointDraftSheet(for item: CoordinateWrapper) -> some View {
-    if let waypointService {
-      NavigationStack {
-        WaypointDraftContainerView(
-          item: item,
-          waypointService: waypointService,
-          onGoToRequested: { waypointID in
-            appViewModel.waypointDraft = nil
-            chartViewModel.activeWaypointDetailViewModel = nil
-            waypointService.setDestination(waypointID: waypointID)
-            panelManagerViewModel.closePanel()
-          },
-          onCancelNavigationRequested: {
-            appViewModel.waypointDraft = nil
-            chartViewModel.activeWaypointDetailViewModel = nil
-            waypointService.setDestination(waypointID: nil)
-          },
-          onModifyPositionRequested: { viewModel in
-            appViewModel.waypointDraft = nil
-            chartViewModel.startWaypointPositionAdjustment(
-              viewModel: viewModel,
-              onCancel: {
-                let restoreCoord = viewModel.currentCoordinate ?? item.coordinate
-                appViewModel.waypointDraft = CoordinateWrapper(
-                  coordinate: restoreCoord,
-                  defaultName: viewModel.name
-                )
-              },
-              onConfirm: { newCoord in
-                viewModel.updateCoordinate(newCoord)
-                appViewModel.waypointDraft = CoordinateWrapper(
-                  coordinate: newCoord,
-                  defaultName: viewModel.name
-                )
-              }
-            )
-          }
-        )
-      }
-      .presentationDetents([.medium, .large])
-      .presentationDragIndicator(.visible)
+    NavigationStack {
+      WaypointDraftContainerView(
+        item: item,
+        waypointService: waypointService,
+        onGoToRequested: { waypointID in
+          appViewModel.waypointDraft = nil
+          chartViewModel.activeWaypointDetailViewModel = nil
+          waypointService.setDestination(waypointID: waypointID)
+          panelManagerViewModel.closePanel()
+        },
+        onCancelNavigationRequested: {
+          appViewModel.waypointDraft = nil
+          chartViewModel.activeWaypointDetailViewModel = nil
+          waypointService.setDestination(waypointID: nil)
+        },
+        onModifyPositionRequested: { viewModel in
+          appViewModel.waypointDraft = nil
+          chartViewModel.startWaypointPositionAdjustment(
+            viewModel: viewModel,
+            onCancel: {
+              let restoreCoord = viewModel.currentCoordinate ?? item.coordinate
+              appViewModel.waypointDraft = CoordinateWrapper(
+                coordinate: restoreCoord,
+                defaultName: viewModel.name
+              )
+            },
+            onConfirm: { newCoord in
+              viewModel.updateCoordinate(newCoord)
+              appViewModel.waypointDraft = CoordinateWrapper(
+                coordinate: newCoord,
+                defaultName: viewModel.name
+              )
+            }
+          )
+        }
+      )
     }
+    .presentationDetents([.medium, .large])
+    .presentationDragIndicator(.visible)
   }
 
   @ViewBuilder

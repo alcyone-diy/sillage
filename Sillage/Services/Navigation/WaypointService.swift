@@ -15,12 +15,10 @@ import Observation
 
 public enum WaypointError: LocalizedError {
   case notFound
-  case serviceUnavailable
 
   public var errorDescription: String? {
     switch self {
     case .notFound: return String(localized: "Waypoint not found in the database.")
-    case .serviceUnavailable: return String(localized: "Waypoint service is unavailable.")
     }
   }
 }

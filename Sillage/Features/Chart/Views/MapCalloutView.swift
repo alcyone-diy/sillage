@@ -19,7 +19,7 @@ import OSLog
 /// displaying live bearing & distance telemetry and contextual marine action buttons.
 struct MapCalloutView: View {
   @Environment(\.marineTheme) private var marineTheme
-  @Environment(\.waypointService) private var waypointService
+  @Environment(WaypointService.self) private var waypointService
   @Environment(PanelManagerViewModel.self) private var panelManager
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(\.locale) private var locale
@@ -158,7 +158,7 @@ struct MapCalloutView: View {
   @ViewBuilder
   private var headerView: some View {
     if let waypointID = calloutViewModel.targetWaypointID,
-       let waypoint = waypointService?.currentWaypoints.first(where: { $0.id == waypointID }) {
+       let waypoint = waypointService.currentWaypoints.first(where: { $0.id == waypointID }) {
       calloutHeader(
         icon: .waypoint,
         title: Text(waypoint.name),
@@ -401,11 +401,8 @@ struct MapCalloutView: View {
       Button {
         guard let targetCoord = calloutViewModel.targetCoordinate else { return }
         Task { @MainActor [weak waypointService = waypointService, weak appViewModel = appViewModel, weak calloutViewModel = calloutViewModel] in
-          guard let appViewModel, let calloutViewModel else { return }
-          var defaultName: String? = nil
-          if let service = waypointService {
-            defaultName = await service.generateDefaultName()
-          }
+          guard let waypointService, let appViewModel, let calloutViewModel else { return }
+          let defaultName = await waypointService.generateDefaultName()
           Logger.navigation.info("Initiating waypoint creation draft from map target")
           let draftCoord = CoordinateWrapper(coordinate: targetCoord, defaultName: defaultName)
           calloutViewModel.dismiss()

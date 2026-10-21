@@ -1412,6 +1412,7 @@ final class ChartViewModelTests: XCTestCase {
     )
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let mockAuthService = MockGeoGarageAuthService()
+    let waypointService = WaypointService(databaseManager: dbManager)
 
     let viewModel = ChartViewModel(
       positioningService: positioningService,
@@ -1422,7 +1423,7 @@ final class ChartViewModelTests: XCTestCase {
       anchorViewModel: anchorViewModel,
       trackService: trackService,
       trackRecordingService: trackRecordingService,
-      waypointService: nil,
+      waypointService: waypointService,
       messageService: messageService
     )
 
@@ -1486,6 +1487,7 @@ final class ChartViewModelTests: XCTestCase {
     )
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let mockAuthService = MockGeoGarageAuthService()
+    let waypointService = WaypointService(databaseManager: dbManager)
 
     let viewModel = ChartViewModel(
       positioningService: positioningService,
@@ -1496,7 +1498,7 @@ final class ChartViewModelTests: XCTestCase {
       anchorViewModel: anchorViewModel,
       trackService: trackService,
       trackRecordingService: trackRecordingService,
-      waypointService: nil,
+      waypointService: waypointService,
       messageService: messageService
     )
 

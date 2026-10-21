@@ -19,7 +19,7 @@ struct CommandPanelView: View {
   @Environment(AppEnvironment.self) private var appEnvironment
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.trackService) private var trackService
-  @Environment(\.waypointService) private var waypointService
+  @Environment(WaypointService.self) private var waypointService
   @Environment(\.checklistService) private var checklistService
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(BarometerViewModel.self) private var barometerViewModel
@@ -239,10 +239,7 @@ struct CommandPanelView: View {
     case .tracks:
       TracksManagerView()
     case .waypoints:
-      if let waypointService {
-        let model = WaypointListViewModel(waypointService: waypointService)
-        WaypointListView(viewModel: model)
-      }
+      WaypointListContainer(waypointService: waypointService)
     case .sessionDetail(let sessionID, let session):
       if let trackService {
         let model = TrackDetailViewModel(
@@ -262,44 +259,37 @@ struct CommandPanelView: View {
         waypoint: waypoint
       )
     case .waypointDraft(let item):
-      if let waypointService {
-        WaypointDraftContainerView(
-          item: item,
-          waypointService: waypointService,
-          onGoToRequested: { waypointID in
-            chartViewModel.activeWaypointDetailViewModel = nil
-            waypointService.setDestination(waypointID: waypointID)
-            viewModel.closePanel()
-          },
-          onCancelNavigationRequested: {
-            chartViewModel.activeWaypointDetailViewModel = nil
-            waypointService.setDestination(waypointID: nil)
-          },
-          onModifyPositionRequested: { draftViewModel in
-            chartViewModel.startWaypointPositionAdjustment(
-              viewModel: draftViewModel,
-              onCancel: {
-                viewModel.resumePanel()
-              },
-              onConfirm: { newCoord in
-                draftViewModel.updateCoordinate(newCoord)
-                if let last = viewModel.commandPath.last, case .waypointDraft(let oldItem) = last {
-                  viewModel.commandPath[viewModel.commandPath.count - 1] = .waypointDraft(
-                    CoordinateWrapper(id: oldItem.id, coordinate: newCoord, defaultName: oldItem.defaultName)
-                  )
-                }
-                viewModel.resumePanel()
+      WaypointDraftContainerView(
+        item: item,
+        waypointService: waypointService,
+        onGoToRequested: { waypointID in
+          chartViewModel.activeWaypointDetailViewModel = nil
+          waypointService.setDestination(waypointID: waypointID)
+          viewModel.closePanel()
+        },
+        onCancelNavigationRequested: {
+          chartViewModel.activeWaypointDetailViewModel = nil
+          waypointService.setDestination(waypointID: nil)
+        },
+        onModifyPositionRequested: { draftViewModel in
+          chartViewModel.startWaypointPositionAdjustment(
+            viewModel: draftViewModel,
+            onCancel: {
+              viewModel.resumePanel()
+            },
+            onConfirm: { newCoord in
+              draftViewModel.updateCoordinate(newCoord)
+              if let last = viewModel.commandPath.last, case .waypointDraft(let oldItem) = last {
+                viewModel.commandPath[viewModel.commandPath.count - 1] = .waypointDraft(
+                  CoordinateWrapper(id: oldItem.id, coordinate: newCoord, defaultName: oldItem.defaultName)
+                )
               }
-            )
-            viewModel.suspendPanel()
-          }
-        )
-      } else {
-        serviceUnavailableView(
-          titleKey: "Service Unavailable",
-          messageKey: "Waypoint service is currently unavailable."
-        )
-      }
+              viewModel.resumePanel()
+            }
+          )
+          viewModel.suspendPanel()
+        }
+      )
     case .baroAlarm:
       BarometerAlarmView(viewModel: barometerViewModel)
     case .anchorAlarm:
@@ -398,5 +388,26 @@ struct CommandPanelView: View {
         .marineFont(.body)
     }
     .marineListBackground()
+  }
+}
+
+@MainActor
+private struct WaypointListContainer: View {
+  let waypointService: WaypointService
+  @State private var viewModel: WaypointListViewModel?
+
+  var body: some View {
+    Group {
+      if let viewModel {
+        WaypointListView(viewModel: viewModel)
+      } else {
+        Color.clear
+      }
+    }
+    .onAppear {
+      if viewModel == nil {
+        viewModel = WaypointListViewModel(waypointService: waypointService)
+      }
+    }
   }
 }

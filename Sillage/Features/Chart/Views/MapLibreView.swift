@@ -30,7 +30,7 @@ struct MapLibreView: UIViewRepresentable {
   
   @Environment(\.marineTheme) var marineTheme
   @Environment(TrackRecordingService.self) private var trackRecordingService
-  @Environment(\.waypointService) private var waypointService
+  @Environment(WaypointService.self) private var waypointService
   @Environment(PanelManagerViewModel.self) private var panelManager
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel: OfflineSelectionViewModel?

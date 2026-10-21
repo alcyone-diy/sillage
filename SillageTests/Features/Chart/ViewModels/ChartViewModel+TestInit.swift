@@ -21,21 +21,23 @@ extension ChartViewModel {
     authService: GeoGarageAuthServiceProtocol,
     anchorService: AnchorService,
     anchorViewModel: AnchorViewModel,
-    waypointService: WaypointService,
-    messageService: MessageService,
+    waypointService: WaypointService? = nil,
+    messageService: MessageService? = nil,
     keychainManager: (any KeychainManaging)? = nil
   ) {
     let db = (try? DatabaseManager.inMemory()) ?? {
       fatalError("Failed to initialize in-memory DatabaseManager for test")
     }()
     let trackService = TrackService(databaseManager: db)
+    let resolvedMessageService = messageService ?? MessageService()
     let trackRecordingService = TrackRecordingService(
       positioningService: positioningService,
       databaseManager: db,
       preferencesService: preferencesService,
-      messageService: messageService ?? MessageService()
+      messageService: resolvedMessageService
     )
     let resolvedKeychain = keychainManager ?? MockKeychainManager()
+    let resolvedWaypointService = waypointService ?? WaypointService(databaseManager: db)
     self.init(
       positioningService: positioningService,
       instrumentDampingService: instrumentDampingService,
@@ -45,8 +47,8 @@ extension ChartViewModel {
       anchorViewModel: anchorViewModel,
       trackService: trackService,
       trackRecordingService: trackRecordingService,
-      waypointService: waypointService,
-      messageService: messageService,
+      waypointService: resolvedWaypointService,
+      messageService: resolvedMessageService,
       keychainManager: resolvedKeychain
     )
   }

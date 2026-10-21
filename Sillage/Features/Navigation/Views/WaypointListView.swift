@@ -15,7 +15,7 @@ import CoreLocation
 @MainActor
 struct WaypointListView: View {
   @Environment(\.marineTheme) private var marineTheme
-  @Environment(\.waypointService) private var waypointService
+  @Environment(WaypointService.self) private var waypointService
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManager
   @Bindable var viewModel: WaypointListViewModel
@@ -80,15 +80,7 @@ struct WaypointListView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          guard !isCreatingDraft, let service = waypointService else { return }
-          isCreatingDraft = true
-          creationTask = Task {
-            defer { isCreatingDraft = false }
-            let defaultName = await service.generateDefaultName()
-            guard !Task.isCancelled else { return }
-            let item = CoordinateWrapper(coordinate: chartViewModel.centerCoordinate, defaultName: defaultName)
-            panelManager.commandPath.append(.waypointDraft(item))
-          }
+          createDraft()
         } label: {
           Image(marineIcon: .add)
         }
@@ -129,6 +121,22 @@ struct WaypointListView: View {
       Text(error.localizedDescription)
     }
   }
+
+  private func createDraft() {
+    guard !isCreatingDraft else { return }
+    isCreatingDraft = true
+    let waypointService = self.waypointService
+    let chartViewModel = self.chartViewModel
+    let panelManager = self.panelManager
+    creationTask = Task { [weak waypointService, weak chartViewModel, weak panelManager] in
+      defer { isCreatingDraft = false }
+      guard let waypointService else { return }
+      let defaultName = await waypointService.generateDefaultName()
+      guard !Task.isCancelled, let chartViewModel, let panelManager else { return }
+      let item = CoordinateWrapper(coordinate: chartViewModel.centerCoordinate, defaultName: defaultName)
+      panelManager.commandPath.append(.waypointDraft(item))
+    }
+  }
 }
 
 @MainActor
@@ -167,7 +175,7 @@ struct WaypointDetailContainer: View {
 
   let waypointID: String
   let initialWaypoint: Waypoint?
-  @Environment(\.waypointService) private var waypointService
+  @Environment(WaypointService.self) private var waypointService
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManager
   @State private var state: LoadState = .loading
@@ -191,11 +199,11 @@ struct WaypointDetailContainer: View {
         WaypointDetailView(
           viewModel: viewModel,
           onGoToRequested: { waypointID in
-            waypointService?.setDestination(waypointID: waypointID)
+            waypointService.setDestination(waypointID: waypointID)
             panelManager.closePanel()
           },
           onCancelNavigationRequested: {
-            waypointService?.setDestination(waypointID: nil)
+            waypointService.setDestination(waypointID: nil)
           },
           onModifyPositionRequested: {
             chartViewModel.startWaypointPositionAdjustment(
@@ -248,23 +256,18 @@ struct WaypointDetailContainer: View {
       return
     }
 
-    guard let service = waypointService else {
-      state = .error(WaypointError.serviceUnavailable)
-      return
-    }
-    
     do {
       let waypointToUse: Waypoint
       if let initialWaypoint, initialWaypoint.id == waypointID {
         waypointToUse = initialWaypoint
-      } else if let fetched = try await service.fetchWaypoint(id: waypointID) {
+      } else if let fetched = try await waypointService.fetchWaypoint(id: waypointID) {
         waypointToUse = fetched
       } else {
         state = .error(WaypointError.notFound)
         return
       }
       let vm = WaypointDetailViewModel(
-        waypointService: service,
+        waypointService: waypointService,
         editingWaypoint: waypointToUse,
         startEditable: false
       )
