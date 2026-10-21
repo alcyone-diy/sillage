@@ -20,7 +20,8 @@ struct WaypointListView: View {
   @Environment(PanelManagerViewModel.self) private var panelManager
   @Bindable var viewModel: WaypointListViewModel
   @State private var waypointToDelete: Waypoint?
-  @State private var newWaypointItem: CoordinateWrapper?
+  @State private var isCreatingDraft = false
+  @State private var creationTask: Task<Void, Never>?
   
   var body: some View {
     List {
@@ -79,17 +80,23 @@ struct WaypointListView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          if let service = waypointService {
-            Task {
-              var defaultName: String? = nil
-              defaultName = await service.generateDefaultName()
-              newWaypointItem = CoordinateWrapper(coordinate: chartViewModel.centerCoordinate, defaultName: defaultName)
-            }
+          guard !isCreatingDraft, let service = waypointService else { return }
+          isCreatingDraft = true
+          creationTask = Task {
+            defer { isCreatingDraft = false }
+            let defaultName = await service.generateDefaultName()
+            guard !Task.isCancelled else { return }
+            let item = CoordinateWrapper(coordinate: chartViewModel.centerCoordinate, defaultName: defaultName)
+            panelManager.commandPath.append(.waypointDraft(item))
           }
         } label: {
           Image(marineIcon: .add)
         }
+        .disabled(isCreatingDraft)
       }
+    }
+    .onDisappear {
+      creationTask?.cancel()
     }
     .environment(\.defaultMinListRowHeight, marineTheme.minTouchTarget)
     .alert(
@@ -120,49 +127,6 @@ struct WaypointListView: View {
       Button("OK", role: .cancel) { }
     } message: { error in
       Text(error.localizedDescription)
-    }
-    .sheet(item: $newWaypointItem) { item in
-      if let waypointService {
-        NavigationStack {
-          WaypointDraftContainerView(
-            item: item,
-            waypointService: waypointService,
-            onGoToRequested: { waypointID in
-              newWaypointItem = nil
-              chartViewModel.activeWaypointDetailViewModel = nil
-              waypointService.setDestination(waypointID: waypointID)
-              panelManager.closePanel()
-            },
-            onCancelNavigationRequested: {
-              newWaypointItem = nil
-              chartViewModel.activeWaypointDetailViewModel = nil
-              waypointService.setDestination(waypointID: nil)
-            },
-            onModifyPositionRequested: { viewModel in
-              newWaypointItem = nil
-              chartViewModel.startWaypointPositionAdjustment(
-                viewModel: viewModel,
-                onCancel: {
-                  let restoreCoord = viewModel.currentCoordinate ?? item.coordinate
-                  newWaypointItem = CoordinateWrapper(
-                    coordinate: restoreCoord,
-                    defaultName: viewModel.name
-                  )
-                },
-                onConfirm: { newCoord in
-                  viewModel.updateCoordinate(newCoord)
-                  newWaypointItem = CoordinateWrapper(
-                    coordinate: newCoord,
-                    defaultName: viewModel.name
-                  )
-                }
-              )
-            }
-          )
-        }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-      }
     }
   }
 }

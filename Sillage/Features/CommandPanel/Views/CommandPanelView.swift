@@ -261,6 +261,45 @@ struct CommandPanelView: View {
         waypointID: id,
         waypoint: waypoint
       )
+    case .waypointDraft(let item):
+      if let waypointService {
+        WaypointDraftContainerView(
+          item: item,
+          waypointService: waypointService,
+          onGoToRequested: { waypointID in
+            chartViewModel.activeWaypointDetailViewModel = nil
+            waypointService.setDestination(waypointID: waypointID)
+            viewModel.closePanel()
+          },
+          onCancelNavigationRequested: {
+            chartViewModel.activeWaypointDetailViewModel = nil
+            waypointService.setDestination(waypointID: nil)
+          },
+          onModifyPositionRequested: { draftViewModel in
+            chartViewModel.startWaypointPositionAdjustment(
+              viewModel: draftViewModel,
+              onCancel: {
+                viewModel.resumePanel()
+              },
+              onConfirm: { newCoord in
+                draftViewModel.updateCoordinate(newCoord)
+                if let last = viewModel.commandPath.last, case .waypointDraft(let oldItem) = last {
+                  viewModel.commandPath[viewModel.commandPath.count - 1] = .waypointDraft(
+                    CoordinateWrapper(id: oldItem.id, coordinate: newCoord, defaultName: oldItem.defaultName)
+                  )
+                }
+                viewModel.resumePanel()
+              }
+            )
+            viewModel.suspendPanel()
+          }
+        )
+      } else {
+        serviceUnavailableView(
+          titleKey: "Service Unavailable",
+          messageKey: "Waypoint service is currently unavailable."
+        )
+      }
     case .baroAlarm:
       BarometerAlarmView(viewModel: barometerViewModel)
     case .anchorAlarm:

@@ -34,6 +34,7 @@ public final class PanelManagerViewModel {
     case waypoints
     case sessionDetail(sessionID: TrackSession.ID, session: TrackSession? = nil)
     case waypointDetail(String, waypoint: Waypoint? = nil)
+    case waypointDraft(CoordinateWrapper)
     case baroAlarm
     case anchorAlarm
     case geoGarageLogin(context: GeoGarageLoginContext = .initialSetup)

@@ -1549,6 +1549,9 @@
     "Waypoint not found in the database." : {
 
     },
+    "Waypoint service is currently unavailable." : {
+
+    },
     "Waypoint service is unavailable." : {
 
     },

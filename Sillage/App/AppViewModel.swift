@@ -13,12 +13,13 @@ import Observation
 import OSLog
 import CoreLocation
 
-public struct CoordinateWrapper: Identifiable {
-  public let id = UUID()
+public struct CoordinateWrapper: Identifiable, Hashable, Equatable {
+  public let id: UUID
   public let coordinate: CLLocationCoordinate2D
   public let defaultName: String?
   
-  public init(coordinate: CLLocationCoordinate2D, defaultName: String?) {
+  public init(id: UUID = UUID(), coordinate: CLLocationCoordinate2D, defaultName: String?) {
+    self.id = id
     self.coordinate = coordinate
     self.defaultName = defaultName
   }

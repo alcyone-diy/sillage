@@ -46,11 +46,17 @@ struct WaypointDraftContainerView: View {
   }
 
   private func initializeViewModelIfNeeded() {
+    if self.viewModel != nil {
+      return
+    }
+
     if let cached = chartViewModel.activeWaypointDetailViewModel,
-       cached.editingWaypointID == nil,
-       let cachedCoord = cached.currentCoordinate,
-       abs(cachedCoord.latitude - item.coordinate.latitude) < 0.000001,
-       abs(cachedCoord.longitude - item.coordinate.longitude) < 0.000001 {
+       cached.editingWaypointID == nil {
+      if let cachedCoord = cached.currentCoordinate,
+         abs(cachedCoord.latitude - item.coordinate.latitude) > 0.000001 ||
+         abs(cachedCoord.longitude - item.coordinate.longitude) > 0.000001 {
+        cached.updateCoordinate(item.coordinate)
+      }
       self.viewModel = cached
       return
     }

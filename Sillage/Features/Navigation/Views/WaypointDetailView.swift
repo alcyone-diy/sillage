@@ -205,7 +205,7 @@ struct WaypointDetailView: View {
             : (viewModel.name.isEmpty ? String(localized: "Unnamed Waypoint") : viewModel.name))
     )
     .navigationBarTitleDisplayMode(.inline)
-      .navigationBarBackButtonHidden(viewModel.isEditable && viewModel.editingWaypointID != nil)
+    .navigationBarBackButtonHidden(viewModel.isEditable)
       .toolbar {
         if viewModel.isEditable {
           ToolbarItem(placement: .cancellationAction) {
