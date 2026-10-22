@@ -288,4 +288,38 @@ struct TrackDetailView: View {
   }
 }
 
+@MainActor
+struct TrackDetailContainer: View {
+  let sessionID: String
+  let session: TrackSession?
+  @Environment(AppEnvironment.self) private var appEnvironment
+  @Environment(TrackRecordingService.self) private var trackRecordingService
+  @Environment(ChartViewModel.self) private var chartViewModel
+  @Environment(PanelManagerViewModel.self) private var panelManager
+  @State private var viewModel: TrackDetailViewModel?
+
+  var body: some View {
+    Group {
+      if let viewModel {
+        TrackDetailView(viewModel: viewModel) { id in
+          try await chartViewModel.loadAndDisplaySavedTrack(sessionID: id)
+          panelManager.closePanel()
+        }
+      } else {
+        Color.clear
+      }
+    }
+    .onAppear {
+      if viewModel == nil {
+        viewModel = TrackDetailViewModel(
+          sessionID: sessionID,
+          initialSession: session,
+          trackService: appEnvironment.trackService,
+          trackRecordingService: trackRecordingService
+        )
+      }
+    }
+  }
+}
+
 private typealias DetailRow = MarineDetailRow

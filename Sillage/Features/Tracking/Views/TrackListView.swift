@@ -13,7 +13,7 @@ import OSLog
 
 @MainActor
 struct TrackListView: View {
-  @Environment(\.trackService) private var trackService
+  @Environment(AppEnvironment.self) private var appEnvironment
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManager
@@ -93,13 +93,11 @@ struct TrackListView: View {
       presenting: sessionToDelete
     ) { session in
       Button("Delete", role: .destructive) {
-        if let trackService {
-          viewModel.deleteSession(
-            session,
-            trackService: trackService,
-            trackRecordingService: trackRecordingService
-          )
-        }
+        viewModel.deleteSession(
+          session,
+          trackService: appEnvironment.trackService,
+          trackRecordingService: trackRecordingService
+        )
       }
       Button("Cancel", role: .cancel) {
         sessionToDelete = nil
@@ -119,9 +117,7 @@ struct TrackListView: View {
       Text(error.localizedDescription)
     }
     .task {
-      if let trackService {
-        await viewModel.observe(trackService: trackService)
-      }
+      await viewModel.observe(trackService: appEnvironment.trackService)
     }
   }
 

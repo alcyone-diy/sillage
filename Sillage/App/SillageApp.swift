@@ -44,7 +44,6 @@ struct SillageApp: App {
             .environment(container.barometerViewModel)
             .environment(container.anchorViewModel)
             .environment(container.trackRecordingService)
-            .environment(\.trackService, container.trackService)
             .environment(container.waypointService)
             .environment(\.checklistService, container.checklistService)
             .environment(container.preferencesService)

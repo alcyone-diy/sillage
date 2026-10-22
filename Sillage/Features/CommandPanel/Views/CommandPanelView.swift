@@ -18,7 +18,6 @@ struct CommandPanelView: View {
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(AppEnvironment.self) private var appEnvironment
   @Environment(\.marineTheme) private var marineTheme
-  @Environment(\.trackService) private var trackService
   @Environment(WaypointService.self) private var waypointService
   @Environment(\.checklistService) private var checklistService
   @Environment(TrackRecordingService.self) private var trackRecordingService
@@ -241,18 +240,10 @@ struct CommandPanelView: View {
     case .waypoints:
       WaypointListContainer(waypointService: waypointService)
     case .sessionDetail(let sessionID, let session):
-      if let trackService {
-        let model = TrackDetailViewModel(
-          sessionID: sessionID,
-          initialSession: session,
-          trackService: trackService,
-          trackRecordingService: trackRecordingService
-        )
-        TrackDetailView(viewModel: model) { id in
-          try await chartViewModel.loadAndDisplaySavedTrack(sessionID: id)
-          viewModel.closePanel()
-        }
-      }
+      TrackDetailContainer(
+        sessionID: sessionID,
+        session: session
+      )
     case .waypointDetail(let id, let waypoint):
       WaypointDetailContainer(
         waypointID: id,

@@ -586,6 +586,13 @@ final class AppEnvironment {
     return container.checklistService
   }
 
+  public var trackService: TrackService {
+    guard case .ready(let container) = state else {
+      fatalError("CRITICAL: TrackService accessed before AppEnvironment is ready.")
+    }
+    return container.trackService
+  }
+
   var lastKnownLocation: NavigationFix? {
     guard case .ready(let container) = state else { return nil }
     return container.positioningService.lastKnownLocation

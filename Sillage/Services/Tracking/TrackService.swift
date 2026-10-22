@@ -23,8 +23,7 @@ public struct TrackService: Sendable {
   /// Observes saved track sessions, ordered by start time descending, in real-time.
   /// - Returns: An AsyncStream emitting arrays of `TrackSession` whenever the database updates.
   public func observeTrackSessions() -> AsyncStream<[TrackSession]> {
-    let reader = databaseManager.reader
-    return AsyncStream { continuation in
+    AsyncStream { continuation in
       let observation = ValueObservation.tracking { db in
         let records = try TrackSessionRecord
           .order(TrackSessionRecord.Columns.startTimestamp_unix.desc)
@@ -37,7 +36,7 @@ public struct TrackService: Sendable {
       
       let task = Task.detached(priority: .userInitiated) {
         do {
-          for try await sessions in observation.values(in: reader) {
+          for try await sessions in observation.values(in: self.databaseManager.reader) {
             guard !Task.isCancelled else { break }
             continuation.yield(sessions)
           }
@@ -73,15 +72,14 @@ public struct TrackService: Sendable {
   /// - Parameter id: The ID of the session to observe.
   /// - Returns: An AsyncStream emitting `TrackSession?` whenever the session changes in the database.
   public func observeTrackSession(id: String) -> AsyncStream<TrackSession?> {
-    let reader = databaseManager.reader
-    return AsyncStream { continuation in
+    AsyncStream { continuation in
       let observation = ValueObservation.tracking { db in
         try TrackSessionRecord.fetchOne(db, key: id)?.toDomain()
       }
       
       let task = Task.detached(priority: .userInitiated) {
         do {
-          for try await session in observation.values(in: reader) {
+          for try await session in observation.values(in: self.databaseManager.reader) {
             guard !Task.isCancelled else { break }
             continuation.yield(session)
           }
