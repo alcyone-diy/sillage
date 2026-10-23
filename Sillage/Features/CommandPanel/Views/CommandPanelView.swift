@@ -19,7 +19,7 @@ struct CommandPanelView: View {
   @Environment(AppEnvironment.self) private var appEnvironment
   @Environment(\.marineTheme) private var marineTheme
   @Environment(WaypointService.self) private var waypointService
-  @Environment(\.checklistService) private var checklistService
+  @Environment(ChecklistService.self) private var checklistService
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(BarometerViewModel.self) private var barometerViewModel
   @Environment(PermissionService.self) private var permissionService
@@ -306,79 +306,33 @@ struct CommandPanelView: View {
     case .chartPreferences:
       ChartPreferencesView()
     case .checklists:
-      if let service = checklistService ?? appEnvironment.checklistService {
-        ChecklistTemplateListView(checklistService: service)
-      } else {
-        checklistServiceUnavailableView(for: "Checklists")
-      }
+      ChecklistTemplateListView(checklistService: checklistService)
     case .checklistCategories:
-      if let service = checklistService ?? appEnvironment.checklistService {
-        ChecklistCategoryListView(checklistService: service)
-      } else {
-        checklistServiceUnavailableView(for: "Checklist Categories")
-      }
+      ChecklistCategoryListView(checklistService: checklistService)
     case .checklistCategoryDetail(let payload):
-      if let service = checklistService ?? appEnvironment.checklistService {
-        ChecklistCategoryDetailView(
-          categoryId: payload.categoryId,
-          category: payload.category,
-          checklistService: service,
-          startEditable: payload.startEditable
-        )
-      } else {
-        checklistServiceUnavailableView(for: "Checklist Category Detail")
-      }
+      ChecklistCategoryDetailView(
+        categoryId: payload.categoryId,
+        category: payload.category,
+        checklistService: checklistService,
+        startEditable: payload.startEditable
+      )
     case .checklistTemplateDetail(let payload):
-      if let service = checklistService ?? appEnvironment.checklistService {
-        ChecklistTemplateDetailView(
-          templateId: payload.templateId,
-          template: payload.template,
-          checklistService: service,
-          startEditable: payload.startEditable
-        )
-      } else {
-        checklistServiceUnavailableView(for: "Checklist Template Detail")
-      }
+      ChecklistTemplateDetailView(
+        templateId: payload.templateId,
+        template: payload.template,
+        checklistService: checklistService,
+        startEditable: payload.startEditable
+      )
     case .activeSession(let route):
-      if let service = checklistService ?? appEnvironment.checklistService {
-        ChecklistSessionView(
-          sessionId: route.id,
-          session: route.snapshot,
-          checklistService: service,
-          locationProvider: {
-            appEnvironment.lastKnownLocation
-          }
-        )
-      } else {
-        checklistServiceUnavailableView(for: "Active Checklist Session")
-      }
+      ChecklistSessionView(
+        sessionId: route.id,
+        session: route.snapshot,
+        checklistService: checklistService,
+        locationProvider: {
+          appEnvironment.lastKnownLocation
+        }
+      )
     }
-  }
-
-  @ViewBuilder
-  private func checklistServiceUnavailableView(for feature: String) -> some View {
-    serviceUnavailableView(
-      titleKey: "Service Unavailable",
-      messageKey: "Checklist service is currently unavailable."
-    )
-    .onAppear {
-      Logger.checklist.fault("ChecklistService is unavailable when navigating to \(feature, privacy: .public)")
-    }
-  }
-
-  @ViewBuilder
-  private func serviceUnavailableView(
-    titleKey: LocalizedStringKey,
-    messageKey: LocalizedStringKey
-  ) -> some View {
-    ContentUnavailableView {
-      Label(titleKey, systemImage: "exclamationmark.triangle.fill")
-        .foregroundStyle(marineTheme.colors.warning)
-    } description: {
-      Text(messageKey)
-        .marineFont(.body)
-    }
-    .marineListBackground()
   }
 }
 

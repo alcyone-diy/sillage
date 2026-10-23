@@ -53,7 +53,7 @@ final class AppEnvironment {
     let networkMonitorService: NetworkMonitorService
     let notificationService: NotificationService
     let secondaryTelemetryViewModel: SecondaryTelemetryViewModel
-    let checklistService: ChecklistServiceProtocol
+    let checklistService: ChecklistService
   }
   
   /// Injectable so unit tests never reach the real GeoGarage portal.
@@ -581,7 +581,7 @@ final class AppEnvironment {
     return container.offlineSelectionViewModel
   }
 
-  var checklistService: ChecklistServiceProtocol? {
+  var checklistService: ChecklistService? {
     guard case .ready(let container) = state else { return nil }
     return container.checklistService
   }

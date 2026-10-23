@@ -9,15 +9,18 @@
 //
 
 import Foundation
+import Observation
 import GRDB
 import OSLog
 import CoreLocation
 
 /// Thread-safe service managing nautical checklist templates and session lifecycles.
+@MainActor
+@Observable
 public final class ChecklistService: ChecklistServiceProtocol {
-  private let databaseManager: DatabaseManager
-  private let throttler: ChecklistThrottler
-  private let userDefaults: UserDefaults
+  @ObservationIgnored private let databaseManager: DatabaseManager
+  @ObservationIgnored private let throttler: ChecklistThrottler
+  @ObservationIgnored private let userDefaults: UserDefaults
 
   public init(
     databaseManager: DatabaseManager,

@@ -22,7 +22,7 @@ struct ContentView: View {
   @Environment(PermissionService.self) private var permissionService
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   @Environment(\.marineTheme) private var marineTheme
-  @Environment(\.checklistService) private var checklistService
+  @Environment(ChecklistService.self) private var checklistService
   @Environment(AppEnvironment.self) private var appEnvironment: AppEnvironment?
 
   @State private var checklistOverlayViewModel = ChecklistOverlayViewModel()
@@ -283,39 +283,33 @@ struct ContentView: View {
     }
     .environment(panelManagerViewModel)
     .sheet(isPresented: $checklistOverlayViewModel.isSheetPresented) {
-      if let checklistService {
-        NavigationStack(path: $checklistOverlayViewModel.navigationPath) {
-          ActiveChecklistListView(
-            viewModel: checklistOverlayViewModel,
-            checklistService: checklistService
-          )
-            .navigationDestination(for: ChecklistOverlayDestination.self) { destination in
-              switch destination {
-              case .session(let route):
-                ChecklistSessionView(
-                  sessionId: route.id,
-                  session: route.snapshot,
-                  checklistService: checklistService,
-                  locationProvider: {
-                    appEnvironment?.lastKnownLocation
-                  }
-                )
-              case .templateDetail(let templateId, let startEditable):
-                ChecklistTemplateDetailView(
-                  templateId: templateId,
-                  checklistService: checklistService,
-                  startEditable: startEditable
-                )
+      NavigationStack(path: $checklistOverlayViewModel.navigationPath) {
+        ActiveChecklistListView(
+          viewModel: checklistOverlayViewModel,
+          checklistService: checklistService
+        )
+        .navigationDestination(for: ChecklistOverlayDestination.self) { destination in
+          switch destination {
+          case .session(let route):
+            ChecklistSessionView(
+              sessionId: route.id,
+              session: route.snapshot,
+              checklistService: checklistService,
+              locationProvider: {
+                appEnvironment?.lastKnownLocation
               }
-            }
+            )
+          case .templateDetail(let templateId, let startEditable):
+            ChecklistTemplateDetailView(
+              templateId: templateId,
+              checklistService: checklistService,
+              startEditable: startEditable
+            )
+          }
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-      } else {
-        Text("Service Unavailable")
-          .marineFont(.body)
-          .padding()
       }
+      .presentationDetents([.medium, .large])
+      .presentationDragIndicator(.visible)
     }
     .onChange(of: appViewModel.pendingNotificationIntent) { _, intent in
       guard let intent else { return }
@@ -336,7 +330,6 @@ struct ContentView: View {
       appViewModel.pendingNotificationIntent = nil
     }
     .task {
-      guard let checklistService else { return }
       await checklistOverlayViewModel.observe(service: checklistService)
     }
   }
