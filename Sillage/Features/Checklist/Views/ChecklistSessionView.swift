@@ -15,10 +15,9 @@ import SwiftUI
 public struct ChecklistSessionView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(\.dismiss) private var dismiss
-  private let checklistService: any ChecklistServiceProtocol
   @State private var viewModel: ChecklistSessionViewModel
 
-  /// Initializes the checklist session view.
+  /// Initializes the checklist session view with session parameters and dependencies.
   /// - Parameters:
   ///   - sessionId: Persistent identifier of the session.
   ///   - session: Optional in-memory session snapshot enabling zero-latency initial rendering.
@@ -30,13 +29,32 @@ public struct ChecklistSessionView: View {
     checklistService: any ChecklistServiceProtocol,
     locationProvider: (@MainActor () -> NavigationFix?)? = nil
   ) {
-    self.checklistService = checklistService
-    _viewModel = State(initialValue: ChecklistSessionViewModel(
+    _viewModel = State(wrappedValue: ChecklistSessionViewModel(
       sessionId: sessionId,
       session: session,
       checklistService: checklistService,
       locationProvider: locationProvider
     ))
+  }
+
+  /// Initializes the checklist session view with a navigation payload.
+  public init(
+    payload: ChecklistSessionPayload,
+    checklistService: any ChecklistServiceProtocol,
+    locationProvider: (@MainActor () -> NavigationFix?)? = nil
+  ) {
+    self.init(
+      sessionId: payload.id,
+      session: payload.snapshot,
+      checklistService: checklistService,
+      locationProvider: locationProvider
+    )
+  }
+
+  /// Initializes the checklist session view with an existing ViewModel.
+  /// - Parameter viewModel: The observable view model managing session execution.
+  public init(viewModel: ChecklistSessionViewModel) {
+    _viewModel = State(wrappedValue: viewModel)
   }
 
   public var body: some View {

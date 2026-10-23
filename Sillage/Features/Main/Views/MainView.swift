@@ -292,10 +292,9 @@ struct ContentView: View {
           switch destination {
           case .session(let route):
             ChecklistSessionView(
-              sessionId: route.id,
-              session: route.snapshot,
+              payload: route,
               checklistService: checklistService,
-              locationProvider: {
+              locationProvider: { [weak appEnvironment] in
                 appEnvironment?.lastKnownLocation
               }
             )

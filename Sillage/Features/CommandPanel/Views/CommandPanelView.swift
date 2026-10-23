@@ -311,25 +311,20 @@ struct CommandPanelView: View {
       ChecklistCategoryListView(checklistService: checklistService)
     case .checklistCategoryDetail(let payload):
       ChecklistCategoryDetailView(
-        categoryId: payload.categoryId,
-        category: payload.category,
-        checklistService: checklistService,
-        startEditable: payload.startEditable
+        payload: payload,
+        checklistService: checklistService
       )
     case .checklistTemplateDetail(let payload):
       ChecklistTemplateDetailView(
-        templateId: payload.templateId,
-        template: payload.template,
-        checklistService: checklistService,
-        startEditable: payload.startEditable
+        payload: payload,
+        checklistService: checklistService
       )
     case .activeSession(let route):
       ChecklistSessionView(
-        sessionId: route.id,
-        session: route.snapshot,
+        payload: route,
         checklistService: checklistService,
-        locationProvider: {
-          appEnvironment.lastKnownLocation
+        locationProvider: { [weak appEnvironment] in
+          appEnvironment?.lastKnownLocation
         }
       )
     }

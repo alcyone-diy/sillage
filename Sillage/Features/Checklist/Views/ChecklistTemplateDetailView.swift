@@ -42,13 +42,41 @@ public struct ChecklistTemplateDetailView: View {
     self.templateId = templateId ?? template?.id
     self.startEditable = startEditable
     self.onTemplateSaved = onTemplateSaved
-    _viewModel = State(initialValue: ChecklistTemplateDetailViewModel(
+    _viewModel = State(wrappedValue: ChecklistTemplateDetailViewModel(
       templateId: templateId,
       template: template,
       checklistService: checklistService,
       startEditable: startEditable,
       initialCategoryId: initialCategoryId
     ))
+  }
+
+  public init(
+    payload: ChecklistTemplateDetailPayload,
+    checklistService: any ChecklistServiceProtocol,
+    initialCategoryId: String? = nil,
+    onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)? = nil
+  ) {
+    self.init(
+      templateId: payload.templateId,
+      template: payload.template,
+      checklistService: checklistService,
+      startEditable: payload.startEditable,
+      initialCategoryId: initialCategoryId,
+      onTemplateSaved: onTemplateSaved
+    )
+  }
+
+  public init(
+    viewModel: ChecklistTemplateDetailViewModel,
+    templateId: UUID? = nil,
+    startEditable: Bool = false,
+    onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)? = nil
+  ) {
+    self.templateId = templateId ?? viewModel.template?.id
+    self.startEditable = startEditable
+    self.onTemplateSaved = onTemplateSaved
+    _viewModel = State(wrappedValue: viewModel)
   }
 
   public var body: some View {

@@ -41,6 +41,30 @@ public struct ChecklistCategoryDetailView: View {
     )
   }
 
+  public init(
+    payload: ChecklistCategoryDetailPayload,
+    checklistService: any ChecklistServiceProtocol,
+    onCategorySaved: (@MainActor (ChecklistCategoryItem) -> Void)? = nil
+  ) {
+    self.init(
+      categoryId: payload.categoryId,
+      category: payload.category,
+      checklistService: checklistService,
+      startEditable: payload.startEditable,
+      onCategorySaved: onCategorySaved
+    )
+  }
+
+  public init(
+    viewModel: ChecklistCategoryDetailViewModel,
+    startEditable: Bool = false,
+    onCategorySaved: (@MainActor (ChecklistCategoryItem) -> Void)? = nil
+  ) {
+    self.startEditable = startEditable
+    self.onCategorySaved = onCategorySaved
+    _viewModel = State(wrappedValue: viewModel)
+  }
+
   public var body: some View {
     Group {
       if viewModel.isLoading && viewModel.category == nil && !viewModel.isNew {

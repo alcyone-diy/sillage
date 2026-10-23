@@ -15,13 +15,15 @@ import SwiftUI
 public struct ChecklistCategoryListView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(PanelManagerViewModel.self) private var panelManager: PanelManagerViewModel?
-  private let checklistService: any ChecklistServiceProtocol
   @State private var viewModel: ChecklistCategoryListViewModel
   @State private var editMode: EditMode = .inactive
 
   public init(checklistService: any ChecklistServiceProtocol) {
-    self.checklistService = checklistService
     _viewModel = State(wrappedValue: ChecklistCategoryListViewModel(checklistService: checklistService))
+  }
+
+  public init(viewModel: ChecklistCategoryListViewModel) {
+    _viewModel = State(wrappedValue: viewModel)
   }
 
   public var body: some View {
