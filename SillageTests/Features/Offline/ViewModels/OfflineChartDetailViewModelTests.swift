@@ -55,6 +55,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
   // MARK: - Test Helpers
 
   private func waitForInspection(on viewModel: OfflineChartDetailViewModel, timeoutMs: Int = 2000) async throws {
+    viewModel.loadMetadata()
     let start = Date()
     while viewModel.fileStatus == .checking {
       if Date().timeIntervalSince(start) > Double(timeoutMs) / 1000.0 {
@@ -186,6 +187,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     try await mockRepo.save(record)
 
     let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    viewModel.loadMetadata()
     try await viewModel.deleteChart()
 
     let remaining = mockRepo.downloads.first(where: { $0.id == chartID })

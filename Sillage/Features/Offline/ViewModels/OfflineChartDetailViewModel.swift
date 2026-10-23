@@ -126,8 +126,6 @@ final class OfflineChartDetailViewModel {
     self.chartID = chartID
     self.downloadRepository = downloadRepository
     self.downloadService = downloadService
-
-    loadMetadata()
   }
 
   // MARK: - Metadata Loading & File Validation

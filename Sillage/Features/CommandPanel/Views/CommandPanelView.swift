@@ -296,12 +296,11 @@ struct CommandPanelView: View {
       OfflineRegionsManagerView()
     case .offlineChartDetail(let id):
       if let offlineSelectionViewModel {
-        let detailVM = OfflineChartDetailViewModel(
+        OfflineChartDetailView(
           chartID: id,
           downloadRepository: offlineSelectionViewModel.downloadRepository,
           downloadService: offlineSelectionViewModel.downloadService
         )
-        OfflineChartDetailView(viewModel: detailVM)
       }
     case .chartPreferences:
       ChartPreferencesView()

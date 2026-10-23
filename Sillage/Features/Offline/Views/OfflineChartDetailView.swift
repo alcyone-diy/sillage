@@ -13,7 +13,7 @@ import OSLog
 
 @MainActor
 struct OfflineChartDetailView: View {
-  @Bindable var viewModel: OfflineChartDetailViewModel
+  @State private var viewModel: OfflineChartDetailViewModel
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel: OfflineSelectionViewModel?
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
@@ -21,6 +21,22 @@ struct OfflineChartDetailView: View {
   @Environment(\.dismiss) private var dismiss
 
   @State private var showDeleteConfirmation = false
+
+  init(
+    chartID: UUID,
+    downloadRepository: GeoGarageDownloadRepositoryProtocol,
+    downloadService: GeoGarageDownloadServiceProtocol? = nil
+  ) {
+    _viewModel = State(wrappedValue: OfflineChartDetailViewModel(
+      chartID: chartID,
+      downloadRepository: downloadRepository,
+      downloadService: downloadService
+    ))
+  }
+
+  init(viewModel: OfflineChartDetailViewModel) {
+    _viewModel = State(wrappedValue: viewModel)
+  }
 
   var body: some View {
     VStack(spacing: 0) {
@@ -317,6 +333,9 @@ struct OfflineChartDetailView: View {
       if let errorMessage = viewModel.errorMessage {
         Text(errorMessage)
       }
+    }
+    .task {
+      viewModel.loadMetadata()
     }
   }
 
