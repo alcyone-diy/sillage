@@ -240,9 +240,15 @@ struct CommandPanelView: View {
     case .waypoints:
       WaypointListContainer(waypointService: waypointService)
     case .sessionDetail(let sessionID, let session):
-      TrackDetailContainer(
+      TrackDetailView(
         sessionID: sessionID,
-        session: session
+        session: session,
+        trackService: appEnvironment.trackService,
+        trackRecordingService: trackRecordingService,
+        onViewRequested: { id in
+          try await chartViewModel.loadAndDisplaySavedTrack(sessionID: id)
+          viewModel.closePanel()
+        }
       )
     case .waypointDetail(let id, let waypoint):
       WaypointDetailContainer(
