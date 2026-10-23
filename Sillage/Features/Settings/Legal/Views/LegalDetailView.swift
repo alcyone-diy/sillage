@@ -10,18 +10,40 @@
 
 import SwiftUI
 
+@MainActor
 struct LegalDetailView: View {
-  @State private var viewModel: LegalDetailViewModel
+  let document: LegalDocument
+  @State private var viewModel: LegalDetailViewModel?
 
   init(document: LegalDocument) {
-    _viewModel = State(initialValue: LegalDetailViewModel(document: document))
+    self.document = document
   }
+
+  var body: some View {
+    Group {
+      if let viewModel {
+        LegalDetailContentView(viewModel: viewModel)
+      } else {
+        Color.clear
+      }
+    }
+    .onAppear {
+      if viewModel == nil {
+        viewModel = LegalDetailViewModel(document: document)
+      }
+    }
+  }
+}
+
+@MainActor
+struct LegalDetailContentView: View {
+  @Bindable var viewModel: LegalDetailViewModel
 
   var body: some View {
     Group {
       switch viewModel.state {
       case .loading:
-          Color.clear
+        Color.clear
       case .loaded(let content):
         NativeTextView(text: content)
           .ignoresSafeArea(edges: .bottom)

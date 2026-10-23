@@ -11,19 +11,14 @@
 import SwiftUI
 import AuthenticationServices
 
+@MainActor
 struct GeoGarageLoginView: View {
-  @Environment(\.marineTheme) private var marineTheme
-  @Environment(ChartViewModel.self) private var chartViewModel
-  @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
+  let offlineMapManager: OfflineMapManager
+  let partnerSecretService: GeoGaragePartnerSecretServiceProtocol
+  let downloadRepository: (any GeoGarageDownloadRepositoryProtocol)?
+  let context: GeoGarageLoginContext
 
-  @State private var viewModel: GeoGarageLoginViewModel
-  @Environment(\.dismiss) private var dismiss
-
-  @Environment(GeoGarageAuthService.self) private var authService
-  @Environment(MessageService.self) private var messageService
-  @Environment(\.webAuthenticationSession) private var webAuthenticationSession
-
-  @State private var showLogoutConfirmation = false
+  @State private var viewModel: GeoGarageLoginViewModel?
 
   init(
     offlineMapManager: OfflineMapManager,
@@ -31,13 +26,47 @@ struct GeoGarageLoginView: View {
     downloadRepository: (any GeoGarageDownloadRepositoryProtocol)? = nil,
     context: GeoGarageLoginContext = .initialSetup
   ) {
-    self._viewModel = State(initialValue: GeoGarageLoginViewModel(
-      offlineMapManager: offlineMapManager,
-      partnerSecretService: partnerSecretService,
-      downloadRepository: downloadRepository,
-      context: context
-    ))
+    self.offlineMapManager = offlineMapManager
+    self.partnerSecretService = partnerSecretService
+    self.downloadRepository = downloadRepository
+    self.context = context
   }
+
+  var body: some View {
+    Group {
+      if let viewModel {
+        GeoGarageLoginContentView(viewModel: viewModel)
+      } else {
+        Color.clear
+      }
+    }
+    .onAppear {
+      if viewModel == nil {
+        viewModel = GeoGarageLoginViewModel(
+          offlineMapManager: offlineMapManager,
+          partnerSecretService: partnerSecretService,
+          downloadRepository: downloadRepository,
+          context: context
+        )
+      }
+    }
+  }
+}
+
+@MainActor
+struct GeoGarageLoginContentView: View {
+  @Bindable var viewModel: GeoGarageLoginViewModel
+
+  @Environment(\.marineTheme) private var marineTheme
+  @Environment(ChartViewModel.self) private var chartViewModel
+  @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
+  @Environment(\.dismiss) private var dismiss
+
+  @Environment(GeoGarageAuthService.self) private var authService
+  @Environment(MessageService.self) private var messageService
+  @Environment(\.webAuthenticationSession) private var webAuthenticationSession
+
+  @State private var showLogoutConfirmation = false
 
   var body: some View {
     ScrollView {
