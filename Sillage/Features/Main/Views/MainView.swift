@@ -291,11 +291,12 @@ struct ContentView: View {
         .navigationDestination(for: ChecklistOverlayDestination.self) { destination in
           switch destination {
           case .session(let route):
+            let environment = appEnvironment
             ChecklistSessionView(
               payload: route,
               checklistService: checklistService,
-              locationProvider: { [weak appEnvironment] in
-                appEnvironment?.lastKnownLocation
+              locationProvider: { [weak environment] in
+                environment?.lastKnownLocation
               }
             )
           case .templateDetail(let templateId, let startEditable):

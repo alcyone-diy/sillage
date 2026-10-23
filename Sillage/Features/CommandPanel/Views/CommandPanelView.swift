@@ -319,11 +319,12 @@ struct CommandPanelView: View {
         checklistService: checklistService
       )
     case .activeSession(let route):
+      let environment = appEnvironment
       ChecklistSessionView(
         payload: route,
         checklistService: checklistService,
-        locationProvider: { [weak appEnvironment] in
-          appEnvironment?.lastKnownLocation
+        locationProvider: { [weak environment] in
+          environment?.lastKnownLocation
         }
       )
     }
