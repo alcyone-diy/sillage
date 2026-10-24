@@ -39,7 +39,7 @@ final class OfflineChartDetailViewModel {
 
   let chartID: UUID
   private let downloadRepository: GeoGarageDownloadRepositoryProtocol
-  private let downloadService: GeoGarageDownloadServiceProtocol?
+  private let downloadService: GeoGarageDownloadServiceProtocol
 
   // MARK: - Observable UI Properties
 
@@ -121,7 +121,7 @@ final class OfflineChartDetailViewModel {
   init(
     chartID: UUID,
     downloadRepository: GeoGarageDownloadRepositoryProtocol,
-    downloadService: GeoGarageDownloadServiceProtocol? = nil
+    downloadService: GeoGarageDownloadServiceProtocol
   ) {
     self.chartID = chartID
     self.downloadRepository = downloadRepository
@@ -262,15 +262,7 @@ final class OfflineChartDetailViewModel {
         return
       }
 
-      if let downloadService {
-        try await downloadService.deleteDownload(download)
-      } else {
-        // Fallback direct cleanup
-        if let fileURL = download.resolvedFileURL(), FileManager.default.fileExists(atPath: fileURL.path) {
-          try? FileManager.default.removeItem(at: fileURL)
-        }
-        try await downloadRepository.delete(id: download.id)
-      }
+      try await downloadService.deleteDownload(download)
       Logger.offline.info("Successfully deleted offline chart \(download.layerName, privacy: .public)")
       self.errorMessage = nil
     } catch {

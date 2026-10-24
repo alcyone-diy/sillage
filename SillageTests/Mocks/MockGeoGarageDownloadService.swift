@@ -91,6 +91,9 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   var lastReplacesChartID: UUID? = nil
   var lastZoomMax: Int? = nil
 
+  var shouldThrowOnDelete: Bool = false
+  var deleteDownloadError: CaasError? = nil
+
   func startDownload(
     layerID: String,
     layerName: String,
@@ -139,6 +142,9 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   }
 
   func deleteDownload(_ download: OfflineChartDownload) async throws(CaasError) {
+    if shouldThrowOnDelete {
+      throw deleteDownloadError ?? .fileSystemError(underlying: "Simulated deletion failure")
+    }
     deletedDownloads.append(download)
   }
 }

@@ -25,7 +25,7 @@ struct OfflineChartDetailView: View {
   init(
     chartID: UUID,
     downloadRepository: GeoGarageDownloadRepositoryProtocol,
-    downloadService: GeoGarageDownloadServiceProtocol? = nil
+    downloadService: GeoGarageDownloadServiceProtocol
   ) {
     _viewModel = State(wrappedValue: OfflineChartDetailViewModel(
       chartID: chartID,

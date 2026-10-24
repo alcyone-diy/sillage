@@ -70,6 +70,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
 
   func testInitializationWithMissingFile_SetsNilSizeAndFileMissingStatus() async throws {
     let mockRepo = MockDownloadRepository()
+    let mockService = MockGeoGarageDownloadService()
     let chartID = UUID()
 
     let nonExistentRecord = OfflineChartDownload(
@@ -84,7 +85,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     )
     try await mockRepo.save(nonExistentRecord)
 
-    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo, downloadService: mockService)
     try await waitForInspection(on: viewModel)
 
     // Strict Zero Dummy Value rule: must be nil, NOT 0
@@ -97,6 +98,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
 
   func testInitializationWithExistingFile_SetsCorrectSizeAndReadyStatus() async throws {
     let mockRepo = MockDownloadRepository()
+    let mockService = MockGeoGarageDownloadService()
     let chartID = UUID()
 
     // Create a temporary dummy MBTiles file in Documents/Charts
@@ -129,7 +131,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     )
     try await mockRepo.save(record)
 
-    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo, downloadService: mockService)
     try await waitForInspection(on: viewModel)
 
     XCTAssertEqual(viewModel.fileSizeBytes, 2048, "Existing file size must match physical size")
@@ -139,6 +141,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
 
   func testOffMainActorGeometricParsingAndDDMFormatting() async throws {
     let mockRepo = MockDownloadRepository()
+    let mockService = MockGeoGarageDownloadService()
     let chartID = UUID()
 
     // Bounding box for Brest / Iroise Sea
@@ -154,7 +157,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     )
     try await mockRepo.save(record)
 
-    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo, downloadService: mockService)
     try await waitForInspection(on: viewModel)
 
     XCTAssertNotNil(viewModel.geographicBounds, "Geographic bounds must be parsed from WKT")
@@ -170,8 +173,9 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     }
   }
 
-  func testDeleteChartRemovesRecordFromRepository() async throws {
+  func testDeleteChart_DelegatesDeletionToDownloadService() async throws {
     let mockRepo = MockDownloadRepository()
+    let mockService = MockGeoGarageDownloadService()
     let chartID = UUID()
 
     let record = OfflineChartDownload(
@@ -186,18 +190,18 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     )
     try await mockRepo.save(record)
 
-    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo, downloadService: mockService)
     viewModel.loadMetadata()
     try await viewModel.deleteChart()
 
-    let remaining = mockRepo.downloads.first(where: { $0.id == chartID })
-    XCTAssertNil(remaining, "deleteChart must remove the record from repository")
+    XCTAssertEqual(mockService.deletedDownloads.first?.id, chartID, "Le ViewModel doit déléguer la suppression au service")
   }
 
   // MARK: - Edit Mode & Renaming Tests
 
   func testStartAndCancelEditing_Lifecycle() async throws {
     let mockRepo = MockDownloadRepository()
+    let mockService = MockGeoGarageDownloadService()
     let chartID = UUID()
 
     let record = OfflineChartDownload(
@@ -212,7 +216,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     )
     try await mockRepo.save(record)
 
-    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo, downloadService: mockService)
     try await waitForInspection(on: viewModel)
 
     XCTAssertFalse(viewModel.isEditing)
@@ -232,6 +236,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
 
   func testSaveCustomName_PersistsAndUpdatesDisplayName() async throws {
     let mockRepo = MockDownloadRepository()
+    let mockService = MockGeoGarageDownloadService()
     let chartID = UUID()
 
     let record = OfflineChartDownload(
@@ -246,7 +251,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     )
     try await mockRepo.save(record)
 
-    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo, downloadService: mockService)
     try await waitForInspection(on: viewModel)
 
     viewModel.startEditing()
@@ -264,6 +269,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
 
   func testSaveCustomName_EmptyOrMatchingLayerNameResetsToNil() async throws {
     let mockRepo = MockDownloadRepository()
+    let mockService = MockGeoGarageDownloadService()
     let chartID = UUID()
 
     let record = OfflineChartDownload(
@@ -279,7 +285,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     )
     try await mockRepo.save(record)
 
-    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo, downloadService: mockService)
     try await waitForInspection(on: viewModel)
 
     XCTAssertEqual(viewModel.chartName, "Existing Custom Name")
@@ -303,6 +309,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
 
   func testIsSaveDisabled_Validation() async throws {
     let mockRepo = MockDownloadRepository()
+    let mockService = MockGeoGarageDownloadService()
     let chartID = UUID()
 
     let record = OfflineChartDownload(
@@ -317,7 +324,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     )
     try await mockRepo.save(record)
 
-    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo, downloadService: mockService)
     try await waitForInspection(on: viewModel)
 
     viewModel.startEditing()
@@ -333,6 +340,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
 
   func testSaveCustomName_WhenRepositoryThrows_SetsErrorMessageAndRethrows() async throws {
     let mockRepo = MockDownloadRepository()
+    let mockService = MockGeoGarageDownloadService()
     let chartID = UUID()
 
     let record = OfflineChartDownload(
@@ -347,7 +355,7 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     )
     try await mockRepo.save(record)
 
-    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo, downloadService: mockService)
     try await waitForInspection(on: viewModel)
 
     mockRepo.shouldThrowOnSave = true
@@ -363,8 +371,9 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     }
   }
 
-  func testDeleteChart_WhenRepositoryThrows_SetsErrorMessageAndRethrows() async throws {
+  func testDeleteChart_WhenServiceThrows_SetsErrorMessageAndRethrows() async throws {
     let mockRepo = MockDownloadRepository()
+    let mockService = MockGeoGarageDownloadService()
     let chartID = UUID()
 
     let record = OfflineChartDownload(
@@ -379,16 +388,18 @@ final class OfflineChartDetailViewModelTests: XCTestCase {
     )
     try await mockRepo.save(record)
 
-    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo)
+    let viewModel = OfflineChartDetailViewModel(chartID: chartID, downloadRepository: mockRepo, downloadService: mockService)
     try await waitForInspection(on: viewModel)
 
-    mockRepo.shouldThrowOnDelete = true
+    let expectedError = CaasError.packageGenerationFailed(message: "Custom deletion failure")
+    mockService.shouldThrowOnDelete = true
+    mockService.deleteDownloadError = expectedError
 
     do {
       try await viewModel.deleteChart()
-      XCTFail("deleteChart must rethrow if repository delete fails")
+      XCTFail("deleteChart must rethrow if download service fails")
     } catch {
-      XCTAssertEqual(viewModel.errorMessage, "Simulated disk deletion failure")
+      XCTAssertEqual(viewModel.errorMessage, expectedError.localizedDescription)
     }
   }
 }
