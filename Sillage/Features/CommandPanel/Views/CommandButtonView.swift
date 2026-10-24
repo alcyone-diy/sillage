@@ -31,6 +31,7 @@ struct CommandButtonView: View {
   }
 }
 
+#if DEBUG
 #Preview("Empty State") {
   CommandButtonView()
     .environment(PanelManagerViewModel())
@@ -43,7 +44,6 @@ struct CommandButtonView: View {
     .environment(MessageService.previewWithMessages)
 }
 
-#if DEBUG
 extension MessageService {
   @MainActor
   static var previewWithMessages: MessageService {

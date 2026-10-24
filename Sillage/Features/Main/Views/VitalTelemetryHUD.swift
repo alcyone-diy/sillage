@@ -247,6 +247,7 @@ public struct VitalTelemetryHUD: View {
   }
 }
 
+#if DEBUG
 #Preview("Novice User - With Tap Hint") {
   struct PreviewContainer: View {
     let defaultPrefs: TelemetryPreferences = TelemetryPreferences()
@@ -306,7 +307,6 @@ public struct VitalTelemetryHUD: View {
   return PreviewContainer()
 }
 
-#if DEBUG
 extension PreferencesService {
   @MainActor
   static var previewNovice: PreferencesService {
