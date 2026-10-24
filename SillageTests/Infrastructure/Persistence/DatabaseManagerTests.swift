@@ -286,9 +286,9 @@ final class DatabaseManagerTests {
     try DatabaseManager.migrator.migrate(queue)
 
     try await queue.read { db in
-      #expect(try db.tableExists(GeoGarageDownloadRecord.databaseTableName))
+      #expect(try db.tableExists("geogarage_download"))
 
-      let indexes = try db.indexes(on: GeoGarageDownloadRecord.databaseTableName)
+      let indexes = try db.indexes(on: "geogarage_download")
       let indexNames = Set(indexes.map(\.name))
       #expect(indexNames.contains("idx_geogarage_download_layer_id"))
       #expect(indexNames.contains("idx_geogarage_download_layer_date"))
@@ -315,18 +315,18 @@ final class DatabaseManagerTests {
     try DatabaseManager.migrator.migrate(queue)
 
     try await queue.read { db in
-      #expect(try db.tableExists(GeoGarageLayerRecord.databaseTableName))
+      #expect(try db.tableExists("geogarage_layer"))
 
-      let columns = try db.columns(in: GeoGarageLayerRecord.databaseTableName).map(\.name)
+      let columns = try db.columns(in: "geogarage_layer").map(\.name)
       #expect(columns.contains("layer"))
       #expect(columns.contains("brand_name"))
       #expect(columns.contains("version_date"))
       #expect(columns.contains("valid_until"))
 
-      let primaryKey = try db.primaryKey(GeoGarageLayerRecord.databaseTableName)
+      let primaryKey = try db.primaryKey("geogarage_layer")
       #expect(primaryKey.columns == ["layer"])
 
-      let indexes = try db.indexes(on: GeoGarageLayerRecord.databaseTableName)
+      let indexes = try db.indexes(on: "geogarage_layer")
       let indexNames = Set(indexes.map(\.name))
       #expect(indexNames.contains("idx_geogarage_layer_brand_name"))
     }
@@ -410,78 +410,23 @@ final class DatabaseManagerTests {
     }
   }
 
-  @Test("Database migration from v8 to v9 creates checklist_category and migrates templates")
-  func testMigration_fromV8ToV9_createsChecklistCategoryAndMigratesTemplates() async throws {
-    let queue = try DatabaseQueue()
-
-    // Simulate an existing database that was migrated up to v8 in earlier TestFlight versions
-    try await queue.write { db in
-      // 1. Create grdb_migrations table and simulate applied migrations v1..v8
-      try db.execute(sql: """
-        CREATE TABLE grdb_migrations (identifier TEXT NOT NULL PRIMARY KEY)
-      """)
-      for v in 1...8 {
-        try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)", arguments: ["v\(v)"])
-      }
-
-      // 2. Create legacy checklist_template table as it was in v8 (with 'category' column, no 'category_id')
-      try db.execute(sql: """
-        CREATE TABLE checklist_template (
-          id TEXT PRIMARY KEY NOT NULL,
-          title TEXT NOT NULL,
-          description TEXT,
-          category TEXT NOT NULL,
-          sort_order INTEGER NOT NULL DEFAULT 0,
-          created_at DATETIME NOT NULL,
-          updated_at DATETIME NOT NULL
-        )
-      """)
-
-      // 3. Insert a template with a custom category
-      let now = Date()
-      try db.execute(
-        sql: """
-        INSERT INTO checklist_template (id, title, description, category, sort_order, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        arguments: ["tpl-1", "Rigging Check", "Visual rigging inspection", "rigging_custom", 0, now, now]
-      )
-    }
-
-    // Now execute current migrator (should trigger v9)
-    try DatabaseManager.migrator.migrate(queue)
-
-    try await queue.read { db in
-      // Verify checklist_category table exists
-      #expect(try db.tableExists("checklist_category"))
-
-      // Verify default categories exist
-      let defaultCategoriesCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM checklist_category WHERE id = 'safety_emergency'")
-      #expect(defaultCategoriesCount == 1)
-
-      // Verify custom category was created
-      let customCategoryExists = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM checklist_category WHERE id = 'rigging_custom'")
-      #expect(customCategoryExists == 1)
-
-      // Verify checklist_template has category_id column and legacy column was removed
-      let columns = try db.columns(in: "checklist_template").map { $0.name }
-      #expect(columns.contains("category_id"))
-      #expect(!columns.contains("category"))
-
-      // Verify template's category_id was correctly populated
-      let categoryId = try String.fetchOne(db, sql: "SELECT category_id FROM checklist_template WHERE id = 'tpl-1'")
-      #expect(categoryId == "rigging_custom")
-    }
-  }
-
   @Test("Fresh database migration creates all tables and categories")
   func testMigration_freshDatabase_createsAllTablesAndCategories() async throws {
     let queue = try DatabaseQueue()
     try DatabaseManager.migrator.migrate(queue)
 
     try await queue.read { db in
+      #expect(try db.tableExists("track_session"))
+      #expect(try db.tableExists("track_point"))
+      #expect(try db.tableExists("waypoint"))
+      #expect(try db.tableExists("barometric_reading"))
       #expect(try db.tableExists("checklist_category"))
       #expect(try db.tableExists("checklist_template"))
+      #expect(try db.tableExists("checklist_template_item"))
+      #expect(try db.tableExists("checklist_session"))
+      #expect(try db.tableExists("checklist_session_item"))
+      #expect(try db.tableExists("geogarage_download"))
+      #expect(try db.tableExists("geogarage_layer"))
 
       let columns = try db.columns(in: "checklist_template").map { $0.name }
       #expect(columns.contains("category_id"))
@@ -489,36 +434,51 @@ final class DatabaseManagerTests {
 
       let categoryCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM checklist_category")
       #expect((categoryCount ?? 0) >= 5)
+
+      let downloadColumns = try db.columns(in: "geogarage_download").map { $0.name }
+      #expect(downloadColumns.contains("requires_v3_compatibility"))
+      #expect(downloadColumns.contains("custom_name"))
     }
   }
 
-  @Test("Migration v13 updates existing geogarage_download records to requires_v3_compatibility = 0")
-  func testMigration_v13_updatesExistingDownloadsToSQLCipher4() async throws {
+  @Test("Database with existing v1..v13 migrations cleans up merged identifiers and preserves schema")
+  func testMigration_existingDatabaseWithV1toV13_cleansUpMergedMigrations() async throws {
     let queue = try DatabaseQueue()
 
-    // 1. Run migrations up to v12
-    try DatabaseManager.migrator.migrate(queue, upTo: "v12")
-
+    // 1. Simulate an existing beta tester install where v1..v13 are recorded in grdb_migrations
     try await queue.write { db in
-      try db.execute(sql: """
-      INSERT INTO geogarage_download (
-        id, layer_id, layer_name, download_timestamp_unix, relative_path, md5, zoom_max, bounds_wkt, requires_v3_compatibility
-      ) VALUES (
-        'test-uuid-v12', 'shom', 'SHOM', 1700000000.0, 'Charts/test.mbtiles', 'md5_v12', 12, 'POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 1
+      try db.execute(sql: "CREATE TABLE grdb_migrations (identifier TEXT NOT NULL PRIMARY KEY)")
+      for v in 1...13 {
+        try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)", arguments: ["v\(v)"])
+      }
+
+      // Pre-create a table to simulate existing user data
+      try db.create(table: "checklist_category") { t in
+        t.column("id", .text).primaryKey()
+        t.column("name", .text).notNull()
+        t.column("icon", .text)
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+      let now = Date()
+      try db.execute(
+        sql: "INSERT INTO checklist_category (id, name, sort_order, created_at, updated_at) VALUES ('custom', 'Custom', 0, ?, ?)",
+        arguments: [now, now]
       )
-      """)
     }
 
-    // 2. Run migration v13
+    // 2. Migrate with current migrator
     try DatabaseManager.migrator.migrate(queue)
 
-    // 3. Verify requires_v3_compatibility was flipped from 1 to 0
+    // 3. Verify merged identifiers v2..v13 were pruned from grdb_migrations, keeping only v1
     try await queue.read { db in
-      let requiresV3 = try Int.fetchOne(
-        db,
-        sql: "SELECT requires_v3_compatibility FROM geogarage_download WHERE id = 'test-uuid-v12'"
-      )
-      #expect(requiresV3 == 0)
+      let applied = try String.fetchAll(db, sql: "SELECT identifier FROM grdb_migrations ORDER BY identifier")
+      #expect(applied == ["v1"])
+
+      // Verify existing data is preserved
+      let customExists = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM checklist_category WHERE id = 'custom'")
+      #expect(customExists == 1)
     }
   }
 

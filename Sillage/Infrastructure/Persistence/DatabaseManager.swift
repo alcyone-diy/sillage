@@ -90,7 +90,10 @@ public final class DatabaseManager: Sendable {
   nonisolated static var migrator: DatabaseMigrator {
     var migrator = DatabaseMigrator()
 
-    migrator.registerMigration("v1") { db in
+    migrator.registerMigration(
+      "v1",
+      merging: ["v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13"]
+    ) { db, _ in
       // 1. Track Session
       try db.create(table: "track_session") { t in
         t.column("id", .text).primaryKey()
@@ -176,51 +179,94 @@ public final class DatabaseManager: Sendable {
       try db.create(index: "idx_waypoint_timestamp_unix", on: "waypoint", columns: ["timestamp_unix"])
 
       // 4. Barometric Reading
-      try db.create(table: BarometricReadingRecord.databaseTableName) { t in
+      try db.create(table: "barometric_reading") { t in
         t.autoIncrementedPrimaryKey("id")
         t.column("timestamp_unix", .double).notNull()
         t.column("pressure_hpa", .double).notNull()
       }
       try db.create(
         index: "idx_barometric_reading_timestamp_unix",
-        on: BarometricReadingRecord.databaseTableName,
+        on: "barometric_reading",
         columns: ["timestamp_unix"]
       )
 
-      // 5. Checklist Templates & Items
-      try db.create(table: ChecklistTemplateRecord.databaseTableName) { t in
+      // 5. Checklist Categories
+      try db.create(table: "checklist_category") { t in
         t.column("id", .text).primaryKey()
-        t.column("title", .text).notNull()
-        t.column("description", .text)
-        t.column("category", .text).notNull()
+        t.column("name", .text).notNull()
+        t.column("icon", .text)
         t.column("sort_order", .integer).notNull().defaults(to: 0)
         t.column("created_at", .datetime).notNull()
         t.column("updated_at", .datetime).notNull()
       }
-      try db.create(index: "idx_checklist_template_category", on: ChecklistTemplateRecord.databaseTableName, columns: ["category"])
-      try db.create(index: "idx_checklist_template_sort_order", on: ChecklistTemplateRecord.databaseTableName, columns: ["sort_order"])
+      try db.create(
+        index: "idx_checklist_category_sort_order",
+        on: "checklist_category",
+        columns: ["sort_order"]
+      )
 
-      try db.create(table: ChecklistTemplateItemRecord.databaseTableName) { t in
+      let initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] = [
+        ("safety_emergency", "Safety & Emergency", "exclamationmark.shield.fill", 0),
+        ("navigation_maneuver", "Navigation & Maneuver", "steeringwheel", 1),
+        ("routine", "Routine", "checklist", 2),
+        ("engine_technical", "Engine & Technical", "wrench.and.screwdriver.fill", 3),
+        ("wintering_maintenance", "Wintering & Maintenance", "snowflake", 4)
+      ]
+      let now = Date()
+      for cat in initialCategories {
+        try db.execute(
+          sql: """
+          INSERT OR IGNORE INTO checklist_category (id, name, icon, sort_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+          """,
+          arguments: [cat.id, cat.name, cat.icon, cat.sortOrder, now, now]
+        )
+      }
+
+      // 6. Checklist Templates & Items
+      try db.create(table: "checklist_template") { t in
+        t.column("id", .text).primaryKey()
+        t.column("title", .text).notNull()
+        t.column("description", .text)
+        t.column("category_id", .text)
+          .notNull()
+          .references("checklist_category", column: "id", onDelete: .restrict)
+        t.column("sort_order", .integer).notNull().defaults(to: 0)
+        t.column("created_at", .datetime).notNull()
+        t.column("updated_at", .datetime).notNull()
+      }
+      try db.create(
+        index: "idx_checklist_template_category_id",
+        on: "checklist_template",
+        columns: ["category_id"]
+      )
+      try db.create(
+        index: "idx_checklist_template_sort_order",
+        on: "checklist_template",
+        columns: ["sort_order"]
+      )
+
+      try db.create(table: "checklist_template_item") { t in
         t.column("id", .text).primaryKey()
         t.column("template_id", .text)
           .notNull()
-          .references(ChecklistTemplateRecord.databaseTableName, column: "id", onDelete: .cascade)
+          .references("checklist_template", column: "id", onDelete: .cascade)
         t.column("sort_order", .integer).notNull()
         t.column("title", .text).notNull()
         t.column("detail", .text)
       }
       try db.create(
         index: "idx_checklist_template_item_template_order",
-        on: ChecklistTemplateItemRecord.databaseTableName,
+        on: "checklist_template_item",
         columns: ["template_id", "sort_order"]
       )
 
-      // 6. Checklist Sessions & Items
-      try db.create(table: ChecklistSessionRecord.databaseTableName) { t in
+      // 7. Checklist Sessions & Items
+      try db.create(table: "checklist_session") { t in
         t.column("id", .text).primaryKey()
         t.column("template_id", .text)
           .notNull()
-          .references(ChecklistTemplateRecord.databaseTableName, column: "id", onDelete: .cascade)
+          .references("checklist_template", column: "id", onDelete: .cascade)
         t.column("template_title_snapshot", .text).notNull()
         t.column("status", .text).notNull()
         t.column("started_at", .datetime).notNull()
@@ -229,21 +275,21 @@ public final class DatabaseManager: Sendable {
 
         t.check(sql: "status IN ('in_progress', 'completed', 'abandoned')")
       }
-      try db.create(index: "idx_checklist_session_status", on: ChecklistSessionRecord.databaseTableName, columns: ["status"])
-      try db.create(index: "idx_checklist_session_started_at", on: ChecklistSessionRecord.databaseTableName, columns: ["started_at"])
+      try db.create(index: "idx_checklist_session_status", on: "checklist_session", columns: ["status"])
+      try db.create(index: "idx_checklist_session_started_at", on: "checklist_session", columns: ["started_at"])
       try db.create(
         index: "idx_unique_active_session",
-        on: ChecklistSessionRecord.databaseTableName,
+        on: "checklist_session",
         columns: ["template_id"],
         unique: true,
         condition: SQL("status = 'in_progress'")
       )
 
-      try db.create(table: ChecklistSessionItemRecord.databaseTableName) { t in
+      try db.create(table: "checklist_session_item") { t in
         t.column("id", .text).primaryKey()
         t.column("session_id", .text)
           .notNull()
-          .references(ChecklistSessionRecord.databaseTableName, column: "id", onDelete: .cascade)
+          .references("checklist_session", column: "id", onDelete: .cascade)
         t.column("source_template_item_id", .text)
         t.column("sort_order", .integer).notNull()
         t.column("title", .text).notNull()
@@ -259,11 +305,11 @@ public final class DatabaseManager: Sendable {
       }
       try db.create(
         index: "idx_checklist_session_item_session_order",
-        on: ChecklistSessionItemRecord.databaseTableName,
+        on: "checklist_session_item",
         columns: ["session_id", "sort_order"]
       )
 
-      // 7. GeoGarage Download
+      // 8. GeoGarage Download
       try db.create(table: "geogarage_download") { t in
         t.column("id", .text).primaryKey()
         t.column("layer_id", .text).notNull()
@@ -275,7 +321,7 @@ public final class DatabaseManager: Sendable {
         t.column("bounds_wkt", .text).notNull()
         t.column("custom_name", .text)
         t.column("file_size_bytes", .integer)
-        t.column("requires_v3_compatibility", .boolean).notNull().defaults(to: true)
+        t.column("requires_v3_compatibility", .boolean).notNull().defaults(to: false)
 
         t.check(sql: "zoom_max >= 0")
         t.check(sql: "file_size_bytes IS NULL OR file_size_bytes >= 0")
@@ -289,212 +335,8 @@ public final class DatabaseManager: Sendable {
         CREATE INDEX idx_geogarage_download_layer_date
         ON geogarage_download (layer_id, download_timestamp_unix DESC)
       """)
-    }
 
-    migrator.registerMigration("v2") { db in
-      guard try !db.tableExists("checklist_category") else { return }
-
-      // 1. Checklist Category table
-      try db.create(table: "checklist_category") { t in
-        t.column("id", .text).primaryKey()
-        t.column("name", .text).notNull()
-        t.column("icon", .text)
-        t.column("sort_order", .integer).notNull().defaults(to: 0)
-        t.column("created_at", .datetime).notNull()
-        t.column("updated_at", .datetime).notNull()
-      }
-      try db.create(
-        index: "idx_checklist_category_sort_order",
-        on: "checklist_category",
-        columns: ["sort_order"]
-      )
-
-      // 2. Pre-populate initial categories with immutable snapshot data
-      let initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] = [
-        ("safety_emergency", "Safety & Emergency", "exclamationmark.shield.fill", 0),
-        ("navigation_maneuver", "Navigation & Maneuver", "steeringwheel", 1),
-        ("routine", "Routine", "checklist", 2),
-        ("engine_technical", "Engine & Technical", "wrench.and.screwdriver.fill", 3),
-        ("wintering_maintenance", "Wintering & Maintenance", "snowflake", 4)
-      ]
-
-      let now = Date()
-      for cat in initialCategories {
-        try db.execute(
-          sql: """
-          INSERT OR IGNORE INTO checklist_category (id, name, icon, sort_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?)
-          """,
-          arguments: [cat.id, cat.name, cat.icon, cat.sortOrder, now, now]
-        )
-      }
-
-      // 3. Ensure any existing custom categories in checklist_template are seeded
-      let existingCustomCategories = try String.fetchAll(
-        db,
-        sql: "SELECT DISTINCT category FROM checklist_template"
-      )
-      for customCat in existingCustomCategories {
-        try db.execute(
-          sql: """
-          INSERT OR IGNORE INTO checklist_category (id, name, icon, sort_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?)
-          """,
-          arguments: [customCat, customCat.capitalized, nil, 999, now, now]
-        )
-      }
-
-      // 4. Add category_id column to checklist_template referencing checklist_category with ON DELETE RESTRICT
-      try db.alter(table: "checklist_template") { t in
-        t.add(column: "category_id", .text)
-          .references("checklist_category", column: "id", onDelete: .restrict)
-      }
-
-      // 5. Populate category_id from category for existing templates
-      try db.execute(sql: """
-        UPDATE checklist_template
-        SET category_id = category
-        WHERE category_id IS NULL
-      """)
-
-      // 6. Create index on category_id
-      try db.create(
-        index: "idx_checklist_template_category_id",
-        on: "checklist_template",
-        columns: ["category_id"]
-      )
-    }
-
-    migrator.registerMigration("v3") { db in
-      let templateColumns = try db.columns(in: "checklist_template").map { $0.name }
-      guard templateColumns.contains("category") else { return }
-
-      // 1. Drop index on legacy 'category' column if it exists before dropping the column itself
-      try db.execute(sql: "DROP INDEX IF EXISTS idx_checklist_template_category")
-
-      // 2. Drop legacy 'category' column from checklist_template table
-      try db.alter(table: "checklist_template") { t in
-        t.drop(column: "category")
-      }
-    }
-
-    // Historical migration identifiers registered as no-ops to acknowledge existing databases
-    // created during earlier TestFlight releases where migrations v1..v8 were already applied.
-    migrator.registerMigration("v4") { _ in }
-    migrator.registerMigration("v5") { _ in }
-    migrator.registerMigration("v6") { _ in }
-    migrator.registerMigration("v7") { _ in }
-    migrator.registerMigration("v8") { _ in }
-
-    // v9: Ensures existing TestFlight installs (whose grdb_migrations already recorded v1..v8)
-    // receive the checklist_category table and category_id column migration.
-    migrator.registerMigration("v9") { db in
-      // 1. Ensure checklist_category table exists
-      if try !db.tableExists("checklist_category") {
-        try db.create(table: "checklist_category") { t in
-          t.column("id", .text).primaryKey()
-          t.column("name", .text).notNull()
-          t.column("icon", .text)
-          t.column("sort_order", .integer).notNull().defaults(to: 0)
-          t.column("created_at", .datetime).notNull()
-          t.column("updated_at", .datetime).notNull()
-        }
-        try db.create(
-          index: "idx_checklist_category_sort_order",
-          on: "checklist_category",
-          columns: ["sort_order"]
-        )
-
-        // Seed initial categories
-        let initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] = [
-          ("safety_emergency", "Safety & Emergency", "exclamationmark.shield.fill", 0),
-          ("navigation_maneuver", "Navigation & Maneuver", "steeringwheel", 1),
-          ("routine", "Routine", "checklist", 2),
-          ("engine_technical", "Engine & Technical", "wrench.and.screwdriver.fill", 3),
-          ("wintering_maintenance", "Wintering & Maintenance", "snowflake", 4)
-        ]
-        let now = Date()
-        for cat in initialCategories {
-          try db.execute(
-            sql: """
-            INSERT OR IGNORE INTO checklist_category (id, name, icon, sort_order, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            arguments: [cat.id, cat.name, cat.icon, cat.sortOrder, now, now]
-          )
-        }
-      }
-
-      // 2. Ensure any custom categories from legacy 'category' column are in checklist_category
-      let templateColumns = try db.columns(in: "checklist_template").map { $0.name }
-      let now = Date()
-      if templateColumns.contains("category") {
-        let existingCustomCategories = try String.fetchAll(
-          db,
-          sql: "SELECT DISTINCT category FROM checklist_template WHERE category IS NOT NULL"
-        )
-        for customCat in existingCustomCategories {
-          try db.execute(
-            sql: """
-            INSERT OR IGNORE INTO checklist_category (id, name, icon, sort_order, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            arguments: [customCat, customCat.capitalized, nil, 999, now, now]
-          )
-        }
-      }
-
-      // 3. Add category_id column if missing
-      if !templateColumns.contains("category_id") {
-        try db.alter(table: "checklist_template") { t in
-          t.add(column: "category_id", .text)
-            .references("checklist_category", column: "id", onDelete: .restrict)
-        }
-
-        if templateColumns.contains("category") {
-          try db.execute(sql: """
-            UPDATE checklist_template
-            SET category_id = category
-            WHERE category_id IS NULL
-          """)
-        }
-
-        try db.execute(sql: """
-          UPDATE checklist_template
-          SET category_id = 'routine'
-          WHERE category_id IS NULL
-        """)
-
-        try db.create(
-          index: "idx_checklist_template_category_id",
-          on: "checklist_template",
-          columns: ["category_id"]
-        )
-      }
-
-      // 4. Drop legacy 'category' column if still present
-      let finalColumns = try db.columns(in: "checklist_template").map { $0.name }
-      if finalColumns.contains("category") {
-        try db.execute(sql: "DROP INDEX IF EXISTS idx_checklist_template_category")
-        try db.alter(table: "checklist_template") { t in
-          t.drop(column: "category")
-        }
-      }
-    }
-
-    // v10: Ensures geogarage_download table has custom_name column if migrating from older schema versions
-    migrator.registerMigration("v10") { db in
-      guard try db.tableExists("geogarage_download") else { return }
-      let columns = try db.columns(in: "geogarage_download").map { $0.name }
-      if !columns.contains("custom_name") {
-        try db.alter(table: "geogarage_download") { t in
-          t.add(column: "custom_name", .text)
-        }
-      }
-    }
-
-    // v11: GeoGarage layer permissions table and index
-    migrator.registerMigration("v11") { db in
+      // 9. GeoGarage Layer
       try db.create(table: "geogarage_layer") { t in
         t.column("layer", .text).primaryKey()
         t.column("brand_name", .text).notNull()
@@ -502,23 +344,6 @@ public final class DatabaseManager: Sendable {
         t.column("valid_until", .text).notNull()
       }
       try db.create(index: "idx_geogarage_layer_brand_name", on: "geogarage_layer", columns: ["brand_name"])
-    }
-
-    // v12: Ensures geogarage_download table has requires_v3_compatibility column (default true)
-    migrator.registerMigration("v12") { db in
-      guard try db.tableExists("geogarage_download") else { return }
-      let columns = try db.columns(in: "geogarage_download").map { $0.name }
-      if !columns.contains("requires_v3_compatibility") {
-        try db.alter(table: "geogarage_download") { t in
-          t.add(column: "requires_v3_compatibility", .boolean).notNull().defaults(to: true)
-        }
-      }
-    }
-
-    // v13: Migrates existing offline GeoGarage downloads to SQLCipher 4 by default (requires_v3_compatibility = 0)
-    migrator.registerMigration("v13") { db in
-      guard try db.tableExists("geogarage_download") else { return }
-      try db.execute(sql: "UPDATE geogarage_download SET requires_v3_compatibility = 0")
     }
 
     return migrator
