@@ -1041,6 +1041,22 @@ final class ChartViewModel {
   
   /// Changes the active chart source and reconfigures chart limits (bounds, zoom) accordingly.
   func switchChartSource(to source: ChartSource) {
+    if let highlighted = highlightedOfflineRegion {
+      let isMatchingSource: Bool
+      if let highlightLayerID = highlighted.layerID {
+        if case .remoteGeoGarage(_, let newLayerID) = source {
+          isMatchingSource = highlightLayerID.caseInsensitiveCompare(newLayerID) == .orderedSame
+        } else {
+          isMatchingSource = false
+        }
+      } else {
+        isMatchingSource = (source == currentChartSource)
+      }
+      if !isMatchingSource {
+        clearOfflineRegionHighlight()
+      }
+    }
+
     self.currentChartSource = source
 
     switch source {
@@ -1401,8 +1417,8 @@ final class ChartViewModel {
   }
 
   /// Highlights a specific offline chart package boundary on the map and fits the viewport to its bounds.
-  func highlightOfflineRegion(id: UUID, name: String, bounds: GeographicBoundingBox) {
-    self.highlightedOfflineRegion = HighlightedOfflineRegion(id: id, name: name, bounds: bounds)
+  func highlightOfflineRegion(id: UUID, name: String, bounds: GeographicBoundingBox, layerID: String?) {
+    self.highlightedOfflineRegion = HighlightedOfflineRegion(id: id, name: name, bounds: bounds, layerID: layerID)
     fitBounds(bounds)
   }
 

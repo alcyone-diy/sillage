@@ -162,13 +162,16 @@ struct OfflineRegionsManagerView: View {
       errorMessage = String(localized: "Cannot show offline chart: boundary data is missing.")
       return
     }
-    chartViewModel.highlightOfflineRegion(id: item.id, name: item.displayName, bounds: bounds)
+    chartViewModel.highlightOfflineRegion(id: item.id, name: item.displayName, bounds: bounds, layerID: item.layerID)
     panelManagerViewModel.closePanel()
   }
 
   private func deleteItem(_ item: OfflineChartItem) async {
     do {
       try await offlineSelectionViewModel.deleteItem(item)
+      if chartViewModel.highlightedOfflineRegion?.id == item.id {
+        chartViewModel.clearOfflineRegionHighlight()
+      }
     } catch {
       Logger.offline.error("Failed to delete offline chart \(item.displayName, privacy: .public): \(error.localizedDescription, privacy: .public)")
       errorMessage = error.localizedDescription

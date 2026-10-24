@@ -353,9 +353,10 @@ struct OfflineChartDetailView: View {
   }
 
   private func performDelete() {
+    let chartVM = chartViewModel
     Task { @MainActor in
       do {
-        try await viewModel.deleteChart()
+        try await viewModel.deleteChart(using: chartVM)
         dismiss()
       } catch {
         viewModel.errorMessage = error.localizedDescription

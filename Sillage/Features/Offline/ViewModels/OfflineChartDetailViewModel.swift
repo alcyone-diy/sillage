@@ -247,23 +247,27 @@ final class OfflineChartDetailViewModel {
     }
 
     // Highlight the chart boundary on the map, fit the camera, and close the panel smoothly
-    chartViewModel.highlightOfflineRegion(id: chartID, name: chartName, bounds: bounds)
+    chartViewModel.highlightOfflineRegion(id: chartID, name: chartName, bounds: bounds, layerID: layerID)
     panelManager.closePanel()
   }
 
   /// Deletes the offline chart record and its underlying physical `.mbtiles` file.
-  func deleteChart() async throws {
+  /// - Parameter chartViewModel: Optional active chart view model to clear highlight if this chart is currently highlighted.
+  func deleteChart(using chartViewModel: ChartViewModel? = nil) async throws {
     isDeleting = true
     defer { isDeleting = false }
 
     do {
-      guard let download = chartDownload else {
+      if let download = chartDownload {
+        try await downloadService.deleteDownload(download)
+        Logger.offline.info("Successfully deleted offline chart \(download.layerName, privacy: .public)")
+      } else {
         try await downloadRepository.delete(id: chartID)
-        return
       }
 
-      try await downloadService.deleteDownload(download)
-      Logger.offline.info("Successfully deleted offline chart \(download.layerName, privacy: .public)")
+      if chartViewModel?.highlightedOfflineRegion?.id == chartID {
+        chartViewModel?.clearOfflineRegionHighlight()
+      }
       self.errorMessage = nil
     } catch {
       Logger.offline.error("Failed to delete offline chart: \(error.localizedDescription, privacy: .public)")

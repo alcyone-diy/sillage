@@ -511,6 +511,157 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertFalse(preferencesService.isOpenSeaMapOverlayEnabled)
   }
 
+  private func makeChartViewModel() -> ChartViewModel {
+    let positioningService = MockPositioningService()
+    let preferencesService = MockPreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    return ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: MockGeoGarageAuthService(),
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+  }
+
+  func testSwitchChartSource_whenOfflineRegionHighlighted_clearsHighlightWhenSwitchingToDifferentChart() {
+    let viewModel = makeChartViewModel()
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "fr_shom_raster"))
+    let testBounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      northEast: CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0)
+    )
+    let chartID = UUID()
+    viewModel.highlightOfflineRegion(id: chartID, name: "Baie de Quiberon", bounds: testBounds, layerID: "fr_shom_raster")
+
+    XCTAssertNotNil(viewModel.highlightedOfflineRegion)
+    XCTAssertEqual(viewModel.highlightedOfflineRegion?.id, chartID)
+    XCTAssertEqual(viewModel.highlightedOfflineRegion?.layerID, "fr_shom_raster")
+
+    // Switching to OpenSeaMap should clear the offline region highlight
+    viewModel.switchChartSource(to: .openSeaMap)
+    XCTAssertNil(viewModel.highlightedOfflineRegion, "Highlighted offline region must disappear when switching to OpenSeaMap")
+  }
+
+  func testSwitchChartSource_whenOfflineRegionHighlighted_clearsHighlightWhenSwitchingToAnotherGeoGarageLayer() {
+    let viewModel = makeChartViewModel()
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "fr_shom_raster"))
+    let testBounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      northEast: CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0)
+    )
+    viewModel.highlightOfflineRegion(id: UUID(), name: "Baie de Quiberon", bounds: testBounds, layerID: "fr_shom_raster")
+
+    XCTAssertNotNil(viewModel.highlightedOfflineRegion)
+
+    // Switching to UKHO should clear the offline region highlight since it's not linked to this layer
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "uk_ukho_raster"))
+    XCTAssertNil(viewModel.highlightedOfflineRegion, "Highlighted offline region must disappear when switching to another GeoGarage layer")
+  }
+
+  func testSwitchChartSource_whenOfflineRegionHighlighted_clearsHighlightWhenSwitchingToMBTiles() {
+    let viewModel = makeChartViewModel()
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "fr_shom_raster"))
+    let testBounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      northEast: CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0)
+    )
+    viewModel.highlightOfflineRegion(id: UUID(), name: "Baie de Quiberon", bounds: testBounds, layerID: "fr_shom_raster")
+
+    XCTAssertNotNil(viewModel.highlightedOfflineRegion)
+
+    // Switching to local MBTiles should clear the offline region highlight
+    viewModel.switchChartSource(to: .localMBTiles(url: URL(fileURLWithPath: "/tmp/sample.mbtiles")))
+    XCTAssertNil(viewModel.highlightedOfflineRegion, "Highlighted offline region must disappear when switching to local MBTiles")
+  }
+
+  func testSwitchChartSource_whenOfflineRegionHighlighted_retainsHighlightWhenSourceUnchanged() {
+    let viewModel = makeChartViewModel()
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "fr_shom_raster"))
+    let testBounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      northEast: CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0)
+    )
+    let chartID = UUID()
+    viewModel.highlightOfflineRegion(id: chartID, name: "Baie de Quiberon", bounds: testBounds, layerID: "fr_shom_raster")
+
+    // Re-applying the exact same source should retain the highlight
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "fr_shom_raster"))
+    XCTAssertNotNil(viewModel.highlightedOfflineRegion)
+    XCTAssertEqual(viewModel.highlightedOfflineRegion?.id, chartID)
+  }
+
+  func testSwitchChartSource_whenOfflineRegionHighlighted_retainsHighlightWithCaseInsensitiveLayerID() {
+    let viewModel = makeChartViewModel()
+
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "FR_SHOM_RASTER"))
+    let testBounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      northEast: CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0)
+    )
+    let chartID = UUID()
+    viewModel.highlightOfflineRegion(id: chartID, name: "Baie de Quiberon", bounds: testBounds, layerID: "fr_shom_raster")
+
+    // Re-applying with case-differing layer identifier retains the highlight
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "FR_SHOM_RASTER"))
+    XCTAssertNotNil(viewModel.highlightedOfflineRegion)
+    XCTAssertEqual(viewModel.highlightedOfflineRegion?.id, chartID)
+  }
+
+  func testSwitchChartSource_whenOfflineRegionHighlightedWithGeoGarageLayerOnOpenSeaMap_clearsHighlightWhenSwitchingToOpenSeaMap() {
+    let viewModel = makeChartViewModel()
+
+    // Start on OpenSeaMap
+    viewModel.switchChartSource(to: .openSeaMap)
+    let testBounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      northEast: CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0)
+    )
+    viewModel.highlightOfflineRegion(id: UUID(), name: "Baie de Quiberon", bounds: testBounds, layerID: "fr_shom_raster")
+    XCTAssertNotNil(viewModel.highlightedOfflineRegion)
+
+    // Even if currentChartSource is openSeaMap and target is openSeaMap, the region belongs to GeoGarage, so it must be cleared
+    viewModel.switchChartSource(to: .openSeaMap)
+    XCTAssertNil(viewModel.highlightedOfflineRegion, "Highlighted GeoGarage region must disappear when current and target chart is OpenSeaMap")
+  }
+
+  func testSwitchChartSource_whenOfflineRegionHighlightedWithNilLayerID_clearsOnDifferentSourceAndRetainsOnSameSource() {
+    let viewModel = makeChartViewModel()
+
+    viewModel.switchChartSource(to: .openSeaMap)
+    let testBounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0),
+      northEast: CLLocationCoordinate2D(latitude: 48.0, longitude: -2.0)
+    )
+    let chartID = UUID()
+    viewModel.highlightOfflineRegion(id: chartID, name: "Custom Region", bounds: testBounds, layerID: nil)
+    XCTAssertNotNil(viewModel.highlightedOfflineRegion)
+
+    // Re-applying same source retains highlight when layerID is nil
+    viewModel.switchChartSource(to: .openSeaMap)
+    XCTAssertNotNil(viewModel.highlightedOfflineRegion)
+
+    // Switching to another source clears highlight when layerID is nil
+    viewModel.switchChartSource(to: .remoteGeoGarage(clientID: "test_client", layerID: "fr_shom_raster"))
+    XCTAssertNil(viewModel.highlightedOfflineRegion)
+  }
+
   func testIsActionConfirmationCardActive_StateToggle() {
     let positioningService = MockPositioningService()
     let preferencesService = MockPreferencesService()

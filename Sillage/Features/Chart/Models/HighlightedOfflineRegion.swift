@@ -16,11 +16,13 @@ public struct HighlightedOfflineRegion: Sendable, Equatable {
   public let id: UUID
   public let name: String
   public let bounds: GeographicBoundingBox
+  public let layerID: String?
 
-  public init(id: UUID, name: String, bounds: GeographicBoundingBox) {
+  public init(id: UUID, name: String, bounds: GeographicBoundingBox, layerID: String?) {
     self.id = id
     self.name = name
     self.bounds = bounds
+    self.layerID = layerID
   }
 
   /// Geographic center coordinate of the region's bounding box.
