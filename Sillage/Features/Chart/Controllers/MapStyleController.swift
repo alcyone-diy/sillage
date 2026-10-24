@@ -462,7 +462,7 @@ struct MapStyleController {
       let vesselSymbolLayer = MLNSymbolStyleLayer(identifier: MapLayerIdentifier.vesselSymbol.rawValue, source: vesselSource)
       vesselSymbolLayer.iconImageName = NSExpression(forConstantValue: "vessel-cursor")
       vesselSymbolLayer.iconRotationAlignment = NSExpression(forConstantValue: "map")
-      vesselSymbolLayer.iconRotation = NSExpression(forKeyPath: "course")
+      vesselSymbolLayer.iconRotation = NSExpression(format: "TERNARY(course != nil, course, 0.0)")
       vesselSymbolLayer.iconAllowsOverlap = NSExpression(forConstantValue: true)
       vesselSymbolLayer.iconIgnoresPlacement = NSExpression(forConstantValue: true)
       vesselSymbolLayer.iconAnchor = NSExpression(forConstantValue: "center")

@@ -319,4 +319,49 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
       XCTAssertEqual(point.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.offlineSelectionCorners.rawValue)
     }
   }
+
+  // MARK: - Vessel Feature Tests
+
+  func testCreateVesselFeature_whenNilState_returnsNil() {
+    let feature = MapLibreFeatureFactory.createVesselFeature(from: nil)
+    XCTAssertNil(feature)
+  }
+
+  func testCreateVesselFeature_whenStationaryWithNilCourse_omitsCourseAttribute() {
+    let coordinate = CLLocationCoordinate2D(latitude: 46.15, longitude: -1.16)
+    let state = VesselVisualState(
+      coordinate: coordinate,
+      course: nil,
+      isStale: false,
+      isDegraded: false
+    )
+
+    let feature = MapLibreFeatureFactory.createVesselFeature(from: state)
+
+    XCTAssertNotNil(feature)
+    XCTAssertEqual(feature?.coordinate.latitude, coordinate.latitude)
+    XCTAssertEqual(feature?.coordinate.longitude, coordinate.longitude)
+    XCTAssertEqual(feature?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.vessel.rawValue)
+    XCTAssertNil(feature?.attributes[MapFeatureKey.course.rawValue])
+    XCTAssertEqual(feature?.attributes[MapFeatureKey.isStale.rawValue] as? Bool, false)
+    XCTAssertEqual(feature?.attributes[MapFeatureKey.isDegraded.rawValue] as? Bool, false)
+  }
+
+  func testCreateVesselFeature_whenMovingWithCourse_setsCourseInDegrees() {
+    let coordinate = CLLocationCoordinate2D(latitude: 46.15, longitude: -1.16)
+    let state = VesselVisualState(
+      coordinate: coordinate,
+      course: Measurement(value: 135.0, unit: .degrees),
+      isStale: true,
+      isDegraded: true
+    )
+
+    let feature = MapLibreFeatureFactory.createVesselFeature(from: state)
+
+    XCTAssertNotNil(feature)
+    XCTAssertEqual(feature?.coordinate.latitude, coordinate.latitude)
+    XCTAssertEqual(feature?.attributes[MapFeatureKey.course.rawValue] as? Double, 135.0)
+    XCTAssertEqual(feature?.attributes[MapFeatureKey.isStale.rawValue] as? Bool, true)
+    XCTAssertEqual(feature?.attributes[MapFeatureKey.isDegraded.rawValue] as? Bool, true)
+  }
 }

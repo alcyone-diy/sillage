@@ -1938,6 +1938,53 @@ final class ChartViewModelTests: XCTestCase {
     viewModel.updateUnauthenticatedGeoGarageWarning()
     XCTAssertEqual(messageService.messages.count, 1, "Must not duplicate or re-insert message when already present")
   }
+
+  @MainActor
+  func testChartViewModel_whenInstrumentDampingServiceHasInitialState_hydratesCoordinateAndVesselVisualStateImmediately() async throws {
+    let positioningService = MockPositioningService()
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    
+    // Simulate that InstrumentDampingService already received a fix before ChartViewModel was created
+    instrumentDampingService.start()
+    let coord = CLLocationCoordinate2D(latitude: 46.15, longitude: -1.16)
+    let fix = NavigationFix(
+      coordinate: coord,
+      horizontalAccuracy: Measurement(value: 5, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: Measurement(value: 0.0, unit: .knots),
+      speedOverGroundAccuracy: nil,
+      timestamp: Date.now
+    )
+    positioningService.locationContinuation?.yield(.active(fix))
+
+    try await waitFor { instrumentDampingService.state != nil }
+
+    let prefs = MockPreferencesService()
+    let auth = MockGeoGarageAuthService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: prefs, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: prefs,
+      authService: auth,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel
+    )
+
+    try await waitFor { viewModel.currentCoordinate != nil }
+
+    XCTAssertEqual(viewModel.currentCoordinate?.latitude, coord.latitude)
+    XCTAssertEqual(viewModel.currentCoordinate?.longitude, coord.longitude)
+    XCTAssertNotNil(viewModel.vesselVisualState)
+    XCTAssertEqual(viewModel.vesselVisualState?.coordinate.latitude, coord.latitude)
+
+    instrumentDampingService.stop()
+  }
 }
 
 

@@ -537,4 +537,51 @@ struct InstrumentDampingServiceTests {
 
     service.stop()
   }
+
+  @Test("observeState yields existing state immediately to late subscribers")
+  @MainActor
+  func testObserveStateYieldsExistingStateToLateSubscriber() async throws {
+    let mockPositioning = MockPositioningService()
+    let mockClock = MockClock()
+    let service = InstrumentDampingService(positioningService: mockPositioning, clock: mockClock)
+    service.start()
+
+    let baseLoc = CLLocationCoordinate2D(latitude: 46.15, longitude: -1.16)
+    let fix = NavigationFix(
+      coordinate: baseLoc,
+      horizontalAccuracy: Measurement(value: 5, unit: .meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: Measurement(value: 0.0, unit: .knots),
+      speedOverGroundAccuracy: nil,
+      timestamp: Date.now
+    )
+    mockPositioning.continuation.yield(.active(fix))
+
+    try await waitFor { service.state != nil }
+
+    // Late subscriber connects after state is already populated
+    let stream = service.observeState()
+
+    class StateBox {
+      var state: InstrumentState?
+    }
+    let box = StateBox()
+
+    let task = Task { @MainActor in
+      for await state in stream {
+        box.state = state
+        break
+      }
+    }
+
+    try await waitFor { box.state != nil }
+    task.cancel()
+
+    let finalState = try #require(box.state)
+    #expect(finalState.coordinate?.latitude == baseLoc.latitude)
+    #expect(finalState.coordinate?.longitude == baseLoc.longitude)
+
+    service.stop()
+  }
 }

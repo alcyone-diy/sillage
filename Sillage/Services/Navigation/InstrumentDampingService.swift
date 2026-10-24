@@ -87,6 +87,11 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
       let id = UUID()
       self.continuations[id] = continuation
       
+      // Yield current state snapshot immediately upon subscription
+      if let currentState = self.state {
+        continuation.yield(currentState)
+      }
+      
       continuation.onTermination = { @Sendable [weak self] _ in
         Task { @MainActor [weak self] in
           self?.continuations.removeValue(forKey: id)
