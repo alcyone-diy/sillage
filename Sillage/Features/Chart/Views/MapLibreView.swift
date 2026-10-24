@@ -33,7 +33,7 @@ struct MapLibreView: UIViewRepresentable {
   @Environment(WaypointService.self) private var waypointService
   @Environment(PanelManagerViewModel.self) private var panelManager
   @Environment(AppViewModel.self) private var appViewModel
-  @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel: OfflineSelectionViewModel?
+  @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
   var viewModel: ChartViewModel
   
   func makeUIView(context: Context) -> MLNMapView {
@@ -298,7 +298,7 @@ struct MapLibreView: UIViewRepresentable {
       }
 
       // Active offline selection zone update
-      let activeSelectionBounds = (offlineSelectionViewModel?.isSelectionModeActive == true) ? offlineSelectionViewModel?.selectedBounds : nil
+      let activeSelectionBounds = offlineSelectionViewModel.isSelectionModeActive ? offlineSelectionViewModel.selectedBounds : nil
       if activeSelectionBounds != context.coordinator.lastOfflineSelectionBounds {
         context.coordinator.lastOfflineSelectionBounds = activeSelectionBounds
         MapStyleController.updateOfflineSelection(bounds: activeSelectionBounds, in: style, theme: marineTheme)
@@ -335,7 +335,7 @@ struct MapLibreView: UIViewRepresentable {
     }
 
     // Offline selection mode: force chart rotation to 0 (North-Up) and reset pitch to 0.
-    if let offlineVM = offlineSelectionViewModel, offlineVM.isSelectionModeActive {
+    if offlineSelectionViewModel.isSelectionModeActive {
       uiView.isRotateEnabled = false
 
       // Restore North-Up orientation and level pitch immediately without animation.
@@ -351,16 +351,16 @@ struct MapLibreView: UIViewRepresentable {
       }
 
       // If selection mode just started without explicit bounds, initialize them once from map center
-      if offlineVM.selectedBounds == nil, uiView.bounds.width > 0, uiView.bounds.height > 0 {
-        let baseSize = min(uiView.bounds.width, uiView.bounds.height) * offlineVM.cropBoxWidthRatio
-        let size = CGSize(width: baseSize, height: baseSize * offlineVM.cropBoxAspect)
+      if offlineSelectionViewModel.selectedBounds == nil, uiView.bounds.width > 0, uiView.bounds.height > 0 {
+        let baseSize = min(uiView.bounds.width, uiView.bounds.height) * offlineSelectionViewModel.cropBoxWidthRatio
+        let size = CGSize(width: baseSize, height: baseSize * offlineSelectionViewModel.cropBoxAspect)
         let x = (uiView.bounds.width - size.width) / 2.0
         let y = (uiView.bounds.height - size.height) / 2.0
         let rect = CGRect(x: x, y: y, width: size.width, height: size.height)
         let mlnBounds = uiView.convert(rect, toCoordinateBoundsFrom: uiView)
         let initialBounds = GeographicBoundingBox(southWest: mlnBounds.sw, northEast: mlnBounds.ne)
 
-        Task { @MainActor [weak offlineVM] in
+        Task { @MainActor [weak offlineVM = offlineSelectionViewModel] in
           offlineVM?.updateBoundingBox(initialBounds)
         }
       }
@@ -558,7 +558,7 @@ struct MapLibreView: UIViewRepresentable {
         if parent.viewModel.measureToolViewModel.isActive {
           return hitTestMeasurePin(at: touchPoint, in: mapView) != nil
         }
-        if let offlineVM = parent.offlineSelectionViewModel, offlineVM.isSelectionModeActive {
+        if parent.offlineSelectionViewModel.isSelectionModeActive {
           return hitTestSelectionCorner(at: touchPoint, in: mapView) != nil
         }
         return false
@@ -592,7 +592,7 @@ struct MapLibreView: UIViewRepresentable {
         return
       }
 
-      if activeDraggedSelectionCorner != nil || (parent.offlineSelectionViewModel?.isSelectionModeActive == true && hitTestSelectionCorner(at: sender.location(in: mapView), in: mapView) != nil) {
+      if activeDraggedSelectionCorner != nil || (parent.offlineSelectionViewModel.isSelectionModeActive && hitTestSelectionCorner(at: sender.location(in: mapView), in: mapView) != nil) {
         handleSelectionCornerPan(sender, in: mapView)
         return
       }
@@ -1194,7 +1194,7 @@ struct MapLibreView: UIViewRepresentable {
       lastHighlightedOfflineRegion = highlightRegion
 
       // Active offline selection zone initialization
-      let activeSelection = (parent.offlineSelectionViewModel?.isSelectionModeActive == true) ? parent.offlineSelectionViewModel?.selectedBounds : nil
+      let activeSelection = parent.offlineSelectionViewModel.isSelectionModeActive ? parent.offlineSelectionViewModel.selectedBounds : nil
       MapStyleController.updateOfflineSelection(bounds: activeSelection, in: style, theme: parent.marineTheme)
       lastOfflineSelectionBounds = activeSelection
 
@@ -1289,9 +1289,8 @@ struct MapLibreView: UIViewRepresentable {
 
     /// Tests whether a screen touch point is within the touch hit target of one of the 4 selection corners.
     func hitTestSelectionCorner(at point: CGPoint, in mapView: MLNMapView) -> ActiveSelectionCorner? {
-      guard let offlineVM = parent.offlineSelectionViewModel,
-            offlineVM.isSelectionModeActive,
-            let bounds = offlineVM.selectedBounds else {
+      guard parent.offlineSelectionViewModel.isSelectionModeActive,
+            let bounds = parent.offlineSelectionViewModel.selectedBounds else {
         return nil
       }
 
@@ -1353,8 +1352,7 @@ struct MapLibreView: UIViewRepresentable {
     }
 
     private func handleSelectionCornerPan(_ sender: UIPanGestureRecognizer, in mapView: MLNMapView) {
-      guard let offlineVM = parent.offlineSelectionViewModel,
-            offlineVM.isSelectionModeActive else {
+      guard parent.offlineSelectionViewModel.isSelectionModeActive else {
         activeDraggedSelectionCorner = nil
         activeSelectionDragInitialBounds = nil
         activeSelectionDragCurrentBounds = nil
@@ -1366,7 +1364,7 @@ struct MapLibreView: UIViewRepresentable {
       switch sender.state {
       case .began:
         guard let corner = hitTestSelectionCorner(at: touchPoint, in: mapView),
-              let initialBounds = offlineVM.selectedBounds else { return }
+              let initialBounds = parent.offlineSelectionViewModel.selectedBounds else { return }
         activeDraggedSelectionCorner = corner
         activeSelectionDragInitialBounds = initialBounds
         activeSelectionDragCurrentBounds = initialBounds
@@ -1398,9 +1396,9 @@ struct MapLibreView: UIViewRepresentable {
            let initialBounds = activeSelectionDragInitialBounds {
           let coord = mapView.convert(touchPoint, toCoordinateFrom: mapView)
           let finalBounds = computeUpdatedBounds(from: initialBounds, dragging: corner, to: coord)
-          offlineVM.updateBoundingBox(finalBounds)
+          parent.offlineSelectionViewModel.updateBoundingBox(finalBounds)
         } else if let finalBounds = activeSelectionDragCurrentBounds {
-          offlineVM.updateBoundingBox(finalBounds)
+          parent.offlineSelectionViewModel.updateBoundingBox(finalBounds)
         }
         activeDraggedSelectionCorner = nil
         activeSelectionDragInitialBounds = nil
@@ -1410,7 +1408,7 @@ struct MapLibreView: UIViewRepresentable {
         // Restore MapLibre visual layers to the uncommitted model bounds
         if let style = mapView.style {
           MapStyleController.updateOfflineSelection(
-            bounds: offlineVM.selectedBounds,
+            bounds: parent.offlineSelectionViewModel.selectedBounds,
             in: style,
             theme: parent.marineTheme
           )
