@@ -15,7 +15,8 @@ if [ ! -f "$PBXPROJ" ]; then
 fi
 
 DRY_RUN=false
-DO_PUSH=true
+DO_ARCHIVE=true
+DO_PUSH=false
 ALLOW_DIRTY=false
 CUSTOM_BUILD=""
 
@@ -26,22 +27,24 @@ Usage: $(basename "$0") [OPTIONS] [BUILD_NUMBER]
 
 All-in-one script to prepare a TestFlight build:
   1. Increments build number (CURRENT_PROJECT_VERSION) in Xcode project
-  2. Creates the release commit
+  2. Creates the release commit locally
   3. Creates an annotated git tag (e.g. v1.0-b2)
-  4. Automatically pushes commit and tag to remote repository
+  4. Automatically compiles and generates the Xcode archive (.xcarchive)
+  5. Opens Xcode Organizer with the archive ready for TestFlight distribution
 
 Arguments:
   BUILD_NUMBER          Target build number (integer). Defaults to current + 1.
 
 Options:
-  -n, --dry-run         Show planned actions without modifying files or git.
-  --no-push             Perform project update, commit and tag locally without 'git push'.
+  -n, --dry-run         Show planned actions without modifying files, git, or archiving.
+  --no-archive          Update version, commit and tag locally without building archive.
+  --push                Push commit and tag to remote repository (default: off).
   --allow-dirty         Allow running even if uncommitted changes exist in working tree.
   -h, --help            Show this help message.
 
 Examples:
-  $(basename "$0")              # Automatically bump (e.g. 1 -> 2), commit, tag and push
-  $(basename "$0") 5            # Force build number to 5
+  $(basename "$0")              # Increment build (e.g. 1 -> 2), commit, tag, and archive
+  $(basename "$0") 5            # Force build number to 5 and archive
   $(basename "$0") --dry-run    # Preview planned actions
 EOF
   exit 0
@@ -57,8 +60,12 @@ while [ $# -gt 0 ]; do
       DRY_RUN=true
       shift
       ;;
-    --no-push)
-      DO_PUSH=false
+    --no-archive)
+      DO_ARCHIVE=false
+      shift
+      ;;
+    --push)
+      DO_PUSH=true
       shift
       ;;
     --allow-dirty)
@@ -111,6 +118,8 @@ fi
 
 TAG_NAME="v${MARKETING_VERSION}-b${NEW_BUILD}"
 COMMIT_MSG="Bump build number to ${NEW_BUILD}"
+ARCHIVE_DIR="build/Archives"
+ARCHIVE_PATH="${ARCHIVE_DIR}/Sillage-v${MARKETING_VERSION}-b${NEW_BUILD}.xcarchive"
 
 echo "=========================================="
 echo " Sillage TestFlight Release Prep"
@@ -121,7 +130,8 @@ echo " Current Build     : ${CURRENT_BUILD}"
 echo " Target Build      : ${NEW_BUILD}"
 echo " Commit Message    : ${COMMIT_MSG}"
 echo " Git Tag           : ${TAG_NAME}"
-echo " Remote Push       : $( [ "$DO_PUSH" = true ] && echo "Yes (origin/${CURRENT_BRANCH} + ${TAG_NAME})" || echo "No" )"
+echo " Remote Push       : $( [ "$DO_PUSH" = true ] && echo "Yes (origin/${CURRENT_BRANCH} + ${TAG_NAME})" || echo "Disabled (local only)" )"
+echo " Xcode Archive     : $( [ "$DO_ARCHIVE" = true ] && echo "Yes (${ARCHIVE_PATH})" || echo "No" )"
 echo "=========================================="
 
 if [ "$DRY_RUN" = true ]; then
@@ -137,27 +147,54 @@ fi
 
 # 1. Update CURRENT_PROJECT_VERSION in project.pbxproj
 sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = ${NEW_BUILD};/g" "$PBXPROJ"
-echo "✓ 1/4 Xcode project updated (CURRENT_PROJECT_VERSION = ${NEW_BUILD})"
+echo "✓ 1/3 Xcode project updated (CURRENT_PROJECT_VERSION = ${NEW_BUILD})"
 
 # 2. Git commit
 git add "$PBXPROJ"
 git commit -m "$COMMIT_MSG"
 SHORT_SHA=$(git rev-parse --short HEAD)
-echo "✓ 2/4 Commit created: ${SHORT_SHA} - ${COMMIT_MSG}"
+echo "✓ 2/3 Commit created: ${SHORT_SHA} - ${COMMIT_MSG}"
 
 # 3. Git tag
 git tag -a "$TAG_NAME" -m "TestFlight build ${NEW_BUILD} (${MARKETING_VERSION})"
-echo "✓ 3/4 Tag created: ${TAG_NAME}"
+echo "✓ 3/3 Tag created: ${TAG_NAME}"
 
-# 4. Git push
+# Optional Git push
 if [ "$DO_PUSH" = true ]; then
-  echo "→ 4/4 Pushing to origin (${CURRENT_BRANCH} and tag ${TAG_NAME})..."
+  echo "→ Pushing to origin (${CURRENT_BRANCH} and tag ${TAG_NAME})..."
   git push origin "${CURRENT_BRANCH}" "${TAG_NAME}"
-  echo "✓ 4/4 Push completed successfully!"
-else
-  echo "ℹ 4/4 Push skipped (--no-push)."
+  echo "✓ Push completed successfully!"
+fi
+
+# 4. Build Xcode archive
+if [ "$DO_ARCHIVE" = true ]; then
+  mkdir -p "$ARCHIVE_DIR"
+  echo ""
+  echo "=========================================="
+  echo " Building Xcode Archive..."
+  echo "=========================================="
+  
+  xcodebuild archive \
+    -project Sillage.xcodeproj \
+    -scheme Sillage \
+    -configuration Release \
+    -destination "generic/platform=iOS" \
+    -archivePath "$ARCHIVE_PATH"
+  
+  echo ""
+  echo "✓ Archive created successfully at: $ARCHIVE_PATH"
+  
+  # Open in Xcode Organizer
+  echo "→ Opening archive in Xcode Organizer..."
+  open "$ARCHIVE_PATH"
 fi
 
 echo ""
-echo "🎉 Ready! You can now archive the build in Xcode:"
-echo "   Product > Archive > Distribute App > TestFlight & App Store"
+echo "=========================================="
+echo "🎉 Build ${NEW_BUILD} prepared successfully!"
+echo "=========================================="
+echo "Next steps:"
+echo "1. Distribute the archive to TestFlight via Xcode Organizer."
+echo "2. When satisfied, push the commit and tag to GitHub:"
+echo "   git push origin ${CURRENT_BRANCH} ${TAG_NAME}"
+echo "=========================================="
