@@ -23,7 +23,7 @@ struct ContentView: View {
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   @Environment(\.marineTheme) private var marineTheme
   @Environment(ChecklistService.self) private var checklistService
-  @Environment(AppEnvironment.self) private var appEnvironment: AppEnvironment?
+  @Environment(AppEnvironment.self) private var appEnvironment
 
   @State private var checklistOverlayViewModel = ChecklistOverlayViewModel()
   @State private var panelManagerViewModel = PanelManagerViewModel()
@@ -291,7 +291,7 @@ struct ContentView: View {
         .navigationDestination(for: ChecklistOverlayDestination.self) { destination in
           switch destination {
           case .session(let route):
-            let environment = appEnvironment
+            let environment = self.appEnvironment
             ChecklistSessionView(
               payload: route,
               checklistService: checklistService,

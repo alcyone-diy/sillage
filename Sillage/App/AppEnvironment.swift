@@ -748,3 +748,15 @@ final class AppEnvironment {
   }
 
 }
+
+#if DEBUG
+extension AppEnvironment {
+  @MainActor
+  static var preview: AppEnvironment {
+    let suiteName = "preview.appEnvironment"
+    let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+    defaults.removePersistentDomain(forName: suiteName)
+    return AppEnvironment(userDefaults: defaults)
+  }
+}
+#endif

@@ -13,11 +13,11 @@ import SwiftUI
 @MainActor
 struct CommandButtonView: View {
   @Environment(PanelManagerViewModel.self) private var viewModel
-  @Environment(MessageService.self) private var messageService: MessageService?
+  @Environment(MessageService.self) private var messageService
 
   var body: some View {
     @Bindable var bindableViewModel = viewModel
-    let hasMessages = !(messageService?.messages.isEmpty ?? true)
+    let hasMessages = !messageService.messages.isEmpty
 
     Button(action: {
       bindableViewModel.openPanel(.command)
@@ -31,8 +31,32 @@ struct CommandButtonView: View {
   }
 }
 
-#Preview {
+#Preview("Empty State") {
   CommandButtonView()
     .environment(PanelManagerViewModel())
     .environment(MessageService())
 }
+
+#Preview("With Messages") {
+  CommandButtonView()
+    .environment(PanelManagerViewModel())
+    .environment(MessageService.previewWithMessages)
+}
+
+#if DEBUG
+extension MessageService {
+  @MainActor
+  static var previewWithMessages: MessageService {
+    let service = MessageService()
+    service.post(
+      AppMessage(
+        title: "Weather Alert",
+        detail: "Gale force winds forecasted in your area.",
+        severity: .warning,
+        category: .weather
+      )
+    )
+    return service
+  }
+}
+#endif

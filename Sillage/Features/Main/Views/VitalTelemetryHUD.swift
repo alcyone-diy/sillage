@@ -19,7 +19,7 @@ import SwiftUI
 public struct VitalTelemetryHUD: View {
   @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
   @Environment(TelemetryPreferences.self) private var envPreferences: TelemetryPreferences?
-  @Environment(PreferencesService.self) private var preferencesService: PreferencesService?
+  @Environment(PreferencesService.self) private var preferencesService
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @Environment(\.locale) private var locale
   @Environment(\.marineTheme) private var marineTheme
@@ -83,13 +83,12 @@ public struct VitalTelemetryHUD: View {
         withAnimation(.spring()) {
           isEditingHUD = true
           showEditHint = false
-          preferencesService?.hudEditOpenCount = (preferencesService?.hudEditOpenCount ?? 0) + 1
+          preferencesService.hudEditOpenCount += 1
         }
       }
       .simultaneousGesture(
         TapGesture().onEnded {
-          let openCount = preferencesService?.hudEditOpenCount ?? 0
-          guard !isEditingHUD, openCount < 2 else { return }
+          guard !isEditingHUD, preferencesService.hudEditOpenCount < 2 else { return }
 
           hintTask?.cancel()
           withAnimation(.easeInOut(duration: 0.25)) {
@@ -248,7 +247,7 @@ public struct VitalTelemetryHUD: View {
   }
 }
 
-#Preview("Vital Telemetry HUD") {
+#Preview("Novice User - With Tap Hint") {
   struct PreviewContainer: View {
     let defaultPrefs: TelemetryPreferences = TelemetryPreferences()
     let partialPrefs: TelemetryPreferences = {
@@ -277,8 +276,56 @@ public struct VitalTelemetryHUD: View {
       }
       .padding()
       .background(Color.gray.opacity(0.3))
+      .environment(PreferencesService.previewNovice)
     }
   }
 
   return PreviewContainer()
 }
+
+#Preview("Experienced User - Hint Suppressed") {
+  struct PreviewContainer: View {
+    let defaultPrefs: TelemetryPreferences = TelemetryPreferences()
+
+    var body: some View {
+      VStack(spacing: 24) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("Experienced User (hudEditOpenCount >= 2)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          VitalTelemetryHUD(preferences: defaultPrefs)
+            .environment(\.horizontalSizeClass, .compact)
+        }
+      }
+      .padding()
+      .background(Color.gray.opacity(0.3))
+      .environment(PreferencesService.previewExperienced)
+    }
+  }
+
+  return PreviewContainer()
+}
+
+#if DEBUG
+extension PreferencesService {
+  @MainActor
+  static var previewNovice: PreferencesService {
+    let suiteName = "preview.preferences.novice"
+    let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+    defaults.removePersistentDomain(forName: suiteName)
+    let service = PreferencesService(defaults: defaults)
+    service.hudEditOpenCount = 0
+    return service
+  }
+
+  @MainActor
+  static var previewExperienced: PreferencesService {
+    let suiteName = "preview.preferences.experienced"
+    let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+    defaults.removePersistentDomain(forName: suiteName)
+    let service = PreferencesService(defaults: defaults)
+    service.hudEditOpenCount = 2
+    return service
+  }
+}
+#endif
