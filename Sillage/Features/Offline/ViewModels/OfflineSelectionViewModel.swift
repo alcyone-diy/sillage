@@ -176,7 +176,7 @@ final class OfflineSelectionViewModel {
     chartViewModel: ChartViewModel,
     offlineMapManager: OfflineMapManagerProtocol? = nil,
     networkMonitor: NetworkMonitorServiceProtocol? = nil,
-    messageService: MessageService? = nil,
+    messageService: MessageService,
     keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     let monitor = networkMonitor ?? NetworkMonitorService()

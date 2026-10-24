@@ -529,7 +529,7 @@ final class AppEnvironment {
   private func postPackageSecretWarning(on messageService: MessageService) {
     let appMessage = AppMessage(
       title: LocalizedStringResource("Offline charts unavailable"),
-      detail: LocalizedStringResource("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
+      detail: .localized("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
       severity: .warning,
       // `.offlineCharts`, not `.geoGarage`: the silent layer fetch purges `.geoGarage` on success
       // and would take this warning with it.

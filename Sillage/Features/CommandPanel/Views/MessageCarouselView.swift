@@ -130,7 +130,7 @@ struct MessageCardView: View {
             .foregroundStyle(.primary)
             .lineLimit(1)
             
-          Text(message.detail)
+          detailText
             .marineFont(.subheadline)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -197,6 +197,16 @@ struct MessageCardView: View {
       Image(systemName: "xmark.octagon.fill")
         .foregroundStyle(.red)
         .font(.title2)
+    }
+  }
+
+  @ViewBuilder
+  private var detailText: some View {
+    switch message.detail {
+    case .localized(let resource):
+      Text(resource)
+    case .raw(let text):
+      Text(verbatim: text)
     }
   }
 }

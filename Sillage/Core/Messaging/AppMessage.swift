@@ -48,11 +48,22 @@ public enum AppMessageIntent: Sendable, Equatable {
   case openSettings(target: SettingsTarget)
 }
 
+/// Detail content of an application message.
+/// Supports statically localizable resources as well as raw runtime strings (e.g. from network or disk errors).
+public enum MessageDetail: Sendable, Equatable, ExpressibleByStringLiteral {
+  case localized(LocalizedStringResource)
+  case raw(String)
+
+  public init(stringLiteral value: String) {
+    self = .localized(LocalizedStringResource(stringLiteral: value))
+  }
+}
+
 /// Domain model representing an internal system message
 public struct AppMessage: Identifiable, Sendable, Equatable {
   public let id: UUID
   public let title: LocalizedStringResource
-  public let detail: LocalizedStringResource
+  public let detail: MessageDetail
   public let severity: AppMessageSeverity
   public let category: AppMessageCategory
   public let intent: AppMessageIntent
@@ -62,7 +73,7 @@ public struct AppMessage: Identifiable, Sendable, Equatable {
   public init(
     id: UUID = UUID(),
     title: LocalizedStringResource,
-    detail: LocalizedStringResource,
+    detail: MessageDetail,
     severity: AppMessageSeverity,
     category: AppMessageCategory,
     intent: AppMessageIntent = .none,

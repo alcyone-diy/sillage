@@ -189,13 +189,15 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
     let preferences = makePreferencesService()
     let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
 
     let service = GeoGarageDownloadService(
       packageService: packageService,
       downloader: downloader,
       downloadRepository: repository,
       preferencesService: preferences,
-      networkMonitor: networkMonitor
+      networkMonitor: networkMonitor,
+      messageService: messageService
     )
 
     // Initially idle -> nil progress
@@ -228,13 +230,15 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
     let preferences = makePreferencesService()
     let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
 
     let service = GeoGarageDownloadService(
       packageService: packageService,
       downloader: downloader,
       downloadRepository: repository,
       preferencesService: preferences,
-      networkMonitor: networkMonitor
+      networkMonitor: networkMonitor,
+      messageService: messageService
     )
 
     // Enqueue 2 downloads
@@ -265,6 +269,7 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
     let preferences = makePreferencesService()
     let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
 
     // Start with offline network
     networkMonitor.isConnected = false
@@ -274,7 +279,8 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       downloader: downloader,
       downloadRepository: repository,
       preferencesService: preferences,
-      networkMonitor: networkMonitor
+      networkMonitor: networkMonitor,
+      messageService: messageService
     )
 
     service.startDownload(layerID: "chart_offline", layerName: "Chart Offline", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
@@ -297,13 +303,15 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
     let preferences = makePreferencesService()
     let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
 
     let service = GeoGarageDownloadService(
       packageService: packageService,
       downloader: downloader,
       downloadRepository: repository,
       preferencesService: preferences,
-      networkMonitor: networkMonitor
+      networkMonitor: networkMonitor,
+      messageService: messageService
     )
 
     service.startDownload(layerID: "chart_cancel", layerName: "Chart Cancel", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
@@ -316,5 +324,73 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     XCTAssertEqual(service.sessionTotalDownloadsCount, 0)
     XCTAssertEqual(service.sessionCompletedDownloadsCount, 0)
     XCTAssertNil(service.globalDownloadProgress)
+  }
+
+  // MARK: - 6. Failure Alert Posting Tests
+
+  func testFailDownload_postsAppMessageToMessageService() throws {
+    let packageService = MockPackageService()
+    let downloader = MockChartDownloader()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+    let preferences = makePreferencesService()
+    let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
+
+    let service = GeoGarageDownloadService(
+      packageService: packageService,
+      downloader: downloader,
+      downloadRepository: repository,
+      preferencesService: preferences,
+      networkMonitor: networkMonitor,
+      messageService: messageService
+    )
+
+    service.startDownload(layerID: "chart_fail", layerName: "Chart Fail", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
+    guard let firstDownload = service.activeDownloads.first else {
+      XCTFail("Expected active download to be queued")
+      return
+    }
+
+    XCTAssertEqual(messageService.messages.count, 0)
+
+    service.failDownload(id: firstDownload.id, errorMessage: "Checksum mismatch")
+
+    XCTAssertEqual(messageService.messages.count, 1)
+    let postedMessage = try XCTUnwrap(messageService.messages.first)
+    XCTAssertEqual(postedMessage.severity, .error)
+    XCTAssertEqual(postedMessage.category, .offlineCharts)
+    XCTAssertEqual(postedMessage.intent, .none)
+    XCTAssertEqual(postedMessage.detail, .raw("Checksum mismatch"))
+  }
+
+  func testFailDownload_authenticationError_postsAppMessageWithOpenSettingsIntent() throws {
+    let packageService = MockPackageService()
+    let downloader = MockChartDownloader()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+    let preferences = makePreferencesService()
+    let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
+
+    let service = GeoGarageDownloadService(
+      packageService: packageService,
+      downloader: downloader,
+      downloadRepository: repository,
+      preferencesService: preferences,
+      networkMonitor: networkMonitor,
+      messageService: messageService
+    )
+
+    service.startDownload(layerID: "chart_auth_fail", layerName: "Chart Auth Fail", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
+
+    service.failDownload(with: "Partner key expired", isAuthenticationError: true)
+
+    XCTAssertEqual(messageService.messages.count, 1)
+    let postedMessage = try XCTUnwrap(messageService.messages.first)
+    XCTAssertEqual(postedMessage.severity, .error)
+    XCTAssertEqual(postedMessage.category, .offlineCharts)
+    XCTAssertEqual(postedMessage.intent, .openSettings(target: .geoGarage))
+    XCTAssertEqual(postedMessage.detail, .raw("Partner key expired"))
   }
 }

@@ -114,7 +114,7 @@ final class GeoGarageLoginViewModel {
       Logger.offline.error("Failed to delete offline packs during logout: \(error.localizedDescription, privacy: .public)")
       let appMessage = AppMessage(
         title: LocalizedStringResource("Offline Maps Error"),
-        detail: LocalizedStringResource("Failed to delete some offline maps. Please check your storage."),
+        detail: .localized("Failed to delete some offline maps. Please check your storage."),
         severity: .error,
         category: .geoGarage
       )
@@ -220,7 +220,7 @@ final class GeoGarageLoginViewModel {
           Logger.network.error("Partner secret unavailable after sign-in: \(String(describing: error), privacy: .public)")
           secretWarning = AppMessage(
             title: LocalizedStringResource("Offline charts unavailable"),
-            detail: LocalizedStringResource("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
+            detail: .localized("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
             severity: .warning,
             // Dedicated category: clearing `.geoGarage` below (and in
             // `ChartViewModel.handleGeoGarageLoginSuccess`) would erase the warning as soon as it

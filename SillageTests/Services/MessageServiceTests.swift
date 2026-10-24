@@ -103,7 +103,7 @@ final class MessageServiceTests: XCTestCase {
     
     // When
     for i in 1...50 {
-      sut.post(AppMessage(title: "Msg \(i)", detail: "Body \(i)", severity: .info, category: .system))
+      sut.post(AppMessage(title: "Msg \(i)", detail: .raw("Body \(i)"), severity: .info, category: .system))
     }
     
     // Then
@@ -124,7 +124,7 @@ final class MessageServiceTests: XCTestCase {
     
     // When: Add 50 info messages (dismissable)
     for i in 1...50 {
-      sut.post(AppMessage(title: "Msg \(i)", detail: "Body \(i)", severity: .info, category: .system, isDismissable: true))
+      sut.post(AppMessage(title: "Msg \(i)", detail: .raw("Body \(i)"), severity: .info, category: .system, isDismissable: true))
     }
     
     // Then: The oldest message (the critical one) must NOT be evicted.
@@ -135,7 +135,7 @@ final class MessageServiceTests: XCTestCase {
     
     // When 2: Flood with 100 critical errors
     for i in 1...100 {
-      sut.post(AppMessage(title: "Crit \(i)", detail: "Body \(i)", severity: .error, category: .system, isDismissable: false))
+      sut.post(AppMessage(title: "Crit \(i)", detail: .raw("Body \(i)"), severity: .error, category: .system, isDismissable: false))
     }
     
     // Then 2:
@@ -215,5 +215,15 @@ final class MessageServiceTests: XCTestCase {
     XCTAssertTrue(AppMessageSeverity.warning < AppMessageSeverity.error)
     XCTAssertTrue(AppMessageSeverity.info < AppMessageSeverity.error)
     XCTAssertFalse(AppMessageSeverity.error < AppMessageSeverity.warning)
+  }
+
+  func testMessageDetailRawAndLocalizedEquality() {
+    let rawDetail = MessageDetail.raw("Server 500: Disk full")
+    let localizedDetail = MessageDetail.localized("Server 500: Disk full")
+    let literalDetail: MessageDetail = "Server 500: Disk full"
+
+    XCTAssertEqual(localizedDetail, literalDetail)
+    XCTAssertNotEqual(rawDetail, localizedDetail)
+    XCTAssertEqual(rawDetail, .raw("Server 500: Disk full"))
   }
 }

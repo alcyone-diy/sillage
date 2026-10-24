@@ -58,7 +58,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   private let preferencesService: PreferencesServiceProtocol
   private let networkMonitor: NetworkMonitorServiceProtocol
   private let diskSpaceProvider: DiskSpaceProviderProtocol
-  private let messageService: MessageService?
+  private let messageService: MessageService
   private let keychainManager: any KeychainManaging
 
   // MARK: - State Properties
@@ -195,7 +195,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     preferencesService: PreferencesServiceProtocol,
     networkMonitor: NetworkMonitorServiceProtocol,
     diskSpaceProvider: DiskSpaceProviderProtocol = SystemDiskSpaceProvider(),
-    messageService: MessageService? = nil,
+    messageService: MessageService,
     keychainManager: any KeychainManaging = KeychainManager.shared
   ) {
     self.packageService = packageService
@@ -815,10 +815,9 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   }
 
   private func postFailureMessage(_ errorMessage: String, isAuthenticationError: Bool = false) {
-    guard let messageService else { return }
     let appMessage = AppMessage(
       title: LocalizedStringResource("Offline Download Failed"),
-      detail: LocalizedStringResource(stringLiteral: errorMessage),
+      detail: .raw(errorMessage),
       severity: .error,
       category: .offlineCharts,
       intent: isAuthenticationError ? .openSettings(target: .geoGarage) : .none

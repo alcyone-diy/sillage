@@ -800,7 +800,7 @@ final class ChartViewModel {
     
     let appMessage = AppMessage(
       title: LocalizedStringResource("GeoGarage Auth Error"),
-      detail: LocalizedStringResource("Failed to load layers. Please verify your connection or settings."),
+      detail: .localized("Failed to load layers. Please verify your connection or settings."),
       severity: .error,
       category: .geoGarage,
       intent: .openSettings(target: .geoGarage),
@@ -827,7 +827,7 @@ final class ChartViewModel {
       let message = AppMessage(
         id: Self.unauthenticatedGeoGarageChartMessageID,
         title: LocalizedStringResource("GeoGarage Sign-In Required"),
-        detail: LocalizedStringResource("Sign in to your GeoGarage account to display online marine charts, or switch to OpenSeaMap in Chart Preferences."),
+        detail: .localized("Sign in to your GeoGarage account to display online marine charts, or switch to OpenSeaMap in Chart Preferences."),
         severity: .warning,
         category: .geoGarage,
         intent: .openSettings(target: .geoGarage),
