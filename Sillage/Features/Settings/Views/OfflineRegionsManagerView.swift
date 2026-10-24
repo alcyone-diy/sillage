@@ -57,7 +57,7 @@ struct OfflineRegionsManagerView: View {
                 let isEnabled = isMatchingChartSelected(for: item)
                 let isVisible = chartViewModel.highlightedOfflineRegion?.id == item.id
                 OfflineChartItemRowView(item: item, isVisible: isVisible)
-                  .swipeActions(edge: .leading, allowsFullSwipe: isEnabled && !isVisible) {
+                  .swipeActions(edge: .leading, allowsFullSwipe: isVisible || isEnabled) {
                     if isVisible {
                       Button {
                         withAnimation {
