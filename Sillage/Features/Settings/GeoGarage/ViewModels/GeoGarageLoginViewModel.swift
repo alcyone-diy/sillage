@@ -95,7 +95,7 @@ final class GeoGarageLoginViewModel {
 
   func performLogout(
     authService: GeoGarageAuthServiceProtocol,
-    messageService: MessageService?,
+    messageService: MessageService,
     chartViewModel: ChartViewModel
   ) async {
     loginTask?.cancel()
@@ -103,9 +103,9 @@ final class GeoGarageLoginViewModel {
     isAuthorizationReady = false
     errorMessage = nil
     await authService.logout()
-    messageService?.clear(category: .geoGarage)
+    messageService.clear(category: .geoGarage)
     // Signed out, the "offline charts unavailable" warning no longer makes sense.
-    messageService?.clear(category: .offlineCharts)
+    messageService.clear(category: .offlineCharts)
     chartViewModel.logoutGeoGarage()
 
     do {
@@ -118,7 +118,7 @@ final class GeoGarageLoginViewModel {
         severity: .error,
         category: .geoGarage
       )
-      messageService?.post(appMessage)
+      messageService.post(appMessage)
     }
 
     // Delete downloaded CAAS MBTiles files and corresponding database records
@@ -184,7 +184,7 @@ final class GeoGarageLoginViewModel {
   @discardableResult
   func login(
     authService: GeoGarageAuthServiceProtocol,
-    messageService: MessageService?,
+    messageService: MessageService,
     presenter: any GeoGarageAuthorizationPresenting
   ) async -> Bool {
     // Set `isLoading` before the first suspension point: a quick double tap would otherwise open
@@ -209,7 +209,7 @@ final class GeoGarageLoginViewModel {
           _ = try await self.partnerSecretService.refresh(accessToken: response.access_token)
           // Secret obtained: a warning left by a previous session (startup or failed sign-in) is
           // now stale.
-          messageService?.clear(category: .offlineCharts)
+          messageService.clear(category: .offlineCharts)
         } catch PartnerSecretError.cancelled {
           // Sheet dismissed (or `loginTask` cancelled) during /partners/me/: not an unavailable
           // secret, exit silently.
@@ -238,9 +238,9 @@ final class GeoGarageLoginViewModel {
         Logger.network.info("Successfully fetched layers: \(layerNames, privacy: .public)")
 
         self.errorMessage = nil
-        messageService?.clear(category: .geoGarage)
+        messageService.clear(category: .geoGarage)
         if let secretWarning {
-          messageService?.post(secretWarning)
+          messageService.post(secretWarning)
         }
         return true
       } catch AuthError.cancelled {
