@@ -31,8 +31,7 @@ public struct CoordinateWrapper: Identifiable, Hashable, Equatable {
 final class AppViewModel {
   private var preferencesService: PreferencesServiceProtocol
   private let chartImportService: ChartImportService
-  private let authService: GeoGarageAuthService?
-  var anchorService: AnchorService?
+  private let anchorService: AnchorService?
 
   var importError: ChartImportError?
   var showImportError: Bool = false
@@ -58,12 +57,10 @@ final class AppViewModel {
   init(
     preferencesService: PreferencesServiceProtocol,
     chartImportService: ChartImportService? = nil,
-    authService: GeoGarageAuthService? = nil,
     anchorService: AnchorService? = nil
   ) {
     self.preferencesService = preferencesService
     self.chartImportService = chartImportService ?? ChartImportService()
-    self.authService = authService
     self.anchorService = anchorService
     self.isGloveModeEnabled = preferencesService.gloveModeEnabled
   }
