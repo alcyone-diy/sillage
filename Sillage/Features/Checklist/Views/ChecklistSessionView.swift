@@ -126,6 +126,9 @@ public struct ChecklistSessionView: View {
         dismiss()
       }
     }
+    .sensoryFeedback(.success, trigger: viewModel.isCompleted) { _, isCompleted in
+      isCompleted
+    }
   }
 
   // MARK: - Sections
@@ -165,25 +168,31 @@ public struct ChecklistSessionView: View {
 
         if let description = viewModel.description {
           Text(description)
-            .marineFont(.subheadline)
+            .marineFont(.body)
             .foregroundStyle(marineTheme.colors.textSecondary)
         }
 
         VStack(spacing: MarineTheme.Spacing.small) {
           HStack {
             Text("\(viewModel.completedCount) of \(viewModel.totalCount) checked")
-              .marineFont(.caption)
-              .foregroundStyle(marineTheme.colors.textSecondary)
+              .marineFont(.subheadline)
+              .fontWeight(.medium)
+              .monospacedDigit()
+              .foregroundStyle(marineTheme.colors.textPrimary)
 
             Spacer()
 
             if viewModel.isCompleted {
               Label("Completed", systemImage: "checkmark.circle.fill")
-                .marineFont(.caption)
+                .marineFont(.subheadline)
+                .fontWeight(.semibold)
                 .foregroundStyle(marineTheme.colors.accent)
             } else {
-              Text("\(Int(viewModel.progressRatio * 100))%")
-                .marineFont(.caption)
+              let roundedPercentage = Int((viewModel.progressRatio * 100.0).rounded())
+              Text("\(roundedPercentage)%")
+                .marineFont(.subheadline)
+                .fontWeight(.semibold)
+                .monospacedDigit()
                 .foregroundStyle(marineTheme.colors.textSecondary)
             }
           }
@@ -297,6 +306,7 @@ private struct ChecklistSessionItemRowView: View {
       HStack(spacing: MarineTheme.Spacing.medium) {
         Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
           .font(.title2)
+          .contentTransition(.symbolEffect(.replace))
           .foregroundStyle(
             item.isChecked
               ? marineTheme.colors.accent
@@ -337,6 +347,10 @@ private struct ChecklistSessionItemRowView: View {
     }
     .buttonStyle(.plain)
     .disabled(isPerformingAction || isCompletedSession)
+    .sensoryFeedback(trigger: item.isChecked) { _, isChecked in
+      guard !isCompletedSession else { return nil }
+      return isChecked ? .impact(weight: .medium) : .impact(weight: .light)
+    }
     .accessibilityLabel("\(item.title), \(item.isChecked ? String(localized: "Checked") : String(localized: "Unchecked"))")
   }
 }
