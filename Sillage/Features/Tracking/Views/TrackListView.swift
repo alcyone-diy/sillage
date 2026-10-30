@@ -43,7 +43,7 @@ struct TrackListView: View {
           }
           .marineListCell()
           .accessibilityLabel(accessibilityLabel(for: session, isVisible: isVisible))
-          .swipeActions(edge: .leading, allowsFullSwipe: !isVisible) {
+          .swipeActions(edge: .leading, allowsFullSwipe: true) {
             if isVisible {
               Button {
                 chartViewModel.clearSavedTrack()
@@ -78,7 +78,7 @@ struct TrackListView: View {
               .tint(.red)
             }
           }
-          .marineListCell()
+          .animation(.default, value: isVisible)
         }
       }
     } header: {
@@ -135,7 +135,6 @@ struct TrackListView: View {
   }
 }
 
-@MainActor
 struct TrackRowView: View {
   let session: TrackSession
   let subtitle: String?
@@ -143,31 +142,15 @@ struct TrackRowView: View {
   @Environment(\.marineTheme) private var marineTheme
   
   var body: some View {
-    HStack {
-      ZStack(alignment: .leading) {
-        // Invisible template to enforce uniform height whether it has 1 or 2 lines.
-        VStack(alignment: .leading, spacing: 4) {
-          Text(" ")
-            .marineFont(.body)
-          Text(" ")
-            .marineFont(.caption)
-        }
-        .hidden()
+    HStack(spacing: MarineTheme.Spacing.small) {
+      VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+        Text(session.name ?? session.startTime.formatted(date: .complete, time: .shortened))
+          .marineFont(.body)
         
-        VStack(alignment: .leading, spacing: 4) {
-          if let name = session.name {
-            Text(name)
-              .marineFont(.body)
-          } else {
-            Text(session.startTime.formatted(date: .complete, time: .shortened))
-              .marineFont(.body)
-          }
-          
-          if let subtitle = subtitle {
-            Text(verbatim: subtitle)
-              .foregroundStyle(.secondary)
-              .marineFont(.caption)
-          }
+        if let subtitle = subtitle {
+          Text(verbatim: subtitle)
+            .foregroundStyle(.secondary)
+            .marineFont(.caption)
         }
       }
       
