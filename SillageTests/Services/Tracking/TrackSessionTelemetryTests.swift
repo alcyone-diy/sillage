@@ -582,13 +582,15 @@ struct TrackSessionTelemetryTests {
     var telemetry = TrackSessionTelemetry()
     telemetry.start()
     
+    let baseTimestamp = Date(timeIntervalSince1970: 1000)
+
     // Fix 1: Origin
-    let fix1 = makeMockFix(latitude: 45.0, longitude: -1.0)
-    try? telemetry.process(fix: fix1, filters: nil)
+    let fix1 = makeMockFix(latitude: 45.0, longitude: -1.0, timestamp: baseTimestamp)
+    try telemetry.process(fix: fix1, filters: nil)
     
     // Fix 2: Further North and East
-    let fix2 = makeMockFix(latitude: 46.0, longitude: 0.0)
-    try? telemetry.process(fix: fix2, filters: nil)
+    let fix2 = makeMockFix(latitude: 46.0, longitude: 0.0, timestamp: baseTimestamp.addingTimeInterval(1))
+    try telemetry.process(fix: fix2, filters: nil)
     
     let box1 = try #require(telemetry.geographicBoundingBox)
     #expect(box1.southWest.latitude == 45.0)
@@ -597,8 +599,8 @@ struct TrackSessionTelemetryTests {
     #expect(box1.northEast.longitude == 0.0)
     
     // Fix 3: Further South and West than initial
-    let fix3 = makeMockFix(latitude: 44.0, longitude: -2.0)
-    try? telemetry.process(fix: fix3, filters: nil)
+    let fix3 = makeMockFix(latitude: 44.0, longitude: -2.0, timestamp: baseTimestamp.addingTimeInterval(2))
+    try telemetry.process(fix: fix3, filters: nil)
     
     let box2 = try #require(telemetry.geographicBoundingBox)
     #expect(box2.southWest.latitude == 44.0)

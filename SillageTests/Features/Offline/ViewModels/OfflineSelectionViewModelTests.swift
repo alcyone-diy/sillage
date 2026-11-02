@@ -246,7 +246,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     diskSpaceProvider: MockDiskSpaceProvider? = nil,
     setupVisibleBounds: Bool = true,
     authenticated: Bool = true,
-    messageService: MessageService? = nil
+    messageService: MessageService? = nil,
+    offlineMapManager: OfflineMapManagerProtocol? = nil
   ) -> (
     sut: OfflineSelectionViewModel,
     downloadService: GeoGarageDownloadServiceProtocol,
@@ -319,7 +320,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       downloadRepository: downloadRepository,
       preferencesService: preferences,
       chartViewModel: chartVM,
-      offlineMapManager: MockOfflineMapManager(),
+      offlineMapManager: offlineMapManager ?? MockOfflineMapManager(),
       downloader: downloader,
       keychainManager: keychain
     )
@@ -389,6 +390,19 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     // `setUp` assumes a token is present: put it back for the following tests.
     await mockKeychain.save(token: "token123", for: GeoGarageKeychainKeys.accessToken)
+  }
+
+  func testStartDownload_openSeaMapSource_routesToOpenSeaMapDownload() {
+    let mockOfflineManager = MockOfflineMapManager()
+    let (sut, _, _, _, chartVM, _, _, _) = makeSUT(authenticated: false, offlineMapManager: mockOfflineManager)
+    sut.selectedLayerID = ""
+    chartVM.switchChartSource(to: .openSeaMap)
+
+    sut.startDownload(chartSource: .openSeaMap)
+
+    XCTAssertTrue(mockOfflineManager.downloadOpenSeaMapRegionCalled)
+    XCTAssertFalse(sut.isSelectionModeActive)
+    XCTAssertNil(sut.selectedBounds)
   }
 
   func testStartDownload_unauthenticated_setsFailedState() {

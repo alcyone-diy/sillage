@@ -34,6 +34,12 @@ final class MockOfflineMapManager: OfflineMapManagerProtocol {
   func downloadRegion(bounds: GeographicBoundingBox, styleURL: URL, regionName: String) {
     isDownloading = true
   }
+
+  var downloadOpenSeaMapRegionCalled = false
+  func downloadOpenSeaMapRegion(bounds: GeographicBoundingBox, regionName: String, maxZoom: Int) {
+    downloadOpenSeaMapRegionCalled = true
+    isDownloading = true
+  }
   
   func deletePack(id: String) async throws {
     downloadedRegions.removeAll { $0.id == id }

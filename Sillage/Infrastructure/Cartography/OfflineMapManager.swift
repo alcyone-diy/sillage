@@ -140,6 +140,8 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   private var progressObservationTask: Task<Void, Never>?
   private var errorObservationTask: Task<Void, Never>?
   private var activePack: MLNOfflinePack?
+  private var activeWorker: MBTilesDownloadWorker?
+  private var activeWorkerTask: Task<Void, Never>?
   private var packsObservation: NSKeyValueObservation?
   /// Held while a download is active so iOS does not suspend the process
   /// when the user backgrounds the app.
@@ -425,24 +427,124 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.startObservingProgress()
   }
   
+  func downloadOpenSeaMapRegion(bounds: GeographicBoundingBox, regionName: String, maxZoom: Int) {
+    Logger.offline.info("downloadOpenSeaMapRegion requested for '\(regionName, privacy: .public)' (SW: \(bounds.southWest.latitude, privacy: .public),\(bounds.southWest.longitude, privacy: .public) NE: \(bounds.northEast.latitude, privacy: .public),\(bounds.northEast.longitude, privacy: .public)), maxZoom: \(maxZoom, privacy: .public)")
+
+    let cappedMaxZoom = min(maxZoom, 15)
+    let minZoom = 0
+
+    let fileManager = FileManager.default
+    guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+      self.downloadError = OfflineMapManagerError.unknown
+      return
+    }
+
+    let chartsDirectory = documentsURL.appendingPathComponent("Charts")
+    try? fileManager.createDirectory(at: chartsDirectory, withIntermediateDirectories: true)
+
+    let sanitizedName = regionName
+      .components(separatedBy: CharacterSet.alphanumerics.inverted)
+      .filter { !$0.isEmpty }
+      .joined(separator: "_")
+    let fileName = sanitizedName.isEmpty ? "openseamap_\(UUID().uuidString.prefix(8))" : "\(sanitizedName)_\(UUID().uuidString.prefix(8))"
+    let destinationURL = chartsDirectory.appendingPathComponent("\(fileName).mbtiles")
+
+    let worker = MBTilesDownloadWorker()
+    self.activeWorker = worker
+    self.isDownloading = true
+    self.isDownloadComplete = false
+    self.downloadProgress = 0.0
+    self.downloadError = nil
+    self.updateIdleTimerState()
+
+    let pipeline = OpenSeaMapRasterFetchPipeline()
+
+    self.activeWorkerTask = Task { [weak self, worker] in
+      do {
+        try await worker.executeDownload(
+          bounds: bounds,
+          minZoom: minZoom,
+          maxZoom: cappedMaxZoom,
+          destinationURL: destinationURL,
+          regionName: regionName,
+          pipeline: pipeline
+        ) { [weak self] progress in
+          Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.downloadProgress = progress.percentage
+            self.notifyProgressObservers()
+          }
+        }
+
+        // Single safe file size inspection on download completion
+        var finalSizeInBytes: UInt64 = 0
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: destinationURL.path),
+           let fileSize = attrs[.size] as? NSNumber {
+          finalSizeInBytes = fileSize.uint64Value
+        }
+
+        await MainActor.run { [weak self] in
+          guard let self else { return }
+          self.isDownloading = false
+          self.isDownloadComplete = true
+          self.activeWorker = nil
+          self.activeWorkerTask = nil
+          self.updateIdleTimerState()
+
+          let info = OfflineRegionInfo(
+            id: destinationURL.lastPathComponent,
+            name: regionName,
+            sizeInBytes: finalSizeInBytes,
+            isComplete: true,
+            progress: 1.0,
+            expectedResources: 0,
+            completedResources: 0,
+            estimatedTimeRemaining: nil
+          )
+          self.downloadedRegions.append(info)
+        }
+      } catch {
+        await MainActor.run { [weak self] in
+          guard let self else { return }
+          self.isDownloading = false
+          self.isDownloadComplete = false
+          self.downloadError = error
+          self.activeWorker = nil
+          self.activeWorkerTask = nil
+          self.updateIdleTimerState()
+          Logger.offline.error("MBTiles download failed: \(error.localizedDescription, privacy: .public)")
+        }
+      }
+    }
+  }
+
   func cancelDownload() {
     Logger.offline.info("cancelDownload requested")
     progressObservationTask?.cancel()
     errorObservationTask?.cancel()
     progressObservationTask = nil
     errorObservationTask = nil
-    
+
+    activeWorkerTask?.cancel()
+    activeWorkerTask = nil
+    if let worker = activeWorker {
+      Task {
+        await worker.cancel()
+      }
+      activeWorker = nil
+    }
+
     if let pack = activePack {
       Logger.offline.info("Suspending and removing active pack on cancellation")
       pack.suspend()
-      
+
       isDownloading = false
       isDownloadComplete = false
       activePack = nil
       downloadProgress = nil
       downloadResourcesPerSecond = 0.0
       self.updateIdleTimerState()
-      
+
       MLNOfflineStorage.shared.removePack(pack) { [weak self] error in
         Task { @MainActor [weak self] in
           if let error = error {
@@ -461,15 +563,15 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       self.loadExistingPacks()
     }
   }
-  
+
   func reset() {
     isDownloadComplete = false
     downloadError = nil
     downloadProgress = nil
   }
-  
+
   private func updateIdleTimerState() {
-    let isActive = (self.activePack != nil)
+    let isActive = (self.activePack != nil || self.activeWorker != nil)
     UIApplication.shared.isIdleTimerDisabled = isActive
     if isActive {
       if backgroundTaskToken == nil {

@@ -292,6 +292,16 @@
     "Barometer Alarm" : {
 
     },
+    "Base OSM tile unavailable at (%lld,%lld,%lld), status: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Base OSM tile unavailable at (%1$lld,%2$lld,%3$lld), status: %4$lld"
+          }
+        }
+      }
+    },
     "BATTERY" : {
 
     },
@@ -547,6 +557,9 @@
     "Download a Chart" : {
 
     },
+    "Download cancelled by user." : {
+
+    },
     "Download failed: %@." : {
 
     },
@@ -641,6 +654,9 @@
 
     },
     "Failed to access the file securely." : {
+
+    },
+    "Failed to composite OpenSeaMap seamark overlay with base tile." : {
 
     },
     "Failed to delete some offline maps. Please check your storage." : {
@@ -854,6 +870,9 @@
     "Internal error encoding context." : {
 
     },
+    "Invalid destination file path." : {
+
+    },
     "Invalid download URL returned by server: %@." : {
 
     },
@@ -864,6 +883,9 @@
 
     },
     "Invalid response from the server." : {
+
+    },
+    "Invalid tile URL: %@" : {
 
     },
     "Kinematics & Telemetry (COG / SOG)" : {
@@ -936,6 +958,9 @@
 
     },
     "MBTiles" : {
+
+    },
+    "MBTiles SQLite failure: %@" : {
 
     },
     "Measure Distance" : {
@@ -1052,6 +1077,9 @@
     "Offline Download Failed" : {
 
     },
+    "Offline map manager unavailable." : {
+
+    },
     "Offline Maps Error" : {
 
     },
@@ -1076,7 +1104,13 @@
     "OpenSeaMap (ODbL)" : {
 
     },
+    "OpenSeaMap %@" : {
+
+    },
     "Operation in progress. Please wait." : {
+
+    },
+    "OSM tile server rate limit reached (HTTP 429)." : {
 
     },
     "Package generation failed: %@." : {

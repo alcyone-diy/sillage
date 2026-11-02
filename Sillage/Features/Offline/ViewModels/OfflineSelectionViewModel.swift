@@ -370,6 +370,16 @@ final class OfflineSelectionViewModel {
   func startDownload(chartSource: ChartSource? = nil) {
     guard let bounds = requireDownloadBounds() else { return }
 
+    let source = chartSource ?? chartViewModel.currentChartSource
+
+    // 1. Unified OpenSeaMap MBTiles Offline Pipeline
+    // Only route to OpenSeaMap when explicitly requested, or when active viewer is OpenSeaMap and no GeoGarage layer is targeted.
+    if chartSource == .openSeaMap || (source == .openSeaMap && selectedLayerID.isEmpty) {
+      startOpenSeaMapDownload(bounds: bounds)
+      return
+    }
+
+    // 2. Remote GeoGarage CAAS Pipeline
     guard let customerID = preferencesService.geoGarageCustomerID, !customerID.isEmpty else {
       failWithFeedback(
         String(localized: "User is not authenticated with GeoGarage. Please login first."),
@@ -420,6 +430,32 @@ final class OfflineSelectionViewModel {
         customName: customNameToPreserve
       )
     }
+  }
+
+  /// Initiates an offline OpenSeaMap MBTiles download using the active selection.
+  private func startOpenSeaMapDownload(bounds: GeographicBoundingBox) {
+    let customNameToPreserve = self.pendingCustomName ?? chartToModify?.customName
+    let regionName = customNameToPreserve ?? String(localized: "OpenSeaMap \(Date().formatted(date: .abbreviated, time: .shortened))")
+    let targetMaxZoom = min(self.zoomMax, 15)
+
+    // UI reset MUST be synchronous on the MainActor BEFORE the async download process
+    isSelectionModeActive = false
+    selectedBounds = nil
+    cropRect = nil
+    chartToModify = nil
+    pendingCustomName = nil
+    calculationTask?.cancel()
+
+    guard let offlineManager = self.offlineMapManager else {
+      failWithFeedback(String(localized: "Offline map manager unavailable."))
+      return
+    }
+
+    offlineManager.downloadOpenSeaMapRegion(
+      bounds: bounds,
+      regionName: regionName,
+      maxZoom: targetMaxZoom
+    )
   }
 
   /// Initiates an offline chart package generation with explicit access token and customer ID.
