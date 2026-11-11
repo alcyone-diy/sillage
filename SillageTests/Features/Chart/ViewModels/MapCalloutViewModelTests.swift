@@ -369,4 +369,99 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.aimingCoordinate?.latitude, secondDragCoord.latitude)
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, secondDragCoord.latitude)
   }
+
+  // MARK: - Point Information (Ephemeris & Magnetism) Tests
+
+  func testPointInformationDefaultState() {
+    let viewModel = MapCalloutViewModel()
+    XCTAssertNil(viewModel.sunEphemeris)
+    XCTAssertNil(viewModel.magneticDeclination)
+    XCTAssertFalse(viewModel.isPointInfoLoading)
+  }
+
+  func testPresentPointInfoFetchesEphemerisAndDeclination() async {
+    let viewModel = MapCalloutViewModel()
+    let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
+    viewModel.presentCallout(coordinate: coord)
+
+    viewModel.presentPointInfo()
+    XCTAssertTrue(viewModel.isPointInfoPresented)
+
+    let deadline = Date().addingTimeInterval(2.0)
+    while viewModel.isPointInfoLoading && Date() < deadline {
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+
+    XCTAssertFalse(viewModel.isPointInfoLoading)
+    XCTAssertNotNil(viewModel.sunEphemeris)
+    XCTAssertNotNil(viewModel.sunEphemeris?.sunrise)
+    XCTAssertNotNil(viewModel.sunEphemeris?.sunset)
+    XCTAssertNotNil(viewModel.magneticDeclination)
+    if let decl = viewModel.magneticDeclination {
+      XCTAssertEqual(decl.converted(to: .degrees).value, -1.5, accuracy: 0.001)
+    }
+  }
+
+  func testUpdateTargetRefetchesPointInformationWhenPointInfoPresented() async {
+    let viewModel = MapCalloutViewModel()
+    let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.presentCallout(coordinate: initialCoord)
+    viewModel.presentPointInfo()
+
+    var deadline = Date().addingTimeInterval(2.0)
+    while viewModel.isPointInfoLoading && Date() < deadline {
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+    XCTAssertNotNil(viewModel.sunEphemeris)
+
+    let newCoord = CLLocationCoordinate2D(latitude: 12.0, longitude: 45.0)
+    viewModel.updateTarget(coordinate: newCoord)
+
+    deadline = Date().addingTimeInterval(2.0)
+    while viewModel.isPointInfoLoading && Date() < deadline {
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+    XCTAssertNotNil(viewModel.sunEphemeris)
+    XCTAssertNotNil(viewModel.magneticDeclination)
+  }
+
+  func testDismissPointInfoClearsEphemerisAndDeclination() async {
+    let viewModel = MapCalloutViewModel()
+    let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.presentCallout(coordinate: coord)
+    viewModel.presentPointInfo()
+
+    let deadline = Date().addingTimeInterval(2.0)
+    while viewModel.isPointInfoLoading && Date() < deadline {
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+    XCTAssertNotNil(viewModel.sunEphemeris)
+    XCTAssertNotNil(viewModel.magneticDeclination)
+
+    viewModel.dismissPointInfo()
+    XCTAssertFalse(viewModel.isPointInfoPresented)
+    XCTAssertNil(viewModel.sunEphemeris)
+    XCTAssertNil(viewModel.magneticDeclination)
+    XCTAssertFalse(viewModel.isPointInfoLoading)
+  }
+
+  func testDismissClearsPointInformationState() async {
+    let viewModel = MapCalloutViewModel()
+    let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    viewModel.presentCallout(coordinate: coord)
+    viewModel.presentPointInfo()
+
+    let deadline = Date().addingTimeInterval(2.0)
+    while viewModel.isPointInfoLoading && Date() < deadline {
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+    XCTAssertNotNil(viewModel.sunEphemeris)
+
+    viewModel.dismiss()
+    XCTAssertFalse(viewModel.isCalloutVisible)
+    XCTAssertFalse(viewModel.isPointInfoPresented)
+    XCTAssertNil(viewModel.sunEphemeris)
+    XCTAssertNil(viewModel.magneticDeclination)
+    XCTAssertFalse(viewModel.isPointInfoLoading)
+  }
 }
