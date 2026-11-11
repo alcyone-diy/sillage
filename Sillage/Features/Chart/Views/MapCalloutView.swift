@@ -28,6 +28,9 @@ struct MapCalloutView: View {
   var chartViewModel: ChartViewModel
   
   @State private var measuredHeight: CGFloat = 220
+  @State private var hasMeasuredInitialHeight: Bool = false
+  @State private var isCopied: Bool = false
+  @State private var copyActionCount: Int = 0
   
   private var isSheetPresented: Binding<Bool> {
     Binding(
@@ -44,6 +47,21 @@ struct MapCalloutView: View {
   private func notifySheetHeightChanged(_ height: CGFloat) {
     chartViewModel.measureToolViewModel.ensureVisible(sheetHeight: height)
     calloutViewModel.ensureVisible(sheetHeight: height)
+  }
+
+  private func updateMeasuredHeight(_ newHeight: CGFloat) {
+    guard newHeight > 0 else { return }
+    let shouldAnimate = hasMeasuredInitialHeight
+    hasMeasuredInitialHeight = true
+    guard abs(measuredHeight - newHeight) > 1.0 else { return }
+    if shouldAnimate {
+      withAnimation(.snappy(duration: 0.25)) {
+        measuredHeight = newHeight
+      }
+    } else {
+      measuredHeight = newHeight
+    }
+    notifySheetHeightChanged(newHeight)
   }
 
   var body: some View {
@@ -75,18 +93,6 @@ struct MapCalloutView: View {
     }
     .sheet(isPresented: isSheetPresented) {
       calloutSheetContent
-        .onAppear {
-          notifySheetHeightChanged(measuredHeight)
-        }
-        .onGeometryChange(for: CGFloat.self) { proxy in
-          proxy.size.height
-        } action: { newHeight in
-          guard newHeight > 0 else { return }
-          if abs(measuredHeight - newHeight) > 1.0 {
-            measuredHeight = newHeight
-            notifySheetHeightChanged(newHeight)
-          }
-        }
         .presentationDetents([.height(measuredHeight)])
         .presentationDragIndicator(.visible)
         .presentationBackground(marineTheme.colors.panelBackground)
@@ -99,17 +105,52 @@ struct MapCalloutView: View {
   
   @ViewBuilder
   private var calloutSheetContent: some View {
-    VStack(spacing: MarineTheme.Spacing.medium) {
+    Group {
       if chartViewModel.measureToolViewModel.isActive {
-        measureSheetContent
+        measuredRootContainer {
+          measureSheetContent
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
       } else {
-        standardCalloutSheetContent
+        NavigationStack {
+          measuredRootContainer {
+            standardCalloutSheetContent
+          }
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+          .background(marineTheme.colors.panelBackground)
+          .toolbarVisibility(.hidden, for: .navigationBar)
+          .navigationDestination(isPresented: $calloutViewModel.isPointInfoPresented) {
+            pointInfoDestination
+          }
+        }
+        .containerBackground(marineTheme.colors.panelBackground, for: .navigation)
       }
+    }
+    .onAppear {
+      notifySheetHeightChanged(measuredHeight)
+    }
+    .onDisappear {
+      hasMeasuredInitialHeight = false
+    }
+  }
+
+  @ViewBuilder
+  private func measuredRootContainer<Content: View>(
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    VStack(spacing: MarineTheme.Spacing.medium) {
+      content()
     }
     .padding(.horizontal, MarineTheme.Spacing.medium)
     .padding(.top, MarineTheme.Spacing.small)
     .padding(.bottom, MarineTheme.Spacing.medium)
     .frame(maxWidth: .infinity)
+    .fixedSize(horizontal: false, vertical: true)
+    .onGeometryChange(for: CGFloat.self) { proxy in
+      proxy.size.height
+    } action: { newHeight in
+      updateMeasuredHeight(newHeight)
+    }
   }
   
   // MARK: - Standard Callout Content
@@ -153,6 +194,132 @@ struct MapCalloutView: View {
     }
   }
   
+  // MARK: - Point Information Content
+  
+  @ViewBuilder
+  private var pointInfoDestination: some View {
+    VStack(spacing: 0) {
+      pointInfoHeaderView
+        .padding(.horizontal, MarineTheme.Spacing.medium)
+        .padding(.top, MarineTheme.Spacing.small)
+        .padding(.bottom, MarineTheme.Spacing.medium)
+      
+      ScrollView {
+        VStack(spacing: MarineTheme.Spacing.medium) {
+          if let targetCoord = calloutViewModel.targetCoordinate {
+            gpsPositionSection(coordinate: targetCoord)
+          }
+        }
+        .padding(.horizontal, MarineTheme.Spacing.medium)
+        .padding(.bottom, MarineTheme.Spacing.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .scrollBounceBehavior(.basedOnSize)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .background(marineTheme.colors.panelBackground)
+    .toolbarVisibility(.hidden, for: .navigationBar)
+  }
+
+  @ViewBuilder
+  private var pointInfoHeaderView: some View {
+    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
+      backButton {
+        calloutViewModel.dismissPointInfo()
+      }
+      
+      Spacer(minLength: MarineTheme.Spacing.small)
+      
+      closeButton {
+        calloutViewModel.dismiss()
+      }
+    }
+    .overlay {
+      Text("Point Information")
+        .marineFont(.headline)
+        .foregroundColor(marineTheme.colors.textPrimary)
+        .lineLimit(1)
+        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+        .padding(.horizontal, marineTheme.minTouchTarget + MarineTheme.Spacing.small)
+    }
+  }
+  
+  @ViewBuilder
+  private func gpsPositionSection(coordinate: CLLocationCoordinate2D) -> some View {
+    let formattedText = coordinate.formatted(.marineCoordinate)
+    
+    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
+      VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny / 2) {
+        Text("GPS POSITION")
+          .marineFont(.instrumentLabel)
+          .foregroundColor(marineTheme.colors.textSecondary)
+        
+        Text(verbatim: formattedText)
+          .monospacedDigit()
+          .marineFont(.headline)
+          .bold()
+          .foregroundColor(marineTheme.colors.textPrimary)
+          .lineLimit(2)
+          .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+      }
+      
+      Spacer(minLength: MarineTheme.Spacing.small)
+      
+      Button {
+        copyCoordinateToClipboard(formattedText)
+      } label: {
+        Image(marineIcon: isCopied ? .save : .copy)
+          .marineFont(.body)
+          .bold(isCopied)
+          .foregroundColor(isCopied ? marineTheme.colors.primary : marineTheme.colors.textSecondary)
+          .contentTransition(.symbolEffect(.replace))
+          .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
+          .background(
+            marineTheme.colors.panelBackground,
+            in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+          )
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(isCopied ? Text("Coordinates copied") : Text("Copy coordinates"))
+    }
+    .padding(MarineTheme.Spacing.small)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(
+      marineTheme.colors.surfaceBackground,
+      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+    )
+    .contextMenu {
+      Button {
+        copyCoordinateToClipboard(formattedText)
+      } label: {
+        Label("Copy Coordinates", marineIcon: .copy)
+      }
+    }
+    .task(id: copyActionCount) {
+      guard copyActionCount > 0 else { return }
+      try? await Task.sleep(for: .seconds(2))
+      guard !Task.isCancelled else { return }
+      withAnimation(.easeInOut(duration: 0.2)) {
+        isCopied = false
+      }
+      copyActionCount = 0
+    }
+    .onDisappear {
+      isCopied = false
+      copyActionCount = 0
+    }
+  }
+  
+  private func copyCoordinateToClipboard(_ text: String) {
+    UIPasteboard.general.string = text
+    let feedback = UIImpactFeedbackGenerator(style: .medium)
+    feedback.impactOccurred()
+    withAnimation(.easeInOut(duration: 0.2)) {
+      isCopied = true
+    }
+    copyActionCount += 1
+  }
+  
   // MARK: - Header Views
   
   @ViewBuilder
@@ -170,6 +337,9 @@ struct MapCalloutView: View {
         icon: .crosshair,
         title: Text(verbatim: calloutViewModel.formattedCoordinate ?? "---"),
         subtitle: nil,
+        onInfo: {
+          calloutViewModel.presentPointInfo()
+        },
         onClose: { calloutViewModel.dismiss() }
       )
     }
@@ -190,6 +360,7 @@ struct MapCalloutView: View {
     icon: MarineIcon,
     title: Text,
     subtitle: Text?,
+    onInfo: (() -> Void)? = nil,
     onClose: @escaping () -> Void
   ) -> some View {
     HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
@@ -217,6 +388,10 @@ struct MapCalloutView: View {
       
       Spacer(minLength: MarineTheme.Spacing.small)
       
+      if let onInfo {
+        infoButton(onInfo: onInfo)
+      }
+      
       closeButton(onClose: onClose)
     }
   }
@@ -234,6 +409,40 @@ struct MapCalloutView: View {
     }
   }
   
+  @ViewBuilder
+  private func backButton(onBack: @escaping () -> Void) -> some View {
+    let iconCircleSize = marineTheme.metrics.closeButtonCircleSize
+    Button(action: onBack) {
+      Image(systemName: "chevron.left")
+        .marineFont(.caption)
+        .bold()
+        .foregroundColor(marineTheme.colors.textSecondary)
+        .frame(width: iconCircleSize, height: iconCircleSize)
+        .background(marineTheme.colors.surfaceBackground, in: Circle())
+    }
+    .buttonStyle(.plain)
+    .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
+    .contentShape(Rectangle())
+    .accessibilityLabel(Text("Back"))
+  }
+
+  @ViewBuilder
+  private func infoButton(onInfo: @escaping () -> Void) -> some View {
+    let iconCircleSize = marineTheme.metrics.closeButtonCircleSize
+    Button(action: onInfo) {
+      Image(marineIcon: .details)
+        .marineFont(.caption)
+        .bold()
+        .foregroundColor(marineTheme.colors.textSecondary)
+        .frame(width: iconCircleSize, height: iconCircleSize)
+        .background(marineTheme.colors.surfaceBackground, in: Circle())
+    }
+    .buttonStyle(.plain)
+    .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
+    .contentShape(Rectangle())
+    .accessibilityLabel(Text("Information"))
+  }
+
   @ViewBuilder
   private func closeButton(onClose: @escaping () -> Void) -> some View {
     let iconCircleSize = marineTheme.metrics.closeButtonCircleSize
@@ -419,6 +628,17 @@ struct MapCalloutView: View {
       let hasActiveTarget = chartViewModel.goToWaypointID != nil
       HStack(spacing: MarineTheme.Spacing.small) {
         Button {
+          Logger.navigation.info("Opening point info sheet from map target callout")
+          calloutViewModel.presentPointInfo()
+        } label: {
+          Label("Information", marineIcon: .details)
+            .padding(.horizontal, MarineTheme.Spacing.small)
+            .lineLimit(1)
+            .minimumScaleFactor(MarineTheme.Metrics.actionTextScaleFactor)
+        }
+        .buttonStyle(MarineButtonStyle(.secondary))
+
+        Button {
           guard let targetCoord = calloutViewModel.targetCoordinate else { return }
           Logger.navigation.info("Activating measure tool from map target callout")
           calloutViewModel.dismiss()
@@ -430,23 +650,23 @@ struct MapCalloutView: View {
             .minimumScaleFactor(MarineTheme.Metrics.actionTextScaleFactor)
         }
         .buttonStyle(MarineButtonStyle(.secondary))
-        
-        if hasActiveTarget {
-          Button {
-            Task { @MainActor [weak waypointService = waypointService, weak calloutViewModel = calloutViewModel] in
-              guard let waypointService, let calloutViewModel else { return }
-              Logger.navigation.info("Deselecting active target from map callout")
-              waypointService.setDestination(waypointID: nil)
-              calloutViewModel.dismiss()
-            }
-          } label: {
-            Label("Deselect Target", marineIcon: .deselect)
-              .padding(.horizontal, MarineTheme.Spacing.small)
-              .lineLimit(1)
-              .minimumScaleFactor(MarineTheme.Metrics.actionTextScaleFactor)
+      }
+      
+      if hasActiveTarget {
+        Button {
+          Task { @MainActor [weak waypointService = waypointService, weak calloutViewModel = calloutViewModel] in
+            guard let waypointService, let calloutViewModel else { return }
+            Logger.navigation.info("Deselecting active target from map callout")
+            waypointService.setDestination(waypointID: nil)
+            calloutViewModel.dismiss()
           }
-          .buttonStyle(MarineButtonStyle(.cancel))
+        } label: {
+          Label("Deselect Target", marineIcon: .deselect)
+            .padding(.horizontal, MarineTheme.Spacing.small)
+            .lineLimit(1)
+            .minimumScaleFactor(MarineTheme.Metrics.actionTextScaleFactor)
         }
+        .buttonStyle(MarineButtonStyle(.cancel))
       }
     }
   }

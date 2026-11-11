@@ -19,6 +19,7 @@ import CoreLocation
 final class MapCalloutViewModel {
   
   var isCalloutVisible: Bool = false
+  var isPointInfoPresented: Bool = false
   var targetCoordinate: CLLocationCoordinate2D? = nil
   var targetWaypointID: String? = nil
   var isCentering: Bool = false
@@ -39,6 +40,7 @@ final class MapCalloutViewModel {
     self.targetWaypointID = waypointID
     self.aimingCoordinate = nil
     self.isCentering = false
+    self.isPointInfoPresented = false
     self.isCalloutVisible = true
   }
 
@@ -49,6 +51,7 @@ final class MapCalloutViewModel {
     self.targetWaypointID = nil
     self.aimingCoordinate = coordinate
     self.isCentering = false
+    self.isPointInfoPresented = false
     self.isCalloutVisible = true
   }
 
@@ -62,6 +65,7 @@ final class MapCalloutViewModel {
   func cancelAimingPreview() {
     self.aimingCoordinate = nil
     self.isCentering = false
+    self.isPointInfoPresented = false
     self.isCalloutVisible = false
     self.targetCoordinate = nil
   }
@@ -75,6 +79,7 @@ final class MapCalloutViewModel {
     self.targetWaypointID = nil
     self.aimingCoordinate = needsCentering ? coordinate : nil
     self.isCentering = needsCentering
+    self.isPointInfoPresented = false
     self.isCalloutVisible = true
   }
 
@@ -118,9 +123,20 @@ final class MapCalloutViewModel {
     onEnsureVisibleRequested?(sheetHeight)
   }
   
-  /// Dismisses the callout overlay.
+  /// Presents the contextual point information dialog.
+  func presentPointInfo() {
+    self.isPointInfoPresented = true
+  }
+
+  /// Dismisses the contextual point information dialog.
+  func dismissPointInfo() {
+    self.isPointInfoPresented = false
+  }
+
+  /// Dismisses the callout overlay and its associated dialogs.
   func dismiss() {
     self.isCalloutVisible = false
+    self.isPointInfoPresented = false
     self.targetWaypointID = nil
     self.aimingCoordinate = nil
     self.isCentering = false

@@ -283,6 +283,9 @@
     "Average Speed" : {
 
     },
+    "Back" : {
+
+    },
     "Baro Alarm" : {
 
     },
@@ -444,6 +447,12 @@
 
     },
     "Continue Checklist" : {
+
+    },
+    "Coordinates copied" : {
+
+    },
+    "Copy coordinates" : {
 
     },
     "Corrupt GeoGarage Token" : {
@@ -789,6 +798,9 @@
       }
     },
     "GPS Information" : {
+
+    },
+    "GPS POSITION" : {
 
     },
     "GPS position signal lost during active anchor watch." : {
@@ -1147,6 +1159,9 @@
 
     },
     "Please select or create a category for your checklist." : {
+
+    },
+    "Point Information" : {
 
     },
     "Points" : {

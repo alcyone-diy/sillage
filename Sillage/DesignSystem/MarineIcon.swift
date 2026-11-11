@@ -32,6 +32,7 @@ enum MarineIcon: String {
     case menu = "line.3.horizontal"
     case record = "record.circle"
     case ruler = "ruler"
+    case copy = "doc.on.doc"
     
     // UI Elements
     case select = "checkmark.circle"

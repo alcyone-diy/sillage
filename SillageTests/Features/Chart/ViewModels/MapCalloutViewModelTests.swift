@@ -35,6 +35,34 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.targetWaypointID)
   }
   
+  func testPointInfoPresentationLifecycle() {
+    let viewModel = MapCalloutViewModel()
+    XCTAssertFalse(viewModel.isPointInfoPresented)
+    
+    let targetCoord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
+    viewModel.presentCallout(coordinate: targetCoord)
+    XCTAssertFalse(viewModel.isPointInfoPresented)
+    
+    viewModel.presentPointInfo()
+    XCTAssertTrue(viewModel.isPointInfoPresented)
+    
+    viewModel.dismissPointInfo()
+    XCTAssertFalse(viewModel.isPointInfoPresented)
+    
+    viewModel.presentPointInfo()
+    XCTAssertTrue(viewModel.isPointInfoPresented)
+
+    viewModel.presentCallout(coordinate: targetCoord, waypointID: "wp-reset")
+    XCTAssertFalse(viewModel.isPointInfoPresented)
+
+    viewModel.presentPointInfo()
+    XCTAssertTrue(viewModel.isPointInfoPresented)
+
+    viewModel.dismiss()
+    XCTAssertFalse(viewModel.isPointInfoPresented)
+    XCTAssertFalse(viewModel.isCalloutVisible)
+  }
+  
   func testBearingAndDistanceCalculation() {
     let viewModel = MapCalloutViewModel()
     let vesselCoord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621) // Nantes
