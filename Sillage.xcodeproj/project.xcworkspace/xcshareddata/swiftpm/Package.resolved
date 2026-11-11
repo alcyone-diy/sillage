@@ -1,5 +1,5 @@
 {
-  "originHash" : "07b9d7f306601265a78975cde344915f7a796e6974deaf3899f66862dcf65267",
+  "originHash" : "d3ea2b8d48fcfe569327ed903200350285ed07465c6e84e68ec258a03d485464",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -17,6 +17,15 @@
       "state" : {
         "revision" : "13e41ab3d77ff5113e7e5d4ee87803b1f81f5683",
         "version" : "6.31.0"
+      }
+    },
+    {
+      "identity" : "solar",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ceeK/Solar",
+      "state" : {
+        "revision" : "c31adf999dfd1d3fdc66052e95cc73dd0edbd5ec",
+        "version" : "4.0.1"
       }
     },
     {
