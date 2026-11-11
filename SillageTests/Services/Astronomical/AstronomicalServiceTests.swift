@@ -85,6 +85,15 @@ final class AstronomicalServiceTests: XCTestCase {
     XCTAssertEqual(ephemeris1, ephemeris2)
   }
 
+  func testPolarNightAt84North() async {
+    // 84°35' N = 84.5833° N
+    let highNorth = CLLocationCoordinate2D(latitude: 84.5833, longitude: 0.0)
+    let ephemeris = await service.calculateEphemeris(for: highNorth, date: Date())
+    XCTAssertNotNil(ephemeris)
+    XCTAssertNil(ephemeris?.sunrise)
+    XCTAssertNil(ephemeris?.sunset)
+  }
+
   func testSunEphemerisSendableAcrossTasks() async {
     let coordinate = CLLocationCoordinate2D(latitude: 43.2965, longitude: 5.3698) // Marseille
     let ephemeris = await service.calculateEphemeris(for: coordinate, date: Date())

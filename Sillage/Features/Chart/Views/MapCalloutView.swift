@@ -29,8 +29,19 @@ struct MapCalloutView: View {
   
   @State private var measuredHeight: CGFloat = 220
   @State private var hasMeasuredInitialHeight: Bool = false
-  @State private var isCopied: Bool = false
-  @State private var copyActionCount: Int = 0
+  @State private var selectedDetent: PresentationDetent = .height(220)
+  
+  private var activeDetents: Set<PresentationDetent> {
+    if calloutViewModel.isPointInfoPresented {
+      return [.height(measuredHeight), .medium, .large]
+    } else {
+      return [.height(measuredHeight)]
+    }
+  }
+
+  private var backgroundInteractionDetent: PresentationDetent {
+    calloutViewModel.isPointInfoPresented ? .medium : .height(measuredHeight)
+  }
   
   private var isSheetPresented: Binding<Bool> {
     Binding(
@@ -57,9 +68,15 @@ struct MapCalloutView: View {
     if shouldAnimate {
       withAnimation(.snappy(duration: 0.25)) {
         measuredHeight = newHeight
+        if !calloutViewModel.isPointInfoPresented {
+          selectedDetent = .height(newHeight)
+        }
       }
     } else {
       measuredHeight = newHeight
+      if !calloutViewModel.isPointInfoPresented {
+        selectedDetent = .height(newHeight)
+      }
     }
     notifySheetHeightChanged(newHeight)
   }
@@ -93,11 +110,19 @@ struct MapCalloutView: View {
     }
     .sheet(isPresented: isSheetPresented) {
       calloutSheetContent
-        .presentationDetents([.height(measuredHeight)])
+        .presentationDetents(activeDetents, selection: $selectedDetent)
         .presentationDragIndicator(.visible)
         .presentationBackground(marineTheme.colors.panelBackground)
-        .presentationBackgroundInteraction(.enabled(upThrough: .height(measuredHeight)))
-        .interactiveDismissDisabled(chartViewModel.isMapMoving || chartViewModel.measureToolViewModel.isDraggingPin || calloutViewModel.aimingCoordinate != nil)
+        .presentationBackgroundInteraction(.enabled(upThrough: backgroundInteractionDetent))
+        .interactiveDismissDisabled(true)
+        .onChange(of: calloutViewModel.isPointInfoPresented) { _, isPresented in
+          if !isPresented {
+            withAnimation(.snappy(duration: 0.25)) {
+              selectedDetent = .height(measuredHeight)
+              notifySheetHeightChanged(measuredHeight)
+            }
+          }
+        }
     }
   }
   
@@ -120,7 +145,7 @@ struct MapCalloutView: View {
           .background(marineTheme.colors.panelBackground)
           .toolbarVisibility(.hidden, for: .navigationBar)
           .navigationDestination(isPresented: $calloutViewModel.isPointInfoPresented) {
-            pointInfoDestination
+            PointInformationDestinationView(calloutViewModel: calloutViewModel)
           }
         }
         .containerBackground(marineTheme.colors.panelBackground, for: .navigation)
@@ -131,6 +156,7 @@ struct MapCalloutView: View {
     }
     .onDisappear {
       hasMeasuredInitialHeight = false
+      selectedDetent = .height(measuredHeight)
     }
   }
 
@@ -192,132 +218,6 @@ struct MapCalloutView: View {
       measurePinButton(title: "Pin A", pin: .start, viewModel: measureVM)
       measurePinButton(title: "Pin B", pin: .end, viewModel: measureVM)
     }
-  }
-  
-  // MARK: - Point Information Content
-  
-  @ViewBuilder
-  private var pointInfoDestination: some View {
-    VStack(spacing: 0) {
-      pointInfoHeaderView
-        .padding(.horizontal, MarineTheme.Spacing.medium)
-        .padding(.top, MarineTheme.Spacing.small)
-        .padding(.bottom, MarineTheme.Spacing.medium)
-      
-      ScrollView {
-        VStack(spacing: MarineTheme.Spacing.medium) {
-          if let targetCoord = calloutViewModel.targetCoordinate {
-            gpsPositionSection(coordinate: targetCoord)
-          }
-        }
-        .padding(.horizontal, MarineTheme.Spacing.medium)
-        .padding(.bottom, MarineTheme.Spacing.medium)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      }
-      .scrollBounceBehavior(.basedOnSize)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    .background(marineTheme.colors.panelBackground)
-    .toolbarVisibility(.hidden, for: .navigationBar)
-  }
-
-  @ViewBuilder
-  private var pointInfoHeaderView: some View {
-    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
-      backButton {
-        calloutViewModel.dismissPointInfo()
-      }
-      
-      Spacer(minLength: MarineTheme.Spacing.small)
-      
-      closeButton {
-        calloutViewModel.dismiss()
-      }
-    }
-    .overlay {
-      Text("Point Information")
-        .marineFont(.headline)
-        .foregroundColor(marineTheme.colors.textPrimary)
-        .lineLimit(1)
-        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
-        .padding(.horizontal, marineTheme.minTouchTarget + MarineTheme.Spacing.small)
-    }
-  }
-  
-  @ViewBuilder
-  private func gpsPositionSection(coordinate: CLLocationCoordinate2D) -> some View {
-    let formattedText = coordinate.formatted(.marineCoordinate)
-    
-    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
-      VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny / 2) {
-        Text("GPS POSITION")
-          .marineFont(.instrumentLabel)
-          .foregroundColor(marineTheme.colors.textSecondary)
-        
-        Text(verbatim: formattedText)
-          .monospacedDigit()
-          .marineFont(.headline)
-          .bold()
-          .foregroundColor(marineTheme.colors.textPrimary)
-          .lineLimit(2)
-          .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
-      }
-      
-      Spacer(minLength: MarineTheme.Spacing.small)
-      
-      Button {
-        copyCoordinateToClipboard(formattedText)
-      } label: {
-        Image(marineIcon: isCopied ? .save : .copy)
-          .marineFont(.body)
-          .bold(isCopied)
-          .foregroundColor(isCopied ? marineTheme.colors.primary : marineTheme.colors.textSecondary)
-          .contentTransition(.symbolEffect(.replace))
-          .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-          .background(
-            marineTheme.colors.panelBackground,
-            in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-          )
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel(isCopied ? Text("Coordinates copied") : Text("Copy coordinates"))
-    }
-    .padding(MarineTheme.Spacing.small)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(
-      marineTheme.colors.surfaceBackground,
-      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-    )
-    .contextMenu {
-      Button {
-        copyCoordinateToClipboard(formattedText)
-      } label: {
-        Label("Copy Coordinates", marineIcon: .copy)
-      }
-    }
-    .task(id: copyActionCount) {
-      guard copyActionCount > 0 else { return }
-      try? await Task.sleep(for: .seconds(2))
-      guard !Task.isCancelled else { return }
-      withAnimation(.easeInOut(duration: 0.2)) {
-        isCopied = false
-      }
-      copyActionCount = 0
-    }
-    .onDisappear {
-      isCopied = false
-      copyActionCount = 0
-    }
-  }
-  
-  private func copyCoordinateToClipboard(_ text: String) {
-    UIPasteboard.general.string = text
-    let feedback = UIImpactFeedbackGenerator(style: .medium)
-    feedback.impactOccurred()
-    withAnimation(.easeInOut(duration: 0.2)) {
-      isCopied = true
-    }
-    copyActionCount += 1
   }
   
   // MARK: - Header Views
@@ -668,6 +568,331 @@ struct MapCalloutView: View {
         }
         .buttonStyle(MarineButtonStyle(.cancel))
       }
+    }
+  }
+}
+
+// MARK: - Point Information Destination
+
+struct PointInformationDestinationView: View {
+  @Environment(\.marineTheme) private var marineTheme
+  @Bindable var calloutViewModel: MapCalloutViewModel
+
+  var body: some View {
+    VStack(spacing: 0) {
+      headerView
+        .padding(.horizontal, MarineTheme.Spacing.medium)
+        .padding(.top, MarineTheme.Spacing.small)
+        .padding(.bottom, MarineTheme.Spacing.medium)
+
+      ScrollView {
+        VStack(spacing: MarineTheme.Spacing.medium) {
+          if let targetCoord = calloutViewModel.targetCoordinate {
+            PointInfoGPSSection(coordinate: targetCoord)
+            PointInfoMagneticDeclinationSection(
+              declination: calloutViewModel.magneticDeclination,
+              isLoading: calloutViewModel.isPointInfoLoading
+            )
+            PointInfoEphemerisSection(
+              ephemeris: calloutViewModel.sunEphemeris,
+              isLoading: calloutViewModel.isPointInfoLoading
+            )
+          }
+        }
+        .padding(.horizontal, MarineTheme.Spacing.medium)
+        .padding(.bottom, MarineTheme.Spacing.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .scrollBounceBehavior(.basedOnSize)
+      .onGeometryChange(for: CGFloat.self) { proxy in
+        proxy.size.height
+      } action: { newHeight in
+        guard newHeight > 0 else { return }
+        calloutViewModel.ensureVisible(sheetHeight: newHeight)
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .background(marineTheme.colors.panelBackground)
+    .toolbarVisibility(.hidden, for: .navigationBar)
+  }
+
+  private var headerView: some View {
+    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
+      let iconCircleSize = marineTheme.metrics.closeButtonCircleSize
+      Button {
+        calloutViewModel.dismissPointInfo()
+      } label: {
+        Image(systemName: "chevron.left")
+          .marineFont(.caption)
+          .bold()
+          .foregroundColor(marineTheme.colors.textSecondary)
+          .frame(width: iconCircleSize, height: iconCircleSize)
+          .background(marineTheme.colors.surfaceBackground, in: Circle())
+      }
+      .buttonStyle(.plain)
+      .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
+      .contentShape(Rectangle())
+      .accessibilityLabel(Text("Back"))
+
+      Spacer(minLength: MarineTheme.Spacing.small)
+
+      Button {
+        calloutViewModel.dismiss()
+      } label: {
+        Image(marineIcon: .close)
+          .marineFont(.caption)
+          .bold()
+          .foregroundColor(marineTheme.colors.textSecondary)
+          .frame(width: iconCircleSize, height: iconCircleSize)
+          .background(marineTheme.colors.surfaceBackground, in: Circle())
+      }
+      .buttonStyle(.plain)
+      .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
+      .contentShape(Rectangle())
+      .accessibilityLabel(Text("Close"))
+    }
+    .overlay {
+      Text("Point Information")
+        .marineFont(.headline)
+        .foregroundColor(marineTheme.colors.textPrimary)
+        .lineLimit(1)
+        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+        .padding(.horizontal, marineTheme.minTouchTarget + MarineTheme.Spacing.small)
+    }
+  }
+}
+
+// MARK: - Point Information Subviews
+
+private struct PointInfoGPSSection: View {
+  @Environment(\.marineTheme) private var marineTheme
+  let coordinate: CLLocationCoordinate2D
+
+  @State private var isCopied: Bool = false
+  @State private var copyActionCount: Int = 0
+
+  var body: some View {
+    let formattedText = coordinate.formatted(.marineCoordinate)
+
+    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
+      VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny / 2) {
+        Text("GPS POSITION")
+          .marineFont(.instrumentLabel)
+          .foregroundColor(marineTheme.colors.textSecondary)
+
+        Text(verbatim: formattedText)
+          .monospacedDigit()
+          .marineFont(.headline)
+          .bold()
+          .foregroundColor(marineTheme.colors.textPrimary)
+          .lineLimit(2)
+          .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+          .transaction { $0.animation = nil }
+      }
+
+      Spacer(minLength: MarineTheme.Spacing.small)
+
+      Button {
+        copyCoordinateToClipboard(formattedText)
+      } label: {
+        Image(marineIcon: isCopied ? .save : .copy)
+          .marineFont(.body)
+          .bold(isCopied)
+          .foregroundColor(isCopied ? marineTheme.colors.primary : marineTheme.colors.textSecondary)
+          .contentTransition(.symbolEffect(.replace))
+          .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
+          .background(
+            marineTheme.colors.panelBackground,
+            in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+          )
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(isCopied ? Text("Coordinates copied") : Text("Copy coordinates"))
+    }
+    .padding(MarineTheme.Spacing.small)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(
+      marineTheme.colors.surfaceBackground,
+      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+    )
+    .contextMenu {
+      Button {
+        copyCoordinateToClipboard(formattedText)
+      } label: {
+        Label("Copy Coordinates", marineIcon: .copy)
+      }
+    }
+    .task(id: copyActionCount) {
+      guard copyActionCount > 0 else { return }
+      try? await Task.sleep(for: .seconds(2))
+      guard !Task.isCancelled else { return }
+      withAnimation(.easeInOut(duration: 0.2)) {
+        isCopied = false
+      }
+      copyActionCount = 0
+    }
+  }
+
+  private func copyCoordinateToClipboard(_ text: String) {
+    UIPasteboard.general.string = text
+    let feedback = UIImpactFeedbackGenerator(style: .medium)
+    feedback.impactOccurred()
+    withAnimation(.easeInOut(duration: 0.2)) {
+      isCopied = true
+    }
+    copyActionCount += 1
+  }
+}
+
+private struct PointInfoMagneticDeclinationSection: View {
+  @Environment(\.marineTheme) private var marineTheme
+  let declination: Measurement<UnitAngle>?
+  let isLoading: Bool
+
+  var body: some View {
+    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
+      VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny / 2) {
+        Text("MAGNETIC DECLINATION")
+          .marineFont(.instrumentLabel)
+          .foregroundColor(marineTheme.colors.textSecondary)
+
+        if let declination {
+          Text(verbatim: declination.marineDeclinationFormatted)
+            .monospacedDigit()
+            .marineFont(.headline)
+            .bold()
+            .foregroundColor(marineTheme.colors.textPrimary)
+            .lineLimit(1)
+            .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+            .transaction { $0.animation = nil }
+        } else if isLoading {
+          Text(verbatim: "1.5° W")
+            .monospacedDigit()
+            .marineFont(.headline)
+            .redacted(reason: .placeholder)
+        } else {
+          Text(verbatim: "---")
+            .monospacedDigit()
+            .marineFont(.headline)
+            .foregroundColor(marineTheme.colors.textSecondary)
+        }
+      }
+
+      Spacer(minLength: MarineTheme.Spacing.small)
+
+      Image(systemName: "location.north")
+        .marineFont(.body)
+        .foregroundColor(marineTheme.colors.primary)
+        .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
+        .background(
+          marineTheme.colors.panelBackground,
+          in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+        )
+    }
+    .padding(MarineTheme.Spacing.small)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(
+      marineTheme.colors.surfaceBackground,
+      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+    )
+  }
+}
+
+private struct PointInfoEphemerisSection: View {
+  @Environment(\.marineTheme) private var marineTheme
+  let ephemeris: SunEphemeris?
+  let isLoading: Bool
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+      HStack(spacing: MarineTheme.Spacing.tiny) {
+        Image(systemName: "sun.horizon")
+          .marineFont(.caption)
+          .foregroundColor(marineTheme.colors.primary)
+        Text("SOLAR EPHEMERIS")
+          .marineFont(.instrumentLabel)
+          .foregroundColor(marineTheme.colors.textSecondary)
+      }
+
+      HStack(alignment: .top, spacing: MarineTheme.Spacing.medium) {
+        // Morning column (Nautical Dawn & Sunrise)
+        VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+          Text("NAUTICAL DAWN")
+            .marineFont(.instrumentLabel)
+            .foregroundColor(marineTheme.colors.textSecondary)
+
+          ephemerisTimeView(ephemeris?.nauticalTwilightStart, isPrimary: true)
+
+          HStack(spacing: MarineTheme.Spacing.tiny) {
+            Image(systemName: "sunrise")
+              .marineFont(.caption)
+              .foregroundColor(marineTheme.colors.textSecondary)
+            Text("Sunrise")
+              .marineFont(.instrumentLabel)
+              .foregroundColor(marineTheme.colors.textSecondary)
+            Spacer(minLength: MarineTheme.Spacing.tiny)
+            ephemerisTimeView(ephemeris?.sunrise, isPrimary: false)
+          }
+          .padding(.top, MarineTheme.Spacing.tiny / 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        Divider()
+          .frame(height: 54)
+
+        // Evening column (Nautical Dusk & Sunset)
+        VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+          Text("NAUTICAL DUSK")
+            .marineFont(.instrumentLabel)
+            .foregroundColor(marineTheme.colors.textSecondary)
+
+          ephemerisTimeView(ephemeris?.nauticalTwilightEnd, isPrimary: true)
+
+          HStack(spacing: MarineTheme.Spacing.tiny) {
+            Image(systemName: "sunset")
+              .marineFont(.caption)
+              .foregroundColor(marineTheme.colors.textSecondary)
+            Text("Sunset")
+              .marineFont(.instrumentLabel)
+              .foregroundColor(marineTheme.colors.textSecondary)
+            Spacer(minLength: MarineTheme.Spacing.tiny)
+            ephemerisTimeView(ephemeris?.sunset, isPrimary: false)
+          }
+          .padding(.top, MarineTheme.Spacing.tiny / 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+    .padding(MarineTheme.Spacing.small)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(
+      marineTheme.colors.surfaceBackground,
+      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+    )
+  }
+
+  @ViewBuilder
+  private func ephemerisTimeView(_ date: Date?, isPrimary: Bool) -> some View {
+    if let date {
+      Text(verbatim: date.marineTimeWithTimeZoneFormatted())
+        .monospacedDigit()
+        .marineFont(isPrimary ? .headline : .body)
+        .bold(isPrimary)
+        .foregroundColor(isPrimary ? marineTheme.colors.textPrimary : marineTheme.colors.textSecondary)
+        .lineLimit(1)
+        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+        .transaction { $0.animation = nil }
+    } else if isLoading {
+      let tzAbbr = TimeZone.current.abbreviation() ?? "UTC"
+      Text(verbatim: "06:00 \(tzAbbr)")
+        .monospacedDigit()
+        .marineFont(isPrimary ? .headline : .body)
+        .redacted(reason: .placeholder)
+    } else {
+      Text(verbatim: "---")
+        .monospacedDigit()
+        .marineFont(isPrimary ? .headline : .body)
+        .foregroundColor(marineTheme.colors.textSecondary)
     }
   }
 }

@@ -182,6 +182,38 @@ extension Measurement where UnitType == UnitAngle {
     let normalized = Int(normalizedDegrees.rounded())
     return String(format: "%03d°", normalized % 360)
   }
+
+  /// Formats magnetic declination with degree symbol and cardinal direction (e.g. "1.5° W", "2.3° E", "0.0°").
+  public var marineDeclinationFormatted: String {
+    let degrees = self.converted(to: .degrees).value
+    let absVal = abs(degrees)
+    let formattedNum = String(format: "%.1f°", absVal)
+    if degrees > 0.0001 {
+      return "\(formattedNum) E"
+    } else if degrees < -0.0001 {
+      return "\(formattedNum) W"
+    } else {
+      return "0.0°"
+    }
+  }
+}
+
+// MARK: - Date Formatting
+
+extension Date {
+  /// Formats time with abbreviated timezone according to user locale and timezone (e.g. "11:50 CET" or "11:50 UTC").
+  public func marineTimeWithTimeZoneFormatted(
+    timeZone: TimeZone = .current,
+    locale: Locale = .current
+  ) -> String {
+    let format = Date.FormatStyle(locale: locale, timeZone: timeZone).hour().minute()
+    let timeStr = self.formatted(format)
+    if let abbreviation = timeZone.abbreviation(for: self) {
+      return "\(timeStr) \(abbreviation)"
+    } else {
+      return timeStr
+    }
+  }
 }
 
 extension Measurement where UnitType == UnitArea {

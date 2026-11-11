@@ -936,6 +936,9 @@
     "Low" : {
       "comment" : "Low sensitivity"
     },
+    "MAGNETIC DECLINATION" : {
+
+    },
     "Manage" : {
 
     },
@@ -994,6 +997,12 @@
       "comment" : "North cardinal point"
     },
     "Name" : {
+
+    },
+    "NAUTICAL DAWN" : {
+
+    },
+    "NAUTICAL DUSK" : {
 
     },
     "Navigation" : {
@@ -1340,6 +1349,9 @@
     "Solar (MIT License)" : {
 
     },
+    "SOLAR EPHEMERIS" : {
+
+    },
     "South-West Bound" : {
 
     },
@@ -1386,6 +1398,12 @@
     },
     "Storm Warning" : {
       "comment" : "Weather alarm"
+    },
+    "Sunrise" : {
+
+    },
+    "Sunset" : {
+
     },
     "Surface Area" : {
 

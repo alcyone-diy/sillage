@@ -215,7 +215,11 @@ final class MapCalloutViewModel {
       return
     }
 
-    isPointInfoLoading = true
+    // Only set loading state on initial presentation when no cached values exist.
+    // This prevents skeleton flickering and view replacement during continuous panning.
+    if sunEphemeris == nil && magneticDeclination == nil {
+      isPointInfoLoading = true
+    }
 
     pointInfoFetchTask = TaskCancellable(Task { [weak self] in
       guard let self else { return }

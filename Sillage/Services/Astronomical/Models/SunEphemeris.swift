@@ -11,13 +11,13 @@
 import Foundation
 
 /// Represents solar ephemeris and nautical twilight times for a given position and date.
-public struct SunEphemeris: Sendable, Equatable, Hashable {
+nonisolated public struct SunEphemeris: Sendable, Equatable, Hashable {
   public let sunrise: Date?
   public let sunset: Date?
   public let nauticalTwilightStart: Date?
   public let nauticalTwilightEnd: Date?
 
-  public init(
+  public nonisolated init(
     sunrise: Date? = nil,
     sunset: Date? = nil,
     nauticalTwilightStart: Date? = nil,

@@ -180,5 +180,39 @@ final class MarineFormattersTests: XCTestCase {
     XCTAssertTrue(formattedInt64.contains("15"), "Expected 15 in result: \(formattedInt64)")
     XCTAssertTrue(formattedInt64.contains("MB"), "Expected MB in result: \(formattedInt64)")
   }
+
+  func testMarineDeclinationFormatted() {
+    let westDecl = Measurement<UnitAngle>(value: -1.5, unit: .degrees)
+    XCTAssertEqual(westDecl.marineDeclinationFormatted, "1.5° W")
+
+    let eastDecl = Measurement<UnitAngle>(value: 3.2, unit: .degrees)
+    XCTAssertEqual(eastDecl.marineDeclinationFormatted, "3.2° E")
+
+    let zeroDecl = Measurement<UnitAngle>(value: 0.0, unit: .degrees)
+    XCTAssertEqual(zeroDecl.marineDeclinationFormatted, "0.0°")
+  }
+
+  func testMarineTimeWithTimeZoneFormatted() {
+    guard let utc = TimeZone(identifier: "UTC") else {
+      XCTFail("Missing UTC timezone")
+      return
+    }
+    var components = DateComponents()
+    components.year = 2026
+    components.month = 6
+    components.day = 21
+    components.hour = 12
+    components.minute = 30
+    components.timeZone = utc
+    let calendar = Calendar(identifier: .gregorian)
+    guard let date = calendar.date(from: components) else {
+      XCTFail("Failed to create date")
+      return
+    }
+
+    let formattedUTC = date.marineTimeWithTimeZoneFormatted(timeZone: utc)
+    let expectedAbbr = utc.abbreviation(for: date) ?? "UTC"
+    XCTAssertTrue(formattedUTC.contains(expectedAbbr), "Expected \(expectedAbbr) in \(formattedUTC)")
+  }
 }
 
