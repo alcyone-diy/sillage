@@ -112,6 +112,7 @@ final class PanelManagerViewModelTests: XCTestCase {
       .offlineCharts,
       .offlineChartDetail(id: UUID()),
       .chartPreferences,
+      .modelsInfo,
       .checklists,
       .checklistCategories,
       .checklistCategoryDetail(ChecklistCategoryDetailPayload(categoryId: "safety_emergency")),
@@ -121,7 +122,7 @@ final class PanelManagerViewModelTests: XCTestCase {
 
     let set = Set(destinations)
     XCTAssertEqual(set.count, destinations.count, "Each CommandDestination case must be uniquely hashable")
-    XCTAssertEqual(destinations.count, 16, "All 16 CommandDestination enum cases must be tested for uniqueness")
+    XCTAssertEqual(destinations.count, 17, "All 17 CommandDestination enum cases must be tested for uniqueness")
   }
 
   func testChecklistCategoryDetailEqualityIgnoresCategoryObject() {

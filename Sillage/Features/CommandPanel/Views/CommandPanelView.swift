@@ -308,6 +308,8 @@ struct CommandPanelView: View {
       )
     case .chartPreferences:
       ChartPreferencesView()
+    case .modelsInfo:
+      ModelsInfoView()
     case .checklists:
       ChecklistTemplateListView(checklistService: checklistService)
     case .checklistCategories:

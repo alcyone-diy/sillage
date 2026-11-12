@@ -41,6 +41,7 @@ public final class PanelManagerViewModel {
     case offlineCharts
     case offlineChartDetail(id: UUID)
     case chartPreferences
+    case modelsInfo
     case checklists
     case checklistCategories
     case checklistCategoryDetail(ChecklistCategoryDetailPayload)

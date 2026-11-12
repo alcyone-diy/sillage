@@ -84,6 +84,12 @@ struct SettingsView: View {
         }
         .marineListCell()
         
+        NavigationLink(value: PanelManagerViewModel.CommandDestination.modelsInfo) {
+          Label("Models & Data Sources", systemImage: "compass.drawing")
+            .marineFont(.body)
+        }
+        .marineListCell()
+        
         Link(destination: AppConstants.appURL) {
           HStack {
             Label("Website", systemImage: "globe")

@@ -136,7 +136,13 @@
     "1 hr" : {
 
     },
+    "2-min Moving Avg. (800–1100 hPa)" : {
+
+    },
     "3 hr" : {
+
+    },
+    "4 s Vector Avg. (Cut-off 0.5 kt)" : {
 
     },
     "6 hr" : {
@@ -146,6 +152,9 @@
 
     },
     "30 min" : {
+
+    },
+    "2025.0 – 2030.0" : {
 
     },
     "A storage error occurred. Please try again." : {
@@ -178,10 +187,16 @@
     "Alarm Armed" : {
 
     },
+    "Alarm Evaluation" : {
+
+    },
     "Alert Level" : {
 
     },
     "ALERT SILENCED" : {
+
+    },
+    "Algorithm" : {
 
     },
     "All instruments are active in HUD" : {
@@ -295,6 +310,9 @@
     "Barometer Alarm" : {
 
     },
+    "Barometry" : {
+
+    },
     "Base OSM tile unavailable at (%lld,%lld,%lld), status: %lld" : {
       "localizations" : {
         "en" : {
@@ -306,6 +324,9 @@
       }
     },
     "BATTERY" : {
+
+    },
+    "Bearings & COG" : {
 
     },
     "BRG" : {
@@ -410,6 +431,9 @@
     "COG Damping" : {
 
     },
+    "COG Predictor Vector" : {
+
+    },
     "COG State" : {
 
     },
@@ -432,6 +456,9 @@
       "comment" : "Checklist template usage status description when the checklist was previously completed."
     },
     "COMPLETED IN LAST %lldh" : {
+
+    },
+    "Computed from the U.S. Naval Observatory Almanac for Computers algorithm anchored to the UTC calendar day and formatted in the device's time zone. Assumes an unobstructed sea-level horizon with standard refraction, without observer elevation or terrain relief corrections." : {
 
     },
     "Configuration" : {
@@ -539,6 +566,9 @@
     "Developer Environment" : {
 
     },
+    "Device System Time Zone" : {
+
+    },
     "DIR" : {
 
     },
@@ -549,6 +579,12 @@
 
     },
     "Display" : {
+
+    },
+    "Display Time Zone" : {
+
+    },
+    "Displayed Trend" : {
 
     },
     "Distance" : {
@@ -603,6 +639,18 @@
 
     },
     "DRAGGING ANCHOR" : {
+
+    },
+    "Drop ≥ 1.5 hPa / 3h" : {
+
+    },
+    "Drop ≥ 2.0 hPa / 1h" : {
+
+    },
+    "Drop ≥ 3.0 hPa / 3h" : {
+
+    },
+    "Drop ≥ 5.0 hPa / 3h" : {
 
     },
     "Drop Anchor" : {
@@ -729,10 +777,19 @@
     "Gale Warning" : {
       "comment" : "Weather alarm"
     },
+    "Gale Warning (Medium)" : {
+
+    },
     "General" : {
 
     },
     "Generating" : {
+
+    },
+    "Geodesy & Calculations" : {
+
+    },
+    "Geodetic Datum" : {
 
     },
     "GeoGarage Account" : {
@@ -778,6 +835,9 @@
     "Geographic Coverage" : {
 
     },
+    "Geomagnetism" : {
+
+    },
     "Git Hash" : {
 
     },
@@ -816,6 +876,15 @@
 
     },
     "GRDB" : {
+
+    },
+    "Hardware barometer readings are smoothed over a 2-minute window to filter wave motion. Displayed trends use least-squares linear regression, whereas safety alarms compare current pressure against the highest peak in the 1h or 3h window according to the selected sensitivity." : {
+
+    },
+    "Harmonic Degree" : {
+
+    },
+    "Haversine Sphere (R = 6,371 km)" : {
 
     },
     "Hemisphere" : {
@@ -915,6 +984,9 @@
     "LIMIT" : {
 
     },
+    "Linear Regression (≥ 80% Window)" : {
+
+    },
     "Loading marine charts…" : {
 
     },
@@ -937,6 +1009,9 @@
       "comment" : "Low sensitivity"
     },
     "MAGNETIC DECLINATION" : {
+
+    },
+    "Magnetic declination is computed offline at sea level without relying on the device's hardware magnetometer (avoiding onboard magnetic interference) and does not account for local crustal magnetic anomalies." : {
 
     },
     "Manage" : {
@@ -987,6 +1062,12 @@
     "Min" : {
 
     },
+    "Model" : {
+
+    },
+    "Models & Data Sources" : {
+
+    },
     "Modify Position" : {
 
     },
@@ -995,6 +1076,9 @@
     },
     "N" : {
       "comment" : "North cardinal point"
+    },
+    "n = 12 (Spherical)" : {
+
     },
     "Name" : {
 
@@ -1005,7 +1089,13 @@
     "Nautical Dusk" : {
 
     },
+    "Nautical Twilight" : {
+
+    },
     "Navigation" : {
+
+    },
+    "Navigation & Anchor" : {
 
     },
     "Navigation & Maneuver" : {
@@ -1072,6 +1162,9 @@
 
     },
     "No visible map viewport found. Pan or zoom the chart first." : {
+
+    },
+    "NOAA / NCEI WMM-2025" : {
 
     },
     "Noise Multiplier" : {
@@ -1146,6 +1239,9 @@
     "Pause Updates Automatically" : {
 
     },
+    "Peak-to-Current Max Drop" : {
+
+    },
     "Permission Required" : {
 
     },
@@ -1215,6 +1311,9 @@
     "Recording Status" : {
 
     },
+    "Reference Altitude" : {
+
+    },
     "Reorder" : {
 
     },
@@ -1237,6 +1336,9 @@
 
     },
     "Retry" : {
+
+    },
+    "Rhumb Line (Loxodromic)" : {
 
     },
     "RNG" : {
@@ -1273,6 +1375,9 @@
     "Saved Waypoints" : {
 
     },
+    "Sea Level (0 m WGS-84)" : {
+
+    },
     "Segment" : {
 
     },
@@ -1286,6 +1391,9 @@
 
     },
     "Sensor Offset" : {
+
+    },
+    "Sensor Smoothing" : {
 
     },
     "Settings" : {
@@ -1349,6 +1457,9 @@
     "Solar (MIT License)" : {
 
     },
+    "Solar Ephemeris" : {
+
+    },
     "SOLAR EPHEMERIS - %@" : {
 
     },
@@ -1357,6 +1468,9 @@
     },
     "Squall Imminent" : {
       "comment" : "Weather alarm"
+    },
+    "Squall Imminent (High)" : {
+
     },
     "Start" : {
 
@@ -1399,7 +1513,13 @@
     "Storm Warning" : {
       "comment" : "Weather alarm"
     },
+    "Storm Warning (Low)" : {
+
+    },
     "Sunrise" : {
+
+    },
+    "Sunrise / Sunset" : {
 
     },
     "Sunset" : {
@@ -1504,6 +1624,9 @@
     "Track Description (Optional)" : {
 
     },
+    "Track Log Distance" : {
+
+    },
     "Track Manager" : {
 
     },
@@ -1530,6 +1653,9 @@
     },
     "Triggers on drops ≥ 5.0 hPa within 3h. Recommended offshore to avoid alarm fatigue." : {
       "comment" : "Low sensitivity explanation"
+    },
+    "True North (°T)" : {
+
     },
     "Unable to load category details. Please try again." : {
 
@@ -1558,6 +1684,12 @@
     "User is not authenticated with GeoGarage. Please login first." : {
 
     },
+    "USNO Almanac (Solar MIT)" : {
+
+    },
+    "Validity Period" : {
+
+    },
     "Variation" : {
 
     },
@@ -1576,6 +1708,9 @@
     },
     "Vigilance" : {
       "comment" : "Weather alarm"
+    },
+    "Vigilance (High)" : {
+
     },
     "Visible on chart" : {
 
@@ -1604,6 +1739,9 @@
     "Waypoint" : {
 
     },
+    "Waypoint bearings, cross-track error (XTE), ruler measurements, and anchor swing distances use spherical Great Circle trigonometry (R = 6,371 km). Recorded track distances use the WGS-84 ellipsoid, while the COG predictor vector projects along a Mercator rhumb line." : {
+
+    },
     "Waypoint Description (Optional)" : {
 
     },
@@ -1623,6 +1761,12 @@
 
     },
     "Website" : {
+
+    },
+    "WGS-84" : {
+
+    },
+    "WGS-84 Ellipsoid" : {
 
     },
     "WIND" : {
@@ -1650,6 +1794,12 @@
 
     },
     "Your session has expired. Please log in again." : {
+
+    },
+    "Zenith 90.83° (90° 50')" : {
+
+    },
+    "Zenith 102° (-12°)" : {
 
     }
   },
