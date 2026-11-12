@@ -999,10 +999,10 @@
     "Name" : {
 
     },
-    "NAUTICAL DAWN" : {
+    "Nautical Dawn" : {
 
     },
-    "NAUTICAL DUSK" : {
+    "Nautical Dusk" : {
 
     },
     "Navigation" : {
@@ -1349,7 +1349,7 @@
     "Solar (MIT License)" : {
 
     },
-    "SOLAR EPHEMERIS" : {
+    "SOLAR EPHEMERIS - %@" : {
 
     },
     "South-West Bound" : {
@@ -1556,6 +1556,9 @@
 
     },
     "User is not authenticated with GeoGarage. Please login first." : {
+
+    },
+    "Variation" : {
 
     },
     "Version" : {

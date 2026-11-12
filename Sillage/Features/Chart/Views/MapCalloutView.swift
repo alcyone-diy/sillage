@@ -674,12 +674,12 @@ private struct PointInfoGPSSection: View {
   var body: some View {
     let formattedText = coordinate.formatted(.marineCoordinate)
 
-    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
-      VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny / 2) {
-        Text("GPS POSITION")
-          .marineFont(.instrumentLabel)
-          .foregroundColor(marineTheme.colors.textSecondary)
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+      Text("GPS POSITION")
+        .marineSectionHeader()
+        .padding(.leading, MarineTheme.Spacing.small)
 
+      HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
         Text(verbatim: formattedText)
           .monospacedDigit()
           .marineFont(.headline)
@@ -688,33 +688,34 @@ private struct PointInfoGPSSection: View {
           .lineLimit(2)
           .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
           .transaction { $0.animation = nil }
-      }
 
-      Spacer(minLength: MarineTheme.Spacing.small)
+        Spacer(minLength: MarineTheme.Spacing.small)
 
-      Button {
-        copyCoordinateToClipboard(formattedText)
-      } label: {
-        Image(marineIcon: isCopied ? .save : .copy)
-          .marineFont(.body)
-          .bold(isCopied)
-          .foregroundColor(isCopied ? marineTheme.colors.primary : marineTheme.colors.textSecondary)
-          .contentTransition(.symbolEffect(.replace))
-          .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-          .background(
-            marineTheme.colors.panelBackground,
-            in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-          )
+        Button {
+          copyCoordinateToClipboard(formattedText)
+        } label: {
+          Image(marineIcon: isCopied ? .save : .copy)
+            .marineFont(.body)
+            .bold(isCopied)
+            .foregroundColor(isCopied ? marineTheme.colors.primary : marineTheme.colors.textSecondary)
+            .contentTransition(.symbolEffect(.replace))
+            .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
+            .background(
+              marineTheme.colors.panelBackground,
+              in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isCopied ? Text("Coordinates copied") : Text("Copy coordinates"))
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel(isCopied ? Text("Coordinates copied") : Text("Copy coordinates"))
+      .padding(MarineTheme.Spacing.small)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(
+        marineTheme.colors.surfaceBackground,
+        in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+      )
     }
-    .padding(MarineTheme.Spacing.small)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(
-      marineTheme.colors.surfaceBackground,
-      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-    )
     .contextMenu {
       Button {
         copyCoordinateToClipboard(formattedText)
@@ -750,11 +751,17 @@ private struct PointInfoMagneticDeclinationSection: View {
   let isLoading: Bool
 
   var body: some View {
-    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
-      VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny / 2) {
-        Text("MAGNETIC DECLINATION")
-          .marineFont(.instrumentLabel)
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+      Text("MAGNETIC DECLINATION")
+        .marineSectionHeader()
+        .padding(.leading, MarineTheme.Spacing.small)
+
+      HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
+        Text("Variation")
+          .marineFont(.body)
           .foregroundColor(marineTheme.colors.textSecondary)
+
+        Spacer(minLength: MarineTheme.Spacing.small)
 
         if let declination {
           Text(verbatim: declination.marineDeclinationFormatted)
@@ -777,24 +784,15 @@ private struct PointInfoMagneticDeclinationSection: View {
             .foregroundColor(marineTheme.colors.textSecondary)
         }
       }
-
-      Spacer(minLength: MarineTheme.Spacing.small)
-
-      Image(systemName: "location.north")
-        .marineFont(.body)
-        .foregroundColor(marineTheme.colors.primary)
-        .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-        .background(
-          marineTheme.colors.panelBackground,
-          in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-        )
+      .padding(.horizontal, MarineTheme.Spacing.small)
+      .padding(.vertical, MarineTheme.Spacing.medium)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(
+        marineTheme.colors.surfaceBackground,
+        in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+      )
     }
-    .padding(MarineTheme.Spacing.small)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(
-      marineTheme.colors.surfaceBackground,
-      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-    )
   }
 }
 
@@ -804,81 +802,93 @@ private struct PointInfoEphemerisSection: View {
   let isLoading: Bool
 
   var body: some View {
-    VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
-      HStack(spacing: MarineTheme.Spacing.tiny) {
-        Image(systemName: "sun.horizon")
-          .marineFont(.caption)
-          .foregroundColor(marineTheme.colors.primary)
-        Text("SOLAR EPHEMERIS")
-          .marineFont(.instrumentLabel)
-          .foregroundColor(marineTheme.colors.textSecondary)
-      }
+    let dateString = Date().formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)).uppercased()
 
-      HStack(alignment: .top, spacing: MarineTheme.Spacing.medium) {
-        // Morning column (Nautical Dawn & Sunrise)
-        VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
-          Text("NAUTICAL DAWN")
-            .marineFont(.instrumentLabel)
-            .foregroundColor(marineTheme.colors.textSecondary)
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
+      Text(LocalizedStringKey("SOLAR EPHEMERIS - \(dateString)"))
+        .marineSectionHeader()
+        .padding(.leading, MarineTheme.Spacing.small)
 
-          ephemerisTimeView(ephemeris?.nauticalTwilightStart, isPrimary: true)
-
-          HStack(spacing: MarineTheme.Spacing.tiny) {
-            Image(systemName: "sunrise")
-              .marineFont(.caption)
-              .foregroundColor(marineTheme.colors.textSecondary)
-            Text("Sunrise")
-              .marineFont(.instrumentLabel)
-              .foregroundColor(marineTheme.colors.textSecondary)
-            Spacer(minLength: MarineTheme.Spacing.tiny)
-            ephemerisTimeView(ephemeris?.sunrise, isPrimary: false)
-          }
-          .padding(.top, MarineTheme.Spacing.tiny / 2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+      VStack(spacing: 0) {
+        ephemerisRow(
+          title: "Nautical Dawn",
+          icon: "sun.horizon",
+          date: ephemeris?.nauticalTwilightStart
+        )
 
         Divider()
-          .frame(height: 54)
+          .padding(.leading, separatorLeadingInset)
 
-        // Evening column (Nautical Dusk & Sunset)
-        VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
-          Text("NAUTICAL DUSK")
-            .marineFont(.instrumentLabel)
-            .foregroundColor(marineTheme.colors.textSecondary)
+        ephemerisRow(
+          title: "Sunrise",
+          icon: "sunrise",
+          date: ephemeris?.sunrise
+        )
 
-          ephemerisTimeView(ephemeris?.nauticalTwilightEnd, isPrimary: true)
+        Divider()
+          .padding(.leading, separatorLeadingInset)
 
-          HStack(spacing: MarineTheme.Spacing.tiny) {
-            Image(systemName: "sunset")
-              .marineFont(.caption)
-              .foregroundColor(marineTheme.colors.textSecondary)
-            Text("Sunset")
-              .marineFont(.instrumentLabel)
-              .foregroundColor(marineTheme.colors.textSecondary)
-            Spacer(minLength: MarineTheme.Spacing.tiny)
-            ephemerisTimeView(ephemeris?.sunset, isPrimary: false)
-          }
-          .padding(.top, MarineTheme.Spacing.tiny / 2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        ephemerisRow(
+          title: "Sunset",
+          icon: "sunset",
+          date: ephemeris?.sunset
+        )
+
+        Divider()
+          .padding(.leading, separatorLeadingInset)
+
+        ephemerisRow(
+          title: "Nautical Dusk",
+          icon: "moon.stars",
+          date: ephemeris?.nauticalTwilightEnd
+        )
       }
+      .background(
+        marineTheme.colors.surfaceBackground,
+        in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
+      )
     }
-    .padding(MarineTheme.Spacing.small)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(
-      marineTheme.colors.surfaceBackground,
-      in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-    )
+  }
+
+  private var separatorLeadingInset: CGFloat {
+    MarineTheme.Spacing.small * 2 + MarineTheme.Spacing.large
   }
 
   @ViewBuilder
-  private func ephemerisTimeView(_ date: Date?, isPrimary: Bool) -> some View {
+  private func ephemerisRow(
+    title: LocalizedStringKey,
+    icon: String,
+    date: Date?
+  ) -> some View {
+    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
+      Image(systemName: icon)
+        .marineFont(.body)
+        .foregroundColor(marineTheme.colors.textSecondary)
+        .frame(width: MarineTheme.Spacing.large)
+
+      Text(title)
+        .marineFont(.body)
+        .foregroundColor(marineTheme.colors.textSecondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+
+      Spacer(minLength: MarineTheme.Spacing.small)
+
+      ephemerisTimeView(date)
+    }
+    .padding(.horizontal, MarineTheme.Spacing.small)
+    .padding(.vertical, MarineTheme.Spacing.medium)
+  }
+
+  @ViewBuilder
+  private func ephemerisTimeView(_ date: Date?) -> some View {
     if let date {
       Text(verbatim: date.marineTimeWithTimeZoneFormatted())
         .monospacedDigit()
-        .marineFont(isPrimary ? .headline : .body)
-        .bold(isPrimary)
-        .foregroundColor(isPrimary ? marineTheme.colors.textPrimary : marineTheme.colors.textSecondary)
+        .marineFont(.body)
+        .bold()
+        .foregroundColor(marineTheme.colors.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
         .transaction { $0.animation = nil }
@@ -886,12 +896,13 @@ private struct PointInfoEphemerisSection: View {
       let tzAbbr = TimeZone.current.abbreviation() ?? "UTC"
       Text(verbatim: "06:00 \(tzAbbr)")
         .monospacedDigit()
-        .marineFont(isPrimary ? .headline : .body)
+        .marineFont(.body)
+        .bold()
         .redacted(reason: .placeholder)
     } else {
       Text(verbatim: "---")
         .monospacedDigit()
-        .marineFont(isPrimary ? .headline : .body)
+        .marineFont(.body)
         .foregroundColor(marineTheme.colors.textSecondary)
     }
   }
