@@ -117,6 +117,7 @@ struct MapCalloutView: View {
         .interactiveDismissDisabled(true)
         .onChange(of: calloutViewModel.isPointInfoPresented) { _, isPresented in
           if !isPresented {
+            calloutViewModel.dismissPointInfo()
             withAnimation(.snappy(duration: 0.25)) {
               selectedDetent = .height(measuredHeight)
               notifySheetHeightChanged(measuredHeight)
@@ -130,27 +131,60 @@ struct MapCalloutView: View {
   
   @ViewBuilder
   private var calloutSheetContent: some View {
-    Group {
+    NavigationStack {
       if chartViewModel.measureToolViewModel.isActive {
         measuredRootContainer {
           measureSheetContent
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-      } else {
-        NavigationStack {
-          measuredRootContainer {
-            standardCalloutSheetContent
+        .background(marineTheme.colors.panelBackground)
+        .navigationTitle("Measure Distance")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarVisibility(.visible, for: .navigationBar)
+        .toolbar {
+          ToolbarItem(placement: .principal) {
+            navigationPrincipalView(
+              title: Text("Measure Distance"),
+              subtitle: Text("Drag pins or long press chart to reposition")
+            )
           }
-          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-          .background(marineTheme.colors.panelBackground)
-          .toolbarVisibility(.hidden, for: .navigationBar)
-          .navigationDestination(isPresented: $calloutViewModel.isPointInfoPresented) {
-            PointInformationDestinationView(calloutViewModel: calloutViewModel)
+          ToolbarItem(placement: .topBarTrailing) {
+            MarineCloseButton {
+              chartViewModel.measureToolViewModel.stop()
+            }
           }
         }
-        .containerBackground(marineTheme.colors.panelBackground, for: .navigation)
+      } else {
+        measuredRootContainer {
+          standardCalloutSheetContent
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(marineTheme.colors.panelBackground)
+        .navigationTitle(calloutNavigationTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarVisibility(.visible, for: .navigationBar)
+        .toolbar {
+          if let waypointID = calloutViewModel.targetWaypointID,
+             let waypoint = waypointService.currentWaypoints.first(where: { $0.id == waypointID }) {
+            ToolbarItem(placement: .principal) {
+              navigationPrincipalView(
+                title: Text(waypoint.name),
+                subtitle: Text(waypoint.coordinate.formatted(.marineCoordinate))
+              )
+            }
+          }
+          ToolbarItem(placement: .topBarTrailing) {
+            MarineCloseButton {
+              calloutViewModel.dismiss()
+            }
+          }
+        }
+        .navigationDestination(isPresented: $calloutViewModel.isPointInfoPresented) {
+          PointInformationDestinationView(calloutViewModel: calloutViewModel)
+        }
       }
     }
+    .containerBackground(marineTheme.colors.panelBackground, for: .navigation)
     .onAppear {
       notifySheetHeightChanged(measuredHeight)
     }
@@ -173,7 +207,7 @@ struct MapCalloutView: View {
     .frame(maxWidth: .infinity)
     .fixedSize(horizontal: false, vertical: true)
     .onGeometryChange(for: CGFloat.self) { proxy in
-      proxy.size.height
+      proxy.size.height + proxy.safeAreaInsets.top
     } action: { newHeight in
       updateMeasuredHeight(newHeight)
     }
@@ -183,141 +217,72 @@ struct MapCalloutView: View {
   
   @ViewBuilder
   private var standardCalloutSheetContent: some View {
-    // 1. Contextual Header (Waypoint name or Target coordinate + Close button)
-    headerView
-    
-    // 2. Telemetry Section (BTW & RNG)
+    // 1. Telemetry Section (BTW & RNG)
     let vesselCoord = chartViewModel.currentCoordinate
     let bearing = calloutViewModel.bearing(from: vesselCoord)
     let distance = calloutViewModel.distance(from: vesselCoord)
     
     standardTelemetryBar(bearing: bearing, distance: distance)
     
-    // 3. Contextual Action Buttons
+    // 2. Contextual Action Buttons
     actionsView
   }
   
+  // MARK: - Navigation Bar Items
+
+  private var calloutNavigationTitle: Text {
+    if let waypointID = calloutViewModel.targetWaypointID,
+       let waypoint = waypointService.currentWaypoints.first(where: { $0.id == waypointID }) {
+      return Text(waypoint.name)
+    } else if let formatted = calloutViewModel.formattedCoordinate {
+      return Text(verbatim: formatted)
+    } else {
+      return Text("--")
+    }
+  }
+
+  @ViewBuilder
+  private func navigationPrincipalView(title: Text, subtitle: Text? = nil) -> some View {
+    VStack(spacing: MarineTheme.Spacing.tiny / 2) {
+      title
+        .monospacedDigit()
+        .marineFont(.headline)
+        .foregroundColor(marineTheme.colors.textPrimary)
+        .lineLimit(1)
+        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+
+      if let subtitle {
+        subtitle
+          .monospacedDigit()
+          .marineFont(.caption)
+          .foregroundColor(marineTheme.colors.textSecondary)
+          .lineLimit(1)
+          .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+      }
+    }
+  }
+
+
   // MARK: - Measure Tool Content
   
   @ViewBuilder
   private var measureSheetContent: some View {
     let measureVM = chartViewModel.measureToolViewModel
     
-    // 1. Contextual Header (Ruler icon + Measure Distance + Close button)
-    measureHeaderView
-    
-    // 2. Telemetry Section: BRG, RECIPROCAL, RNG
+    // 1. Telemetry Section: BRG, RECIPROCAL, RNG
     measureTelemetryBar(
       bearing: measureVM.bearing,
       reciprocal: measureVM.reciprocalBearing,
       distance: measureVM.distance
     )
     
-    // 3. Contextual Actions: Active Pin Selection (Pin A / Pin B)
+    // 2. Contextual Actions: Active Pin Selection (Pin A / Pin B)
     HStack(spacing: MarineTheme.Spacing.small) {
       measurePinButton(title: "Pin A", pin: .start, viewModel: measureVM)
       measurePinButton(title: "Pin B", pin: .end, viewModel: measureVM)
     }
   }
   
-  // MARK: - Header Views
-  
-  @ViewBuilder
-  private var headerView: some View {
-    if let waypointID = calloutViewModel.targetWaypointID,
-       let waypoint = waypointService.currentWaypoints.first(where: { $0.id == waypointID }) {
-      calloutHeader(
-        icon: .waypoint,
-        title: Text(waypoint.name),
-        subtitle: Text(waypoint.coordinate.formatted(.marineCoordinate)),
-        onClose: { calloutViewModel.dismiss() }
-      )
-    } else {
-      calloutHeader(
-        icon: .crosshair,
-        title: Text(verbatim: calloutViewModel.formattedCoordinate ?? "---"),
-        subtitle: nil,
-        onClose: { calloutViewModel.dismiss() }
-      )
-    }
-  }
-  
-  @ViewBuilder
-  private var measureHeaderView: some View {
-    calloutHeader(
-      icon: .ruler,
-      title: Text("Measure Distance"),
-      subtitle: Text("Drag pins or long press chart to reposition"),
-      onClose: { chartViewModel.measureToolViewModel.stop() }
-    )
-  }
-  
-  @ViewBuilder
-  private func calloutHeader(
-    icon: MarineIcon,
-    title: Text,
-    subtitle: Text?,
-    onClose: @escaping @MainActor () -> Void
-  ) -> some View {
-    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
-      HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
-        headerIconBadge(icon: icon)
-        
-        VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny / 2) {
-          title
-            .monospacedDigit()
-            .marineFont(.headline)
-            .foregroundColor(marineTheme.colors.textPrimary)
-            .lineLimit(1)
-            .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
-          
-          if let subtitle {
-            subtitle
-              .monospacedDigit()
-              .marineFont(.subheadline)
-              .foregroundColor(marineTheme.colors.textSecondary)
-              .lineLimit(1)
-              .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
-          }
-        }
-      }
-      
-      Spacer(minLength: MarineTheme.Spacing.small)
-      
-      MarineCloseButton(action: onClose)
-    }
-  }
-  
-  @ViewBuilder
-  private func headerIconBadge(icon: MarineIcon) -> some View {
-    let size = marineTheme.metrics.calloutHeaderBadgeSize
-    ZStack {
-      Circle()
-        .fill(marineTheme.colors.primary.opacity(MarineTheme.Metrics.badgeBackgroundOpacity))
-        .frame(width: size, height: size)
-      Image(marineIcon: icon)
-        .foregroundColor(marineTheme.colors.primary)
-        .marineFont(.body)
-    }
-  }
-  
-  @ViewBuilder
-  private func backButton(onBack: @escaping () -> Void) -> some View {
-    let iconCircleSize = marineTheme.metrics.closeButtonCircleSize
-    Button(action: onBack) {
-      Image(systemName: "chevron.left")
-        .marineFont(.caption)
-        .bold()
-        .foregroundColor(marineTheme.colors.textSecondary)
-        .frame(width: iconCircleSize, height: iconCircleSize)
-        .background(marineTheme.colors.surfaceBackground, in: Circle())
-    }
-    .buttonStyle(.plain)
-    .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-    .contentShape(Rectangle())
-    .accessibilityLabel(Text("Back"))
-  }
-
   // MARK: - Telemetry Views
   
   private func standardTelemetryBar(bearing: Measurement<UnitAngle>?, distance: Measurement<UnitLength>?) -> some View {
@@ -537,74 +502,42 @@ struct PointInformationDestinationView: View {
   @Bindable var calloutViewModel: MapCalloutViewModel
 
   var body: some View {
-    VStack(spacing: 0) {
-      headerView
-        .padding(.horizontal, MarineTheme.Spacing.medium)
-        .padding(.top, MarineTheme.Spacing.small)
-        .padding(.bottom, MarineTheme.Spacing.medium)
-
-      ScrollView {
-        VStack(spacing: MarineTheme.Spacing.medium) {
-          if let targetCoord = calloutViewModel.targetCoordinate {
-            PointInfoGPSSection(coordinate: targetCoord)
-            PointInfoMagneticDeclinationSection(
-              declination: calloutViewModel.magneticDeclination,
-              isLoading: calloutViewModel.isPointInfoLoading
-            )
-            PointInfoEphemerisSection(
-              ephemeris: calloutViewModel.sunEphemeris,
-              isLoading: calloutViewModel.isPointInfoLoading
-            )
-          }
+    ScrollView {
+      VStack(spacing: MarineTheme.Spacing.medium) {
+        if let targetCoord = calloutViewModel.targetCoordinate {
+          PointInfoGPSSection(coordinate: targetCoord)
+          PointInfoMagneticDeclinationSection(
+            declination: calloutViewModel.magneticDeclination,
+            isLoading: calloutViewModel.isPointInfoLoading
+          )
+          PointInfoEphemerisSection(
+            ephemeris: calloutViewModel.sunEphemeris,
+            isLoading: calloutViewModel.isPointInfoLoading
+          )
         }
-        .padding(.horizontal, MarineTheme.Spacing.medium)
-        .padding(.bottom, MarineTheme.Spacing.medium)
-        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .scrollBounceBehavior(.basedOnSize)
-      .onGeometryChange(for: CGFloat.self) { proxy in
-        proxy.size.height
-      } action: { newHeight in
-        guard newHeight > 0 else { return }
-        calloutViewModel.ensureVisible(sheetHeight: newHeight)
-      }
+      .padding(.horizontal, MarineTheme.Spacing.medium)
+      .padding(.top, MarineTheme.Spacing.small)
+      .padding(.bottom, MarineTheme.Spacing.medium)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .scrollBounceBehavior(.basedOnSize)
+    .onGeometryChange(for: CGFloat.self) { proxy in
+      proxy.size.height + proxy.safeAreaInsets.top
+    } action: { newHeight in
+      guard newHeight > 0 else { return }
+      calloutViewModel.ensureVisible(sheetHeight: newHeight)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .background(marineTheme.colors.panelBackground)
-    .toolbarVisibility(.hidden, for: .navigationBar)
-  }
-
-  private var headerView: some View {
-    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
-      let iconCircleSize = marineTheme.metrics.closeButtonCircleSize
-      Button {
-        calloutViewModel.dismissPointInfo()
-      } label: {
-        Image(systemName: "chevron.left")
-          .marineFont(.caption)
-          .bold()
-          .foregroundColor(marineTheme.colors.textSecondary)
-          .frame(width: iconCircleSize, height: iconCircleSize)
-          .background(marineTheme.colors.surfaceBackground, in: Circle())
+    .navigationTitle("Point Information")
+    .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .topBarTrailing) {
+        MarineCloseButton {
+          calloutViewModel.dismiss()
+        }
       }
-      .buttonStyle(.plain)
-      .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-      .contentShape(Rectangle())
-      .accessibilityLabel(Text("Back"))
-
-      Spacer(minLength: MarineTheme.Spacing.small)
-
-      MarineCloseButton {
-        calloutViewModel.dismiss()
-      }
-    }
-    .overlay {
-      Text("Point Information")
-        .marineFont(.headline)
-        .foregroundColor(marineTheme.colors.textPrimary)
-        .lineLimit(1)
-        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
-        .padding(.horizontal, marineTheme.minTouchTarget + MarineTheme.Spacing.small)
     }
   }
 }
