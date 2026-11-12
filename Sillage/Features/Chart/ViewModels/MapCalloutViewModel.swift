@@ -60,36 +60,28 @@ final class MapCalloutViewModel {
     self.targetWaypointID = waypointID
     self.aimingCoordinate = nil
     self.isCentering = false
-    self.isPointInfoPresented = false
-    self.sunEphemeris = nil
-    self.magneticDeclination = nil
-    self.isPointInfoLoading = false
     self.isCalloutVisible = true
+    syncPointInformationForNewTarget()
   }
 
   /// Starts crosshair aiming under the user's finger during a long press gesture
   /// and immediately presents the callout dialog.
   func startAimingPreview(at coordinate: CLLocationCoordinate2D) {
-    pointInfoFetchTask?.cancel()
-    pointInfoFetchTask = nil
     self.targetCoordinate = coordinate
     self.targetWaypointID = nil
     self.aimingCoordinate = coordinate
     self.isCentering = false
-    self.isPointInfoPresented = false
-    self.sunEphemeris = nil
-    self.magneticDeclination = nil
-    self.isPointInfoLoading = false
     self.isCalloutVisible = true
+    invalidatePointInformationForActiveMovement()
   }
 
   /// Updates preview aiming location as the user drags their finger before release.
+  /// Throttles heavy ephemeris / WMM recalculations during continuous drag by invalidating
+  /// stale point information and keeping the loading indicator active until aiming settles.
   func updateAimingPreview(at coordinate: CLLocationCoordinate2D) {
     self.targetCoordinate = coordinate
     self.aimingCoordinate = coordinate
-    if isPointInfoPresented {
-      fetchPointInformation()
-    }
+    invalidatePointInformationForActiveMovement()
   }
 
   /// Cancels preview aiming and resets aiming state.
@@ -111,17 +103,16 @@ final class MapCalloutViewModel {
   ///   - coordinate: Geographic coordinate touch point.
   ///   - needsCentering: True if MapLibre must fly the camera to center this point.
   func beginAiming(at coordinate: CLLocationCoordinate2D, needsCentering: Bool) {
-    pointInfoFetchTask?.cancel()
-    pointInfoFetchTask = nil
     self.targetCoordinate = coordinate
     self.targetWaypointID = nil
     self.aimingCoordinate = needsCentering ? coordinate : nil
     self.isCentering = needsCentering
-    self.isPointInfoPresented = false
-    self.sunEphemeris = nil
-    self.magneticDeclination = nil
-    self.isPointInfoLoading = false
     self.isCalloutVisible = true
+    if needsCentering {
+      invalidatePointInformationForActiveMovement()
+    } else {
+      syncPointInformationForNewTarget()
+    }
   }
 
   /// Finalizes the centering flight once the camera has arrived at the screen center.
@@ -129,9 +120,7 @@ final class MapCalloutViewModel {
     self.aimingCoordinate = nil
     self.isCentering = false
     self.targetCoordinate = mapCenter
-    if isPointInfoPresented {
-      fetchPointInformation()
-    }
+    syncPointInformationForNewTarget()
   }
 
   /// Interrupts the centering flight (e.g. user dragged the map mid-flight or window resized).
@@ -139,9 +128,7 @@ final class MapCalloutViewModel {
     self.aimingCoordinate = nil
     self.isCentering = false
     self.targetCoordinate = mapCenter
-    if isPointInfoPresented {
-      fetchPointInformation()
-    }
+    syncPointInformationForNewTarget()
   }
 
   /// Presents the map callout overlay at the specified geographic coordinate.
@@ -160,9 +147,7 @@ final class MapCalloutViewModel {
   /// Updates target coordinate during chart panning.
   func updateTarget(coordinate: CLLocationCoordinate2D) {
     self.targetCoordinate = coordinate
-    if isPointInfoPresented {
-      fetchPointInformation()
-    }
+    syncPointInformationForNewTarget(preservesCurrentValuesDuringCalculation: true)
   }
   
   /// Requests the map view to pan upwards if the target point is obscured by the bottom sheet.
@@ -174,9 +159,9 @@ final class MapCalloutViewModel {
   }
   
   /// Presents the contextual point information dialog.
-  func presentPointInfo() {
+  func presentPointInfo(for date: Date = Date()) {
     self.isPointInfoPresented = true
-    fetchPointInformation()
+    fetchPointInformation(for: date)
   }
 
   /// Dismisses the contextual point information dialog.
@@ -203,10 +188,44 @@ final class MapCalloutViewModel {
     self.isPointInfoLoading = false
   }
 
+  /// Cancels in-flight calculations and invalidates point information while the map or crosshair is moving.
+  /// Sets loading state only if the point info sheet is currently open, preventing skeleton flashing.
+  private func invalidatePointInformationForActiveMovement() {
+    pointInfoFetchTask?.cancel()
+    pointInfoFetchTask = nil
+    self.sunEphemeris = nil
+    self.magneticDeclination = nil
+    self.isPointInfoLoading = isPointInfoPresented
+  }
+
+  /// Synchronizes point information state when targeting a new location.
+  /// Refetches ephemeris and declination if point info is open, or resets state cleanly if closed.
+  private func syncPointInformationForNewTarget(
+    for date: Date = Date(),
+    preservesCurrentValuesDuringCalculation: Bool = false
+  ) {
+    if isPointInfoPresented {
+      fetchPointInformation(
+        for: date,
+        preservesCurrentValuesDuringCalculation: preservesCurrentValuesDuringCalculation
+      )
+    } else {
+      pointInfoFetchTask?.cancel()
+      pointInfoFetchTask = nil
+      self.sunEphemeris = nil
+      self.magneticDeclination = nil
+      self.isPointInfoLoading = false
+    }
+  }
+
   /// Fetches astronomical ephemeris and magnetic declination in parallel for the current target coordinate.
   /// Launches a structured task calling both actor services asynchronously.
-  func fetchPointInformation(for date: Date = Date()) {
+  func fetchPointInformation(
+    for date: Date = Date(),
+    preservesCurrentValuesDuringCalculation: Bool = false
+  ) {
     pointInfoFetchTask?.cancel()
+    pointInfoFetchTask = nil
     
     guard isPointInfoPresented, let coordinate = targetCoordinate else {
       sunEphemeris = nil
@@ -215,14 +234,26 @@ final class MapCalloutViewModel {
       return
     }
 
-    // Only set loading state on initial presentation when no cached values exist.
-    // This prevents skeleton flickering and view replacement during continuous panning.
-    if sunEphemeris == nil && magneticDeclination == nil {
-      isPointInfoLoading = true
+    if preservesCurrentValuesDuringCalculation {
+      // During active continuous panning, preserve existing values to prevent skeleton flashing
+      if sunEphemeris == nil && magneticDeclination == nil {
+        isPointInfoLoading = true
+      }
+    } else {
+      self.sunEphemeris = nil
+      self.magneticDeclination = nil
+      self.isPointInfoLoading = true
     }
 
     pointInfoFetchTask = TaskCancellable(Task { [weak self] in
       guard let self else { return }
+
+      // Short debounce when preserving values during continuous panning
+      if preservesCurrentValuesDuringCalculation {
+        try? await Task.sleep(for: .milliseconds(100))
+        guard !Task.isCancelled else { return }
+      }
+
       let astroService = self.astronomicalService
       let magService = self.magneticDeclinationService
 

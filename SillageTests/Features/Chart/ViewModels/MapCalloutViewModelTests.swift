@@ -52,7 +52,11 @@ final class MapCalloutViewModelTests: XCTestCase {
     viewModel.presentPointInfo()
     XCTAssertTrue(viewModel.isPointInfoPresented)
 
-    viewModel.presentCallout(coordinate: targetCoord, waypointID: "wp-reset")
+    // Selecting a point or waypoint while point information is open keeps it presented
+    viewModel.presentCallout(coordinate: targetCoord, waypointID: "wp-preserve")
+    XCTAssertTrue(viewModel.isPointInfoPresented)
+
+    viewModel.dismissPointInfo()
     XCTAssertFalse(viewModel.isPointInfoPresented)
 
     viewModel.presentPointInfo()
@@ -381,10 +385,23 @@ final class MapCalloutViewModelTests: XCTestCase {
 
   func testPresentPointInfoFetchesEphemerisAndDeclination() async {
     let viewModel = MapCalloutViewModel()
-    let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
-    viewModel.presentCallout(coordinate: coord)
+    let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621) // Nantes
 
-    viewModel.presentPointInfo()
+    let calendar = Calendar(identifier: .gregorian)
+    var components = DateComponents()
+    components.year = 2026
+    components.month = 1
+    components.day = 1
+    components.hour = 12
+    components.minute = 0
+    components.timeZone = TimeZone(identifier: "UTC")
+    guard let fixedDate = calendar.date(from: components) else {
+      XCTFail("Failed to construct deterministic test date")
+      return
+    }
+
+    viewModel.presentCallout(coordinate: coord)
+    viewModel.presentPointInfo(for: fixedDate)
     XCTAssertTrue(viewModel.isPointInfoPresented)
 
     let deadline = Date().addingTimeInterval(2.0)
@@ -398,7 +415,9 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNotNil(viewModel.sunEphemeris?.sunset)
     XCTAssertNotNil(viewModel.magneticDeclination)
     if let decl = viewModel.magneticDeclination {
-      XCTAssertEqual(decl.converted(to: .degrees).value, -1.5, accuracy: 0.001)
+      // Nantes (47.218° N, -1.554° W) in NOAA WMM-2025 at epoch 2026.0 has declination ~ +1.03° E.
+      // Verified against official NOAA WMM2025 algorithm within tightened accuracy margin 0.05°.
+      XCTAssertEqual(decl.converted(to: .degrees).value, 1.03, accuracy: 0.05)
     }
   }
 
@@ -463,5 +482,120 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.sunEphemeris)
     XCTAssertNil(viewModel.magneticDeclination)
     XCTAssertFalse(viewModel.isPointInfoLoading)
+  }
+
+  func testLongPressSelectionWhilePointInfoOpenPreservesPresentation() async {
+    let viewModel = MapCalloutViewModel()
+    let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    let secondCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
+
+    viewModel.presentCallout(coordinate: initialCoord)
+    viewModel.presentPointInfo()
+    XCTAssertTrue(viewModel.isPointInfoPresented)
+
+    // Wait for initial point information to load
+    var deadline = Date().addingTimeInterval(2.0)
+    while viewModel.isPointInfoLoading && Date() < deadline {
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+    XCTAssertNotNil(viewModel.sunEphemeris)
+    XCTAssertNotNil(viewModel.magneticDeclination)
+
+    // User long presses elsewhere on the map: finger touch-down invalidates point info for active movement
+    viewModel.startAimingPreview(at: secondCoord)
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertTrue(viewModel.isPointInfoPresented, "Point info must remain open when user starts long-press selection")
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, secondCoord.latitude)
+    XCTAssertNil(viewModel.sunEphemeris, "Stale ephemeris must be cleared when aiming preview starts")
+    XCTAssertNil(viewModel.magneticDeclination, "Stale declination must be cleared when aiming preview starts")
+    XCTAssertTrue(viewModel.isPointInfoLoading, "Loading indicator must be active when aiming preview starts")
+
+    // User drags finger: stale values remain cleared and loading active to prevent stale data display and unthrottled work
+    let dragCoord = CLLocationCoordinate2D(latitude: 25.0, longitude: -71.0)
+    viewModel.updateAimingPreview(at: dragCoord)
+    XCTAssertTrue(viewModel.isPointInfoPresented)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, dragCoord.latitude)
+    XCTAssertNil(viewModel.sunEphemeris, "Stale ephemeris must be cleared during aiming preview drag")
+    XCTAssertNil(viewModel.magneticDeclination, "Stale declination must be cleared during aiming preview drag")
+    XCTAssertTrue(viewModel.isPointInfoLoading, "Loading indicator must be active during aiming preview drag")
+
+    // User releases finger: needsCentering == true invalidates movement while flight is in progress
+    viewModel.beginAiming(at: dragCoord, needsCentering: true)
+    XCTAssertTrue(viewModel.isPointInfoPresented, "Point info must remain open after long press completes")
+    XCTAssertTrue(viewModel.isCentering)
+    XCTAssertNil(viewModel.sunEphemeris, "Point info remains invalidated while centering camera flight is in progress")
+    XCTAssertNil(viewModel.magneticDeclination, "Point info remains invalidated while centering camera flight is in progress")
+    XCTAssertTrue(viewModel.isPointInfoLoading)
+
+    // Centering flight completes: triggers actual fetch for the final target coordinate
+    viewModel.completeCentering(at: dragCoord)
+    XCTAssertTrue(viewModel.isPointInfoPresented, "Point info must remain open after camera centering completes")
+    XCTAssertFalse(viewModel.isCentering)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, dragCoord.latitude)
+
+    // Point information for the new coordinate must be recalculated and populated
+    deadline = Date().addingTimeInterval(2.0)
+    while viewModel.isPointInfoLoading && Date() < deadline {
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+    XCTAssertFalse(viewModel.isPointInfoLoading)
+    XCTAssertNotNil(viewModel.sunEphemeris, "Ephemeris must be populated for new coordinate")
+    XCTAssertNotNil(viewModel.magneticDeclination, "Magnetic declination must be populated for new coordinate")
+  }
+
+  func testWaypointSelectionWhilePointInfoOpenPreservesPresentation() async {
+    let viewModel = MapCalloutViewModel()
+    let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    let waypointCoord = CLLocationCoordinate2D(latitude: 43.2965, longitude: 5.3698) // Marseille
+
+    viewModel.presentCallout(coordinate: initialCoord)
+    viewModel.presentPointInfo()
+    XCTAssertTrue(viewModel.isPointInfoPresented)
+
+    // Wait for initial point information to load
+    var deadline = Date().addingTimeInterval(2.0)
+    while viewModel.isPointInfoLoading && Date() < deadline {
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+    XCTAssertNotNil(viewModel.sunEphemeris)
+    XCTAssertNotNil(viewModel.magneticDeclination)
+    let initialSunrise = viewModel.sunEphemeris?.sunrise
+    let initialDeclination = viewModel.magneticDeclination?.converted(to: .degrees).value
+
+    // User long presses on an existing waypoint
+    viewModel.presentWaypointCallout(coordinate: waypointCoord, waypointID: "wp-99")
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertTrue(viewModel.isPointInfoPresented, "Point info must remain open when user selects a waypoint")
+    XCTAssertEqual(viewModel.targetWaypointID, "wp-99")
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, waypointCoord.latitude)
+
+    // Point information for the waypoint must be recalculated and populated
+    deadline = Date().addingTimeInterval(2.0)
+    while viewModel.isPointInfoLoading && Date() < deadline {
+      try? await Task.sleep(for: .milliseconds(20))
+    }
+    XCTAssertFalse(viewModel.isPointInfoLoading)
+    XCTAssertNotNil(viewModel.sunEphemeris, "Ephemeris must be populated for waypoint")
+    XCTAssertNotNil(viewModel.magneticDeclination, "Declination must be populated for waypoint")
+    XCTAssertNotEqual(viewModel.sunEphemeris?.sunrise, initialSunrise, "Ephemeris must reflect the waypoint's location")
+    XCTAssertNotEqual(viewModel.magneticDeclination?.converted(to: .degrees).value, initialDeclination, "Declination must reflect the waypoint's location")
+  }
+
+  func testSelectionWhilePointInfoClosedDoesNotOpenPointInfo() {
+    let viewModel = MapCalloutViewModel()
+    let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    let secondCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
+
+    viewModel.presentCallout(coordinate: initialCoord)
+    XCTAssertFalse(viewModel.isPointInfoPresented)
+
+    viewModel.startAimingPreview(at: secondCoord)
+    XCTAssertFalse(viewModel.isPointInfoPresented)
+
+    viewModel.beginAiming(at: secondCoord, needsCentering: false)
+    XCTAssertFalse(viewModel.isPointInfoPresented)
+
+    viewModel.presentWaypointCallout(coordinate: secondCoord, waypointID: "wp-100")
+    XCTAssertFalse(viewModel.isPointInfoPresented)
   }
 }
