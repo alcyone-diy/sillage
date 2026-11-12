@@ -141,14 +141,9 @@ public struct ActiveChecklistListView: View {
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .navigationBarTrailing) {
-        Button {
+        MarineCloseButton {
           viewModel.dismiss()
-        } label: {
-          Image(marineIcon: .cancelAction)
-            .foregroundStyle(.tertiary)
-            .font(.title2)
         }
-        .accessibilityLabel(String(localized: "Close"))
       }
     }
     .alert(

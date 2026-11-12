@@ -68,14 +68,9 @@ struct CommandPanelView: View {
       .toolbar {
         if bindableViewModel.commandPath.isEmpty {
           ToolbarItem(placement: .navigationBarTrailing) {
-            Button(action: {
+            MarineCloseButton {
               bindableViewModel.closePanel()
-            }) {
-              Image(marineIcon: .cancelAction)
-                .foregroundStyle(.tertiary)
-                .font(.title2)
             }
-            .accessibilityLabel(String(localized: "Close"))
           }
         }
       }

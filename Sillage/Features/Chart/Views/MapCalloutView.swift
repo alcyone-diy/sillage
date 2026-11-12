@@ -261,7 +261,7 @@ struct MapCalloutView: View {
     title: Text,
     subtitle: Text?,
     onInfo: (() -> Void)? = nil,
-    onClose: @escaping () -> Void
+    onClose: @escaping @MainActor () -> Void
   ) -> some View {
     HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
       HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
@@ -292,7 +292,7 @@ struct MapCalloutView: View {
         infoButton(onInfo: onInfo)
       }
       
-      closeButton(onClose: onClose)
+      MarineCloseButton(action: onClose)
     }
   }
   
@@ -341,23 +341,6 @@ struct MapCalloutView: View {
     .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
     .contentShape(Rectangle())
     .accessibilityLabel(Text("Information"))
-  }
-
-  @ViewBuilder
-  private func closeButton(onClose: @escaping () -> Void) -> some View {
-    let iconCircleSize = marineTheme.metrics.closeButtonCircleSize
-    Button(action: onClose) {
-      Image(marineIcon: .close)
-        .marineFont(.caption)
-        .bold()
-        .foregroundColor(marineTheme.colors.textSecondary)
-        .frame(width: iconCircleSize, height: iconCircleSize)
-        .background(marineTheme.colors.surfaceBackground, in: Circle())
-    }
-    .buttonStyle(.plain)
-    .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-    .contentShape(Rectangle())
-    .accessibilityLabel(Text("Close"))
   }
   
   // MARK: - Telemetry Views
@@ -636,20 +619,9 @@ struct PointInformationDestinationView: View {
 
       Spacer(minLength: MarineTheme.Spacing.small)
 
-      Button {
+      MarineCloseButton {
         calloutViewModel.dismiss()
-      } label: {
-        Image(marineIcon: .close)
-          .marineFont(.caption)
-          .bold()
-          .foregroundColor(marineTheme.colors.textSecondary)
-          .frame(width: iconCircleSize, height: iconCircleSize)
-          .background(marineTheme.colors.surfaceBackground, in: Circle())
       }
-      .buttonStyle(.plain)
-      .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-      .contentShape(Rectangle())
-      .accessibilityLabel(Text("Close"))
     }
     .overlay {
       Text("Point Information")
