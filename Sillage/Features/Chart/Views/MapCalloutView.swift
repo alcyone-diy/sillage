@@ -237,9 +237,6 @@ struct MapCalloutView: View {
         icon: .crosshair,
         title: Text(verbatim: calloutViewModel.formattedCoordinate ?? "---"),
         subtitle: nil,
-        onInfo: {
-          calloutViewModel.presentPointInfo()
-        },
         onClose: { calloutViewModel.dismiss() }
       )
     }
@@ -260,7 +257,6 @@ struct MapCalloutView: View {
     icon: MarineIcon,
     title: Text,
     subtitle: Text?,
-    onInfo: (() -> Void)? = nil,
     onClose: @escaping @MainActor () -> Void
   ) -> some View {
     HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
@@ -287,10 +283,6 @@ struct MapCalloutView: View {
       }
       
       Spacer(minLength: MarineTheme.Spacing.small)
-      
-      if let onInfo {
-        infoButton(onInfo: onInfo)
-      }
       
       MarineCloseButton(action: onClose)
     }
@@ -326,23 +318,6 @@ struct MapCalloutView: View {
     .accessibilityLabel(Text("Back"))
   }
 
-  @ViewBuilder
-  private func infoButton(onInfo: @escaping () -> Void) -> some View {
-    let iconCircleSize = marineTheme.metrics.closeButtonCircleSize
-    Button(action: onInfo) {
-      Image(marineIcon: .details)
-        .marineFont(.caption)
-        .bold()
-        .foregroundColor(marineTheme.colors.textSecondary)
-        .frame(width: iconCircleSize, height: iconCircleSize)
-        .background(marineTheme.colors.surfaceBackground, in: Circle())
-    }
-    .buttonStyle(.plain)
-    .frame(minWidth: marineTheme.minTouchTarget, minHeight: marineTheme.minTouchTarget)
-    .contentShape(Rectangle())
-    .accessibilityLabel(Text("Information"))
-  }
-  
   // MARK: - Telemetry Views
   
   private func standardTelemetryBar(bearing: Measurement<UnitAngle>?, distance: Measurement<UnitLength>?) -> some View {
