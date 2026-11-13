@@ -562,8 +562,7 @@ private struct PointInfoGPSSection: View {
       HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
         Text(verbatim: formattedText)
           .monospacedDigit()
-          .marineFont(.headline)
-          .bold()
+          .marineFont(.body)
           .foregroundColor(marineTheme.colors.textPrimary)
           .lineLimit(2)
           .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
@@ -646,8 +645,7 @@ private struct PointInfoMagneticDeclinationSection: View {
         if let declination {
           Text(verbatim: declination.marineDeclinationFormatted)
             .monospacedDigit()
-            .marineFont(.headline)
-            .bold()
+            .marineFont(.body)
             .foregroundColor(marineTheme.colors.textPrimary)
             .lineLimit(1)
             .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
@@ -655,12 +653,12 @@ private struct PointInfoMagneticDeclinationSection: View {
         } else if isLoading {
           Text(verbatim: "1.5° W")
             .monospacedDigit()
-            .marineFont(.headline)
+            .marineFont(.body)
             .redacted(reason: .placeholder)
         } else {
           Text(verbatim: "---")
             .monospacedDigit()
-            .marineFont(.headline)
+            .marineFont(.body)
             .foregroundColor(marineTheme.colors.textSecondary)
         }
       }
@@ -767,7 +765,6 @@ private struct PointInfoEphemerisSection: View {
       Text(verbatim: date.marineTimeWithTimeZoneFormatted())
         .monospacedDigit()
         .marineFont(.body)
-        .bold()
         .foregroundColor(marineTheme.colors.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
@@ -777,7 +774,6 @@ private struct PointInfoEphemerisSection: View {
       Text(verbatim: "06:00 \(tzAbbr)")
         .monospacedDigit()
         .marineFont(.body)
-        .bold()
         .redacted(reason: .placeholder)
     } else {
       Text(verbatim: "---")

@@ -164,8 +164,7 @@ struct WaypointDetailView: View {
               if let declination = viewModel.magneticDeclination {
                 Text(verbatim: declination.marineDeclinationFormatted)
                   .monospacedDigit()
-                  .marineFont(.headline)
-                  .bold()
+                  .marineFont(.body)
                   .foregroundColor(marineTheme.colors.textPrimary)
                   .lineLimit(1)
                   .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
@@ -173,12 +172,12 @@ struct WaypointDetailView: View {
               } else if viewModel.isPointInfoLoading {
                 Text(verbatim: "1.5° W")
                   .monospacedDigit()
-                  .marineFont(.headline)
+                  .marineFont(.body)
                   .redacted(reason: .placeholder)
               } else {
                 Text(verbatim: "---")
                   .monospacedDigit()
-                  .marineFont(.headline)
+                  .marineFont(.body)
                   .foregroundColor(marineTheme.colors.textSecondary)
               }
             }
@@ -392,7 +391,6 @@ struct WaypointDetailView: View {
       Text(verbatim: date.marineTimeWithTimeZoneFormatted())
         .monospacedDigit()
         .marineFont(.body)
-        .bold()
         .foregroundColor(marineTheme.colors.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
@@ -402,7 +400,6 @@ struct WaypointDetailView: View {
       Text(verbatim: "06:00 \(tzAbbr)")
         .monospacedDigit()
         .marineFont(.body)
-        .bold()
         .redacted(reason: .placeholder)
     } else {
       Text(verbatim: "---")
