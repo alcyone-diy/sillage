@@ -151,6 +151,70 @@ struct WaypointDetailView: View {
           }
         }
         .disabled(!viewModel.isEditable)
+
+        if !viewModel.isEditable {
+          Section {
+            HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
+              Text("Variation")
+                .marineFont(.body)
+                .foregroundColor(marineTheme.colors.textSecondary)
+
+              Spacer(minLength: MarineTheme.Spacing.small)
+
+              if let declination = viewModel.magneticDeclination {
+                Text(verbatim: declination.marineDeclinationFormatted)
+                  .monospacedDigit()
+                  .marineFont(.headline)
+                  .bold()
+                  .foregroundColor(marineTheme.colors.textPrimary)
+                  .lineLimit(1)
+                  .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+                  .transaction { $0.animation = nil }
+              } else if viewModel.isPointInfoLoading {
+                Text(verbatim: "1.5° W")
+                  .monospacedDigit()
+                  .marineFont(.headline)
+                  .redacted(reason: .placeholder)
+              } else {
+                Text(verbatim: "---")
+                  .monospacedDigit()
+                  .marineFont(.headline)
+                  .foregroundColor(marineTheme.colors.textSecondary)
+              }
+            }
+            .marineListCell()
+          } header: {
+            Text("MAGNETIC DECLINATION").marineSectionHeader()
+          }
+
+          Section {
+            ephemerisRow(
+              title: "Nautical Dawn",
+              icon: "sun.horizon",
+              date: viewModel.sunEphemeris?.nauticalTwilightStart
+            )
+            ephemerisRow(
+              title: "Sunrise",
+              icon: "sunrise",
+              date: viewModel.sunEphemeris?.sunrise
+            )
+            ephemerisRow(
+              title: "Sunset",
+              icon: "sunset",
+              date: viewModel.sunEphemeris?.sunset
+            )
+            ephemerisRow(
+              title: "Nautical Dusk",
+              icon: "moon.stars",
+              date: viewModel.sunEphemeris?.nauticalTwilightEnd
+            )
+          } header: {
+            let referenceDate = viewModel.pointInfoDate ?? Date()
+            let dateString = referenceDate.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)).uppercased()
+            Text("SOLAR EPHEMERIS - \(dateString)")
+              .marineSectionHeader()
+          }
+        }
       }
       .marineListBackground()
       
@@ -268,6 +332,11 @@ struct WaypointDetailView: View {
       } message: { error in
         Text(error.localizedDescription)
       }
+      .task(id: pointInfoTaskTrigger) {
+        if !viewModel.isEditable {
+          await viewModel.loadPointInformation()
+        }
+      }
       .onDisappear {
         guard chartViewModel?.waypointAdjustmentSession == nil else { return }
         viewModel.cancelDraft()
@@ -275,5 +344,71 @@ struct WaypointDetailView: View {
           chartViewModel?.activeWaypointDetailViewModel = nil
         }
       }
+  }
+
+  private struct PointInfoTaskTrigger: Equatable {
+    let isEditable: Bool
+    let latitude: Double?
+    let longitude: Double?
+  }
+
+  private var pointInfoTaskTrigger: PointInfoTaskTrigger {
+    let coordinate = viewModel.isEditable ? nil : viewModel.currentCoordinate
+    return PointInfoTaskTrigger(
+      isEditable: viewModel.isEditable,
+      latitude: coordinate?.latitude,
+      longitude: coordinate?.longitude
+    )
+  }
+
+  @ViewBuilder
+  private func ephemerisRow(
+    title: LocalizedStringKey,
+    icon: String,
+    date: Date?
+  ) -> some View {
+    HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
+      Image(systemName: icon)
+        .marineFont(.body)
+        .foregroundColor(marineTheme.colors.textSecondary)
+        .frame(width: MarineTheme.Spacing.large)
+
+      Text(title)
+        .marineFont(.body)
+        .foregroundColor(marineTheme.colors.textSecondary)
+        .lineLimit(1)
+        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+
+      Spacer(minLength: MarineTheme.Spacing.small)
+
+      ephemerisTimeView(date)
+    }
+    .marineListCell()
+  }
+
+  @ViewBuilder
+  private func ephemerisTimeView(_ date: Date?) -> some View {
+    if let date {
+      Text(verbatim: date.marineTimeWithTimeZoneFormatted())
+        .monospacedDigit()
+        .marineFont(.body)
+        .bold()
+        .foregroundColor(marineTheme.colors.textPrimary)
+        .lineLimit(1)
+        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+        .transaction { $0.animation = nil }
+    } else if viewModel.isPointInfoLoading {
+      let tzAbbr = TimeZone.current.abbreviation() ?? "UTC"
+      Text(verbatim: "06:00 \(tzAbbr)")
+        .monospacedDigit()
+        .marineFont(.body)
+        .bold()
+        .redacted(reason: .placeholder)
+    } else {
+      Text(verbatim: "---")
+        .monospacedDigit()
+        .marineFont(.body)
+        .foregroundColor(marineTheme.colors.textSecondary)
+    }
   }
 }

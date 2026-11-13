@@ -100,7 +100,17 @@ public final class WaypointDetailViewModel {
     return waypointService.goToWaypointID == id
   }
   
+  // MARK: - Point Information (Ephemeris & Magnetism)
+  
+  public var sunEphemeris: SunEphemeris? = nil
+  public var magneticDeclination: Measurement<UnitAngle>? = nil
+  public var isPointInfoLoading: Bool = false
+  public private(set) var pointInfoDate: Date? = nil
+  
   private let waypointService: WaypointService
+  private let astronomicalService: AstronomicalService
+  private let magneticDeclinationService: MagneticDeclinationService
+  private var pointInfoLoadGeneration: UInt64 = 0
   public let editingWaypointID: String?
   private var originalWaypoint: Waypoint?
   private let draftID: String?
@@ -112,8 +122,16 @@ public final class WaypointDetailViewModel {
   @ObservationIgnored
   public var onStateChanged: (@MainActor () -> Void)?
   
-  public init(waypointService: WaypointService, defaultName: String? = nil, initialCoordinate: CLLocationCoordinate2D? = nil) {
+  public init(
+    waypointService: WaypointService,
+    defaultName: String? = nil,
+    initialCoordinate: CLLocationCoordinate2D? = nil,
+    astronomicalService: AstronomicalService = AstronomicalService(),
+    magneticDeclinationService: MagneticDeclinationService = MagneticDeclinationService()
+  ) {
     self.waypointService = waypointService
+    self.astronomicalService = astronomicalService
+    self.magneticDeclinationService = magneticDeclinationService
     self.editingWaypointID = nil
     self.originalWaypoint = nil
     self.draftID = UUID().uuidString
@@ -135,8 +153,16 @@ public final class WaypointDetailViewModel {
     updateDraftWaypoint()
   }
   
-  public init(waypointService: WaypointService, editingWaypoint: Waypoint, startEditable: Bool = false) {
+  public init(
+    waypointService: WaypointService,
+    editingWaypoint: Waypoint,
+    startEditable: Bool = false,
+    astronomicalService: AstronomicalService = AstronomicalService(),
+    magneticDeclinationService: MagneticDeclinationService = MagneticDeclinationService()
+  ) {
     self.waypointService = waypointService
+    self.astronomicalService = astronomicalService
+    self.magneticDeclinationService = magneticDeclinationService
     self.editingWaypointID = editingWaypoint.id
     self.originalWaypoint = editingWaypoint
     self.draftID = nil
@@ -316,5 +342,42 @@ public final class WaypointDetailViewModel {
       self.activeError = error
       return false
     }
+  }
+
+  /// Loads astronomical ephemeris and magnetic declination in parallel for the current waypoint coordinate.
+  public func loadPointInformation(for date: Date = Date()) async {
+    pointInfoLoadGeneration &+= 1
+    let currentGeneration = pointInfoLoadGeneration
+
+    guard let coordinate = currentCoordinate,
+          CLLocationCoordinate2DIsValid(coordinate) else {
+      sunEphemeris = nil
+      magneticDeclination = nil
+      pointInfoDate = nil
+      isPointInfoLoading = false
+      return
+    }
+
+    pointInfoDate = date
+    sunEphemeris = nil
+    magneticDeclination = nil
+    isPointInfoLoading = true
+
+    let astroService = self.astronomicalService
+    let magService = self.magneticDeclinationService
+
+    async let ephemeris = astroService.calculateEphemeris(for: coordinate, date: date)
+    async let declination = magService.calculateDeclination(for: coordinate, date: date)
+
+    let (ephemResult, declResult) = await (ephemeris, declination)
+
+    guard self.pointInfoLoadGeneration == currentGeneration else { return }
+    guard !Task.isCancelled else {
+      self.isPointInfoLoading = false
+      return
+    }
+    self.sunEphemeris = ephemResult
+    self.magneticDeclination = declResult
+    self.isPointInfoLoading = false
   }
 }

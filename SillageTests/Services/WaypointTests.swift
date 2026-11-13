@@ -835,5 +835,70 @@ final class WaypointTests: XCTestCase {
     let closedDialogVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first)
     XCTAssertFalse(closedDialogVisualState.isSelected)
   }
+
+  func testWaypointDetailViewModelFetchesPointInformation() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+
+    let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
+    let waypoint = Waypoint(
+      id: UUID().uuidString,
+      name: "Nantes Point",
+      colorHex: Waypoint.defaultColorHex,
+      coordinate: coord
+    )
+
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      editingWaypoint: waypoint,
+      startEditable: false
+    )
+
+    XCTAssertNil(vm.sunEphemeris)
+    XCTAssertNil(vm.magneticDeclination)
+    XCTAssertNil(vm.pointInfoDate)
+    XCTAssertFalse(vm.isPointInfoLoading)
+
+    let calendar = Calendar(identifier: .gregorian)
+    var components = DateComponents()
+    components.year = 2026
+    components.month = 1
+    components.day = 1
+    components.hour = 12
+    components.minute = 0
+    components.timeZone = TimeZone(identifier: "UTC")
+    let fixedDate = try XCTUnwrap(calendar.date(from: components))
+
+    await vm.loadPointInformation(for: fixedDate)
+
+    XCTAssertFalse(vm.isPointInfoLoading)
+    XCTAssertEqual(vm.pointInfoDate, fixedDate)
+    XCTAssertNotNil(vm.sunEphemeris)
+    XCTAssertNotNil(vm.sunEphemeris?.nauticalTwilightStart)
+    XCTAssertNotNil(vm.sunEphemeris?.sunrise)
+    XCTAssertNotNil(vm.sunEphemeris?.sunset)
+    XCTAssertNotNil(vm.sunEphemeris?.nauticalTwilightEnd)
+    XCTAssertNotNil(vm.magneticDeclination)
+    if let decl = vm.magneticDeclination {
+      XCTAssertEqual(decl.converted(to: .degrees).value, 0.91, accuracy: 0.05)
+    }
+
+    // Invalid coordinate resets pointInfoDate, sunEphemeris, and magneticDeclination
+    vm.latDegrees = 95
+    await vm.loadPointInformation(for: fixedDate)
+    XCTAssertNil(vm.pointInfoDate)
+    XCTAssertNil(vm.sunEphemeris)
+    XCTAssertNil(vm.magneticDeclination)
+    XCTAssertFalse(vm.isPointInfoLoading)
+
+    // Restore valid coordinate and verify task cancellation resets isPointInfoLoading
+    vm.updateCoordinate(coord)
+    let cancelledTask = Task { @MainActor in
+      await vm.loadPointInformation(for: fixedDate)
+    }
+    cancelledTask.cancel()
+    await cancelledTask.value
+    XCTAssertFalse(vm.isPointInfoLoading)
+  }
 }
 

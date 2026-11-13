@@ -685,7 +685,7 @@ private struct PointInfoEphemerisSection: View {
     let dateString = Date().formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)).uppercased()
 
     VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
-      Text(LocalizedStringKey("SOLAR EPHEMERIS - \(dateString)"))
+      Text("SOLAR EPHEMERIS - \(dateString)")
         .marineSectionHeader()
         .padding(.leading, MarineTheme.Spacing.small)
 
@@ -751,7 +751,7 @@ private struct PointInfoEphemerisSection: View {
         .marineFont(.body)
         .foregroundColor(marineTheme.colors.textSecondary)
         .lineLimit(1)
-        .minimumScaleFactor(0.8)
+        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
 
       Spacer(minLength: MarineTheme.Spacing.small)
 
