@@ -61,7 +61,7 @@ final class MapCalloutViewModel {
     self.aimingCoordinate = nil
     self.isCentering = false
     self.isCalloutVisible = true
-    syncPointInformationForNewTarget()
+    syncPointInformationForNewTarget(immediate: true)
   }
 
   /// Starts crosshair aiming under the user's finger during a long press gesture
@@ -72,16 +72,15 @@ final class MapCalloutViewModel {
     self.aimingCoordinate = coordinate
     self.isCentering = false
     self.isCalloutVisible = true
-    invalidatePointInformationForActiveMovement()
+    syncPointInformationForNewTarget(immediate: true)
   }
 
   /// Updates preview aiming location as the user drags their finger before release.
-  /// Throttles heavy ephemeris / WMM recalculations during continuous drag by invalidating
-  /// stale point information and keeping the loading indicator active until aiming settles.
+  /// Preserves existing point info to prevent skeleton flashing while aiming settles.
   func updateAimingPreview(at coordinate: CLLocationCoordinate2D) {
     self.targetCoordinate = coordinate
     self.aimingCoordinate = coordinate
-    invalidatePointInformationForActiveMovement()
+    syncPointInformationForNewTarget(immediate: false)
   }
 
   /// Cancels preview aiming and resets aiming state.
@@ -108,11 +107,7 @@ final class MapCalloutViewModel {
     self.aimingCoordinate = needsCentering ? coordinate : nil
     self.isCentering = needsCentering
     self.isCalloutVisible = true
-    if needsCentering {
-      invalidatePointInformationForActiveMovement()
-    } else {
-      syncPointInformationForNewTarget()
-    }
+    syncPointInformationForNewTarget(immediate: !needsCentering)
   }
 
   /// Finalizes the centering flight once the camera has arrived at the screen center.
@@ -120,7 +115,7 @@ final class MapCalloutViewModel {
     self.aimingCoordinate = nil
     self.isCentering = false
     self.targetCoordinate = mapCenter
-    syncPointInformationForNewTarget()
+    syncPointInformationForNewTarget(immediate: true)
   }
 
   /// Interrupts the centering flight (e.g. user dragged the map mid-flight or window resized).
@@ -128,7 +123,7 @@ final class MapCalloutViewModel {
     self.aimingCoordinate = nil
     self.isCentering = false
     self.targetCoordinate = mapCenter
-    syncPointInformationForNewTarget()
+    syncPointInformationForNewTarget(immediate: false)
   }
 
   /// Presents the map callout overlay at the specified geographic coordinate.
@@ -147,7 +142,7 @@ final class MapCalloutViewModel {
   /// Updates target coordinate during chart panning.
   func updateTarget(coordinate: CLLocationCoordinate2D) {
     self.targetCoordinate = coordinate
-    syncPointInformationForNewTarget(preservesCurrentValuesDuringCalculation: true)
+    syncPointInformationForNewTarget(immediate: false)
   }
   
   /// Requests the map view to pan upwards if the target point is obscured by the bottom sheet.
@@ -188,27 +183,14 @@ final class MapCalloutViewModel {
     self.isPointInfoLoading = false
   }
 
-  /// Cancels in-flight calculations and invalidates point information while the map or crosshair is moving.
-  /// Sets loading state only if the point info sheet is currently open, preventing skeleton flashing.
-  private func invalidatePointInformationForActiveMovement() {
-    pointInfoFetchTask?.cancel()
-    pointInfoFetchTask = nil
-    self.sunEphemeris = nil
-    self.magneticDeclination = nil
-    self.isPointInfoLoading = isPointInfoPresented
-  }
-
   /// Synchronizes point information state when targeting a new location.
   /// Refetches ephemeris and declination if point info is open, or resets state cleanly if closed.
   private func syncPointInformationForNewTarget(
     for date: Date = Date(),
-    preservesCurrentValuesDuringCalculation: Bool = false
+    immediate: Bool = false
   ) {
     if isPointInfoPresented {
-      fetchPointInformation(
-        for: date,
-        preservesCurrentValuesDuringCalculation: preservesCurrentValuesDuringCalculation
-      )
+      fetchPointInformation(for: date, immediate: immediate)
     } else {
       pointInfoFetchTask?.cancel()
       pointInfoFetchTask = nil
@@ -219,53 +201,91 @@ final class MapCalloutViewModel {
   }
 
   /// Fetches astronomical ephemeris and magnetic declination in parallel for the current target coordinate.
-  /// Launches a structured task calling both actor services asynchronously.
+  /// Preserves existing values during recalculation to prevent skeleton placeholder flashing.
+  /// Throttles periodic updates during continuous map gestures (every 150ms) and reads the latest coordinate on wake-up.
   func fetchPointInformation(
     for date: Date = Date(),
-    preservesCurrentValuesDuringCalculation: Bool = false
+    immediate: Bool = false
   ) {
-    pointInfoFetchTask?.cancel()
-    pointInfoFetchTask = nil
-    
     guard isPointInfoPresented, let coordinate = targetCoordinate else {
+      pointInfoFetchTask?.cancel()
+      pointInfoFetchTask = nil
       sunEphemeris = nil
       magneticDeclination = nil
       isPointInfoLoading = false
       return
     }
 
-    if preservesCurrentValuesDuringCalculation {
-      // During active continuous panning, preserve existing values to prevent skeleton flashing
-      if sunEphemeris == nil && magneticDeclination == nil {
-        isPointInfoLoading = true
-      }
-    } else {
-      self.sunEphemeris = nil
-      self.magneticDeclination = nil
+    // Only display loading placeholder if no prior values exist yet (initial presentation)
+    if sunEphemeris == nil && magneticDeclination == nil {
       self.isPointInfoLoading = true
+      if immediate || pointInfoFetchTask == nil {
+        pointInfoFetchTask?.cancel()
+        pointInfoFetchTask = nil
+        startPointInfoCalculationTask(date: date, delay: nil)
+      }
+      return
     }
 
+    if immediate {
+      pointInfoFetchTask?.cancel()
+      pointInfoFetchTask = nil
+      startPointInfoCalculationTask(date: date, delay: nil)
+      return
+    }
+
+    // Throttled periodic update during active scrolling: if a task is already running,
+    // let it complete. When it wakes up, it reads the latest targetCoordinate.
+    guard pointInfoFetchTask == nil else { return }
+
+    startPointInfoCalculationTask(date: date, delay: .milliseconds(150))
+  }
+
+  private func startPointInfoCalculationTask(date: Date, delay: Duration?) {
     pointInfoFetchTask = TaskCancellable(Task { [weak self] in
       guard let self else { return }
 
-      // Short debounce when preserving values during continuous panning
-      if preservesCurrentValuesDuringCalculation {
-        try? await Task.sleep(for: .milliseconds(100))
+      if let delay {
+        try? await Task.sleep(for: delay)
         guard !Task.isCancelled else { return }
       }
 
-      let astroService = self.astronomicalService
-      let magService = self.magneticDeclinationService
+      // Loop to guarantee catching up with any coordinate updates that arrived while calculating
+      while !Task.isCancelled && self.isPointInfoPresented {
+        guard let coordinate = self.targetCoordinate,
+              CLLocationCoordinate2DIsValid(coordinate) else {
+          break
+        }
 
-      async let ephemeris = astroService.calculateEphemeris(for: coordinate, date: date)
-      async let declination = magService.calculateDeclination(for: coordinate, date: date)
+        let astroService = self.astronomicalService
+        let magService = self.magneticDeclinationService
 
-      let (ephemResult, declResult) = await (ephemeris, declination)
+        async let ephemeris = astroService.calculateEphemeris(for: coordinate, date: date)
+        async let declination = magService.calculateDeclination(for: coordinate, date: date)
+
+        let (ephemResult, declResult) = await (ephemeris, declination)
+
+        guard !Task.isCancelled else { break }
+
+        self.sunEphemeris = ephemResult
+        self.magneticDeclination = declResult
+        self.isPointInfoLoading = false
+
+        // Check if targetCoordinate changed during calculation (trailing edge catch-up)
+        guard let latestCoordinate = self.targetCoordinate else { break }
+        if latestCoordinate.latitude == coordinate.latitude &&
+           latestCoordinate.longitude == coordinate.longitude {
+          break
+        }
+
+        // Throttle subsequent calculations during continuous dragging to 150ms
+        try? await Task.sleep(for: .milliseconds(150))
+        guard !Task.isCancelled else { break }
+      }
 
       guard !Task.isCancelled else { return }
-      self.sunEphemeris = ephemResult
-      self.magneticDeclination = declResult
       self.isPointInfoLoading = false
+      self.pointInfoFetchTask = nil
     })
   }
   

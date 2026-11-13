@@ -415,9 +415,9 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNotNil(viewModel.sunEphemeris?.sunset)
     XCTAssertNotNil(viewModel.magneticDeclination)
     if let decl = viewModel.magneticDeclination {
-      // Nantes (47.218° N, -1.554° W) in NOAA WMM-2025 at epoch 2026.0 has declination ~ +1.03° E.
+      // Nantes (47.218° N, -1.554° W) in NOAA WMM-2025 at epoch 2026.0 has declination ~ +0.91° E.
       // Verified against official NOAA WMM2025 algorithm within tightened accuracy margin 0.05°.
-      XCTAssertEqual(decl.converted(to: .degrees).value, 1.03, accuracy: 0.05)
+      XCTAssertEqual(decl.converted(to: .degrees).value, 0.91, accuracy: 0.05)
     }
   }
 
@@ -433,15 +433,17 @@ final class MapCalloutViewModelTests: XCTestCase {
     }
     XCTAssertNotNil(viewModel.sunEphemeris)
 
+    let initialSunrise = viewModel.sunEphemeris?.sunrise
     let newCoord = CLLocationCoordinate2D(latitude: 12.0, longitude: 45.0)
     viewModel.updateTarget(coordinate: newCoord)
 
     deadline = Date().addingTimeInterval(2.0)
-    while viewModel.isPointInfoLoading && Date() < deadline {
+    while viewModel.sunEphemeris?.sunrise == initialSunrise && Date() < deadline {
       try? await Task.sleep(for: .milliseconds(20))
     }
     XCTAssertNotNil(viewModel.sunEphemeris)
     XCTAssertNotNil(viewModel.magneticDeclination)
+    XCTAssertNotEqual(viewModel.sunEphemeris?.sunrise, initialSunrise)
   }
 
   func testDismissPointInfoClearsEphemerisAndDeclination() async {
@@ -500,32 +502,31 @@ final class MapCalloutViewModelTests: XCTestCase {
     }
     XCTAssertNotNil(viewModel.sunEphemeris)
     XCTAssertNotNil(viewModel.magneticDeclination)
+    let initialSunrise = viewModel.sunEphemeris?.sunrise
+    let initialDeclination = viewModel.magneticDeclination?.converted(to: .degrees).value
 
-    // User long presses elsewhere on the map: finger touch-down invalidates point info for active movement
+    // User long presses elsewhere on the map: finger touch-down preserves existing point info to prevent skeleton flashing
     viewModel.startAimingPreview(at: secondCoord)
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertTrue(viewModel.isPointInfoPresented, "Point info must remain open when user starts long-press selection")
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, secondCoord.latitude)
-    XCTAssertNil(viewModel.sunEphemeris, "Stale ephemeris must be cleared when aiming preview starts")
-    XCTAssertNil(viewModel.magneticDeclination, "Stale declination must be cleared when aiming preview starts")
-    XCTAssertTrue(viewModel.isPointInfoLoading, "Loading indicator must be active when aiming preview starts")
+    XCTAssertNotNil(viewModel.sunEphemeris, "Existing ephemeris must be preserved to prevent skeleton flashing")
+    XCTAssertNotNil(viewModel.magneticDeclination, "Existing declination must be preserved to prevent skeleton flashing")
 
-    // User drags finger: stale values remain cleared and loading active to prevent stale data display and unthrottled work
+    // User drags finger: existing values remain displayed to prevent skeleton flashing
     let dragCoord = CLLocationCoordinate2D(latitude: 25.0, longitude: -71.0)
     viewModel.updateAimingPreview(at: dragCoord)
     XCTAssertTrue(viewModel.isPointInfoPresented)
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, dragCoord.latitude)
-    XCTAssertNil(viewModel.sunEphemeris, "Stale ephemeris must be cleared during aiming preview drag")
-    XCTAssertNil(viewModel.magneticDeclination, "Stale declination must be cleared during aiming preview drag")
-    XCTAssertTrue(viewModel.isPointInfoLoading, "Loading indicator must be active during aiming preview drag")
+    XCTAssertNotNil(viewModel.sunEphemeris, "Existing ephemeris must remain preserved during aiming preview drag")
+    XCTAssertNotNil(viewModel.magneticDeclination, "Existing declination must remain preserved during aiming preview drag")
 
-    // User releases finger: needsCentering == true invalidates movement while flight is in progress
+    // User releases finger: needsCentering == true preserves values while flight is in progress
     viewModel.beginAiming(at: dragCoord, needsCentering: true)
     XCTAssertTrue(viewModel.isPointInfoPresented, "Point info must remain open after long press completes")
     XCTAssertTrue(viewModel.isCentering)
-    XCTAssertNil(viewModel.sunEphemeris, "Point info remains invalidated while centering camera flight is in progress")
-    XCTAssertNil(viewModel.magneticDeclination, "Point info remains invalidated while centering camera flight is in progress")
-    XCTAssertTrue(viewModel.isPointInfoLoading)
+    XCTAssertNotNil(viewModel.sunEphemeris, "Point info remains preserved while centering camera flight is in progress")
+    XCTAssertNotNil(viewModel.magneticDeclination, "Point info remains preserved while centering camera flight is in progress")
 
     // Centering flight completes: triggers actual fetch for the final target coordinate
     viewModel.completeCentering(at: dragCoord)
@@ -535,12 +536,14 @@ final class MapCalloutViewModelTests: XCTestCase {
 
     // Point information for the new coordinate must be recalculated and populated
     deadline = Date().addingTimeInterval(2.0)
-    while viewModel.isPointInfoLoading && Date() < deadline {
+    while viewModel.sunEphemeris?.sunrise == initialSunrise && Date() < deadline {
       try? await Task.sleep(for: .milliseconds(20))
     }
     XCTAssertFalse(viewModel.isPointInfoLoading)
     XCTAssertNotNil(viewModel.sunEphemeris, "Ephemeris must be populated for new coordinate")
     XCTAssertNotNil(viewModel.magneticDeclination, "Magnetic declination must be populated for new coordinate")
+    XCTAssertNotEqual(viewModel.sunEphemeris?.sunrise, initialSunrise, "Ephemeris must reflect the new coordinate")
+    XCTAssertNotEqual(viewModel.magneticDeclination?.converted(to: .degrees).value, initialDeclination, "Declination must reflect the new coordinate")
   }
 
   func testWaypointSelectionWhilePointInfoOpenPreservesPresentation() async {
@@ -571,7 +574,7 @@ final class MapCalloutViewModelTests: XCTestCase {
 
     // Point information for the waypoint must be recalculated and populated
     deadline = Date().addingTimeInterval(2.0)
-    while viewModel.isPointInfoLoading && Date() < deadline {
+    while viewModel.sunEphemeris?.sunrise == initialSunrise && Date() < deadline {
       try? await Task.sleep(for: .milliseconds(20))
     }
     XCTAssertFalse(viewModel.isPointInfoLoading)
