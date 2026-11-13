@@ -170,7 +170,7 @@ public struct AnchorAlarmView: View {
             .font(.system(.subheadline, design: .monospaced).bold())
             .foregroundColor(marineTheme.colors.textSecondary)
         } else {
-          Text("--")
+          Text(verbatim: "---")
             .font(.system(.subheadline, design: .monospaced).bold())
             .foregroundColor(marineTheme.colors.textSecondary)
         }
@@ -190,7 +190,7 @@ public struct AnchorAlarmView: View {
               .foregroundColor(isDragging ? marineTheme.colors.destructive : marineTheme.colors.primary)
               .frame(height: marineTheme.minTouchTarget)
           } else {
-            Text("--")
+            Text(verbatim: "---")
               .font(.system(.title, design: .default).monospacedDigit().bold())
               .foregroundColor(marineTheme.colors.primary)
               .frame(height: marineTheme.minTouchTarget)

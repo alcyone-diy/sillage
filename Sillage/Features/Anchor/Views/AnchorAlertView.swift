@@ -77,7 +77,7 @@ struct AnchorAlertView: View {
                   .minimumScaleFactor(0.6)
                   .foregroundColor(.white)
               } else {
-                Text("--")
+                Text(verbatim: "---")
                   .font(.system(size: 32, weight: .bold, design: .monospaced))
                   .lineLimit(1)
                   .foregroundColor(.white)
@@ -99,7 +99,7 @@ struct AnchorAlertView: View {
                   .minimumScaleFactor(0.6)
                   .foregroundColor(.white)
               } else {
-                Text("--")
+                Text(verbatim: "---")
                   .font(.system(size: 32, weight: .bold, design: .monospaced))
                   .lineLimit(1)
                   .foregroundColor(.white)

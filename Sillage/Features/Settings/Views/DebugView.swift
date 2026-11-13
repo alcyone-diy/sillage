@@ -380,7 +380,7 @@ extension DebugView {
   
   private var horizontalAccuracyText: String {
     guard let accuracy = chartViewModel.horizontalAccuracy else {
-      return "--"
+      return "---"
     }
     return accuracy.converted(to: .meters).formatted(
       .measurement(
@@ -431,7 +431,7 @@ extension DebugView {
         )
       )
     }
-    return "--"
+    return "---"
   }
   
   private var cogStateText: String {
@@ -462,6 +462,6 @@ extension DebugView {
         )
       )
     }
-    return "--"
+    return "---"
   }
 }

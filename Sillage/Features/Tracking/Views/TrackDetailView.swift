@@ -93,7 +93,7 @@ struct TrackDetailView: View {
         Section {
           DetailRow(
             label: "Start Time",
-            value: viewModel.session?.startTime.formatted(date: .abbreviated, time: .shortened) ?? "—"
+            value: viewModel.session?.startTime.formatted(date: .abbreviated, time: .shortened) ?? "---"
           )
           .marineListCell()
           
@@ -105,37 +105,37 @@ struct TrackDetailView: View {
           
           DetailRow(
             label: "Duration",
-            value: viewModel.totalDuration?.marineFormatted ?? "—"
+            value: viewModel.totalDuration?.marineFormatted ?? "---"
           )
           .marineListCell()
           
           DetailRow(
             label: "Length",
-            value: viewModel.totalDistanceOverGround?.marineNauticalMilesFormatted ?? "—"
+            value: viewModel.totalDistanceOverGround?.marineNauticalMilesFormatted ?? "---"
           )
           .marineListCell()
           
           DetailRow(
             label: "Segments",
-            value: viewModel.segmentCount.map { String($0) } ?? "—"
+            value: viewModel.segmentCount.map { String($0) } ?? "---"
           )
           .marineListCell()
           
           DetailRow(
             label: "Points",
-            value: viewModel.totalPointCount.map { String($0) } ?? "—"
+            value: viewModel.totalPointCount.map { String($0) } ?? "---"
           )
           .marineListCell()
           
           DetailRow(
             label: "Max Speed",
-            value: viewModel.maxSpeedOverGround?.marineFormatted ?? "—"
+            value: viewModel.maxSpeedOverGround?.marineFormatted ?? "---"
           )
           .marineListCell()
           
           DetailRow(
             label: "Average Speed",
-            value: viewModel.totalAverageSpeedOverGround?.marineFormatted ?? "—"
+            value: viewModel.totalAverageSpeedOverGround?.marineFormatted ?? "---"
           )
           .marineListCell()
         } header: {

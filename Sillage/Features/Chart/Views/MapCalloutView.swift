@@ -237,7 +237,7 @@ struct MapCalloutView: View {
     } else if let formatted = calloutViewModel.formattedCoordinate {
       return Text(verbatim: formatted)
     } else {
-      return Text("--")
+      return Text(verbatim: "---")
     }
   }
 
