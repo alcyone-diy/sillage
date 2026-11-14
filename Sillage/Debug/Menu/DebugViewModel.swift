@@ -8,6 +8,7 @@
 //  See LICENSE file in the project root for full license information.
 //
 
+#if DEBUG
 import Foundation
 import UIKit
 import Observation
@@ -143,8 +144,6 @@ final class DebugViewModel {
     container.developerSettingsService.resetAllToDefaults()
     container.positioningService.setPausesLocationUpdatesAutomatically(false)
   }
-
-
-
 }
+#endif
 

@@ -8,6 +8,7 @@
 //  See LICENSE file in the project root for full license information.
 //
 
+#if DEBUG
 import SwiftUI
 
 private struct AlertError: Identifiable {
@@ -465,3 +466,13 @@ extension DebugView {
     return "---"
   }
 }
+
+extension COGSOGCalculationSource {
+  var displayName: String {
+    switch self {
+    case .sillage: return "Sillage (GPS Positions)"
+    case .iOS: return "iOS (CoreLocation)"
+    }
+  }
+}
+#endif

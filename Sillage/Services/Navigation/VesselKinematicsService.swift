@@ -12,6 +12,13 @@ import Foundation
 import CoreLocation
 import OSLog
 
+// MARK: - COG & SOG Calculation Source
+
+public enum COGSOGCalculationSource: String, CaseIterable, Sendable {
+  case sillage = "sillage"
+  case iOS = "iOS"
+}
+
 /// Domain service responsible for computing vessel kinematic telemetry (COG and SOG).
 ///
 /// Architecture:
@@ -24,8 +31,11 @@ import OSLog
 final class VesselKinematicsService: PositioningService {
 
   private let positioningService: PositioningService
-  private let developerSettingsService: DeveloperSettingsService
   private let calculator: PositionBasedVelocityCalculator
+
+  public var calculationSource: COGSOGCalculationSource
+  public var noiseMultiplier: Double
+  public var velocityWindowDuration: TimeInterval
 
   public private(set) var lastKnownLocation: NavigationFix?
 
@@ -63,11 +73,15 @@ final class VesselKinematicsService: PositioningService {
 
   init(
     positioningService: PositioningService,
-    developerSettingsService: DeveloperSettingsService,
+    calculationSource: COGSOGCalculationSource = .sillage,
+    noiseMultiplier: Double = 0.35,
+    velocityWindowDuration: TimeInterval = 4.0,
     calculator: PositionBasedVelocityCalculator? = nil
   ) {
     self.positioningService = positioningService
-    self.developerSettingsService = developerSettingsService
+    self.calculationSource = calculationSource
+    self.noiseMultiplier = noiseMultiplier
+    self.velocityWindowDuration = velocityWindowDuration
     self.calculator = calculator ?? PositionBasedVelocityCalculator()
   }
 
@@ -154,7 +168,7 @@ final class VesselKinematicsService: PositioningService {
   // MARK: - Kinematics Processing
 
   private func processPositioningState(_ rawState: PositioningState) async {
-    let currentSource = developerSettingsService.cogSogCalculationSource
+    let currentSource = calculationSource
     if lastObservedSource != currentSource {
       Logger.navigation.notice("[KinematicsService] Calculation source switched to '\(currentSource.rawValue, privacy: .public)'. Resetting kinematics buffer.")
       await calculator.reset()
@@ -190,8 +204,8 @@ final class VesselKinematicsService: PositioningService {
         coordinate: rawFix.coordinate,
         horizontalAccuracy: rawFix.horizontalAccuracy,
         timestamp: rawFix.timestamp,
-        noiseMultiplier: developerSettingsService.noiseMultiplier,
-        windowDuration: developerSettingsService.velocityWindowDuration
+        noiseMultiplier: noiseMultiplier,
+        windowDuration: velocityWindowDuration
       )
 
       return NavigationFix(

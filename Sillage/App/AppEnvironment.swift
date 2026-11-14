@@ -41,7 +41,6 @@ final class AppEnvironment {
     let geoGarageDownloadService: GeoGarageDownloadService
     let geoGarageOfflineTileProvider: GeoGarageOfflineTileProvider
     let anchorService: AnchorService
-    let developerSettingsService: DeveloperSettingsService
     let kinematicsService: VesselKinematicsService
     
     let appViewModel: AppViewModel
@@ -55,6 +54,16 @@ final class AppEnvironment {
     let notificationService: NotificationService
     let secondaryTelemetryViewModel: SecondaryTelemetryViewModel
     let checklistService: ChecklistService
+
+    #if DEBUG
+    fileprivate(set) var developerSettingsService = DeveloperSettingsService()
+
+    func withDeveloperSettings(_ service: DeveloperSettingsService) -> Self {
+      var copy = self
+      copy.developerSettingsService = service
+      return copy
+    }
+    #endif
   }
   
   /// Injectable so unit tests never reach the real GeoGarage portal.
@@ -164,53 +173,60 @@ final class AppEnvironment {
         ephemeralDefaults?.removePersistentDomain(forName: suiteName)
         return ephemeralDefaults
       }()
-      #else
-      let devSettingsDefaults: UserDefaults? = nil
-      #endif
       let developerSettingsService = DeveloperSettingsService(defaults: devSettingsDefaults ?? self.userDefaults)
-      #if DEBUG
       if activeScreenshotScenario?.gpsPreset != nil {
         developerSettingsService.cogSogCalculationSource = .iOS
         developerSettingsService.cogDampingDuration = 0.0
       }
-      #endif
-      
-      #if DEBUG
+
       let simulatedPositioning: (any PositioningService)? = if let scenario = activeScreenshotScenario, scenario.gpsPreset != nil {
         SimulatedPositioningService(scenario: scenario)
       } else {
         nil
       }
+      let initialPausesAutomatically = developerSettingsService.pausesLocationUpdatesAutomatically
       #else
       let simulatedPositioning: (any PositioningService)? = nil
+      let initialPausesAutomatically = false
       #endif
       let positioningService: any PositioningService = simulatedPositioning ?? CoreLocationPositioningService(
         initialAccuracyMode: preferencesService.gpsAccuracyMode,
-        initialPausesLocationUpdatesAutomatically: developerSettingsService.pausesLocationUpdatesAutomatically
+        initialPausesLocationUpdatesAutomatically: initialPausesAutomatically
       )
       
       let kinematicsService = VesselKinematicsService(
-        positioningService: positioningService,
-        developerSettingsService: developerSettingsService
+        positioningService: positioningService
       )
       
       let instrumentDampingService = InstrumentDampingService(
         positioningService: kinematicsService
       )
+
+      #if DEBUG
+      kinematicsService.calculationSource = developerSettingsService.cogSogCalculationSource
+      kinematicsService.noiseMultiplier = developerSettingsService.noiseMultiplier
+      kinematicsService.velocityWindowDuration = developerSettingsService.velocityWindowDuration
       instrumentDampingService.cogDampingDuration = developerSettingsService.cogDampingDuration
 
-      func observeCOGDampingDuration() {
+      func observeDeveloperSettings() {
         withObservationTracking {
+          _ = developerSettingsService.cogSogCalculationSource
+          _ = developerSettingsService.noiseMultiplier
+          _ = developerSettingsService.velocityWindowDuration
           _ = developerSettingsService.cogDampingDuration
-        } onChange: { [weak instrumentDampingService, weak developerSettingsService] in
-          Task { @MainActor [weak instrumentDampingService, weak developerSettingsService] in
-            guard let instrument = instrumentDampingService, let settings = developerSettingsService else { return }
-            instrument.cogDampingDuration = settings.cogDampingDuration
-            observeCOGDampingDuration()
+        } onChange: { [weak kinematicsService, weak instrumentDampingService, weak developerSettingsService] in
+          Task { @MainActor [weak kinematicsService, weak instrumentDampingService, weak developerSettingsService] in
+            guard let settings = developerSettingsService else { return }
+            kinematicsService?.calculationSource = settings.cogSogCalculationSource
+            kinematicsService?.noiseMultiplier = settings.noiseMultiplier
+            kinematicsService?.velocityWindowDuration = settings.velocityWindowDuration
+            instrumentDampingService?.cogDampingDuration = settings.cogDampingDuration
+            observeDeveloperSettings()
           }
         }
       }
-      observeCOGDampingDuration()
+      observeDeveloperSettings()
+      #endif
       
       #if DEBUG
       let baroDatabaseManager: DatabaseManager
@@ -480,7 +496,6 @@ final class AppEnvironment {
         geoGarageDownloadService: geoGarageDownloadService,
         geoGarageOfflineTileProvider: geoGarageOfflineTileProvider,
         anchorService: anchorService,
-        developerSettingsService: developerSettingsService,
         kinematicsService: kinematicsService,
         appViewModel: appViewModel,
         chartViewModel: chartViewModel,
@@ -494,6 +509,9 @@ final class AppEnvironment {
         secondaryTelemetryViewModel: secondaryTelemetryViewModel,
         checklistService: checklistService
       )
+      #if DEBUG
+      .withDeveloperSettings(developerSettingsService)
+      #endif
       
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
       state = .ready(container)
@@ -784,6 +802,7 @@ final class AppEnvironment {
 
   // MARK: - Pauses Location Updates Automatically (Debug)
 
+  #if DEBUG
   /// Single entry point for changing pausesLocationUpdatesAutomatically at runtime.
   /// Keeps DeveloperSettingsService and CoreLocationPositioningService in sync.
   func updatePausesLocationUpdatesAutomatically(to pauses: Bool) {
@@ -791,6 +810,7 @@ final class AppEnvironment {
     container.developerSettingsService.pausesLocationUpdatesAutomatically = pauses
     container.positioningService.setPausesLocationUpdatesAutomatically(pauses)
   }
+  #endif
   
   nonisolated private func setupFileSystem() throws {
     let fm = FileManager.default

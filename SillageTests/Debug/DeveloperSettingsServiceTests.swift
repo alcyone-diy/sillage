@@ -8,6 +8,7 @@
 //  See LICENSE file in the project root for full license information.
 //
 
+#if DEBUG
 import Testing
 import Foundation
 @testable import Sillage
@@ -77,3 +78,4 @@ struct DeveloperSettingsServiceTests {
     #expect(service.pausesLocationUpdatesAutomatically == false)
   }
 }
+#endif

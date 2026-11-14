@@ -8,22 +8,9 @@
 //  See LICENSE file in the project root for full license information.
 //
 
+#if DEBUG
 import Foundation
 import Observation
-
-// MARK: - COG & SOG Calculation Source
-
-public enum COGSOGCalculationSource: String, CaseIterable, Sendable {
-  case sillage = "sillage"
-  case iOS = "iOS"
-
-  public var displayName: String {
-    switch self {
-    case .sillage: return "Sillage (GPS Positions)"
-    case .iOS: return "iOS (CoreLocation)"
-    }
-  }
-}
 
 @Observable
 @MainActor
@@ -103,3 +90,4 @@ final class DeveloperSettingsService {
     self.rawPausesLocationUpdatesAutomatically = false
   }
 }
+#endif

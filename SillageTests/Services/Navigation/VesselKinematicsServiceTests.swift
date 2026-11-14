@@ -60,17 +60,11 @@ struct VesselKinematicsServiceTests {
     func removeDistanceFilter(for identifier: String) {}
   }
 
-  private func makeTestDefaults() -> UserDefaults {
-    makeIsolatedUserDefaults(prefix: "test.kinematics").defaults
-  }
-
   @Test("Lifecycle: Acquires and releases upstream token")
   func testLifecycleTokens() async {
     let mockPositioning = MockPositioningService()
-    let developerSettings = DeveloperSettingsService(defaults: makeTestDefaults())
     let service = VesselKinematicsService(
-      positioningService: mockPositioning,
-      developerSettingsService: developerSettings
+      positioningService: mockPositioning
     )
 
     #expect(mockPositioning.requestLocationUpdatesCallCount == 0)
@@ -85,13 +79,10 @@ struct VesselKinematicsServiceTests {
   @Test("iOS Mode: Preserves native iOS course and speed")
   func testIOSModePreservesNativeValues() async throws {
     let mockPositioning = MockPositioningService()
-    let defaults = makeTestDefaults()
-    let developerSettings = DeveloperSettingsService(defaults: defaults)
-    developerSettings.cogSogCalculationSource = .iOS
 
     let service = VesselKinematicsService(
       positioningService: mockPositioning,
-      developerSettingsService: developerSettings
+      calculationSource: .iOS
     )
 
     let token = service.requestLocationUpdates()
@@ -124,13 +115,10 @@ struct VesselKinematicsServiceTests {
   @Test("Sillage Mode: Computes COG and SOG strictly from positions, ignoring raw values")
   func testSillageModeComputesVelocityFromPositions() async throws {
     let mockPositioning = MockPositioningService()
-    let defaults = makeTestDefaults()
-    let developerSettings = DeveloperSettingsService(defaults: defaults)
-    developerSettings.cogSogCalculationSource = .sillage
 
     let service = VesselKinematicsService(
       positioningService: mockPositioning,
-      developerSettingsService: developerSettings
+      calculationSource: .sillage
     )
 
     let token = service.requestLocationUpdates()
@@ -193,13 +181,10 @@ struct VesselKinematicsServiceTests {
   @Test("Runtime switch between Sillage and iOS mode")
   func testRuntimeSwitching() async throws {
     let mockPositioning = MockPositioningService()
-    let defaults = makeTestDefaults()
-    let developerSettings = DeveloperSettingsService(defaults: defaults)
-    developerSettings.cogSogCalculationSource = .iOS
 
     let service = VesselKinematicsService(
       positioningService: mockPositioning,
-      developerSettingsService: developerSettings
+      calculationSource: .iOS
     )
 
     let token = service.requestLocationUpdates()
@@ -226,7 +211,7 @@ struct VesselKinematicsServiceTests {
     #expect(out1.courseOverGround?.value == 42.0)
 
     // 2. Switch to Sillage mode
-    developerSettings.cogSogCalculationSource = .sillage
+    service.calculationSource = .sillage
 
     let sillageFix1 = NavigationFix(
       coordinate: CLLocationCoordinate2D(latitude: 46.0, longitude: -1.0),
