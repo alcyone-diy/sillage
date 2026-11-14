@@ -106,9 +106,6 @@
     "°" : {
 
     },
-    "± %@" : {
-
-    },
     "⚓️ DRAGGING ANCHOR!" : {
 
     },
@@ -164,9 +161,6 @@
 
     },
     "Accounts & Services" : {
-
-    },
-    "Accuracy" : {
 
     },
     "Acquiring..." : {
@@ -404,12 +398,6 @@
     "Checklists In Progress" : {
 
     },
-    "Clear Cache" : {
-
-    },
-    "Clear Map Cache" : {
-
-    },
     "Clear text" : {
 
     },
@@ -419,16 +407,10 @@
     "COG" : {
 
     },
-    "COG / SOG Source" : {
-
-    },
     "COG Damping" : {
 
     },
     "COG Predictor Vector" : {
-
-    },
-    "COG State" : {
 
     },
     "Color" : {
@@ -476,12 +458,6 @@
     "Copy coordinates" : {
 
     },
-    "Corrupt GeoGarage Token" : {
-
-    },
-    "Corrupt Token" : {
-
-    },
     "Could not create the Charts directory." : {
 
     },
@@ -495,9 +471,6 @@
 
     },
     "Critical GPS accuracy. Anchor alarm is temporarily unreliable." : {
-
-    },
-    "Debug" : {
 
     },
     "Debug simulation anchor alarm triggered." : {
@@ -548,16 +521,10 @@
     "Description" : {
 
     },
-    "Desired Accuracy" : {
-
-    },
     "Detail / instructions (Optional)" : {
 
     },
     "Details" : {
-
-    },
-    "Developer Environment" : {
 
     },
     "Device System Time Zone" : {
@@ -823,9 +790,6 @@
     "GeoGarage Terms of Use" : {
 
     },
-    "GeoGarage Testing" : {
-
-    },
     "Geographic Coverage" : {
 
     },
@@ -851,9 +815,6 @@
         }
       }
     },
-    "GPS Information" : {
-
-    },
     "GPS POSITION" : {
 
     },
@@ -861,9 +822,6 @@
 
     },
     "GPS signal lost" : {
-
-    },
-    "GPS State" : {
 
     },
     "GPS: %@" : {
@@ -963,9 +921,6 @@
     "Invalid tile URL: %@" : {
 
     },
-    "Kinematics & Telemetry (COG / SOG)" : {
-
-    },
     "Legal" : {
 
     },
@@ -1018,9 +973,6 @@
 
     },
     "Manual debug simulation" : {
-
-    },
-    "Map Cache" : {
 
     },
     "Map Sources" : {
@@ -1161,16 +1113,10 @@
     "NOAA / NCEI WMM-2025" : {
 
     },
-    "Noise Multiplier" : {
-
-    },
     "North-East Bound" : {
 
     },
     "Note: The alarm only works in the background if you are recording a track or the anchor alarm is active." : {
-
-    },
-    "Notification Testing" : {
 
     },
     "Offline chart not found (id: %@)." : {
@@ -1230,9 +1176,6 @@
     "Package request failed with HTTP status %lld." : {
 
     },
-    "Pause Updates Automatically" : {
-
-    },
     "Peak-to-Current Max Drop" : {
 
     },
@@ -1264,9 +1207,6 @@
 
     },
     "Points" : {
-
-    },
-    "Position" : {
 
     },
     "Predictor Vector" : {
@@ -1318,9 +1258,6 @@
 
     },
     "Reset" : {
-
-    },
-    "Reset Debug Settings to Defaults" : {
 
     },
     "Reset Progress" : {
@@ -1489,9 +1426,6 @@
         }
       }
     },
-    "Startup Time" : {
-
-    },
     "Step title" : {
 
     },
@@ -1535,9 +1469,6 @@
 
     },
     "System" : {
-
-    },
-    "System Information" : {
 
     },
     "Tap Reorder to change category order." : {
@@ -1585,13 +1516,7 @@
     "This will clear your current progress." : {
 
     },
-    "This will delete all temporary data and force the network to reload." : {
-
-    },
     "This will permanently delete this log entry." : {
-
-    },
-    "This will replace the active GeoGarage token with an invalid test token." : {
 
     },
     "Time" : {
@@ -1631,12 +1556,6 @@
 
     },
     "Tracks" : {
-
-    },
-    "Trigger Anchor Dragging Alarm (5s)" : {
-
-    },
-    "Trigger Barometer Alarm (5s)" : {
 
     },
     "Triggers on drops ≥ 1.5 hPa within 3h or ≥ 2.0 hPa within 1h. Ideal for squall detection." : {
@@ -1764,9 +1683,6 @@
 
     },
     "WIND" : {
-
-    },
-    "Window Duration" : {
 
     },
     "Wintering & Maintenance" : {
