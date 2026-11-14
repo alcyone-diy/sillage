@@ -207,7 +207,7 @@ final class MapCalloutViewModel {
     for date: Date = Date(),
     immediate: Bool = false
   ) {
-    guard isPointInfoPresented, let coordinate = targetCoordinate else {
+    guard isPointInfoPresented, targetCoordinate != nil else {
       pointInfoFetchTask?.cancel()
       pointInfoFetchTask = nil
       sunEphemeris = nil
