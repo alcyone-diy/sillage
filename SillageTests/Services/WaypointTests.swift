@@ -900,5 +900,40 @@ final class WaypointTests: XCTestCase {
     await cancelledTask.value
     XCTAssertFalse(vm.isPointInfoLoading)
   }
+
+  func testWaypointDetailViewModelMagneticDeclinationFooterText() throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    let vm = WaypointDetailViewModel(waypointService: service)
+
+    XCTAssertNil(vm.magneticDeclinationFooterText)
+
+    vm.magneticDeclination = Measurement<UnitAngle>(value: 1.2, unit: .degrees)
+    XCTAssertEqual(
+      vm.magneticDeclinationFooterText,
+      "True to Magnetic: subtract 1.2° • Magnetic to True: add 1.2°"
+    )
+
+    vm.magneticDeclination = Measurement<UnitAngle>(value: -2.5, unit: .degrees)
+    XCTAssertEqual(
+      vm.magneticDeclinationFooterText,
+      "True to Magnetic: add 2.5° • Magnetic to True: subtract 2.5°"
+    )
+
+    vm.magneticDeclination = Measurement<UnitAngle>(value: 0.0, unit: .degrees)
+    XCTAssertEqual(
+      vm.magneticDeclinationFooterText,
+      "No significant variation between True and Magnetic bearings."
+    )
+
+    vm.magneticDeclination = Measurement<UnitAngle>(value: -0.04, unit: .degrees)
+    XCTAssertEqual(
+      vm.magneticDeclinationFooterText,
+      "No significant variation between True and Magnetic bearings."
+    )
+
+    vm.magneticDeclination = nil
+    XCTAssertNil(vm.magneticDeclinationFooterText)
+  }
 }
 

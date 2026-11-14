@@ -601,4 +601,37 @@ final class MapCalloutViewModelTests: XCTestCase {
     viewModel.presentWaypointCallout(coordinate: secondCoord, waypointID: "wp-100")
     XCTAssertFalse(viewModel.isPointInfoPresented)
   }
+
+  func testMagneticDeclinationFooterText() {
+    let viewModel = MapCalloutViewModel()
+
+    XCTAssertNil(viewModel.magneticDeclinationFooterText)
+
+    viewModel.magneticDeclination = Measurement<UnitAngle>(value: 1.2, unit: .degrees)
+    XCTAssertEqual(
+      viewModel.magneticDeclinationFooterText,
+      "True to Magnetic: subtract 1.2° • Magnetic to True: add 1.2°"
+    )
+
+    viewModel.magneticDeclination = Measurement<UnitAngle>(value: -2.5, unit: .degrees)
+    XCTAssertEqual(
+      viewModel.magneticDeclinationFooterText,
+      "True to Magnetic: add 2.5° • Magnetic to True: subtract 2.5°"
+    )
+
+    viewModel.magneticDeclination = Measurement<UnitAngle>(value: 0.0, unit: .degrees)
+    XCTAssertEqual(
+      viewModel.magneticDeclinationFooterText,
+      "No significant variation between True and Magnetic bearings."
+    )
+
+    viewModel.magneticDeclination = Measurement<UnitAngle>(value: 0.04, unit: .degrees)
+    XCTAssertEqual(
+      viewModel.magneticDeclinationFooterText,
+      "No significant variation between True and Magnetic bearings."
+    )
+
+    viewModel.magneticDeclination = nil
+    XCTAssertNil(viewModel.magneticDeclinationFooterText)
+  }
 }

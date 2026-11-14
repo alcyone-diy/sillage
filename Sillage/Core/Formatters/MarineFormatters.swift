@@ -196,6 +196,21 @@ extension Measurement where UnitType == UnitAngle {
       return "0.0°"
     }
   }
+
+  /// Formats a concise conversion instruction between True and Magnetic bearings for UI section footers.
+  public var marineDeclinationConversionFooter: String {
+    let degrees = self.converted(to: .degrees).value
+    let absVal = abs(degrees)
+    if absVal < 0.05 {
+      return String(localized: "No significant variation between True and Magnetic bearings.")
+    }
+    let formattedAngle = String(format: "%.1f°", absVal)
+    if degrees > 0 {
+      return String(localized: "True to Magnetic: subtract \(formattedAngle) • Magnetic to True: add \(formattedAngle)")
+    } else {
+      return String(localized: "True to Magnetic: add \(formattedAngle) • Magnetic to True: subtract \(formattedAngle)")
+    }
+  }
 }
 
 // MARK: - Date Formatting

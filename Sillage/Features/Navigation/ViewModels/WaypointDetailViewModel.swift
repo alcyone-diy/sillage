@@ -106,6 +106,11 @@ public final class WaypointDetailViewModel {
   public var magneticDeclination: Measurement<UnitAngle>? = nil
   public var isPointInfoLoading: Bool = false
   public private(set) var pointInfoDate: Date? = nil
+
+  /// Dynamic conversion instruction for the magnetic declination section footer.
+  public var magneticDeclinationFooterText: String? {
+    magneticDeclination?.marineDeclinationConversionFooter
+  }
   
   private let waypointService: WaypointService
   private let astronomicalService: AstronomicalService

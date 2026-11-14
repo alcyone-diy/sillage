@@ -48,6 +48,11 @@ final class MapCalloutViewModel {
   var formattedCoordinate: String? {
     targetCoordinate?.formatted(.marineCoordinate)
   }
+
+  /// Dynamic conversion instruction for the magnetic declination section footer.
+  var magneticDeclinationFooterText: String? {
+    magneticDeclination?.marineDeclinationConversionFooter
+  }
   
   /// Closure invoked when the UI requests ensuring the target point is not obscured by overlay sheets.
   var onEnsureVisibleRequested: (@MainActor (CGFloat) -> Void)? = nil

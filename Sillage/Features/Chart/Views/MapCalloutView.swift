@@ -508,6 +508,7 @@ struct PointInformationDestinationView: View {
           PointInfoGPSSection(coordinate: targetCoord)
           PointInfoMagneticDeclinationSection(
             declination: calloutViewModel.magneticDeclination,
+            footerText: calloutViewModel.magneticDeclinationFooterText,
             isLoading: calloutViewModel.isPointInfoLoading
           )
           PointInfoEphemerisSection(
@@ -627,6 +628,7 @@ private struct PointInfoGPSSection: View {
 private struct PointInfoMagneticDeclinationSection: View {
   @Environment(\.marineTheme) private var marineTheme
   let declination: Measurement<UnitAngle>?
+  let footerText: String?
   let isLoading: Bool
 
   var body: some View {
@@ -669,6 +671,13 @@ private struct PointInfoMagneticDeclinationSection: View {
         marineTheme.colors.surfaceBackground,
         in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
       )
+
+      if let footerText {
+        Text(verbatim: footerText)
+          .marineFont(.footnote)
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, MarineTheme.Spacing.small)
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }

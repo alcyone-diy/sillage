@@ -184,6 +184,12 @@ struct WaypointDetailView: View {
             .marineListCell()
           } header: {
             Text("MAGNETIC DECLINATION").marineSectionHeader()
+          } footer: {
+            if let footerText = viewModel.magneticDeclinationFooterText {
+              Text(verbatim: footerText)
+                .marineFont(.footnote)
+                .foregroundStyle(.secondary)
+            }
           }
 
           Section {

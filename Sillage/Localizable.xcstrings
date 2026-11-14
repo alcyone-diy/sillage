@@ -1101,6 +1101,9 @@
     "No saved waypoints yet" : {
 
     },
+    "No significant variation between True and Magnetic bearings." : {
+
+    },
     "No steps added yet" : {
 
     },
@@ -1569,6 +1572,26 @@
     },
     "True North (°T)" : {
 
+    },
+    "True to Magnetic: add %@ • Magnetic to True: subtract %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "True to Magnetic: add %1$@ • Magnetic to True: subtract %2$@"
+          }
+        }
+      }
+    },
+    "True to Magnetic: subtract %@ • Magnetic to True: add %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "True to Magnetic: subtract %1$@ • Magnetic to True: add %2$@"
+          }
+        }
+      }
     },
     "Unable to load category details. Please try again." : {
 

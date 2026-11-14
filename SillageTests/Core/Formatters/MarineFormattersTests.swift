@@ -192,6 +192,38 @@ final class MarineFormattersTests: XCTestCase {
     XCTAssertEqual(zeroDecl.marineDeclinationFormatted, "0.0°")
   }
 
+  func testMarineDeclinationConversionFooter() {
+    let eastDecl = Measurement<UnitAngle>(value: 1.2, unit: .degrees)
+    XCTAssertEqual(
+      eastDecl.marineDeclinationConversionFooter,
+      "True to Magnetic: subtract 1.2° • Magnetic to True: add 1.2°"
+    )
+
+    let westDecl = Measurement<UnitAngle>(value: -2.5, unit: .degrees)
+    XCTAssertEqual(
+      westDecl.marineDeclinationConversionFooter,
+      "True to Magnetic: add 2.5° • Magnetic to True: subtract 2.5°"
+    )
+
+    let zeroDecl = Measurement<UnitAngle>(value: 0.0, unit: .degrees)
+    XCTAssertEqual(
+      zeroDecl.marineDeclinationConversionFooter,
+      "No significant variation between True and Magnetic bearings."
+    )
+
+    let nearZeroEast = Measurement<UnitAngle>(value: 0.04, unit: .degrees)
+    XCTAssertEqual(
+      nearZeroEast.marineDeclinationConversionFooter,
+      "No significant variation between True and Magnetic bearings."
+    )
+
+    let nearZeroWest = Measurement<UnitAngle>(value: -0.04, unit: .degrees)
+    XCTAssertEqual(
+      nearZeroWest.marineDeclinationConversionFooter,
+      "No significant variation between True and Magnetic bearings."
+    )
+  }
+
   func testMarineTimeWithTimeZoneFormatted() {
     guard let utc = TimeZone(identifier: "UTC") else {
       XCTFail("Missing UTC timezone")
