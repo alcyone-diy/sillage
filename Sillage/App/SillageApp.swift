@@ -52,6 +52,7 @@ struct SillageApp: App {
             .environment(container.messageService)
             .environment(container.geoGarageAuthService)
             .environment(container.secondaryTelemetryViewModel)
+            .defaultAppStorage(container.userDefaults)
         }
       }
       .environment(environment)

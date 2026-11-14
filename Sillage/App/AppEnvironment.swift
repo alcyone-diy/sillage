@@ -26,9 +26,10 @@ final class AppEnvironment {
   public let geoGaragePartnerSecretService: any GeoGaragePartnerSecretServiceProtocol
   
   struct AppContainer {
+    let userDefaults: UserDefaults
     let messageService: MessageService
     let preferencesService: PreferencesService
-    let positioningService: CoreLocationPositioningService
+    let positioningService: any PositioningService
     let trackRecordingService: TrackRecordingService
     let trackService: TrackService
     let waypointService: WaypointService
@@ -63,6 +64,9 @@ final class AppEnvironment {
   private let preferencesServiceOverride: PreferencesService?
   private let userDefaults: UserDefaults
   private let databaseManagerOverride: DatabaseManager?
+  #if DEBUG
+  private var screenshotScenarioOverride: ScreenshotScenario?
+  #endif
 
   public init(
     metadata: AppMetadata? = nil,
@@ -86,6 +90,26 @@ final class AppEnvironment {
     self.databaseManagerOverride = databaseManager
     setupMapLibreProgressObservation()
   }
+
+  #if DEBUG
+  convenience init(
+    screenshotScenario: ScreenshotScenario,
+    partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil,
+    authSession: URLSession = .shared,
+    keychainManager: any KeychainManaging = KeychainManager.shared,
+    userDefaults: UserDefaults = .standard,
+    databaseManager: DatabaseManager? = nil
+  ) {
+    self.init(
+      partnerSecretService: partnerSecretService,
+      authSession: authSession,
+      keychainManager: keychainManager,
+      userDefaults: userDefaults,
+      databaseManager: databaseManager
+    )
+    self.screenshotScenarioOverride = screenshotScenario
+  }
+  #endif
   
   func bootstrap() async {
     if case .bootstrapping = state { return }
@@ -99,6 +123,15 @@ final class AppEnvironment {
       }.value
       
       // b. DatabaseManager async initialization
+      #if DEBUG
+      let activeScreenshotScenario = self.screenshotScenarioOverride ?? ScreenshotScenario.active
+      if let scenario = activeScreenshotScenario {
+        let gpsLabel = scenario.gpsPreset?.rawValue ?? "off"
+        let baroLabel = scenario.baroPreset?.rawValue ?? "off"
+        Logger.system.notice("📸 Sensor simulation active (gps=\(gpsLabel, privacy: .public), baro=\(baroLabel, privacy: .public), tracks=\(scenario.simulateTracksAndWaypoints, privacy: .public)). User preferences remain untouched.")
+      }
+      #endif
+
       let databaseManager: DatabaseManager
       if let databaseManagerOverride {
         databaseManager = databaseManagerOverride
@@ -107,17 +140,51 @@ final class AppEnvironment {
           try DatabaseManager()
         }.value
       }
+
+      #if DEBUG
+      if let scenario = activeScreenshotScenario, scenario.simulateTracksAndWaypoints {
+        try await ScreenshotBootstrapper.seedTracksAndWaypoints(scenario, into: databaseManager)
+      } else {
+        try await ScreenshotBootstrapper.removeSeededTracksAndWaypoints(from: databaseManager)
+      }
+      #endif
       
       // c. Other Services instantiation (injecting the ready DB)
       let messageService = MessageService()
-      
+
       let preferencesService = self.preferencesServiceOverride ?? PreferencesService(
         defaults: self.userDefaults,
         keychainManager: self.keychainManager
       )
-      let developerSettingsService = DeveloperSettingsService(defaults: self.userDefaults)
+      #if DEBUG
+      let devSettingsDefaults: UserDefaults? = {
+        guard activeScreenshotScenario?.gpsPreset != nil else { return nil }
+        let suiteName = "com.alcyone.sillage.simulated.devsettings"
+        let ephemeralDefaults = UserDefaults(suiteName: suiteName)
+        ephemeralDefaults?.removePersistentDomain(forName: suiteName)
+        return ephemeralDefaults
+      }()
+      #else
+      let devSettingsDefaults: UserDefaults? = nil
+      #endif
+      let developerSettingsService = DeveloperSettingsService(defaults: devSettingsDefaults ?? self.userDefaults)
+      #if DEBUG
+      if activeScreenshotScenario?.gpsPreset != nil {
+        developerSettingsService.cogSogCalculationSource = .iOS
+        developerSettingsService.cogDampingDuration = 0.0
+      }
+      #endif
       
-      let positioningService = CoreLocationPositioningService(
+      #if DEBUG
+      let simulatedPositioning: (any PositioningService)? = if let scenario = activeScreenshotScenario, scenario.gpsPreset != nil {
+        SimulatedPositioningService(scenario: scenario)
+      } else {
+        nil
+      }
+      #else
+      let simulatedPositioning: (any PositioningService)? = nil
+      #endif
+      let positioningService: any PositioningService = simulatedPositioning ?? CoreLocationPositioningService(
         initialAccuracyMode: preferencesService.gpsAccuracyMode,
         initialPausesLocationUpdatesAutomatically: developerSettingsService.pausesLocationUpdatesAutomatically
       )
@@ -131,7 +198,6 @@ final class AppEnvironment {
         positioningService: kinematicsService
       )
       instrumentDampingService.cogDampingDuration = developerSettingsService.cogDampingDuration
-      instrumentDampingService.start()
 
       func observeCOGDampingDuration() {
         withObservationTracking {
@@ -146,7 +212,22 @@ final class AppEnvironment {
       }
       observeCOGDampingDuration()
       
-      let barometricHistoryStore = BarometricHistoryStore(databaseManager: databaseManager)
+      #if DEBUG
+      let baroDatabaseManager: DatabaseManager
+      if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
+        if let databaseManagerOverride {
+          try await ScreenshotBootstrapper.seedBarometricHistory(scenario, into: databaseManagerOverride)
+          baroDatabaseManager = databaseManagerOverride
+        } else {
+          baroDatabaseManager = try await ScreenshotBootstrapper.makeBarometricDatabase(scenario: scenario)
+        }
+      } else {
+        baroDatabaseManager = databaseManager
+      }
+      #else
+      let baroDatabaseManager = databaseManager
+      #endif
+      let barometricHistoryStore = BarometricHistoryStore(databaseManager: baroDatabaseManager)
       
       let notificationService = LocalNotificationService()
       
@@ -154,12 +235,32 @@ final class AppEnvironment {
         positioningService: positioningService,
         notificationService: notificationService
       )
+      #if DEBUG
+      if let scenario = activeScreenshotScenario {
+        permissionService.forceAuthorizedForSimulatedSensors(
+          gps: scenario.gpsPreset != nil,
+          baro: scenario.baroPreset != nil
+        )
+      }
+      #endif
       
+      #if DEBUG
+      let simulatedAltimeter: (any AltimeterProvider)? = if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
+        SimulatedAltimeterProvider(scenario: scenario)
+      } else {
+        nil
+      }
+      #else
+      let simulatedAltimeter: (any AltimeterProvider)? = nil
+      #endif
+      let altimeterProvider: AltimeterProvider = simulatedAltimeter ?? CMAltimeter()
+
       let barometricService = BarometricService(
         historyStore: barometricHistoryStore,
         preferencesService: preferencesService,
         notificationService: notificationService,
-        permissionService: permissionService
+        permissionService: permissionService,
+        altimeter: altimeterProvider
       )
       if permissionService.motionStatus == .authorized {
           barometricService.startUpdates()
@@ -293,6 +394,8 @@ final class AppEnvironment {
         anchorService: anchorService
       )
 
+      instrumentDampingService.start()
+
       let chartViewModel = ChartViewModel(
         positioningService: positioningService,
         instrumentDampingService: instrumentDampingService,
@@ -337,7 +440,15 @@ final class AppEnvironment {
         downloader: geoGarageChartDownloader,
         keychainManager: keychainManager
       )
-      let secondaryTelemetryViewModel = SecondaryTelemetryViewModel()
+      #if DEBUG
+      let batteryService: (any DeviceBatteryServiceProtocol)? = activeScreenshotScenario.map { SimulatedBatteryService(scenario: $0) }
+      if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
+        await barometerViewModel.refreshFullHistory()
+      }
+      #else
+      let batteryService: (any DeviceBatteryServiceProtocol)? = nil
+      #endif
+      let secondaryTelemetryViewModel = SecondaryTelemetryViewModel(batteryService: batteryService)
       await trackRecordingService.attemptRecoveryIfNeeded()
       await geoGarageDownloadService.resumePendingDownloadIfNeeded()
       
@@ -354,6 +465,7 @@ final class AppEnvironment {
       setupGeoGarageProgressObservation(geoGarageDownloadService: geoGarageDownloadService)
 
       let container = AppContainer(
+        userDefaults: self.userDefaults,
         messageService: messageService,
         preferencesService: preferencesService,
         positioningService: positioningService,

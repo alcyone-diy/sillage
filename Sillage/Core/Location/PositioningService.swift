@@ -30,4 +30,12 @@ protocol PositioningService {
   
   func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String)
   func removeDistanceFilter(for identifier: String)
+
+  func setDesiredAccuracy(_ mode: GPSAccuracyMode)
+  func setPausesLocationUpdatesAutomatically(_ pauses: Bool)
+}
+
+extension PositioningService {
+  func setDesiredAccuracy(_ mode: GPSAccuracyMode) {}
+  func setPausesLocationUpdatesAutomatically(_ pauses: Bool) {}
 }

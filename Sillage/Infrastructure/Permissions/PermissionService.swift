@@ -42,6 +42,9 @@ final class PermissionService: PermissionServiceProtocol {
     
     private var isRequestingLocation = false
     private var isRequestingNotification = false
+    #if DEBUG
+    private var isForcedAuthorizedForScreenshots = false
+    #endif
     
     @ObservationIgnored
     nonisolated(unsafe) private var locationObservationTask: Task<Void, Never>?
@@ -91,9 +94,15 @@ final class PermissionService: PermissionServiceProtocol {
     }
     
     private func checkInitialStatuses() async {
+        #if DEBUG
+        if isForcedAuthorizedForScreenshots { return }
+        #endif
         // Notifications (Asynchronous by nature)
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
+        #if DEBUG
+        if isForcedAuthorizedForScreenshots { return }
+        #endif
         
         switch settings.authorizationStatus {
         case .notDetermined:
@@ -256,4 +265,20 @@ final class PermissionService: PermissionServiceProtocol {
             UIApplication.shared.open(url)
         }
     }
+
+    #if DEBUG
+    func forceAuthorizedForSimulatedSensors(gps: Bool, baro: Bool) {
+        guard gps || baro else { return }
+        isForcedAuthorizedForScreenshots = true
+        lifecycleObservationTask?.cancel()
+        self.notificationStatus = .authorized
+        if gps {
+            locationObservationTask?.cancel()
+            self.locationStatus = .authorized
+        }
+        if baro {
+            self.motionStatus = .authorized
+        }
+    }
+    #endif
 }
