@@ -13,7 +13,7 @@ import CoreLocation
 
 /// Pure domain data model representing an anchor watch session.
 /// Stores the anchor location, radius, creation date, and initial GPS accuracy.
-public struct AnchorWatch: Codable, Sendable, Equatable {
+nonisolated public struct AnchorWatch: Codable, Sendable, Equatable {
   // Serializable internal storage (optional for pending drops before GPS lock)
   private let storedCoordinate: CodableCoordinate?
   public let radius: Measurement<UnitLength>

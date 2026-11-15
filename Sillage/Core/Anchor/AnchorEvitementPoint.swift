@@ -13,7 +13,7 @@ import CoreLocation
 
 /// Represents a single vessel location sample recorded during an anchor watch session.
 /// Wraps `CodableCoordinate` for strict thread safety and JSON serialization compatibility.
-public struct AnchorEvitementPoint: Codable, Sendable, Equatable {
+nonisolated public struct AnchorEvitementPoint: Codable, Sendable, Equatable {
   private let storedCoordinate: CodableCoordinate
   public let timestamp: Date
 

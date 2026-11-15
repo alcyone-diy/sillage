@@ -12,7 +12,7 @@ import Foundation
 import CoreLocation
 
 /// Intermediate structure to handle the serialization of CLLocationCoordinate2D
-public struct CodableCoordinate: Codable, Sendable, Equatable {
+nonisolated public struct CodableCoordinate: Codable, Sendable, Equatable {
   public let latitude: CLLocationDegrees
   public let longitude: CLLocationDegrees
   

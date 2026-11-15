@@ -179,7 +179,11 @@ final class AnchorViewModel {
     
     if let fix = fix {
       Logger.anchor.info("Anchor drop requested with available fix at (\(fix.coordinate.latitude, privacy: .public), \(fix.coordinate.longitude, privacy: .public)).")
-      anchorService.drop(coordinate: fix.coordinate, radius: configuredRadius)
+      anchorService.drop(
+        coordinate: fix.coordinate,
+        radius: configuredRadius,
+        initialAccuracy: fix.horizontalAccuracy
+      )
     } else {
       Logger.anchor.warning("Anchor drop requested without immediate GPS fix. Pending position lock.")
       anchorService.drop(coordinate: nil, radius: configuredRadius)

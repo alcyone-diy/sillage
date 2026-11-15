@@ -164,4 +164,40 @@ final class AnchorViewModelTests: XCTestCase {
     // 90ft - 10ft = 80ft
     XCTAssertEqual(decrementedFeet, 80.0, accuracy: 0.5)
   }
+
+  func testDropAnchor_preservesInitialAccuracyFromBestAvailableFix() async throws {
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
+    let positioningService = AnchorViewModelMockPositioningService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService
+    )
+    anchorService.clear()
+    let viewModel = AnchorViewModel(anchorService: anchorService)
+
+    let degradedFix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 47.5, longitude: -3.2),
+      horizontalAccuracy: Measurement(value: 28.0, unit: UnitLength.meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    positioningService.lastKnownLocation = degradedFix
+
+    viewModel.dropAnchor()
+
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.state == .dropped && viewModel.initialAccuracy != nil
+    }
+
+    XCTAssertEqual(viewModel.initialAccuracy, Measurement(value: 28.0, unit: UnitLength.meters))
+  }
 }

@@ -10,7 +10,7 @@
 
 import Foundation
 
-public enum AnchorStatus: String, Codable, Sendable, Equatable {
+nonisolated public enum AnchorStatus: String, Codable, Sendable, Equatable {
   case inactive
   case droppedPendingPosition
   case dropped

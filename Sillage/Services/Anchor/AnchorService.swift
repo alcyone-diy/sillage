@@ -23,12 +23,18 @@ final class AnchorService {
   private let stateStore: AnchorStateStoreProtocol
   public let alarmAudioService: any AlarmAudioServiceProtocol
   
+  private enum DegradedPhase {
+    case none
+    case debouncing
+    case elapsed
+  }
+
   private(set) var activeWatch: AnchorWatch?
   private(set) var status: AnchorStatus = .inactive
   private(set) var triggerReason: AnchorTriggerReason?
   private(set) var isMuted: Bool = false
   private(set) var isSensorDegraded: Bool = false
-  private var isDegradedAlertSent: Bool = false
+  private var degradedPhase: DegradedPhase = .none
   
   var defaultRadius: Measurement<UnitLength> {
     get { preferencesService.savedAnchorRadius }
@@ -82,6 +88,7 @@ final class AnchorService {
   
   private var locationUpdateTask = TaskCancellable()
   private var degradedAlertTask: Task<Void, Never>?
+  private let degradedAlertDelay: Duration
   
   // MARK: - State Stream
   
@@ -119,7 +126,8 @@ final class AnchorService {
     permissionService: PermissionServiceProtocol,
     backgroundMonitoringService: BackgroundMonitoringService,
     alarmAudioService: (any AlarmAudioServiceProtocol)? = nil,
-    stateStore: AnchorStateStoreProtocol? = nil
+    stateStore: AnchorStateStoreProtocol? = nil,
+    degradedAlertDelay: Duration = .seconds(2)
   ) {
     let resolvedStore = stateStore ?? AnchorStateStore()
     self.positioningService = positioningService
@@ -129,6 +137,7 @@ final class AnchorService {
     self.backgroundMonitoringService = backgroundMonitoringService
     self.alarmAudioService = alarmAudioService ?? AlarmAudioService()
     self.stateStore = resolvedStore
+    self.degradedAlertDelay = degradedAlertDelay
     
     // Resume from persistent state
     let session = resolvedStore.loadSession()
@@ -150,9 +159,7 @@ final class AnchorService {
     guard setupLocationToken == nil else { return }
     Logger.anchor.info("⚓️ Starting setup location updates for Anchor UI")
     setupLocationToken = positioningService.requestLocationUpdates()
-    if status == .inactive {
-      startListeningToGPS()
-    }
+    ensureListeningToGPS()
   }
 
   func stopSetupLocationUpdates() {
@@ -168,14 +175,22 @@ final class AnchorService {
   
   /// Drops anchor using the provided coordinate or best available fix.
   /// If no fix is available at drop time, enters `.droppedPendingPosition` state until the first GPS fix arrives.
-  func drop(coordinate: CLLocationCoordinate2D? = nil, radius: Measurement<UnitLength>) {
+  func drop(
+    coordinate: CLLocationCoordinate2D? = nil,
+    radius: Measurement<UnitLength>,
+    initialAccuracy: Measurement<UnitLength>? = nil
+  ) {
     let fixToUse = (coordinate != nil) ? nil : bestAvailableFix
     let resolvedCoordinate = coordinate ?? fixToUse?.coordinate
-    let resolvedAccuracy = fixToUse?.horizontalAccuracy
+    let resolvedAccuracy = initialAccuracy ?? fixToUse?.horizontalAccuracy
     
     if let coord = resolvedCoordinate {
-      let accuracyValue = resolvedAccuracy?.converted(to: .meters).value ?? 0.0
-      Logger.anchor.info("⚓️ Dropping anchor at (\(coord.latitude, privacy: .public), \(coord.longitude, privacy: .public)) with accuracy \(accuracyValue, privacy: .public)m")
+      if let accuracy = resolvedAccuracy {
+        let formattedAccuracy = accuracy.marineAnchorDistanceFormatted()
+        Logger.anchor.info("⚓️ Dropping anchor at (\(coord.latitude, privacy: .public), \(coord.longitude, privacy: .public)) with accuracy \(formattedAccuracy, privacy: .public)")
+      } else {
+        Logger.anchor.info("⚓️ Dropping anchor at (\(coord.latitude, privacy: .public), \(coord.longitude, privacy: .public)) with unknown accuracy")
+      }
       self.activeWatch = AnchorWatch(coordinate: coord, radius: radius, initialAccuracy: resolvedAccuracy)
       self.status = .dropped
     } else {
@@ -186,8 +201,10 @@ final class AnchorService {
     
     self.triggerReason = nil
     self.isMuted = false
+    resetDegradedState()
     persistState()
     
+    ensureListeningToGPS()
     startMonitoringSession()
     notifyStateChange()
   }
@@ -245,12 +262,14 @@ final class AnchorService {
     self.status = .armed
     self.triggerReason = nil
     self.isMuted = false
+    resetDegradedState()
     persistState()
     
     Task {
       _ = await permissionService.requestCriticalNotificationAuthorization()
     }
     
+    ensureListeningToGPS()
     startMonitoringSession()
     notifyStateChange()
   }
@@ -261,11 +280,8 @@ final class AnchorService {
     self.status = .dropped
     self.triggerReason = nil
     self.isMuted = false
-    self.isSensorDegraded = false
+    resetDegradedState()
     persistState()
-    
-    degradedAlertTask?.cancel()
-    degradedAlertTask = nil
     
     alarmAudioService.stopSiren()
     notificationService.clearAllNotifications()
@@ -282,7 +298,7 @@ final class AnchorService {
     self.status = .inactive
     self.triggerReason = nil
     self.isMuted = false
-    self.isSensorDegraded = false
+    resetDegradedState()
     persistState()
     self.currentDistance = nil
     
@@ -294,7 +310,6 @@ final class AnchorService {
     stopSetupLocationUpdates()
     locationUpdateTask.task?.cancel()
     locationUpdateTask.task = nil
-    isDegradedAlertSent = false
     
     notifyStateChange()
   }
@@ -341,6 +356,23 @@ final class AnchorService {
   }
 
   
+  private func ensureListeningToGPS() {
+    if locationUpdateTask.task == nil {
+      startListeningToGPS()
+    }
+  }
+
+  private func cancelDegradedAlertTask() {
+    degradedAlertTask?.cancel()
+    degradedAlertTask = nil
+  }
+
+  private func resetDegradedState() {
+    cancelDegradedAlertTask()
+    isSensorDegraded = false
+    degradedPhase = .none
+  }
+
   private func startListeningToGPS() {
     locationUpdateTask.task?.cancel()
     locationUpdateTask.task = Task { @MainActor [weak self] in
@@ -350,12 +382,10 @@ final class AnchorService {
         guard !Task.isCancelled else { break }
         switch state {
         case .active(let fix):
-          self?.isDegradedAlertSent = false
-          self?.isSensorDegraded = false
-          self?.processLocationFix(fix)
+          self?.resetDegradedState()
+          self?.processLocationFix(fix, evaluateAlarm: true)
         case .degraded(let fix):
-          self?.handleDegradedGPS()
-          self?.processLocationFix(fix)
+          self?.handleDegradedLocationFix(fix)
         case .lost:
           if self?.status == .armed {
             self?.triggerAlarm(reason: .gpsSignalLost)
@@ -366,50 +396,90 @@ final class AnchorService {
   }
   
   /// Handles temporary GPS accuracy degradation during anchor watch.
-  /// Technical Design Choice: Uses a 2-second debounce interval via `Task.sleep` to prevent notification
-  /// flapping and false alarms caused by transient GPS hardware accuracy micro-fluctuations.
-  /// If the GPS signal improves or the watch state is modified within 2 seconds, `degradedAlertTask` is cancelled
-  /// and the critical alert notification is silently dropped.
-  private func handleDegradedGPS() {
-    guard status == .armed || status == .dragging else { return }
-    guard !isDegradedAlertSent else { return }
-    
-    isDegradedAlertSent = true
-    isSensorDegraded = true
-    Logger.anchor.warning("⚓️ GPS accuracy lost at anchor. Verification temporarily suspended.")
-    
-    if !isMuted {
-      // Unstructured task used as "fire-and-forget" to prevent blocking the high-frequency GPS stream loop.
-      // Explicit 2-second debounce prevents notification spam on temporary GPS hardware chatter.
-      degradedAlertTask?.cancel()
-      degradedAlertTask = Task { [weak self] in
-        try? await Task.sleep(for: .seconds(2))
-        guard let self = self, !Task.isCancelled else { return }
-        
-        let bodyText: String
-        if let accuracy = self.gpsAccuracy {
-          let formattedAccuracy = accuracy.marineAnchorDistanceFormatted()
-          bodyText = String(localized: "Critical GPS accuracy (\(formattedAccuracy)). Anchor alarm is temporarily unreliable.")
-        } else {
-          bodyText = String(localized: "Critical GPS accuracy. Anchor alarm is temporarily unreliable.")
-        }
+  /// Technical Design Choice: Suspends alarm evaluation and debounces via `degradedAlertDelay` (2s default)
+  /// to prevent false alarms and notification flapping on transient GPS accuracy fluctuations.
+  /// If `.active`, `disarm()`, or `clear()` occurs within the window, `degradedAlertTask` is cancelled silently.
+  /// Once the debounce window elapses, subsequent `.degraded` fixes immediately evaluate accuracy thresholds
+  /// (`.poorAccuracy` / `.gpsSignalLost`) while never auto-resolving an active `.dragging` alarm on degraded data.
+  private func handleDegradedLocationFix(_ fix: NavigationFix) {
+    processLocationFix(fix, evaluateAlarm: false)
 
-        do {
-          try await self.notificationService.sendCriticalNotification(
-            title: String(localized: "⚠️ Monitoring Suspended"),
-            body: bodyText,
-            identifier: NotificationIntent.anchorGPSDegraded.rawValue
-          )
-        } catch {
-          Logger.anchor.error("Failed to schedule GPS degraded critical notification: \(error.localizedDescription, privacy: .public)")
-        }
+    guard status == .armed || status == .dragging else { return }
+    isSensorDegraded = true
+
+    switch degradedPhase {
+    case .none:
+      degradedPhase = .debouncing
+      Logger.anchor.warning("⚓️ GPS accuracy lost at anchor. Verification temporarily suspended.")
+      scheduleDegradedAlertTask()
+    case .debouncing:
+      break
+    case .elapsed:
+      triggerDegradedAccuracyAlarmIfNeeded()
+    }
+  }
+
+  private func scheduleDegradedAlertTask() {
+    let delay = degradedAlertDelay
+    cancelDegradedAlertTask()
+    degradedAlertTask = Task { [weak self] in
+      try? await Task.sleep(for: delay)
+      guard let self = self,
+            !Task.isCancelled,
+            self.isSensorDegraded,
+            self.status == .armed || self.status == .dragging else { return }
+
+      self.degradedPhase = .elapsed
+
+      if self.triggerDegradedAccuracyAlarmIfNeeded() {
+        return
       }
+
+      guard !self.isMuted else { return }
+
+      let bodyText: String
+      if let accuracy = self.gpsAccuracy {
+        let formattedAccuracy = accuracy.marineAnchorDistanceFormatted()
+        bodyText = String(localized: "Critical GPS accuracy (\(formattedAccuracy)). Anchor alarm is temporarily unreliable.")
+      } else {
+        bodyText = String(localized: "Critical GPS accuracy. Anchor alarm is temporarily unreliable.")
+      }
+
+      do {
+        try await self.notificationService.sendCriticalNotification(
+          title: String(localized: "⚠️ Monitoring Suspended"),
+          body: bodyText,
+          identifier: NotificationIntent.anchorGPSDegraded.rawValue
+        )
+      } catch {
+        Logger.anchor.error("Failed to schedule GPS degraded critical notification: \(error.localizedDescription, privacy: .public)")
+      }
+    }
+  }
+
+  /// Evaluates whether the latest degraded fix breaches accuracy thresholds while armed.
+  /// Never evaluates `.distanceExceeded` or `.autoResolveAlarm` on degraded GPS data.
+  @discardableResult
+  private func triggerDegradedAccuracyAlarmIfNeeded() -> Bool {
+    guard status == .armed, let watch = activeWatch, let fix = latestFix else {
+      return false
+    }
+    let evaluationResult = evaluator.evaluate(fix: fix, watch: watch, currentStatus: .armed)
+    guard case .triggerAlarm(let reason) = evaluationResult else {
+      return false
+    }
+    switch reason {
+    case .gpsSignalLost, .poorAccuracy:
+      triggerAlarm(reason: reason)
+      return true
+    case .distanceExceeded, .debugSimulation:
+      return false
     }
   }
   
   private let evaluator = AnchorEvaluator()
 
-  private func processLocationFix(_ fix: NavigationFix) {
+  private func processLocationFix(_ fix: NavigationFix, evaluateAlarm: Bool = true) {
     self.latestFix = fix
     self.gpsAccuracy = fix.horizontalAccuracy
     
@@ -433,31 +503,32 @@ final class AnchorService {
     
     self.currentDistance = anchorCoord.distance(to: fix.coordinate)
     
-    let evaluationResult = evaluator.evaluate(fix: fix, watch: watch, currentStatus: status)
-    
-    // Record evitement swing point if vessel moved spatially >= 2m in dropped, armed, or dragging status
-    if status == .dropped || status == .armed || status == .dragging {
-      recordEvitementPointIfNeeded(fix: fix)
-    }
-
-
-    switch evaluationResult {
-    case .maintainState:
-      break
+    if evaluateAlarm {
+      let evaluationResult = evaluator.evaluate(fix: fix, watch: watch, currentStatus: status)
       
-    case .triggerAlarm(let reason):
-      triggerAlarm(reason: reason)
-      
-    case .autoResolveAlarm(let reason):
-      switch reason {
-      case .vesselReturnedInCircle(let distance):
-        Logger.anchor.info("⚓️ Vessel returned within anchor radius (\(Int(distance.value), privacy: .public)m). Auto-resolving alarm.")
-        status = .armed
-        triggerReason = nil
-        isMuted = false
-        alarmAudioService.stopSiren()
-        notificationService.clearAllNotifications()
-        persistState()
+      // Record evitement swing point if vessel moved spatially >= 2m in dropped, armed, or dragging status
+      if status == .dropped || status == .armed || status == .dragging {
+        recordEvitementPointIfNeeded(fix: fix)
+      }
+
+      switch evaluationResult {
+      case .maintainState:
+        break
+        
+      case .triggerAlarm(let reason):
+        triggerAlarm(reason: reason)
+        
+      case .autoResolveAlarm(let reason):
+        switch reason {
+        case .vesselReturnedInCircle(let distance):
+          Logger.anchor.info("⚓️ Vessel returned within anchor radius (\(Int(distance.value), privacy: .public)m). Auto-resolving alarm.")
+          status = .armed
+          triggerReason = nil
+          isMuted = false
+          alarmAudioService.stopSiren()
+          notificationService.clearAllNotifications()
+          persistState()
+        }
       }
     }
 
@@ -545,6 +616,10 @@ final class AnchorService {
   private func triggerAlarm(reason: AnchorTriggerReason) {
     Logger.anchor.fault("🚨 ANCHOR ALARM TRIGGERED! Reason: \(String(describing: reason), privacy: .public)")
     
+    cancelDegradedAlertTask()
+    if isSensorDegraded {
+      degradedPhase = .elapsed
+    }
     self.triggerReason = reason
     self.status = .dragging
     persistState()
