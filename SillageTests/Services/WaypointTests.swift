@@ -178,7 +178,8 @@ final class WaypointTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -241,7 +242,8 @@ final class WaypointTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -332,7 +334,8 @@ final class WaypointTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -428,7 +431,8 @@ final class WaypointTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -517,7 +521,8 @@ final class WaypointTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -596,7 +601,8 @@ final class WaypointTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -698,7 +704,8 @@ final class WaypointTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -784,7 +791,8 @@ final class WaypointTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -909,27 +917,29 @@ final class WaypointTests: XCTestCase {
     XCTAssertNil(vm.magneticDeclinationFooterText)
 
     vm.magneticDeclination = Measurement<UnitAngle>(value: 1.2, unit: .degrees)
+    let angle1_2 = "1.2°"
     XCTAssertEqual(
       vm.magneticDeclinationFooterText,
-      "True to Magnetic: subtract 1.2° • Magnetic to True: add 1.2°"
+      String(localized: "True to Magnetic: subtract \(angle1_2) • Magnetic to True: add \(angle1_2)")
     )
 
     vm.magneticDeclination = Measurement<UnitAngle>(value: -2.5, unit: .degrees)
+    let angle2_5 = "2.5°"
     XCTAssertEqual(
       vm.magneticDeclinationFooterText,
-      "True to Magnetic: add 2.5° • Magnetic to True: subtract 2.5°"
+      String(localized: "True to Magnetic: add \(angle2_5) • Magnetic to True: subtract \(angle2_5)")
     )
 
     vm.magneticDeclination = Measurement<UnitAngle>(value: 0.0, unit: .degrees)
     XCTAssertEqual(
       vm.magneticDeclinationFooterText,
-      "No significant variation between True and Magnetic bearings."
+      String(localized: "No significant variation between True and Magnetic bearings.")
     )
 
     vm.magneticDeclination = Measurement<UnitAngle>(value: -0.04, unit: .degrees)
     XCTAssertEqual(
       vm.magneticDeclinationFooterText,
-      "No significant variation between True and Magnetic bearings."
+      String(localized: "No significant variation between True and Magnetic bearings.")
     )
 
     vm.magneticDeclination = nil

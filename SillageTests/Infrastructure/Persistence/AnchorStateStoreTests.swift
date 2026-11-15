@@ -30,7 +30,7 @@ final class AnchorStateStoreTests: XCTestCase {
   }
 
   func testSaveSession_persistsLatestStateInStrictFIFOOrder() async throws {
-    let store = AnchorStateStore(directoryURL: tempDir)
+    let store = await AnchorStateStore.load(directoryURL: tempDir)
     let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
 
     // Rapidly enqueue state transitions across 50 cycles ending in .inactive
@@ -47,12 +47,12 @@ final class AnchorStateStoreTests: XCTestCase {
     await store.flush()
 
     // Reload from disk with a fresh store instance
-    let reloaded = AnchorStateStore(directoryURL: tempDir)
+    let reloaded = await AnchorStateStore.load(directoryURL: tempDir)
     XCTAssertEqual(reloaded.loadSession(), finalSession)
   }
 
   func testSaveSession_persistsAndRestoresWatchAndAccuracy() async throws {
-    let store = AnchorStateStore(directoryURL: tempDir)
+    let store = await AnchorStateStore.load(directoryURL: tempDir)
     let watch = AnchorWatch(
       coordinate: CLLocationCoordinate2D(latitude: 48.123, longitude: -4.456),
       radius: Measurement(value: 45, unit: .meters),
@@ -63,7 +63,7 @@ final class AnchorStateStoreTests: XCTestCase {
     store.saveSession(session)
     await store.flush()
 
-    let reloaded = AnchorStateStore(directoryURL: tempDir)
+    let reloaded = await AnchorStateStore.load(directoryURL: tempDir)
     let restored = reloaded.loadSession()
     XCTAssertEqual(restored.status, .armed)
     XCTAssertEqual(restored.activeWatch?.coordinate?.latitude, 48.123)
@@ -73,7 +73,7 @@ final class AnchorStateStoreTests: XCTestCase {
   }
 
   func testLoadAsync_preloadsPersistedSessionAndContinuesPersisting() async throws {
-    let initialStore = AnchorStateStore(directoryURL: tempDir)
+    let initialStore = await AnchorStateStore.load(directoryURL: tempDir)
     let watch = AnchorWatch(
       coordinate: CLLocationCoordinate2D(latitude: 46.159, longitude: -1.151),
       radius: Measurement(value: 60, unit: .meters),

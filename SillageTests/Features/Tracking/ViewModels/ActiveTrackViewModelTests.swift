@@ -137,7 +137,8 @@ struct ActiveTrackViewModelTests {
       preferencesService: preferencesService,
       notificationService: notificationService,
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let mockAuthService = MockGeoGarageAuthService()

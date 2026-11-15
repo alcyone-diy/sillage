@@ -126,21 +126,20 @@ final class AnchorService {
     permissionService: PermissionServiceProtocol,
     backgroundMonitoringService: BackgroundMonitoringService,
     alarmAudioService: (any AlarmAudioServiceProtocol)? = nil,
-    stateStore: AnchorStateStoreProtocol? = nil,
+    stateStore: AnchorStateStoreProtocol,
     degradedAlertDelay: Duration = .seconds(2)
   ) {
-    let resolvedStore = stateStore ?? AnchorStateStore()
     self.positioningService = positioningService
     self.preferencesService = preferencesService
     self.notificationService = notificationService
     self.permissionService = permissionService
     self.backgroundMonitoringService = backgroundMonitoringService
     self.alarmAudioService = alarmAudioService ?? AlarmAudioService()
-    self.stateStore = resolvedStore
+    self.stateStore = stateStore
     self.degradedAlertDelay = degradedAlertDelay
     
     // Resume from persistent state
-    let session = resolvedStore.loadSession()
+    let session = stateStore.loadSession()
     self.activeWatch = session.activeWatch
     self.status = session.status
     self.triggerReason = session.triggerReason

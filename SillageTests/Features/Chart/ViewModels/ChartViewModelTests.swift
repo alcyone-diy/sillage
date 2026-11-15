@@ -33,7 +33,7 @@ final class ChartViewModelTests: XCTestCase {
     let positioningService = MockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     
 
@@ -81,7 +81,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     
 
@@ -126,7 +126,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -160,7 +160,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -210,7 +210,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     // Act
@@ -258,7 +258,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -308,7 +308,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     // Act
@@ -356,7 +356,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -387,7 +387,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -429,7 +429,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -463,7 +463,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -490,7 +490,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -521,7 +521,8 @@ final class ChartViewModelTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -667,7 +668,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -700,7 +701,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     instrumentDampingService.start()
@@ -764,7 +765,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -816,7 +817,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -853,7 +854,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -927,7 +928,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -1038,7 +1039,7 @@ final class ChartViewModelTests: XCTestCase {
     let positioningService = MockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -1069,7 +1070,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let mockAuthService = MockGeoGarageAuthService()
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -1135,7 +1136,8 @@ final class ChartViewModelTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -1175,7 +1177,8 @@ final class ChartViewModelTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -1215,7 +1218,8 @@ final class ChartViewModelTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -1255,7 +1259,8 @@ final class ChartViewModelTests: XCTestCase {
       preferencesService: preferencesService,
       notificationService: LocalNotificationService(),
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
@@ -1299,7 +1304,7 @@ final class ChartViewModelTests: XCTestCase {
     preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -1329,7 +1334,7 @@ final class ChartViewModelTests: XCTestCase {
     preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -1390,7 +1395,7 @@ final class ChartViewModelTests: XCTestCase {
     preferencesService.clearAll()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -1437,7 +1442,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -1493,7 +1498,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -1552,7 +1557,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let messageService = MessageService()
     let trackRecordingService = TrackRecordingService(
@@ -1627,7 +1632,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let messageService = MessageService()
     let trackRecordingService = TrackRecordingService(
@@ -1718,7 +1723,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let mockAuthService = MockGeoGarageAuthService()
@@ -1757,7 +1762,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let mockAuthService = MockGeoGarageAuthService()
@@ -1790,7 +1795,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let mockAuthService = MockGeoGarageAuthService()
@@ -1833,7 +1838,7 @@ final class ChartViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let mockAuthService = MockGeoGarageAuthService()
@@ -1886,7 +1891,7 @@ final class ChartViewModelTests: XCTestCase {
     let positioningService = MockPositioningService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: prefs, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: prefs, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
 
@@ -2115,7 +2120,7 @@ final class ChartViewModelTests: XCTestCase {
     let auth = MockGeoGarageAuthService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let anchorService = AnchorService(positioningService: positioningService, preferencesService: prefs, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: prefs, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
 
     let viewModel = ChartViewModel(

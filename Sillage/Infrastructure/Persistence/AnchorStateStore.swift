@@ -51,9 +51,10 @@ nonisolated public final class AnchorStateStore: AnchorStateStoreProtocol, Senda
     }.value
   }
 
-  /// Initializes the store synchronously by reading any persisted session snapshot from disk.
-  /// Callers on `@MainActor` should prefer `AnchorStateStore.load(directoryURL:)` so disk I/O never blocks the main thread.
-  public init(fileManager: FileManager = FileManager(), directoryURL: URL? = nil) {
+  /// Creates the store and loads any persisted session snapshot from disk.
+  /// Kept `private` so callers cannot perform synchronous disk I/O on `@MainActor`;
+  /// use `AnchorStateStore.load(directoryURL:)` instead.
+  private init(fileManager: FileManager = FileManager(), directoryURL: URL? = nil) {
     let appSupportDir: URL
     if let directoryURL {
       appSupportDir = directoryURL

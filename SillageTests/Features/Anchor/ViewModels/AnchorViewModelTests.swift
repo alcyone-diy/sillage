@@ -83,16 +83,17 @@ final class AnchorViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     preferencesService.clearAll()
     let positioningService = AnchorViewModelMockPositioningService()
-    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let notificationService = MockNotificationService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: notificationService)
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
       positioningService: positioningService,
       preferencesService: preferencesService,
-      notificationService: LocalNotificationService(),
+      notificationService: notificationService,
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
-    anchorService.clear()
     let viewModel = AnchorViewModel(anchorService: anchorService)
 
     // 1. Initial State: ephemeral preparation mode is false
@@ -139,16 +140,17 @@ final class AnchorViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     preferencesService.clearAll()
     let positioningService = AnchorViewModelMockPositioningService()
-    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let notificationService = MockNotificationService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: notificationService)
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
       positioningService: positioningService,
       preferencesService: preferencesService,
-      notificationService: LocalNotificationService(),
+      notificationService: notificationService,
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
-    anchorService.clear()
     let viewModel = AnchorViewModel(anchorService: anchorService)
 
     let metricLocale = Locale(components: .init(languageCode: .french, script: nil, languageRegion: .france))
@@ -180,16 +182,17 @@ final class AnchorViewModelTests: XCTestCase {
     let preferencesService = MockPreferencesService()
     preferencesService.clearAll()
     let positioningService = AnchorViewModelMockPositioningService()
-    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let notificationService = MockNotificationService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: notificationService)
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
     let anchorService = AnchorService(
       positioningService: positioningService,
       preferencesService: preferencesService,
-      notificationService: LocalNotificationService(),
+      notificationService: notificationService,
       permissionService: permissionService,
-      backgroundMonitoringService: backgroundMonitoringService
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
     )
-    anchorService.clear()
     let viewModel = AnchorViewModel(anchorService: anchorService)
 
     let degradedFix = NavigationFix(
@@ -217,7 +220,7 @@ final class AnchorViewModelTests: XCTestCase {
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
-    let (anchorService, positioningService, _) = makeIsolatedAnchorService(directoryURL: tempDir)
+    let (anchorService, positioningService, _) = await makeIsolatedAnchorService(directoryURL: tempDir)
     let viewModel = AnchorViewModel(anchorService: anchorService)
     _ = positioningService // Keep mock alive cleanly
     XCTAssertEqual(viewModel.configuredRadius, Measurement(value: 25.0, unit: .meters))
@@ -249,7 +252,7 @@ final class AnchorViewModelTests: XCTestCase {
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
-    let (anchorService, positioningService, notificationService) = makeIsolatedAnchorService(directoryURL: tempDir)
+    let (anchorService, positioningService, notificationService) = await makeIsolatedAnchorService(directoryURL: tempDir)
     let coord = CLLocationCoordinate2D(latitude: 47.2, longitude: -1.5)
 
     // 1. Cancelled via cancelDrop() before permission granted
@@ -310,7 +313,7 @@ final class AnchorViewModelTests: XCTestCase {
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
-    let (anchorService, positioningService, notificationService) = makeIsolatedAnchorService(directoryURL: tempDir)
+    let (anchorService, positioningService, notificationService) = await makeIsolatedAnchorService(directoryURL: tempDir)
     anchorService.drop(coordinate: nil, radius: Measurement(value: 45.0, unit: .meters))
     XCTAssertEqual(anchorService.status, .droppedPendingPosition)
 
@@ -345,12 +348,12 @@ final class AnchorViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.permissionGateType)
   }
 
-  func testPendingArmAction_armsWhenFinalizedInValidDroppedState() throws {
+  func testPendingArmAction_armsWhenFinalizedInValidDroppedState() async throws {
     let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
-    let (anchorService, positioningService, notificationService) = makeIsolatedAnchorService(directoryURL: tempDir)
+    let (anchorService, positioningService, notificationService) = await makeIsolatedAnchorService(directoryURL: tempDir)
     let coord = CLLocationCoordinate2D(latitude: 47.2, longitude: -1.5)
     anchorService.drop(coordinate: coord, radius: Measurement(value: 50.0, unit: .meters))
 
@@ -369,7 +372,7 @@ final class AnchorViewModelTests: XCTestCase {
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
-    let (anchorService, positioningService, _) = makeIsolatedAnchorService(directoryURL: tempDir)
+    let (anchorService, positioningService, _) = await makeIsolatedAnchorService(directoryURL: tempDir)
     let viewModel = AnchorViewModel(anchorService: anchorService)
 
     // Simulate AnchorAlarmView active on screen after an anchor was dropped
@@ -416,14 +419,14 @@ final class AnchorViewModelTests: XCTestCase {
 
   private func makeIsolatedAnchorService(
     directoryURL: URL
-  ) -> (AnchorService, AnchorViewModelMockPositioningService, MockNotificationService) {
+  ) async -> (AnchorService, AnchorViewModelMockPositioningService, MockNotificationService) {
     let preferencesService = MockPreferencesService()
     preferencesService.clearAll()
     let positioningService = AnchorViewModelMockPositioningService()
     let notificationService = MockNotificationService()
     let permissionService = PermissionService(positioningService: positioningService, notificationService: notificationService)
     let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
-    let stateStore = AnchorStateStore(directoryURL: directoryURL)
+    let stateStore = await AnchorStateStore.load(directoryURL: directoryURL)
     let anchorService = AnchorService(
       positioningService: positioningService,
       preferencesService: preferencesService,

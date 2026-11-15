@@ -282,7 +282,8 @@ final class OfflineSelectionViewModelTests: XCTestCase {
       preferencesService: preferences,
       notificationService: LocalNotificationService(),
       permissionService: permService,
-      backgroundMonitoringService: bgMonService
+      backgroundMonitoringService: bgMonService,
+      stateStore: MockAnchorStateStore()
     )
     let anchorVM = AnchorViewModel(anchorService: anchorService)
     let chartVM = ChartViewModel(
@@ -411,7 +412,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     sut.startDownload(chartSource: nil)
 
     if case .failed(let error) = sut.downloadPhase {
-      XCTAssertTrue(error.contains("authenticated") || error.contains("login"))
+      XCTAssertEqual(error, String(localized: "User is not authenticated with GeoGarage. Please login first."))
     } else {
       XCTFail("Expected .failed state when customer ID is missing, got \(sut.downloadPhase)")
     }
@@ -461,7 +462,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     sut.startDownload(accessToken: "token123", customerID: "cust123")
 
     if case .failed(let error) = sut.downloadPhase {
-      XCTAssertTrue(error.contains("No chart layer available"))
+      XCTAssertEqual(error, String(localized: "No chart layer available for download. Please select a valid layer."))
     } else {
       XCTFail("Expected .failed state when no layer is available or selected, got \(sut.downloadPhase)")
     }
