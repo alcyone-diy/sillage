@@ -347,7 +347,7 @@ final class AnchorServiceTests: XCTestCase {
       XCTFail("Expected .distanceExceeded trigger reason")
     }
     XCTAssertEqual(mockNotif.sentNotifications.count, 1)
-    XCTAssertEqual(mockNotif.sentNotifications.first?.title, "⚓️ DRAGGING ANCHOR!")
+    XCTAssertEqual(mockNotif.sentNotifications.first?.title, String(localized: "⚓️ DRAGGING ANCHOR!"))
     let body = try XCTUnwrap(mockNotif.sentNotifications.first?.body)
     let expectedRadius = Measurement(value: 50, unit: UnitLength.meters).marineAnchorDistanceFormatted()
     XCTAssertTrue(

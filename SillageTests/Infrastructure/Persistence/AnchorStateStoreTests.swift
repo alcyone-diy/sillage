@@ -71,4 +71,46 @@ final class AnchorStateStoreTests: XCTestCase {
     XCTAssertEqual(restored.activeWatch?.radius, Measurement(value: 45, unit: .meters))
     XCTAssertEqual(restored.activeWatch?.initialAccuracy, Measurement(value: 19, unit: .meters))
   }
+
+  func testLoadAsync_preloadsPersistedSessionAndContinuesPersisting() async throws {
+    let initialStore = AnchorStateStore(directoryURL: tempDir)
+    let watch = AnchorWatch(
+      coordinate: CLLocationCoordinate2D(latitude: 46.159, longitude: -1.151),
+      radius: Measurement(value: 60, unit: .meters),
+      initialAccuracy: Measurement(value: 8, unit: .meters)
+    )
+    let initialSession = AnchorSessionData(
+      activeWatch: watch,
+      status: .dragging,
+      triggerReason: .distanceExceeded(
+        distance: Measurement(value: 75, unit: .meters),
+        radius: Measurement(value: 60, unit: .meters)
+      )
+    )
+    initialStore.saveSession(initialSession)
+    await initialStore.flush()
+
+    let preloadedStore = await AnchorStateStore.load(directoryURL: tempDir)
+    XCTAssertEqual(preloadedStore.loadSession(), initialSession)
+
+    let cleared = AnchorSessionData(activeWatch: nil, status: .inactive, triggerReason: nil)
+    preloadedStore.saveSession(cleared)
+    await preloadedStore.flush()
+
+    let reloaded = await AnchorStateStore.load(directoryURL: tempDir)
+    XCTAssertEqual(reloaded.loadSession(), cleared)
+  }
+
+  func testLoadAsync_returnsInactiveWhenNoPersistedFileExists() async {
+    let store = await AnchorStateStore.load(directoryURL: tempDir)
+    XCTAssertEqual(store.loadSession(), AnchorSessionData(activeWatch: nil, status: .inactive, triggerReason: nil))
+  }
+
+  func testLoadAsync_fallsBackToInactiveWhenPersistedFileIsCorrupted() async throws {
+    let fileURL = tempDir.appendingPathComponent("anchor_session.json")
+    try Data("{corrupted-json".utf8).write(to: fileURL, options: .atomic)
+
+    let store = await AnchorStateStore.load(directoryURL: tempDir)
+    XCTAssertEqual(store.loadSession(), AnchorSessionData(activeWatch: nil, status: .inactive, triggerReason: nil))
+  }
 }

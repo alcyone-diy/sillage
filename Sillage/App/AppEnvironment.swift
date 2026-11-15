@@ -73,6 +73,7 @@ final class AppEnvironment {
   private let preferencesServiceOverride: PreferencesService?
   private let userDefaults: UserDefaults
   private let databaseManagerOverride: DatabaseManager?
+  private let anchorStateStoreOverride: (any AnchorStateStoreProtocol)?
   #if DEBUG
   private var screenshotScenarioOverride: ScreenshotScenario?
   #endif
@@ -84,7 +85,8 @@ final class AppEnvironment {
     keychainManager: any KeychainManaging = KeychainManager.shared,
     preferencesService: PreferencesService? = nil,
     userDefaults: UserDefaults = .standard,
-    databaseManager: DatabaseManager? = nil
+    databaseManager: DatabaseManager? = nil,
+    anchorStateStore: (any AnchorStateStoreProtocol)? = nil
   ) {
     self.metadata = metadata ?? AppMetadataProvider.resolve()
     self.bootDate = Date.now
@@ -97,6 +99,7 @@ final class AppEnvironment {
     self.preferencesServiceOverride = preferencesService
     self.userDefaults = userDefaults
     self.databaseManagerOverride = databaseManager
+    self.anchorStateStoreOverride = anchorStateStore
     setupMapLibreProgressObservation()
   }
 
@@ -107,14 +110,16 @@ final class AppEnvironment {
     authSession: URLSession = .shared,
     keychainManager: any KeychainManaging = KeychainManager.shared,
     userDefaults: UserDefaults = .standard,
-    databaseManager: DatabaseManager? = nil
+    databaseManager: DatabaseManager? = nil,
+    anchorStateStore: (any AnchorStateStoreProtocol)? = nil
   ) {
     self.init(
       partnerSecretService: partnerSecretService,
       authSession: authSession,
       keychainManager: keychainManager,
       userDefaults: userDefaults,
-      databaseManager: databaseManager
+      databaseManager: databaseManager,
+      anchorStateStore: anchorStateStore
     )
     self.screenshotScenarioOverride = screenshotScenario
   }
@@ -392,6 +397,12 @@ final class AppEnvironment {
       )
       
       let alarmAudioService = AlarmAudioService()
+      let anchorStateStore: any AnchorStateStoreProtocol
+      if let anchorStateStoreOverride {
+        anchorStateStore = anchorStateStoreOverride
+      } else {
+        anchorStateStore = await AnchorStateStore.load()
+      }
       
       let anchorService = AnchorService(
         positioningService: positioningService,
@@ -399,7 +410,8 @@ final class AppEnvironment {
         notificationService: notificationService,
         permissionService: permissionService,
         backgroundMonitoringService: backgroundMonitoringService,
-        alarmAudioService: alarmAudioService
+        alarmAudioService: alarmAudioService,
+        stateStore: anchorStateStore
       )
       
       let anchorViewModel = AnchorViewModel(anchorService: anchorService)

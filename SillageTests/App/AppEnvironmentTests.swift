@@ -9,6 +9,8 @@
 //
 
 import XCTest
+import CoreLocation
+import os
 @testable import Sillage
 
 @MainActor
@@ -343,5 +345,56 @@ final class AppEnvironmentTests: XCTestCase {
       XCTFail("the expired session must be published: \(authError)")
       return
     }
+  }
+
+  func testBootstrap_restoresInjectedArmedAnchorSessionOnReady() async {
+    let watch = AnchorWatch(
+      coordinate: CLLocationCoordinate2D(latitude: 47.2, longitude: -1.5),
+      radius: Measurement(value: 45, unit: .meters),
+      initialAccuracy: Measurement(value: 6, unit: .meters)
+    )
+    let mockStore = MockAppEnvironmentAnchorStateStore(
+      initialSession: AnchorSessionData(activeWatch: watch, status: .armed, triggerReason: nil)
+    )
+    let restoredEnv = AppEnvironment(
+      partnerSecretService: partnerSecretService,
+      authSession: authSession,
+      keychainManager: mockKeychain,
+      preferencesService: testPreferencesService,
+      userDefaults: isolatedDefaults.defaults,
+      databaseManager: testDatabaseManager,
+      anchorStateStore: mockStore
+    )
+
+    await restoredEnv.bootstrap()
+
+    guard case .ready(let container) = restoredEnv.state else {
+      XCTFail("AppEnvironment must transition to .ready after bootstrap")
+      return
+    }
+    XCTAssertEqual(container.anchorService.status, .armed)
+    XCTAssertEqual(container.anchorService.activeWatch?.radius, Measurement(value: 45, unit: .meters))
+    XCTAssertEqual(container.anchorViewModel.status, .armed)
+    XCTAssertEqual(container.anchorViewModel.configuredRadius, Measurement(value: 45, unit: .meters))
+
+    // Clean up background GPS task started on armed restoration
+    container.anchorService.clear()
+    XCTAssertEqual(mockStore.loadSession().status, .inactive)
+  }
+}
+
+private nonisolated final class MockAppEnvironmentAnchorStateStore: AnchorStateStoreProtocol, Sendable {
+  private let sessionLock: OSAllocatedUnfairLock<AnchorSessionData>
+
+  init(initialSession: AnchorSessionData = AnchorSessionData()) {
+    self.sessionLock = OSAllocatedUnfairLock(initialState: initialSession)
+  }
+
+  func loadSession() -> AnchorSessionData {
+    sessionLock.withLock { $0 }
+  }
+
+  func saveSession(_ session: AnchorSessionData) {
+    sessionLock.withLock { $0 = session }
   }
 }
