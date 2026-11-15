@@ -120,6 +120,7 @@ final class AnchorViewModel {
   // MARK: - Internal UI Permission State
   
   var permissionGateType: PermissionGateType? = nil
+  private var pendingGateType: PermissionGateType? = nil
   private var pendingAction: (@MainActor () -> Void)? = nil
   
   @ObservationIgnored
@@ -130,15 +131,8 @@ final class AnchorViewModel {
   init(anchorService: AnchorService) {
     self.anchorService = anchorService
     let initial = anchorService.currentState
-    self.status = initial.status
-    self.triggerReason = initial.triggerReason
-    self.currentDistance = initial.currentDistance
-    self.sog = initial.latestFix?.speedOverGround
-    self.gpsAccuracy = initial.gpsAccuracy
-    self.initialAccuracy = initial.activeWatch?.initialAccuracy
-    self.anchorCoordinate = initial.activeWatch?.coordinate
-    self.isAlertSilenced = initial.isMuted
     self.configuredRadius = initial.activeWatch?.radius ?? anchorService.defaultRadius
+    applyState(initial)
     
     startObservingService()
   }
@@ -155,14 +149,29 @@ final class AnchorViewModel {
   }
   
   private func applyState(_ state: Sillage.AnchorState) {
+    let incomingCoordinate = state.activeWatch?.coordinate
+    let coordinateChanged =
+      self.anchorCoordinate?.latitude != incomingCoordinate?.latitude ||
+      self.anchorCoordinate?.longitude != incomingCoordinate?.longitude
+
+    // Discard any queued arm action if the watch leaves `.dropped` or its coordinate changes.
+    if state.status != .dropped || coordinateChanged {
+      cancelPendingAction()
+    }
+
     self.status = state.status
     self.triggerReason = state.triggerReason
     self.currentDistance = state.currentDistance
     self.sog = state.latestFix?.speedOverGround
     self.gpsAccuracy = state.gpsAccuracy
     self.initialAccuracy = state.activeWatch?.initialAccuracy
-    self.anchorCoordinate = state.activeWatch?.coordinate
+    self.anchorCoordinate = incomingCoordinate
     self.isAlertSilenced = state.isMuted
+
+    let resolvedRadius = state.activeWatch?.radius ?? anchorService.defaultRadius
+    if self.configuredRadius != resolvedRadius {
+      self.configuredRadius = resolvedRadius
+    }
   }
   
   deinit {
@@ -176,6 +185,7 @@ final class AnchorViewModel {
   func dropAnchor() {
     let fix = anchorService.bestAvailableFix
     self.anchorDropError = nil
+    cancelPendingAction()
     
     if let fix = fix {
       Logger.anchor.info("Anchor drop requested with available fix at (\(fix.coordinate.latitude, privacy: .public), \(fix.coordinate.longitude, privacy: .public)).")
@@ -193,6 +203,7 @@ final class AnchorViewModel {
   func cancelDrop() {
     Logger.anchor.info("Canceling anchor drop before arming.")
     self.anchorDropError = nil
+    cancelPendingAction()
     anchorService.clear()
   }
 
@@ -247,7 +258,7 @@ final class AnchorViewModel {
   }
   
   func armAlarm() {
-    guard let coord = anchorCoordinate else {
+    guard let coord = anchorCoordinate ?? anchorService.activeWatch?.coordinate else {
       Logger.anchor.warning("Cannot arm alarm: Anchor position has not locked yet.")
       return
     }
@@ -256,22 +267,57 @@ final class AnchorViewModel {
   }
   
   func requestArmAlarm(in service: PermissionService) {
+    guard anchorCoordinate != nil || anchorService.activeWatch?.coordinate != nil else {
+      Logger.anchor.warning("Cannot request arm alarm: Anchor position has not locked yet.")
+      return
+    }
+
     let status = service.notificationStatus
     if status == .authorized {
       self.armAlarm()
     } else {
+      let gateType: PermissionGateType = .notification(trigger: .anchorAlarm)
       self.pendingAction = { [weak self] in self?.armAlarm() }
-      self.permissionGateType = .notification(trigger: .anchorAlarm)
+      self.pendingGateType = gateType
+      self.permissionGateType = gateType
     }
   }
   
   func finalizePendingAction() {
-    pendingAction?()
+    let action = pendingAction
+    cancelPendingAction()
+
+    guard let action,
+          anchorService.status == .dropped,
+          anchorService.activeWatch?.coordinate != nil else {
+      return
+    }
+    action()
+  }
+
+  /// Executes or discards the deferred arm action when the permission sheet closes, depending on authorization status.
+  func handlePermissionSheetDismissed(in service: PermissionService) {
+    guard let gate = pendingGateType else {
+      cancelPendingAction()
+      return
+    }
+    if gate.currentStatus(in: service) == .authorized {
+      finalizePendingAction()
+    } else {
+      cancelPendingAction()
+    }
+  }
+
+  /// Clears any deferred permission-gated arm action and closes the permission gate sheet.
+  func cancelPendingAction() {
     pendingAction = nil
+    pendingGateType = nil
+    permissionGateType = nil
   }
   
   func disarmAlarm() {
     Logger.anchor.info("Disarming anchor alarm from ViewModel.")
+    cancelPendingAction()
     anchorService.disarm()
   }
   
@@ -295,6 +341,7 @@ final class AnchorViewModel {
 
   func confirmAdjustAnchor(to newCoordinate: CLLocationCoordinate2D) {
     Logger.anchor.info("Confirming manual anchor position adjustment to (\(newCoordinate.latitude, privacy: .public), \(newCoordinate.longitude, privacy: .public)).")
+    cancelPendingAction()
     anchorService.adjustAnchorPosition(to: newCoordinate)
     self.isAdjustingAnchor = false
   }

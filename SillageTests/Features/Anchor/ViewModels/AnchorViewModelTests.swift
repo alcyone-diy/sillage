@@ -16,6 +16,8 @@ import CoreLocation
 private final class AnchorViewModelMockPositioningService: PositioningService {
   private var locationContinuations: [UUID: AsyncStream<PositioningState>.Continuation] = [:]
 
+  var isSubscribed: Bool { !locationContinuations.isEmpty }
+
   var locationUpdates: AsyncStream<PositioningState> {
     let (stream, continuation) = AsyncStream.makeStream(of: PositioningState.self)
     let id = UUID()
@@ -199,5 +201,179 @@ final class AnchorViewModelTests: XCTestCase {
     }
 
     XCTAssertEqual(viewModel.initialAccuracy, Measurement(value: 28.0, unit: UnitLength.meters))
+  }
+
+  func testApplyState_syncsConfiguredRadiusFromActiveWatch_andResetsToDefaultOnClear() async throws {
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let (anchorService, positioningService, _) = makeIsolatedAnchorService(directoryURL: tempDir)
+    let viewModel = AnchorViewModel(anchorService: anchorService)
+    _ = positioningService // Keep mock alive cleanly
+    XCTAssertEqual(viewModel.configuredRadius, Measurement(value: 25.0, unit: .meters))
+
+    let coord = CLLocationCoordinate2D(latitude: 47.2, longitude: -1.5)
+    let droppedRadius = Measurement<UnitLength>(value: 85.0, unit: .meters)
+    anchorService.drop(coordinate: coord, radius: droppedRadius)
+
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.status == .dropped && viewModel.configuredRadius == droppedRadius
+    }
+
+    let updatedRadius = Measurement<UnitLength>(value: 120.0, unit: .meters)
+    anchorService.update(radius: updatedRadius)
+
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.configuredRadius == updatedRadius
+    }
+
+    anchorService.clear()
+
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.status == .inactive && viewModel.configuredRadius == anchorService.defaultRadius
+    }
+  }
+
+  func testPendingArmAction_clearsOnCancelDrop_externalClear_andSheetDismiss() async throws {
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let (anchorService, positioningService, notificationService) = makeIsolatedAnchorService(directoryURL: tempDir)
+    let coord = CLLocationCoordinate2D(latitude: 47.2, longitude: -1.5)
+
+    // 1. Cancelled via cancelDrop() before permission granted
+    anchorService.drop(coordinate: coord, radius: Measurement(value: 50.0, unit: .meters))
+    let viewModel = AnchorViewModel(anchorService: anchorService)
+    let pendingPermService1 = PermissionService(positioningService: positioningService, notificationService: notificationService)
+    viewModel.requestArmAlarm(in: pendingPermService1)
+    XCTAssertEqual(viewModel.permissionGateType, .notification(trigger: .anchorAlarm))
+
+    viewModel.cancelDrop()
+    XCTAssertNil(viewModel.permissionGateType)
+    viewModel.finalizePendingAction()
+    XCTAssertEqual(anchorService.status, .inactive)
+
+    // 2. External AnchorService.clear() invalidates pending action via applyState()
+    anchorService.drop(coordinate: coord, radius: Measurement(value: 50.0, unit: .meters))
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.status == .dropped && viewModel.anchorCoordinate != nil
+    }
+    let pendingPermService2 = PermissionService(positioningService: positioningService, notificationService: notificationService)
+    viewModel.requestArmAlarm(in: pendingPermService2)
+    XCTAssertEqual(viewModel.permissionGateType, .notification(trigger: .anchorAlarm))
+
+    anchorService.clear()
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.status == .inactive && viewModel.permissionGateType == nil
+    }
+    viewModel.finalizePendingAction()
+    XCTAssertEqual(anchorService.status, .inactive)
+
+    // 3. Sheet dismissal without authorization clears pending action without cancelling the drop
+    anchorService.drop(coordinate: coord, radius: Measurement(value: 50.0, unit: .meters))
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.status == .dropped && viewModel.anchorCoordinate != nil
+    }
+    let pendingPermService3 = PermissionService(positioningService: positioningService, notificationService: notificationService)
+    viewModel.requestArmAlarm(in: pendingPermService3)
+    XCTAssertEqual(viewModel.permissionGateType, .notification(trigger: .anchorAlarm))
+
+    viewModel.handlePermissionSheetDismissed(in: pendingPermService3)
+    XCTAssertNil(viewModel.permissionGateType)
+    viewModel.finalizePendingAction()
+    XCTAssertEqual(anchorService.status, .dropped)
+
+    // 4. Sheet dismissal after permission becomes authorized finalizes pending action and arms idempotently
+    let pendingPermService4 = PermissionService(positioningService: positioningService, notificationService: notificationService)
+    viewModel.requestArmAlarm(in: pendingPermService4)
+    XCTAssertEqual(viewModel.permissionGateType, .notification(trigger: .anchorAlarm))
+
+    pendingPermService4.forceAuthorizedForSimulatedSensors(gps: true, baro: false)
+    viewModel.handlePermissionSheetDismissed(in: pendingPermService4)
+    XCTAssertNil(viewModel.permissionGateType)
+    XCTAssertEqual(anchorService.status, .armed)
+  }
+
+  func testRequestArmAlarm_inDroppedPendingPosition_ignoresRequestAndDoesNotOpenGate() async throws {
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let (anchorService, positioningService, notificationService) = makeIsolatedAnchorService(directoryURL: tempDir)
+    anchorService.drop(coordinate: nil, radius: Measurement(value: 45.0, unit: .meters))
+    XCTAssertEqual(anchorService.status, .droppedPendingPosition)
+
+    let viewModel = AnchorViewModel(anchorService: anchorService)
+    try await waitFor(timeout: .seconds(1)) {
+      positioningService.isSubscribed && viewModel.status == .droppedPendingPosition
+    }
+
+    let pendingPermService = PermissionService(positioningService: positioningService, notificationService: notificationService)
+    viewModel.requestArmAlarm(in: pendingPermService)
+    XCTAssertNil(viewModel.permissionGateType)
+    viewModel.finalizePendingAction()
+    XCTAssertEqual(anchorService.status, .droppedPendingPosition)
+
+    // Subsequent GPS fix fulfills watch to .dropped without stealthily triggering an old arm request
+    let fix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 47.4, longitude: -2.1),
+      horizontalAccuracy: Measurement(value: 6.0, unit: UnitLength.meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    positioningService.simulateFix(fix)
+
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.status == .dropped && viewModel.anchorCoordinate != nil
+    }
+
+    XCTAssertEqual(anchorService.status, .dropped)
+    XCTAssertNil(viewModel.permissionGateType)
+  }
+
+  func testPendingArmAction_armsWhenFinalizedInValidDroppedState() throws {
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let (anchorService, positioningService, notificationService) = makeIsolatedAnchorService(directoryURL: tempDir)
+    let coord = CLLocationCoordinate2D(latitude: 47.2, longitude: -1.5)
+    anchorService.drop(coordinate: coord, radius: Measurement(value: 50.0, unit: .meters))
+
+    let viewModel = AnchorViewModel(anchorService: anchorService)
+    let pendingPermService = PermissionService(positioningService: positioningService, notificationService: notificationService)
+    viewModel.requestArmAlarm(in: pendingPermService)
+    XCTAssertEqual(viewModel.permissionGateType, .notification(trigger: .anchorAlarm))
+    XCTAssertEqual(anchorService.status, .dropped)
+
+    viewModel.finalizePendingAction()
+    XCTAssertEqual(anchorService.status, .armed)
+  }
+
+  private func makeIsolatedAnchorService(
+    directoryURL: URL
+  ) -> (AnchorService, AnchorViewModelMockPositioningService, MockNotificationService) {
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
+    let positioningService = AnchorViewModelMockPositioningService()
+    let notificationService = MockNotificationService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: notificationService)
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let stateStore = AnchorStateStore(directoryURL: directoryURL)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: notificationService,
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: stateStore
+    )
+    anchorService.clear()
+    return (anchorService, positioningService, notificationService)
   }
 }

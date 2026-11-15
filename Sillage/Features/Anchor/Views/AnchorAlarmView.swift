@@ -71,7 +71,9 @@ public struct AnchorAlarmView: View {
     .onDisappear {
       viewModel.isSetupModeActive = false
     }
-    .sheet(item: $viewModel.permissionGateType) { gateType in
+    .sheet(item: $viewModel.permissionGateType, onDismiss: {
+      viewModel.handlePermissionSheetDismissed(in: permissionService)
+    }) { gateType in
       PermissionGateView(type: gateType)
         .presentationDetents([.medium, .large])
     }
