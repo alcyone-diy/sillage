@@ -36,13 +36,13 @@ public protocol NotificationService: Sendable {
   ///   - delay: Optional delay in seconds before the notification is triggered.
   func sendNotification(title: String, body: String, identifier: String, delay: TimeInterval?) async throws
   
-  /// Sends a critical local notification to the user (bypasses silent switch).
+  /// Sends a critical local notification to the user (bypasses silent switch when authorized).
   /// - Parameters:
   ///   - title: The title of the notification.
   ///   - body: The body message.
   ///   - identifier: A unique identifier for the request.
   ///   - delay: Optional delay in seconds before the notification is triggered.
-  func sendCriticalNotification(title: String, body: String, identifier: String, delay: TimeInterval?) async
+  func sendCriticalNotification(title: String, body: String, identifier: String, delay: TimeInterval?) async throws
   
   /// Clears all pending and delivered notifications from the notification center.
   func clearAllNotifications()
@@ -53,7 +53,7 @@ public protocol NotificationService: Sendable {
 }
 
 public extension NotificationService {
-  func sendCriticalNotification(title: String, body: String, identifier: String) async {
-    await sendCriticalNotification(title: title, body: body, identifier: identifier, delay: nil)
+  func sendCriticalNotification(title: String, body: String, identifier: String) async throws {
+    try await sendCriticalNotification(title: title, body: body, identifier: identifier, delay: nil)
   }
 }

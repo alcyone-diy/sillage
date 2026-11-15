@@ -67,7 +67,7 @@ final class DebugViewModel {
     
     anchorService.alarmAudioService.prepareAudioSession()
     
-    await notificationService.sendCriticalNotification(
+    try await notificationService.sendCriticalNotification(
       title: "⚓️ DRAGGING ANCHOR! (Debug)",
       body: "Vessel is out of the safe zone (42m / 30m max).",
       identifier: NotificationIntent.anchorDragging.rawValue,

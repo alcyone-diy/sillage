@@ -394,11 +394,15 @@ final class AnchorService {
           bodyText = String(localized: "Critical GPS accuracy. Anchor alarm is temporarily unreliable.")
         }
 
-        await self.notificationService.sendCriticalNotification(
-          title: String(localized: "⚠️ Monitoring Suspended"),
-          body: bodyText,
-          identifier: NotificationIntent.anchorGPSDegraded.rawValue
-        )
+        do {
+          try await self.notificationService.sendCriticalNotification(
+            title: String(localized: "⚠️ Monitoring Suspended"),
+            body: bodyText,
+            identifier: NotificationIntent.anchorGPSDegraded.rawValue
+          )
+        } catch {
+          Logger.anchor.error("Failed to schedule GPS degraded critical notification: \(error.localizedDescription, privacy: .public)")
+        }
       }
     }
   }
@@ -550,11 +554,15 @@ final class AnchorService {
       let content = notificationContent(for: reason)
       Task { @MainActor [weak self] in
         guard let self = self else { return }
-        await self.notificationService.sendCriticalNotification(
-          title: content.title,
-          body: content.body,
-          identifier: NotificationIntent.anchorDragging.rawValue
-        )
+        do {
+          try await self.notificationService.sendCriticalNotification(
+            title: content.title,
+            body: content.body,
+            identifier: NotificationIntent.anchorDragging.rawValue
+          )
+        } catch {
+          Logger.anchor.error("Failed to schedule anchor dragging critical notification: \(error.localizedDescription, privacy: .public)")
+        }
       }
     }
     
