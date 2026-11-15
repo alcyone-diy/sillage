@@ -291,6 +291,8 @@ final class AnchorService {
     notifyStateChange()
   }
   
+  /// Clears the active anchor session and returns the service to `.inactive`.
+  /// Preserves an active `setupLocationToken` so foreground setup UI continues receiving GPS updates cleanly.
   func clear() {
     Logger.anchor.info("⚓️ Clearing anchor watch completely.")
     
@@ -307,9 +309,12 @@ final class AnchorService {
     monitoringToken?.invalidate()
     monitoringToken = nil
     
-    stopSetupLocationUpdates()
-    locationUpdateTask.task?.cancel()
-    locationUpdateTask.task = nil
+    if setupLocationToken != nil {
+      ensureListeningToGPS()
+    } else {
+      locationUpdateTask.task?.cancel()
+      locationUpdateTask.task = nil
+    }
     
     notifyStateChange()
   }
@@ -402,9 +407,12 @@ final class AnchorService {
   /// Once the debounce window elapses, subsequent `.degraded` fixes immediately evaluate accuracy thresholds
   /// (`.poorAccuracy` / `.gpsSignalLost`) while never auto-resolving an active `.dragging` alarm on degraded data.
   private func handleDegradedLocationFix(_ fix: NavigationFix) {
-    processLocationFix(fix, evaluateAlarm: false)
+    processLocationFix(fix, evaluateAlarm: false, notify: false)
 
-    guard status == .armed || status == .dragging else { return }
+    guard status == .armed || status == .dragging else {
+      notifyStateChange()
+      return
+    }
     isSensorDegraded = true
 
     switch degradedPhase {
@@ -412,10 +420,13 @@ final class AnchorService {
       degradedPhase = .debouncing
       Logger.anchor.warning("⚓️ GPS accuracy lost at anchor. Verification temporarily suspended.")
       scheduleDegradedAlertTask()
+      notifyStateChange()
     case .debouncing:
-      break
+      notifyStateChange()
     case .elapsed:
-      triggerDegradedAccuracyAlarmIfNeeded()
+      if !triggerDegradedAccuracyAlarmIfNeeded() {
+        notifyStateChange()
+      }
     }
   }
 
@@ -479,7 +490,7 @@ final class AnchorService {
   
   private let evaluator = AnchorEvaluator()
 
-  private func processLocationFix(_ fix: NavigationFix, evaluateAlarm: Bool = true) {
+  private func processLocationFix(_ fix: NavigationFix, evaluateAlarm: Bool = true, notify: Bool = true) {
     self.latestFix = fix
     self.gpsAccuracy = fix.horizontalAccuracy
     
@@ -496,10 +507,15 @@ final class AnchorService {
       )
       self.status = .dropped
       persistState()
-      notifyStateChange()
     }
     
-    guard let watch = activeWatch, let anchorCoord = watch.coordinate, status != .inactive, status != .droppedPendingPosition else { return }
+    guard let watch = activeWatch, let anchorCoord = watch.coordinate, status != .inactive, status != .droppedPendingPosition else {
+      // Publish live `latestFix` / `gpsAccuracy` updates even while in `.setup` (`.inactive`).
+      if notify {
+        notifyStateChange()
+      }
+      return
+    }
     
     self.currentDistance = anchorCoord.distance(to: fix.coordinate)
     
@@ -517,6 +533,7 @@ final class AnchorService {
         
       case .triggerAlarm(let reason):
         triggerAlarm(reason: reason)
+        return
         
       case .autoResolveAlarm(let reason):
         switch reason {
@@ -532,7 +549,9 @@ final class AnchorService {
       }
     }
 
-    notifyStateChange()
+    if notify {
+      notifyStateChange()
+    }
   }
 
   // MARK: - Evitement History & Debounced Persistence

@@ -43,12 +43,21 @@ private final class AnchorViewModelMockPositioningService: PositioningService {
 
   func requestAuthorization() {}
 
-  private final class MockToken: LocationUpdateToken {
-    func invalidate() {}
+  final class MockToken: LocationUpdateToken {
+    private(set) var invalidateCallCount = 0
+    func invalidate() {
+      invalidateCallCount += 1
+    }
   }
 
+  private(set) var requestLocationUpdatesCallCount = 0
+  private(set) var lastUpdateToken: MockToken?
+
   func requestLocationUpdates() -> any LocationUpdateToken {
-    return MockToken()
+    requestLocationUpdatesCallCount += 1
+    let token = MockToken()
+    lastUpdateToken = token
+    return token
   }
 
   func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {}
@@ -353,6 +362,56 @@ final class AnchorViewModelTests: XCTestCase {
 
     viewModel.finalizePendingAction()
     XCTAssertEqual(anchorService.status, .armed)
+  }
+
+  func testCancelDrop_whenSetupModeActive_preservesSetupGPSUpdatesUntilViewDismisses() async throws {
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let (anchorService, positioningService, _) = makeIsolatedAnchorService(directoryURL: tempDir)
+    let viewModel = AnchorViewModel(anchorService: anchorService)
+
+    // Simulate AnchorAlarmView active on screen after an anchor was dropped
+    let coord = CLLocationCoordinate2D(latitude: 47.2, longitude: -1.5)
+    anchorService.drop(coordinate: coord, radius: Measurement(value: 50.0, unit: .meters))
+    viewModel.isSetupModeActive = true
+    let setupToken = positioningService.lastUpdateToken
+    try await waitFor(timeout: .seconds(1)) {
+      positioningService.isSubscribed && viewModel.status == .dropped
+    }
+    XCTAssertEqual(positioningService.requestLocationUpdatesCallCount, 2) // 1 monitoring + 1 setup
+    XCTAssertNotNil(setupToken)
+
+    // Cancelling the drop from the open setup screen must keep setup GPS updates active
+    viewModel.cancelDrop()
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.status == .inactive
+    }
+    XCTAssertEqual(setupToken?.invalidateCallCount, 0)
+    XCTAssertTrue(positioningService.isSubscribed)
+
+    // Subsequent GPS fix continues updating setup telemetry in .setup state
+    let freshFix = NavigationFix(
+      coordinate: CLLocationCoordinate2D(latitude: 47.21, longitude: -1.51),
+      horizontalAccuracy: Measurement(value: 4.0, unit: UnitLength.meters),
+      courseOverGround: nil,
+      courseOverGroundAccuracy: nil,
+      speedOverGround: nil,
+      speedOverGroundAccuracy: nil,
+      timestamp: Date()
+    )
+    positioningService.simulateFix(freshFix)
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.gpsAccuracy == Measurement(value: 4.0, unit: UnitLength.meters)
+    }
+
+    // Dismissing AnchorAlarmView releases setup token and stops GPS subscription
+    viewModel.isSetupModeActive = false
+    try await waitFor(timeout: .seconds(1)) {
+      !positioningService.isSubscribed
+    }
+    XCTAssertEqual(setupToken?.invalidateCallCount, 1)
   }
 
   private func makeIsolatedAnchorService(

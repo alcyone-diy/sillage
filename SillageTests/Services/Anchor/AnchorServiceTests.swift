@@ -348,7 +348,12 @@ final class AnchorServiceTests: XCTestCase {
     }
     XCTAssertEqual(mockNotif.sentNotifications.count, 1)
     XCTAssertEqual(mockNotif.sentNotifications.first?.title, "⚓️ DRAGGING ANCHOR!")
-    XCTAssertTrue(mockNotif.sentNotifications.first?.body.contains("50 m") == true)
+    let body = try XCTUnwrap(mockNotif.sentNotifications.first?.body)
+    let expectedRadius = Measurement(value: 50, unit: UnitLength.meters).marineAnchorDistanceFormatted()
+    XCTAssertTrue(
+      body.contains(expectedRadius),
+      "Expected notification body '\(body)' to contain formatted radius '\(expectedRadius)'"
+    )
   }
 
   func testAnchorService_triggersAlarm_GPSSignalLost() async throws {
@@ -748,6 +753,93 @@ final class AnchorServiceTests: XCTestCase {
     mockGPS.simulateFix(draggingFix)
     try await waitFor { self.service.status == .dragging }
     XCTAssertEqual(service.status, .dragging)
+  }
+
+  func testAnchorService_clearPreservingSetupUpdates_keepsTokenAndGPSListeningActive() async throws {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    service.startSetupLocationUpdates()
+    let setupToken = mockGPS.lastUpdateToken
+    XCTAssertEqual(mockGPS.requestLocationUpdatesCallCount, 1)
+    XCTAssertNotNil(setupToken)
+
+    service.drop(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    service.clear()
+
+    XCTAssertEqual(service.status, .inactive)
+    XCTAssertNil(service.activeWatch)
+    XCTAssertEqual(setupToken?.invalidateCallCount, 0)
+    XCTAssertTrue(mockGPS.isSubscribed)
+
+    let updatedFix = makeFix(coordinate: anchorCoord, horizontalAccuracyMeters: 4.0)
+    mockGPS.simulateFix(updatedFix)
+    try await waitFor { self.service.gpsAccuracy == Measurement(value: 4.0, unit: .meters) }
+
+    service.stopSetupLocationUpdates()
+    try await waitFor { !self.mockGPS.isSubscribed }
+    XCTAssertEqual(setupToken?.invalidateCallCount, 1)
+  }
+
+  func testAnchorService_processLocationFix_emitsSingleStateUpdatePerFix() async throws {
+    let debouncedService = try await makeDebouncedService(degradedAlertDelay: .milliseconds(500))
+    let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    var emittedStates: [AnchorState] = []
+
+    let observationTask = Task { @MainActor in
+      for await state in debouncedService.stateUpdates {
+        emittedStates.append(state)
+      }
+    }
+    defer { observationTask.cancel() }
+
+    try await waitFor { emittedStates.count == 1 }
+    emittedStates.removeAll()
+
+    // 1. Setup (.inactive) fix emits exactly once
+    debouncedService.startSetupLocationUpdates()
+    mockGPS.simulateFix(makeFix(coordinate: anchorCoord, horizontalAccuracyMeters: 6.0))
+    try await waitFor { emittedStates.count >= 1 }
+    try await Task.sleep(for: .milliseconds(30))
+    XCTAssertEqual(emittedStates.count, 1)
+    XCTAssertEqual(emittedStates.first?.gpsAccuracy, Measurement(value: 6.0, unit: .meters))
+    emittedStates.removeAll()
+
+    // 2. .droppedPendingPosition -> .dropped fulfillment emits exactly once with coordinate + distance populated
+    debouncedService.drop(coordinate: nil, radius: Measurement(value: 50.0, unit: .meters))
+    try await waitFor { emittedStates.count == 1 }
+    emittedStates.removeAll()
+
+    mockGPS.simulateFix(makeFix(coordinate: anchorCoord, horizontalAccuracyMeters: 5.0))
+    try await waitFor { emittedStates.count >= 1 }
+    try await Task.sleep(for: .milliseconds(30))
+    XCTAssertEqual(emittedStates.count, 1)
+    XCTAssertEqual(emittedStates.first?.status, .dropped)
+    XCTAssertNotNil(emittedStates.first?.activeWatch?.coordinate)
+    XCTAssertNotNil(emittedStates.first?.currentDistance)
+    emittedStates.removeAll()
+
+    // 3. .degraded fix in .armed emits exactly once (including updated isSensorDegraded flag)
+    debouncedService.arm(coordinate: anchorCoord, radius: Measurement(value: 150.0, unit: .meters))
+    try await waitFor { emittedStates.count == 1 }
+    emittedStates.removeAll()
+
+    mockGPS.locationContinuation?.yield(.degraded(makeFix(coordinate: anchorCoord, horizontalAccuracyMeters: 65.0)))
+    try await waitFor { emittedStates.count >= 1 }
+    try await Task.sleep(for: .milliseconds(30))
+    XCTAssertEqual(emittedStates.count, 1)
+    XCTAssertTrue(emittedStates.first?.isSensorDegraded == true)
+    emittedStates.removeAll()
+
+    // 4. .active fix triggering .dragging in .armed emits exactly once
+    debouncedService.arm(coordinate: anchorCoord, radius: Measurement(value: 50.0, unit: .meters))
+    try await waitFor { emittedStates.count == 1 }
+    emittedStates.removeAll()
+
+    let outsideCoord = CLLocationCoordinate2D(latitude: 45.002, longitude: -1.0)
+    mockGPS.simulateFix(makeFix(coordinate: outsideCoord, horizontalAccuracyMeters: 5.0))
+    try await waitFor { emittedStates.count >= 1 }
+    try await Task.sleep(for: .milliseconds(30))
+    XCTAssertEqual(emittedStates.count, 1)
+    XCTAssertEqual(emittedStates.first?.status, .dragging)
   }
 
   private func makeDebouncedService(degradedAlertDelay: Duration) async throws -> AnchorService {
