@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alcyone Sillage — Support &amp; Assistance</title>
+  <meta name="description" content="Official support page, FAQ, and troubleshooting guide for Alcyone Sillage, the marine chartplotter and offline navigation instrument suite for iPhone." />
+  <link rel="icon" type="image/png" href="icon.png" />
+  <link rel="apple-touch-icon" href="icon.png" />
+  <style>
+    :root {
+      --bg-primary: #f2f2f7;
+      --bg-surface: #ffffff;
+      --bg-secondary: #e5e5ea;
+      --text-primary: #1c1c1e;
+      --text-secondary: #636366;
+      --accent: #007aff;
+      --accent-hover: #0056b3;
+      --accent-subtle: rgba(0, 122, 255, 0.1);
+      --warning-bg: rgba(255, 149, 0, 0.12);
+      --warning-border: #ff9500;
+      --warning-text: #b25000;
+      --border: #d1d1d6;
+      --radius: 12px;
+      --shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #000000;
+        --bg-surface: #1c1c1e;
+        --bg-secondary: #2c2c2e;
+        --text-primary: #f2f2f7;
+        --text-secondary: #aeaeb2;
+        --accent: #0a84ff;
+        --accent-hover: #409cff;
+        --accent-subtle: rgba(10, 132, 255, 0.15);
+        --warning-bg: rgba(255, 159, 10, 0.15);
+        --warning-border: #ff9f0a;
+        --warning-text: #ffd60a;
+        --border: #38383a;
+        --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .app-icon {
+      width: 84px;
+      height: 84px;
+      border-radius: 19px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      display: inline-block;
+      object-fit: cover;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      max-width: 540px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title svg {
+      width: 22px;
+      height: 22px;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .contact-box {
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .contact-box h3 {
+      font-size: 1rem;
+      margin-bottom: 6px;
+    }
+
+    .contact-box p {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .btn {
+      display: inline-block;
+      text-align: center;
+      background-color: var(--accent);
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 12px 18px;
+      border-radius: 10px;
+      transition: background-color 0.15s ease;
+    }
+
+    .btn:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background-color: var(--accent-subtle);
+      color: var(--accent);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+    }
+
+    .faq-item:first-of-type {
+      padding-top: 4px;
+    }
+
+    .faq-item:last-of-type {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    details summary {
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details summary::after {
+      content: "+";
+      font-size: 1.3rem;
+      font-weight: 400;
+      color: var(--accent);
+      line-height: 1;
+      transition: transform 0.2s ease;
+    }
+
+    details[open] summary::after {
+      content: "−";
+    }
+
+    details .faq-answer {
+      margin-top: 10px;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    details .faq-answer p + p {
+      margin-top: 8px;
+    }
+
+    .warning-banner {
+      background-color: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .warning-banner h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--warning-text);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .warning-banner p {
+      font-size: 0.92rem;
+      color: var(--text-primary);
+    }
+
+    ul.checklist {
+      list-style: none;
+      margin-top: 10px;
+    }
+
+    ul.checklist li {
+      position: relative;
+      padding-left: 22px;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+    }
+
+    ul.checklist li::before {
+      content: "•";
+      position: absolute;
+      left: 6px;
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .feature-group + .feature-group {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .feature-group h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 48px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img class="app-icon" src="icon.png" alt="Alcyone Sillage App Icon" width="84" height="84" />
+      <h1>Alcyone Sillage Support</h1>
+      <p class="subtitle">Marine chartplotter and offline navigation instrument suite for iPhone.</p>
+    </header>
+
+    <!-- Contact Support -->
+    <section class="card" aria-labelledby="contact-heading">
+      <h2 class="section-title" id="contact-heading">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+          <polyline points="22,6 12,13 2,6"></polyline>
+        </svg>
+        Contact &amp; Assistance
+      </h2>
+      <p style="color: var(--text-secondary); font-size: 0.95rem;">
+        Need more information? Reach out to us.
+      </p>
+
+      <div class="contact-grid">
+        <div class="contact-box">
+          <div>
+            <h3>Email Support</h3>
+            <p>For general questions, account help, or feedback. Please include your iOS version and device model.</p>
+          </div>
+          <a class="btn" href="mailto:alcyone-diy@gmail.com?subject=Sillage%20Support%20Request">alcyone-diy@gmail.com</a>
+        </div>
+
+        <div class="contact-box">
+          <div>
+            <h3>Bug Reports &amp; Open Source</h3>
+            <p>Sillage is released under the MIT License. You can report technical issues or request features on GitHub.</p>
+          </div>
+          <a class="btn btn-secondary" href="https://github.com/alcyone-diy/Sillage/issues" rel="noopener noreferrer">Open an Issue on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ & Troubleshooting -->
+    <section class="card" aria-labelledby="faq-heading">
+      <h2 class="section-title" id="faq-heading">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        FAQ &amp; Troubleshooting
+      </h2>
+
+      <div class="faq-item">
+        <details open>
+          <summary>Why did Track Recording or Anchor Watch stop in the background?</summary>
+          <div class="faq-answer">
+            <p>To compute continuous GPS fixes while your screen is locked, iOS requires Location Services set to <strong>"While Using the App"</strong> or <strong>"Always"</strong> with <strong>"Precise Location" turned ON</strong> under <code>Settings &gt; Privacy &amp; Security &gt; Location Services &gt; Sillage</code>.</p>
+            <p>When a Track Recording or Anchor Watch session is active, Sillage maintains a background location session (indicated by the blue location pill in the iOS status bar). Do not force-close (swipe up) the app from the iOS App Switcher while a session is running.</p>
+          </div>
+        </details>
+      </div>
+
+      <div class="faq-item">
+        <details>
+          <summary>Why is the 7-Day Barograph not showing pressure data?</summary>
+          <div class="faq-answer">
+            <p>Sillage reads the internal iPhone hardware barometer via CoreMotion, which requires <strong>"Motion &amp; Fitness"</strong> permission enabled under <code>Settings &gt; Privacy &amp; Security &gt; Motion &amp; Fitness &gt; Sillage</code> (as well as the global <code>Fitness Tracking</code> toggle enabled in Motion &amp; Fitness).</p>
+            <p>Note that iOS does not store historical barometric data prior to launching the app; the 7-day rolling pressure chart and 3-hour trends build progressively while Sillage runs in the foreground or updates in the background.</p>
+          </div>
+        </details>
+      </div>
+
+      <div class="faq-item">
+        <details>
+          <summary>How do I access official hydrographic charts (GeoGarage) or import MBTiles?</summary>
+          <div class="faq-answer">
+            <p>Sillage does not sell chart subscriptions or in-app purchases. All navigation instruments, GPX logging, anchor watch, barometer, and checklists work without any account.</p>
+            <p>To use official hydrographic office raster charts (SHOM, UKHO, NOAA, etc.), connect an existing third-party GeoGarage account via secure OAuth in <strong>Settings &gt; Chart Preferences</strong> to stream or download offline packages. Alternatively, you can import standalone <code>.mbtiles</code> chart files directly from the iOS Files app.</p>
+          </div>
+        </details>
+      </div>
+
+      <div class="faq-item">
+        <details>
+          <summary>Will the Anchor Watch alarm sound if my iPhone is in Silent Mode?</summary>
+          <div class="faq-answer">
+            <p>Yes. When the Anchor Watch siren triggers, Sillage activates a dedicated high-priority audio playback session (<code>AVAudioSession</code> playback category with background audio) that overrides the physical Silent/Ring switch, accompanied by a full-screen visual alert and continuous vibration.</p>
+            <p>However, you must ensure your device's <strong>media volume is turned up</strong>, allow Notifications in iOS Settings, and keep Sillage running in the background without force-closing it while anchored.</p>
+          </div>
+        </details>
+      </div>
+
+      <div class="faq-item">
+        <details>
+          <summary>How do I backup or export my recorded tracks?</summary>
+          <div class="faq-answer">
+            <p>All navigation data is stored locally on your device in an embedded SQLite database. You can export any recorded track as a standard <code>.gpx</code> file from the Tracks detail view using the native iOS Share Sheet (to save to iCloud Drive / Files, AirDrop, or import into other charting software).</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- Overview & Features -->
+    <section class="card" aria-labelledby="features-heading">
+      <h2 class="section-title" id="features-heading">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+        </svg>
+        Overview &amp; Features
+      </h2>
+      <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 18px;">
+        Engineered by sailors for coastal and offshore passages, Alcyone Sillage combines official raster charts, continuous GPX track logging, an intelligent anchor watch, a 7-day barograph, and interactive safety checklists in a distraction-free interface—with zero telemetry or tracking.
+      </p>
+
+      <div class="feature-group">
+        <h3>Charts &amp; Offline Navigation</h3>
+        <ul class="checklist">
+          <li><strong>Official Charts via GeoGarage:</strong> Connect your existing GeoGarage account via secure OAuth to stream or download official hydrographic office raster charts (SHOM, UKHO, NOAA, etc.) for 100% offline use at sea.</li>
+          <li><strong>Interactive Offline Regions:</strong> Select custom chart areas on the map with real-time surface calculation (NM²) and background downloading.</li>
+          <li><strong>Local MBTiles Import:</strong> Import your own <code>.mbtiles</code> chart files directly from the iOS Files app.</li>
+          <li><strong>Camera &amp; Vectors:</strong> Navigate in Free, North Up, or Course Up modes. Includes a visual GPS accuracy halo, a configurable Rhumb Line COG Predictor vector (10 min to 6h with time ticks), and a basic OpenSeaMap seamark layer.</li>
+        </ul>
+      </div>
+
+      <div class="feature-group">
+        <h3>Telemetry HUD &amp; Chart Tools</h3>
+        <ul class="checklist">
+          <li><strong>Customizable Telemetry HUD:</strong> Long-press the top bar to configure wave-damped SOG and COG (4s smoothing), Bearing to Waypoint (BTW), Range (RNG), Cross-Track Error (XTE), and battery level.</li>
+          <li><strong>Two-Point Divider Tool:</strong> Drop two pins on the chart to measure exact Great Circle bearing, reciprocal bearing, and distance.</li>
+          <li><strong>100% Offline Almanac &amp; Variation:</strong> Tap any point to compute local magnetic declination (NOAA WMM-2025 model) and daily solar ephemerides (Nautical Dawn, Sunrise, Sunset, Nautical Dusk via USNO algorithms).</li>
+          <li><strong>Waypoints &amp; Go-To:</strong> Create waypoints via the visual crosshair or DMM coordinates, trigger active Go-To routing, and monitor XTE.</li>
+        </ul>
+      </div>
+
+      <div class="feature-group">
+        <h3>Continuous GPX Track Recording</h3>
+        <ul class="checklist">
+          <li><strong>Background Logging:</strong> Record your vessel's wake accurately with the screen locked. Tracks are continuously persisted to local SQLite storage to survive background termination.</li>
+          <li><strong>Statistics &amp; Export:</strong> Review distance (WGS-84), duration, Max/Avg SOG, add logbook notes, and export standard <code>.gpx</code> files.</li>
+        </ul>
+      </div>
+
+      <div class="feature-group">
+        <h3>Intelligent Anchor Watch</h3>
+        <ul class="checklist">
+          <li><strong>Drop &amp; Arm Workflow:</strong> Drop the anchor point at the bow, veer chain while watching real-time distance, or manually adjust the anchor position via the bearing/range crosshair before arming.</li>
+          <li><strong>Multi-Trigger Safety Alerts:</strong> Plots your vessel's swing track and triggers a full-screen visual and audible siren if the vessel exceeds the radius, if GPS accuracy degrades, or if the GPS signal is lost—protected by a Slide-to-Disarm lock.</li>
+        </ul>
+      </div>
+
+      <div class="feature-group">
+        <h3>7-Day Barograph &amp; Weather Alarm</h3>
+        <ul class="checklist">
+          <li><strong>Hardware Barometer:</strong> Uses the internal pressure sensor with a 2-minute moving average to filter wave noise, plus custom sea-level calibration (-50 to +50 hPa).</li>
+          <li><strong>7-Day History &amp; Drop Alerts:</strong> Scrub through a 7-day rolling pressure chart with 3h trends. Configure alerts for Squalls (-2.0 hPa/1h), Gales (-3.0 hPa/3h), or Storms (-5.0 hPa/3h).</li>
+        </ul>
+      </div>
+
+      <div class="feature-group">
+        <h3>Marine Checklists</h3>
+        <ul class="checklist">
+          <li><strong>Ready-to-Use &amp; Custom Templates:</strong> Includes Pre-Departure, Anchoring, MOB, and Heavy Weather checklists, plus custom template creation.</li>
+          <li><strong>Geotagged Audit Log:</strong> Checking off each step automatically records the exact UTC time and GPS coordinates.</li>
+        </ul>
+      </div>
+
+      <div class="feature-group">
+        <h3>Notes on Accounts &amp; Battery</h3>
+        <ul class="checklist">
+          <li><strong>No Account Required for Core Features:</strong> All instruments, GPX tracking, MBTiles import, anchor watch, barometer, and checklists work without any account. Accessing GeoGarage charts requires an existing third-party GeoGarage subscription (Sillage does not sell subscriptions or charts).</li>
+          <li><strong>Background GPS &amp; Battery:</strong> Continued use of GPS running in the background during Track Recording or Anchor Watch can significantly decrease battery life.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Data & Privacy Summary -->
+    <section class="card" id="privacy" aria-labelledby="privacy-heading">
+      <h2 class="section-title" id="privacy-heading">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        Data &amp; Privacy Policy
+      </h2>
+      <p style="color: var(--text-secondary); font-size: 0.95rem;">
+        Sillage is built on an <strong>on-device, privacy-by-design</strong> architecture:
+      </p>
+      <ul class="checklist">
+        <li><strong>Zero Analytics or Tracking:</strong> Sillage collects zero analytics, zero crash telemetry via third-party SDKs, and no advertising identifiers (IDFA).</li>
+        <li><strong>Local Storage Only:</strong> Your GPS tracks, waypoints, anchor watch logs, barometric history, and checklists are stored exclusively on your device. Sillage does not operate backend tracking servers or collect personal telemetry.</li>
+        <li><strong>Location &amp; Sensor Data:</strong> GPS coordinates and hardware sensor data (barometer, compass) are processed locally in real time strictly for navigation display, track recording, weather alerts, and anchor watch evaluation.</li>
+        <li><strong>Third-Party Chart Providers:</strong> When fetching online tiles (OpenSeaMap or GeoGarage), standard HTTPS tile requests are made directly to those providers. GeoGarage OAuth tokens are stored exclusively inside the encrypted iOS Keychain.</li>
+      </ul>
+    </section>
+
+    <!-- Maritime Safety Disclaimer -->
+    <section class="warning-banner" aria-labelledby="warning-heading">
+      <h2 id="warning-heading">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        Maritime Navigation Warning
+      </h2>
+      <p>
+        <strong>WARNING:</strong> Sillage is an electronic navigational aid designed for situational awareness only. It must not be used as the primary means of navigation. This application does not replace official government charts, official notices to mariners, or prudent seamanship. The captain of the vessel assumes all responsibility and liability for the safety of the ship and its crew. Never rely on a single source of information and always maintain a proper visual lookout.
+      </p>
+    </section>
+
+    <footer>
+      <p>&copy; 2026 Alcyone. Released under the MIT License. Requires iOS 18.6 or later.</p>
+      <p style="margin-top: 4px;">
+        <a href="https://alcyone-sillage.com">alcyone-sillage.com</a> &bull; <a href="#privacy">Privacy Policy</a>
+      </p>
+    </footer>
+  </div>
+</body>
+</html>
