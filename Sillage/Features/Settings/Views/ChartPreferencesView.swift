@@ -61,8 +61,8 @@ struct ChartPreferencesView: View {
           chartViewModel.switchChartSource(to: .openSeaMap)
         }) {
           ChartSourceRowView(
-            title: "OpenSeaMap (Free)",
-            subtitle: "Global map",
+            title: String(localized: "OpenSeaMap (Free)"),
+            subtitle: String(localized: "Global map"),
             isSelected: currentSelection == .openSeaMap
           )
           .marineListCell()
@@ -80,7 +80,9 @@ struct ChartPreferencesView: View {
             return false
           }()
 
-          let subtitle = mapFile.fileSize.map { "Imported map - \($0.marineFormatted)" } ?? "Imported map"
+          let subtitle = mapFile.fileSize.map {
+            String(localized: "Imported map - \($0.marineFormatted)")
+          } ?? String(localized: "Imported map")
 
           Button(action: {
             chartViewModel.switchChartSource(to: .localMBTiles(url: url))
@@ -110,7 +112,7 @@ struct ChartPreferencesView: View {
             }) {
               ChartSourceRowView(
                 title: layer.brandName,
-                subtitle: "Valid until \(layer.validUntil)",
+                subtitle: String(localized: "Valid until \(layer.validUntil)"),
                 isSelected: isSelected
               )
               .marineListCell()
@@ -171,7 +173,7 @@ struct ChartPreferencesView: View {
     .alert(isPresented: $chartViewModel.showImportError) {
       Alert(
         title: Text("Import Failed"),
-        message: Text(chartViewModel.chartImportError ?? "Unknown error occurred."),
+        message: Text(chartViewModel.chartImportError ?? String(localized: "An unknown error occurred.")),
         dismissButton: .default(Text("OK"))
       )
     }

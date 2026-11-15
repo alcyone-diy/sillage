@@ -60,7 +60,7 @@ public final class TrackRecordingService {
     public var errorDescription: String? {
       switch self {
       case .databaseUnavailable:
-        return "Database is unavailable. Recording cannot start."
+        return String(localized: "Database is unavailable. Recording cannot start.")
       case .abortedNoFix:
         return String(localized: "Recording aborted. No GPS fix was obtained.")
       case .noActiveRecording:

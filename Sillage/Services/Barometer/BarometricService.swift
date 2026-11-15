@@ -298,10 +298,11 @@ public final class BarometricService {
     if let newAlarm = activeAlarm, newAlarm != lastNotifiedAlarmLevel {
       lastNotifiedAlarmLevel = newAlarm
       
-      let title = "Weather Alarm: \(newAlarm.localizedName)"
-      let body = "A rapid pressure drop has been detected. Prepare for worsening conditions."
+      let title = String(localized: "Weather Alarm: \(newAlarm.localizedName)")
+      let body = String(localized: "A rapid pressure drop has been detected. Prepare for worsening conditions.")
       let identifier = NotificationIntent.barometerDrop.rawValue
-      
+      let notificationService = self.notificationService
+
       Task {
         do {
           try await notificationService.sendNotification(title: title, body: body, identifier: identifier, delay: nil)

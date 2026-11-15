@@ -77,7 +77,7 @@ struct SettingsView: View {
             Label("Version", systemImage: "info.circle")
               .marineFont(.body)
             Spacer()
-            Text(environment.metadata.version ?? "Unknown")
+            Text(environment.metadata.version ?? String(localized: "Unknown"))
               .marineFont(.body)
               .foregroundStyle(.secondary)
           }

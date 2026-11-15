@@ -205,23 +205,7 @@ public final class DatabaseManager: Sendable {
         columns: ["sort_order"]
       )
 
-      let initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] = [
-        ("safety_emergency", "Safety & Emergency", "exclamationmark.shield.fill", 0),
-        ("navigation_maneuver", "Navigation & Maneuver", "steeringwheel", 1),
-        ("routine", "Routine", "checklist", 2),
-        ("engine_technical", "Engine & Technical", "wrench.and.screwdriver.fill", 3),
-        ("wintering_maintenance", "Wintering & Maintenance", "snowflake", 4)
-      ]
-      let now = Date()
-      for cat in initialCategories {
-        try db.execute(
-          sql: """
-          INSERT OR IGNORE INTO checklist_category (id, name, icon, sort_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?)
-          """,
-          arguments: [cat.id, cat.name, cat.icon, cat.sortOrder, now, now]
-        )
-      }
+      try ChecklistSeeder.seedDefaultCategories(in: db)
 
       // 6. Checklist Templates & Items
       try db.create(table: "checklist_template") { t in

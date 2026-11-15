@@ -19,7 +19,7 @@ enum SeamarkSourceProvider {
   static func createTileSource(identifier: String) -> MLNRasterTileSource {
     let template = "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"
     let attribution = MLNAttributionInfo(
-      title: NSAttributedString(string: "Map data © OpenSeaMap contributors"),
+      title: NSAttributedString(string: String(localized: "Map data © OpenSeaMap contributors")),
       url: URL(string: "https://openseamap.org")
     )
     return MLNRasterTileSource(

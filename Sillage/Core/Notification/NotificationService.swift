@@ -16,12 +16,12 @@ public enum NotificationError: LocalizedError, Equatable {
     case schedulingFailed(String)
     
     public var errorDescription: String? {
-        switch self {
-        case .permissionDenied:
-            return "Notifications are disabled. Please enable them in Settings."
-        case .schedulingFailed(let message):
-            return "Failed to schedule notification: \(message)"
-        }
+      switch self {
+      case .permissionDenied:
+        return String(localized: "Notifications are disabled. Please enable them in Settings.")
+      case .schedulingFailed(let message):
+        return String(localized: "Failed to schedule notification: \(message)")
+      }
     }
 }
 

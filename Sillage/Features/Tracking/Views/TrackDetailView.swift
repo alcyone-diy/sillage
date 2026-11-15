@@ -99,7 +99,7 @@ struct TrackDetailView: View {
           
           DetailRow(
             label: "End Time",
-            value: viewModel.session?.endTime?.formatted(date: .abbreviated, time: .shortened) ?? "Active"
+            value: viewModel.session?.endTime?.formatted(date: .abbreviated, time: .shortened) ?? String(localized: "Active")
           )
           .marineListCell()
           

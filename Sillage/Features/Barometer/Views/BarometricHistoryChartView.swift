@@ -390,7 +390,7 @@ public struct BarometricHistoryChartView: View {
     } else if daysAgo == 1 {
       return String(localized: "Yesterday")
     } else {
-      return "\(fullWeekday) (D-\(daysAgo))"
+      return String(localized: "\(fullWeekday) (D-\(daysAgo))")
     }
   }
   

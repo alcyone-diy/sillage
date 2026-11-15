@@ -107,7 +107,7 @@ final class ChecklistCategoryTests: XCTestCase {
 
     let templates = try await checklistService.fetchTemplates()
     XCTAssertEqual(templates.count, 4)
-    let departure = try XCTUnwrap(templates.first(where: { $0.title == "Pre-Departure Checklist" }))
+    let departure = try XCTUnwrap(templates.first(where: { $0.title == String(localized: "Pre-Departure Checklist") }))
     // "routine" was deleted, so it must fall back to the first available category ("safety_emergency")
     XCTAssertEqual(departure.categoryId, "safety_emergency")
   }
