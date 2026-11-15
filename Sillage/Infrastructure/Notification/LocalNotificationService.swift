@@ -87,7 +87,14 @@ public struct LocalNotificationService: NotificationService {
     content.body = body
     content.categoryIdentifier = identifier
     
-    if settings.criticalAlertSetting == .enabled {
+    if identifier == NotificationIntent.anchorDragging.rawValue {
+      let anchorSoundName = UNNotificationSoundName("AnchorAlarm_CleanEscalation_27s.wav")
+      if settings.criticalAlertSetting == .enabled {
+        content.sound = UNNotificationSound.criticalSoundNamed(anchorSoundName)
+      } else {
+        content.sound = UNNotificationSound(named: anchorSoundName)
+      }
+    } else if settings.criticalAlertSetting == .enabled {
       content.sound = UNNotificationSound.defaultCritical
     } else {
       content.sound = UNNotificationSound.default
