@@ -11,6 +11,7 @@
 import Foundation
 import UserNotifications
 
+/// Availability of an individual system notification capability (such as Critical Alerts or Time Sensitive alerts).
 public nonisolated enum NotificationAlertCapabilityStatus: Sendable, Equatable {
   case unknown
   case notSupported
@@ -18,6 +19,7 @@ public nonisolated enum NotificationAlertCapabilityStatus: Sendable, Equatable {
   case enabled
 }
 
+/// Thread-safe snapshot of `UNNotificationSettings` fields needed by the permission layer and tests.
 public nonisolated struct NotificationSettingsSnapshot: Sendable, Equatable {
   public let authorizationStatus: UNAuthorizationStatus
   public let criticalAlertSetting: UNNotificationSetting
@@ -34,6 +36,7 @@ public nonisolated struct NotificationSettingsSnapshot: Sendable, Equatable {
   }
 }
 
+/// Abstraction over `UNUserNotificationCenter` permission APIs so authorization flows remain testable without system XPC calls.
 public nonisolated protocol NotificationAuthorizationProviding: Sendable {
   func notificationSettings() async -> NotificationSettingsSnapshot
   func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool

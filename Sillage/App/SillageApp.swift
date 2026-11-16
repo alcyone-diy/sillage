@@ -106,6 +106,7 @@ struct SillageApp: App {
     if isTracking || isAnchoring {
       let permissionService = container.permissionService
       let isCriticalAuthorized = permissionService.criticalAlertStatus == .enabled
+      // Require explicit `.enabled` so `.unknown` during early app termination never sends an unauthorized `.timeSensitive` alert.
       let isTimeSensitiveAuthorized = permissionService.timeSensitiveStatus == .enabled
       let content = LocalNotificationService.makeNotificationContent(
         title: String(localized: "Sillage Terminated"),

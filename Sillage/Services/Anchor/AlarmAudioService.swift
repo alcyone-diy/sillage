@@ -46,6 +46,7 @@ nonisolated private final class AudioPlayerDelegateProxy: NSObject, AVAudioPlaye
   }
 }
 
+/// Testable playback engine seam separating `AVAudioSession` / `AVAudioPlayer` work from `AlarmAudioService` orchestration.
 protocol AlarmAudioPlaying: Sendable {
   func prepareAudioSession() async
   func startPlayback(sessionID: UUID, onEscalationDidFinish: @escaping @MainActor @Sendable () -> Void) async -> Bool
@@ -79,6 +80,8 @@ private actor AlarmAudioEngine: AlarmAudioPlaying {
   private func configureSessionCategory() -> Bool {
     do {
       let session = AVAudioSession.sharedInstance()
+      // `.duckOthers` takes effect only once `setActive(true)` is called when the alarm sounds, so preparing
+      // this category while armed leaves background music untouched while still ducking audio during an active siren.
       try session.setCategory(.playback, mode: .default, options: [.duckOthers])
       Logger.anchor.info("🔊 AVAudioSession category configured (.playback).")
       return true
@@ -119,6 +122,7 @@ private actor AlarmAudioEngine: AlarmAudioPlaying {
       phase = .escalation
     }
 
+    // Always instantiate a fresh delegate proxy so callers passing an updated closure are never silently ignored.
     let delegate = AudioPlayerDelegateProxy(onEscalationDidFinish: onEscalationDidFinish)
     delegateProxy = delegate
 
@@ -360,6 +364,7 @@ final class AlarmAudioService: AlarmAudioServiceProtocol {
   private var activeSessionID: UUID?
   private var isAudioInterrupted = false
   private var retryAttemptIndex = 0
+  // Tokenized `(id: UUID, cancellable:)` states prevent a cancelled retry or vibration task from clearing a newer session.
   private var retryState: (id: UUID, cancellable: TaskCancellable)?
   private var vibrationState: (id: UUID, cancellable: TaskCancellable)?
   private var interruptionObserver: TaskCancellable?
@@ -448,6 +453,7 @@ final class AlarmAudioService: AlarmAudioServiceProtocol {
     }
   }
 
+  /// Schedules bounded exponential backoff retries when playback or session activation fails transiently in the background.
   private func handlePlaybackAttemptResult(started: Bool, sessionID: UUID) {
     guard activeSessionID == sessionID else { return }
 
@@ -562,6 +568,7 @@ final class AlarmAudioService: AlarmAudioServiceProtocol {
     vibrationState = (id: taskID, cancellable: TaskCancellable(task))
   }
 
+  // Generic helper opens the `any Clock<Duration>` existential so `clock.now >= deadline` can compare concrete `Instant`s.
   private static func runVibrationLoop<C: Clock>(
     using clock: C,
     interval: Duration,

@@ -248,6 +248,8 @@ final class PermissionService: PermissionServiceProtocol {
                 return true
             }
         }
+        // Note: When `.notDetermined`, iOS reports `criticalAlertSetting == .notSupported` even if the entitlement IS provisioned.
+        // We therefore still attempt `.criticalAlert` once on first prompt (falling back cleanly if unentitled) so Critical Alerts work automatically once Apple grants the entitlement.
 
         isRequestingNotification = true
         defer { isRequestingNotification = false }

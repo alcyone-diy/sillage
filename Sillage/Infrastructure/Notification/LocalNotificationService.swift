@@ -24,6 +24,7 @@ public struct LocalNotificationService: NotificationService {
   }
 
   static func notificationCategories() -> Set<UNNotificationCategory> {
+    // Intentionally omit `.authenticationRequired` so the skipper can silence the alarm from a locked screen in rough seas.
     let silenceAction = UNNotificationAction(
       identifier: NotificationIntent.anchorActionSilence.rawValue,
       title: String(localized: "🔇 Silence"),
@@ -145,6 +146,8 @@ public struct LocalNotificationService: NotificationService {
     )
   }
 
+  /// Builds notification content using the fallback hierarchy (`.critical` -> `.timeSensitive` -> `.active`)
+  /// so urgent alerts degrade uniformly when Critical Alerts are not entitled or enabled.
   static func makeNotificationContent(
     title: String,
     body: String,

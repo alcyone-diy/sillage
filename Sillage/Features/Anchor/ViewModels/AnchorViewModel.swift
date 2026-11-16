@@ -200,11 +200,13 @@ final class AnchorViewModel {
     }
   }
 
+  /// Cancels a pending drop whose GPS coordinate has not been locked yet (`.droppedPendingPosition`).
   func cancelDrop() {
     Logger.anchor.info("Canceling anchor drop before arming.")
     clearAnchorSession()
   }
 
+  /// Weighs an already set anchor (`.dropped`), clearing the active watch and returning to `.setup`.
   func weighAnchor() {
     Logger.anchor.info("Weighing anchor and clearing active watch.")
     clearAnchorSession()

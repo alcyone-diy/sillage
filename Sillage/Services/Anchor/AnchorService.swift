@@ -340,6 +340,8 @@ final class AnchorService {
     case .armed:
       alarmAudioService.prepareAudioSession()
     case .dragging:
+      // `AnchorEvaluator` only emits `.triggerAlarm` on transitions out of `.armed`;
+      // relaunching directly into persisted `.dragging` must explicitly restart the siren.
       if !isMuted {
         alarmAudioService.startSiren()
       }

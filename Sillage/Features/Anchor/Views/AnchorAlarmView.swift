@@ -116,6 +116,8 @@ public struct AnchorAlarmView: View {
           permissionService.criticalAlertStatus != .enabled else {
       return nil
     }
+    // Only warn for user-actionable Settings states; `.notSupported` (e.g. unapproved Critical Alerts entitlement)
+    // cannot be fixed in Settings and would otherwise create permanent alarm fatigue for all users.
     if permissionService.timeSensitiveStatus == .disabled {
       return .timeSensitiveDisabled
     }
@@ -392,6 +394,8 @@ public struct AnchorAlarmView: View {
         
         adjustPositionButton
         
+        // Neutrally styled `"SLIDE TO WEIGH ANCHOR"` distinguishes clearing a set anchor from `.droppedPendingPosition`
+        // (`"SLIDE TO CANCEL"`) and from `.armed`'s destructive `"SLIDE TO DISARM"`.
         SlideActionButton(
           customTrackColor: marineTheme.colors.disabledBackground,
           customThumbColor: marineTheme.colors.textSecondary,
@@ -443,6 +447,9 @@ public struct AnchorAlarmView: View {
 }
 
 // MARK: - Slide Action Component
+/// Intentional gesture-only slider without persistent triggered `@State`:
+/// using `@GestureState` ensures cancelled drags inside the parent `Form` snap cleanly back to `0`
+/// and prevents stale lockouts if an action ever keeps the view mounted or if state is reused structurally.
 fileprivate struct SlideActionButton: View {
   @Environment(\.marineTheme) private var marineTheme
 
@@ -453,6 +460,8 @@ fileprivate struct SlideActionButton: View {
   let title: LocalizedStringKey
   let action: () -> Void
   
+  private let triggerThresholdRatio: CGFloat = 0.9
+
   @GestureState(
     resetTransaction: Transaction(animation: .spring(response: 0.3, dampingFraction: 0.7))
   )
@@ -467,7 +476,7 @@ fileprivate struct SlideActionButton: View {
       let thumbSize: CGFloat = marineTheme.minTouchTarget
       let maxOffset = max(0, geo.size.width - thumbSize)
       let currentOffset = min(max(dragTranslation, 0), maxOffset)
-      let isReadyToTrigger = maxOffset > 0 && currentOffset >= maxOffset * 0.9
+      let isReadyToTrigger = maxOffset > 0 && currentOffset >= maxOffset * triggerThresholdRatio
       
       ZStack(alignment: .leading) {
         // Track background
@@ -499,13 +508,16 @@ fileprivate struct SlideActionButton: View {
         .contentShape(Rectangle())
         .offset(x: currentOffset)
         .gesture(
+          // A small `minimumDistance` preserves smooth initial thumb tracking, while the fixed
+          // `NamedCoordinateSpace` prevents translation jitter as `.offset(x:)` moves the thumb.
           DragGesture(minimumDistance: 10, coordinateSpace: NamedCoordinateSpace.named("SlideActionTrack"))
             .updating($dragTranslation) { value, state, _ in
               state = value.translation.width
             }
             .onEnded { value in
               let finalOffset = min(max(value.translation.width, 0), maxOffset)
-              if maxOffset > 0, finalOffset >= maxOffset * 0.9 {
+              // Guard `maxOffset > 0` so zero-width layout passes can never trigger `action()`.
+              if maxOffset > 0, finalOffset >= maxOffset * triggerThresholdRatio {
                 action()
               }
             }
