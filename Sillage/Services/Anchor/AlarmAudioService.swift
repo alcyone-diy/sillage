@@ -104,6 +104,7 @@ private actor AlarmAudioEngine: AlarmAudioPlaying {
     }
   }
 
+  /// Pre-configures the playback category while armed without activating the session so other audio apps keep playing uninterrupted.
   func prepareAudioSession() {
     _ = configureSessionCategory()
   }

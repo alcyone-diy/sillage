@@ -270,6 +270,7 @@ final class AnchorService {
     
     ensureListeningToGPS()
     startMonitoringSession()
+    alarmAudioService.prepareAudioSession()
     notifyStateChange()
   }
   
@@ -335,6 +336,16 @@ final class AnchorService {
   private func resumeWatch() {
     Logger.anchor.info("⚓️ Resuming anchor watch from persisted state.")
     startMonitoringSession()
+    switch status {
+    case .armed:
+      alarmAudioService.prepareAudioSession()
+    case .dragging:
+      if !isMuted {
+        alarmAudioService.startSiren()
+      }
+    case .inactive, .droppedPendingPosition, .dropped:
+      break
+    }
   }
   
   private func startMonitoringSession() {

@@ -218,11 +218,14 @@ final class MockAnchorStateStore: AnchorStateStoreProtocol, @unchecked Sendable 
 
 @MainActor
 final class MockAlarmAudioService: AlarmAudioServiceProtocol {
+  private(set) var prepareAudioSessionCallCount = 0
   private(set) var startSirenCallCount = 0
   private(set) var stopSirenCallCount = 0
   private(set) var isPlaying = false
 
-  func prepareAudioSession() {}
+  func prepareAudioSession() {
+    prepareAudioSessionCallCount += 1
+  }
 
   func startSiren() {
     startSirenCallCount += 1
@@ -1001,6 +1004,98 @@ final class AnchorServiceTests: XCTestCase {
     mockGPS.locationContinuation?.yield(.active(makeFix(coordinate: anchorCoord, horizontalAccuracyMeters: 5.0)))
     try await waitFor { debouncedService.status == .armed }
     XCTAssertFalse(debouncedService.isSensorDegraded)
+  }
+
+  func testAnchorService_armAndResumeArmedWatch_prepareAudioSession() async throws {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0)
+    XCTAssertEqual(mockAudio.prepareAudioSessionCallCount, 0)
+
+    service.drop(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    XCTAssertEqual(mockAudio.prepareAudioSessionCallCount, 0)
+
+    service.arm(coordinate: anchorCoord, radius: Measurement(value: 50, unit: .meters))
+    XCTAssertEqual(mockAudio.prepareAudioSessionCallCount, 1)
+
+    let droppedStore = MockAnchorStateStore()
+    droppedStore.session = AnchorSessionData(
+      activeWatch: AnchorWatch(
+        coordinate: anchorCoord,
+        radius: Measurement(value: 50, unit: .meters),
+        initialAccuracy: Measurement(value: 5, unit: .meters)
+      ),
+      status: .dropped
+    )
+    let droppedAudio = MockAlarmAudioService()
+    let droppedGPS = MockPositioningService()
+    let droppedService = AnchorService(
+      positioningService: droppedGPS,
+      preferencesService: mockPrefs,
+      notificationService: mockNotif,
+      permissionService: mockPermission,
+      backgroundMonitoringService: mockMonitoring,
+      alarmAudioService: droppedAudio,
+      stateStore: droppedStore
+    )
+    try await waitFor { droppedGPS.isSubscribed }
+    XCTAssertEqual(droppedService.status, .dropped)
+    XCTAssertEqual(droppedAudio.prepareAudioSessionCallCount, 0)
+
+    let persistedStore = MockAnchorStateStore()
+    persistedStore.session = AnchorSessionData(
+      activeWatch: AnchorWatch(
+        coordinate: anchorCoord,
+        radius: Measurement(value: 50, unit: .meters),
+        initialAccuracy: Measurement(value: 5, unit: .meters)
+      ),
+      status: .armed
+    )
+    let resumedAudio = MockAlarmAudioService()
+    let resumedGPS = MockPositioningService()
+    let resumedService = AnchorService(
+      positioningService: resumedGPS,
+      preferencesService: mockPrefs,
+      notificationService: mockNotif,
+      permissionService: mockPermission,
+      backgroundMonitoringService: mockMonitoring,
+      alarmAudioService: resumedAudio,
+      stateStore: persistedStore
+    )
+    try await waitFor { resumedGPS.isSubscribed }
+
+    XCTAssertEqual(resumedService.status, .armed)
+    XCTAssertEqual(resumedAudio.prepareAudioSessionCallCount, 1)
+    XCTAssertEqual(resumedAudio.startSirenCallCount, 0)
+
+    let draggingStore = MockAnchorStateStore()
+    draggingStore.session = AnchorSessionData(
+      activeWatch: AnchorWatch(
+        coordinate: anchorCoord,
+        radius: Measurement(value: 50, unit: .meters),
+        initialAccuracy: Measurement(value: 5, unit: .meters)
+      ),
+      status: .dragging,
+      triggerReason: .distanceExceeded(
+        distance: Measurement(value: 75, unit: .meters),
+        radius: Measurement(value: 50, unit: .meters)
+      )
+    )
+    let draggingAudio = MockAlarmAudioService()
+    let draggingGPS = MockPositioningService()
+    let draggingService = AnchorService(
+      positioningService: draggingGPS,
+      preferencesService: mockPrefs,
+      notificationService: mockNotif,
+      permissionService: mockPermission,
+      backgroundMonitoringService: mockMonitoring,
+      alarmAudioService: draggingAudio,
+      stateStore: draggingStore
+    )
+    try await waitFor { draggingGPS.isSubscribed }
+
+    XCTAssertEqual(draggingService.status, .dragging)
+    XCTAssertEqual(draggingAudio.prepareAudioSessionCallCount, 0)
+    XCTAssertEqual(draggingAudio.startSirenCallCount, 1)
+    XCTAssertTrue(draggingAudio.isPlaying)
   }
 }
 
