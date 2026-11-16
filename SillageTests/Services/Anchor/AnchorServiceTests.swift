@@ -181,6 +181,8 @@ final class MockBackgroundMonitoringService: BackgroundMonitoringService {
 final class MockPermissionService: PermissionServiceProtocol {
     var locationStatus: PermissionStatus = .unknown
     var notificationStatus: PermissionStatus = .unknown
+    var criticalAlertStatus: NotificationAlertCapabilityStatus = .unknown
+    var timeSensitiveStatus: NotificationAlertCapabilityStatus = .unknown
     var motionStatus: PermissionStatus = .unknown
     
     var requestLocationAuthorizationCalled = false

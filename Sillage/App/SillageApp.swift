@@ -104,18 +104,25 @@ struct SillageApp: App {
     let isAnchoring = container.anchorViewModel.status != .inactive
     
     if isTracking || isAnchoring {
-      let content = UNMutableNotificationContent()
-      content.title = String(localized: "Sillage Terminated")
-      content.body = String(localized: "The application has been closed by iOS. Active services (like tracking or anchor watch) have been stopped.")
-      content.sound = UNNotificationSound.default
-      
-      // Note: This XPC call to UNUserNotificationCenter suffers from a race condition 
-      // during a crash or OOM kill (willTerminate is not even called for OOM). 
+      let permissionService = container.permissionService
+      let isCriticalAuthorized = permissionService.criticalAlertStatus == .enabled
+      let isTimeSensitiveAuthorized = permissionService.timeSensitiveStatus == .enabled
+      let content = LocalNotificationService.makeNotificationContent(
+        title: String(localized: "Sillage Terminated"),
+        body: String(localized: "The application has been closed by iOS. Active services (like tracking or anchor watch) have been stopped."),
+        identifier: NotificationIntent.appTerminated.rawValue,
+        isCritical: true,
+        isCriticalAuthorized: isCriticalAuthorized,
+        isTimeSensitiveAuthorized: isTimeSensitiveAuthorized
+      )
+
+      // Note: This XPC call to UNUserNotificationCenter suffers from a race condition
+      // during a crash or OOM kill (willTerminate is not even called for OOM).
       // This is a "Best Effort" for explicit user force-quits.
       let request = UNNotificationRequest(identifier: NotificationIntent.appTerminated.rawValue, content: content, trigger: nil)
       UNUserNotificationCenter.current().add(request) { error in
         if let error = error {
-          Logger.system.error("Failed to send termination warning: \(error.localizedDescription)")
+          Logger.system.error("Failed to send termination warning: \(error.localizedDescription, privacy: .public)")
         } else {
           Logger.system.info("Termination warning notification sent.")
         }

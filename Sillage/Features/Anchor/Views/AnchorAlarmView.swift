@@ -86,7 +86,46 @@ public struct AnchorAlarmView: View {
   }
   
   // MARK: - 1. HEADER (Alerts)
-  private var hasHeaderAlerts: Bool {
+  private enum NotificationCapabilityWarning {
+    case notificationsDenied
+    case timeSensitiveDisabled
+    case criticalAlertsDisabled
+
+    var message: LocalizedStringKey {
+      switch self {
+      case .notificationsDenied:
+        return "Notifications are disabled. Anchor alarms will not appear."
+      case .timeSensitiveDisabled:
+        return "Time Sensitive alerts are disabled. Focus modes may silence anchor alarms."
+      case .criticalAlertsDisabled:
+        return "Critical alerts are disabled. Anchor alarms will not bypass silent mode."
+      }
+    }
+
+    var isDestructive: Bool {
+      self == .notificationsDenied
+    }
+  }
+
+  private var notificationCapabilityWarning: NotificationCapabilityWarning? {
+    guard viewModel.state != .setup else { return nil }
+    if permissionService.notificationStatus == .denied {
+      return .notificationsDenied
+    }
+    guard permissionService.notificationStatus == .authorized,
+          permissionService.criticalAlertStatus != .enabled else {
+      return nil
+    }
+    if permissionService.timeSensitiveStatus == .disabled {
+      return .timeSensitiveDisabled
+    }
+    if permissionService.criticalAlertStatus == .disabled {
+      return .criticalAlertsDisabled
+    }
+    return nil
+  }
+
+  private var hasPrimaryHeaderAlert: Bool {
     if case .droppedPendingPosition = viewModel.state { return true }
     if isDragging && viewModel.triggerReasonDescription != nil { return true }
     if let initialAcc = viewModel.initialAccuracy?.converted(to: .meters).value, initialAcc > 15.0 { return true }
@@ -95,66 +134,112 @@ public struct AnchorAlarmView: View {
     return false
   }
 
+  private var hasHeaderAlerts: Bool {
+    hasPrimaryHeaderAlert || notificationCapabilityWarning != nil
+  }
+
   @ViewBuilder
   private var headerSection: some View {
     if hasHeaderAlerts {
       VStack(spacing: MarineTheme.Spacing.small) {
-        if case .droppedPendingPosition = viewModel.state {
-          HStack(spacing: 6) {
-            ProgressView()
-              .tint(marineTheme.colors.warning)
-            Text("Anchor dropped. Position will lock automatically on first GPS fix.")
-              .font(.caption.bold())
-              .multilineTextAlignment(.center)
-          }
-          .foregroundColor(marineTheme.colors.warning)
-          .padding(MarineTheme.Spacing.small)
-          .background(marineTheme.colors.warning.opacity(0.2))
-          .cornerRadius(MarineTheme.Metrics.cornerRadius)
-        } else if isDragging, let reasonDesc = viewModel.triggerReasonDescription {
-          HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-            Text(reasonDesc)
-              .font(.subheadline.bold())
-              .multilineTextAlignment(.center)
-          }
-          .foregroundColor(marineTheme.colors.destructive)
-          .padding(MarineTheme.Spacing.small)
-          .background(marineTheme.colors.destructiveBackground)
-          .cornerRadius(MarineTheme.Metrics.cornerRadius)
-        } else if let initialAcc = viewModel.initialAccuracy, initialAcc.converted(to: .meters).value > 15.0 {
-          HStack(spacing: 4) {
-            Image(systemName: "info.circle.fill")
-            Text("Anchor dropped with degraded accuracy (±\(initialAcc.marineAnchorDistanceFormatted(locale: locale)))")
-          }
-          .font(.caption.bold())
-          .foregroundColor(marineTheme.colors.warning)
-          .padding(MarineTheme.Spacing.small)
-          .background(marineTheme.colors.warning.opacity(0.2))
-          .cornerRadius(MarineTheme.Metrics.cornerRadius)
-        } else if viewModel.isGPSAccuracyDegraded, let accuracy = viewModel.gpsAccuracy {
-          HStack(spacing: 4) {
-            Image(systemName: "exclamationmark.triangle.fill")
-            Text("GPS: \(accuracy.marineAnchorDistanceFormatted(locale: locale))")
-          }
-          .font(.caption.bold())
-          .foregroundColor(marineTheme.colors.warning)
-          .padding(MarineTheme.Spacing.small)
-          .background(marineTheme.colors.warning.opacity(0.2))
-          .cornerRadius(MarineTheme.Metrics.cornerRadius)
-        } else if let error = viewModel.anchorDropError {
-          HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-            Text(error)
-              .font(.subheadline.bold())
-          }
-          .foregroundColor(marineTheme.colors.destructive)
-          .padding(MarineTheme.Spacing.small)
-          .background(marineTheme.colors.destructiveBackground)
-          .cornerRadius(MarineTheme.Metrics.cornerRadius)
+        if hasPrimaryHeaderAlert {
+          primaryHeaderAlert
+        }
+        if let capabilityWarning = notificationCapabilityWarning {
+          notificationCapabilityBanner(for: capabilityWarning)
         }
       }
     }
+  }
+
+  @ViewBuilder
+  private var primaryHeaderAlert: some View {
+    if case .droppedPendingPosition = viewModel.state {
+      HStack(spacing: 6) {
+        ProgressView()
+          .tint(marineTheme.colors.warning)
+        Text("Anchor dropped. Position will lock automatically on first GPS fix.")
+          .font(.caption.bold())
+          .multilineTextAlignment(.center)
+      }
+      .foregroundColor(marineTheme.colors.warning)
+      .padding(MarineTheme.Spacing.small)
+      .background(marineTheme.colors.warning.opacity(0.2))
+      .cornerRadius(MarineTheme.Metrics.cornerRadius)
+    } else if isDragging, let reasonDesc = viewModel.triggerReasonDescription {
+      HStack(spacing: 6) {
+        Image(systemName: "exclamationmark.triangle.fill")
+        Text(reasonDesc)
+          .font(.subheadline.bold())
+          .multilineTextAlignment(.center)
+      }
+      .foregroundColor(marineTheme.colors.destructive)
+      .padding(MarineTheme.Spacing.small)
+      .background(marineTheme.colors.destructiveBackground)
+      .cornerRadius(MarineTheme.Metrics.cornerRadius)
+    } else if let initialAcc = viewModel.initialAccuracy, initialAcc.converted(to: .meters).value > 15.0 {
+      HStack(spacing: 4) {
+        Image(systemName: "info.circle.fill")
+        Text("Anchor dropped with degraded accuracy (±\(initialAcc.marineAnchorDistanceFormatted(locale: locale)))")
+      }
+      .font(.caption.bold())
+      .foregroundColor(marineTheme.colors.warning)
+      .padding(MarineTheme.Spacing.small)
+      .background(marineTheme.colors.warning.opacity(0.2))
+      .cornerRadius(MarineTheme.Metrics.cornerRadius)
+    } else if viewModel.isGPSAccuracyDegraded, let accuracy = viewModel.gpsAccuracy {
+      HStack(spacing: 4) {
+        Image(systemName: "exclamationmark.triangle.fill")
+        Text("GPS: \(accuracy.marineAnchorDistanceFormatted(locale: locale))")
+      }
+      .font(.caption.bold())
+      .foregroundColor(marineTheme.colors.warning)
+      .padding(MarineTheme.Spacing.small)
+      .background(marineTheme.colors.warning.opacity(0.2))
+      .cornerRadius(MarineTheme.Metrics.cornerRadius)
+    } else if let error = viewModel.anchorDropError {
+      HStack(spacing: 6) {
+        Image(systemName: "exclamationmark.triangle.fill")
+        Text(error)
+          .font(.subheadline.bold())
+      }
+      .foregroundColor(marineTheme.colors.destructive)
+      .padding(MarineTheme.Spacing.small)
+      .background(marineTheme.colors.destructiveBackground)
+      .cornerRadius(MarineTheme.Metrics.cornerRadius)
+    }
+  }
+
+  @ViewBuilder
+  private func notificationCapabilityBanner(for warning: NotificationCapabilityWarning) -> some View {
+    let tintColor = warning.isDestructive ? marineTheme.colors.destructive : marineTheme.colors.warning
+    let bgColor = warning.isDestructive ? marineTheme.colors.destructiveBackground : marineTheme.colors.warning.opacity(0.2)
+
+    VStack(spacing: MarineTheme.Spacing.small) {
+      HStack(spacing: 6) {
+        Image(systemName: "bell.slash.fill")
+        Text(warning.message)
+          .font(.caption.bold())
+          .multilineTextAlignment(.leading)
+      }
+      .foregroundColor(tintColor)
+
+      Button(action: {
+        permissionService.openSystemSettings()
+      }) {
+        Text("Open Settings")
+          .font(.caption.bold())
+          .frame(maxWidth: .infinity, minHeight: marineTheme.minTouchTarget)
+          .background(tintColor)
+          .foregroundColor(marineTheme.colors.onPrimary)
+          .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
+      }
+      .buttonStyle(MarineButtonStyle())
+    }
+    .padding(MarineTheme.Spacing.small)
+    .frame(maxWidth: .infinity)
+    .background(bgColor)
+    .cornerRadius(MarineTheme.Metrics.cornerRadius)
   }
   
   // MARK: - 2. BODY (Telemetry)
@@ -311,10 +396,10 @@ public struct AnchorAlarmView: View {
           customTrackColor: marineTheme.colors.disabledBackground,
           customThumbColor: marineTheme.colors.textSecondary,
           customTextColor: marineTheme.colors.textSecondary,
-          title: "SLIDE TO CANCEL",
+          title: "SLIDE TO WEIGH ANCHOR",
           action: {
-            Logger.anchor.info("User requested to cancel drop")
-            viewModel.cancelDrop()
+            Logger.anchor.info("User requested to weigh anchor")
+            viewModel.weighAnchor()
           }
         )
         
@@ -388,6 +473,9 @@ fileprivate struct SlideActionButton: View {
         Text(title)
           .font(.title3.bold())
           .foregroundColor(textColor)
+          .lineLimit(1)
+          .minimumScaleFactor(0.7)
+          .padding(.horizontal, thumbSize + MarineTheme.Spacing.small)
           .frame(maxWidth: .infinity)
           .opacity(maxOffset > 0 ? 1.0 - Double(offset / maxOffset) : 1.0)
         

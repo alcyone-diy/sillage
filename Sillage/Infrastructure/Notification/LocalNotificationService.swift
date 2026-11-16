@@ -20,6 +20,10 @@ public struct LocalNotificationService: NotificationService {
   }
 
   private func registerNotificationCategories() {
+    UNUserNotificationCenter.current().setNotificationCategories(Self.notificationCategories())
+  }
+
+  static func notificationCategories() -> Set<UNNotificationCategory> {
     let silenceAction = UNNotificationAction(
       identifier: NotificationIntent.anchorActionSilence.rawValue,
       title: String(localized: "🔇 Silence"),
@@ -33,7 +37,7 @@ public struct LocalNotificationService: NotificationService {
       options: [.customDismissAction]
     )
 
-    UNUserNotificationCenter.current().setNotificationCategories([anchorDraggingCategory])
+    return [anchorDraggingCategory]
   }
 
   public func sendNotification(
@@ -131,6 +135,24 @@ public struct LocalNotificationService: NotificationService {
     settings: UNNotificationSettings,
     isCritical: Bool
   ) -> UNMutableNotificationContent {
+    Self.makeNotificationContent(
+      title: title,
+      body: body,
+      identifier: identifier,
+      isCritical: isCritical,
+      isCriticalAuthorized: settings.criticalAlertSetting == .enabled,
+      isTimeSensitiveAuthorized: settings.timeSensitiveSetting == .enabled
+    )
+  }
+
+  static func makeNotificationContent(
+    title: String,
+    body: String,
+    identifier: String,
+    isCritical: Bool,
+    isCriticalAuthorized: Bool,
+    isTimeSensitiveAuthorized: Bool
+  ) -> UNMutableNotificationContent {
     let content = UNMutableNotificationContent()
     content.title = title
     content.body = body
@@ -142,7 +164,6 @@ public struct LocalNotificationService: NotificationService {
       return content
     }
 
-    let isCriticalAuthorized = settings.criticalAlertSetting == .enabled
     if identifier == NotificationIntent.anchorDragging.rawValue {
       let anchorSoundName = UNNotificationSoundName("AnchorAlarm_CleanEscalation_27s.wav")
       content.sound = isCriticalAuthorized
@@ -156,7 +177,7 @@ public struct LocalNotificationService: NotificationService {
 
     if isCriticalAuthorized {
       content.interruptionLevel = .critical
-    } else if settings.timeSensitiveSetting == .enabled {
+    } else if isTimeSensitiveAuthorized {
       content.interruptionLevel = .timeSensitive
       Logger.system.warning("Critical alert permission disabled/unsupported for '\(identifier, privacy: .public)'; using .timeSensitive interruption level.")
     } else {

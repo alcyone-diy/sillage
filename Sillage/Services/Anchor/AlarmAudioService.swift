@@ -46,8 +46,16 @@ nonisolated private final class AudioPlayerDelegateProxy: NSObject, AVAudioPlaye
   }
 }
 
+protocol AlarmAudioPlaying: Sendable {
+  func prepareAudioSession() async
+  func startPlayback(sessionID: UUID, onEscalationDidFinish: @escaping @MainActor @Sendable () -> Void) async -> Bool
+  func handleInterruptionBegan(sessionID: UUID) async
+  func transitionToContinuousSiren(sessionID: UUID) async -> Bool
+  func stopPlayback() async
+}
+
 /// Executes blocking AVAudioSession and two-phase AVAudioPlayer work off the main thread.
-private actor AlarmAudioEngine {
+private actor AlarmAudioEngine: AlarmAudioPlaying {
   private enum SoundResource {
     static let escalationName = "AnchorAlarm_CleanEscalation_27s"
     static let sirenName = "SirenAlarm"
@@ -62,6 +70,7 @@ private actor AlarmAudioEngine {
 
   private var phase: PlaybackPhase = .idle
   private var activeSessionID: UUID?
+  private var delegateProxy: AudioPlayerDelegateProxy?
   private var escalationPlayer: AVAudioPlayer?
   private var sirenPlayer: AVAudioPlayer?
   private var scheduledSirenDeviceTime: TimeInterval?
@@ -99,12 +108,18 @@ private actor AlarmAudioEngine {
     _ = configureSessionCategory()
   }
 
-  func startPlayback(sessionID: UUID, delegate: AudioPlayerDelegateProxy) -> Bool {
+  func startPlayback(
+    sessionID: UUID,
+    onEscalationDidFinish: @escaping @MainActor @Sendable () -> Void
+  ) -> Bool {
     if activeSessionID != sessionID {
       resetPlayers()
       activeSessionID = sessionID
       phase = .escalation
     }
+
+    let delegate = AudioPlayerDelegateProxy(onEscalationDidFinish: onEscalationDidFinish)
+    delegateProxy = delegate
 
     promoteToContinuousIfScheduledElapsed()
 
@@ -154,6 +169,7 @@ private actor AlarmAudioEngine {
 
   private func startOrResumeEscalation(delegate: AudioPlayerDelegateProxy) -> Bool {
     if let existingEscalation = escalationPlayer, existingEscalation.isPlaying {
+      existingEscalation.delegate = delegate
       return true
     }
 
@@ -324,6 +340,7 @@ private actor AlarmAudioEngine {
     escalationPlayer?.delegate = nil
     escalationPlayer?.stop()
     escalationPlayer = nil
+    delegateProxy = nil
     sirenPlayer?.stop()
     sirenPlayer = nil
     scheduledSirenDeviceTime = nil
@@ -332,15 +349,36 @@ private actor AlarmAudioEngine {
 
 @MainActor
 final class AlarmAudioService: AlarmAudioServiceProtocol {
-  private let audioEngine = AlarmAudioEngine()
-  private lazy var delegateProxy = AudioPlayerDelegateProxy { [weak self] in
-    self?.handleEscalationDidFinish()
-  }
+  private let audioEngine: any AlarmAudioPlaying
+  private let clock: any Clock<Duration>
+  private let retryDelays: [Duration]
+  private let vibrationInterval: Duration
+  private let vibrationTimeout: Duration
+  private let vibrate: @MainActor @Sendable () -> Void
   private var audioCommandState: (id: UUID, task: Task<Void, Never>)?
   private var activeSessionID: UUID?
+  private var isAudioInterrupted = false
+  private var retryAttemptIndex = 0
+  private var retryState: (id: UUID, cancellable: TaskCancellable)?
   private var vibrationState: (id: UUID, cancellable: TaskCancellable)?
   private var interruptionObserver: TaskCancellable?
   private var routeChangeObserver: TaskCancellable?
+
+  init(
+    audioEngine: (any AlarmAudioPlaying)? = nil,
+    clock: any Clock<Duration> = ContinuousClock(),
+    retryDelays: [Duration] = [.seconds(1), .seconds(2), .seconds(4), .seconds(8), .seconds(15)],
+    vibrationInterval: Duration = .seconds(1),
+    vibrationTimeout: Duration = .seconds(300),
+    vibrate: @escaping @MainActor @Sendable () -> Void = { AudioServicesPlaySystemSound(kSystemSoundID_Vibrate) }
+  ) {
+    self.audioEngine = audioEngine ?? AlarmAudioEngine()
+    self.clock = clock
+    self.retryDelays = retryDelays
+    self.vibrationInterval = vibrationInterval
+    self.vibrationTimeout = vibrationTimeout
+    self.vibrate = vibrate
+  }
 
   func prepareAudioSession() {
     enqueueAudioOperation { engine in
@@ -360,16 +398,20 @@ final class AlarmAudioService: AlarmAudioServiceProtocol {
       startAudioObservers()
     }
 
-    let delegate = delegateProxy
-    enqueueAudioOperation { engine in
-      _ = await engine.startPlayback(sessionID: sessionID, delegate: delegate)
-    }
+    isAudioInterrupted = false
+    cancelPlaybackRetry()
+    retryAttemptIndex = 0
+    enqueuePlaybackStart(sessionID: sessionID)
   }
 
   func stopSiren() {
     guard activeSessionID != nil else { return }
     activeSessionID = nil
+    isAudioInterrupted = false
     Logger.anchor.info("🔇 Stopping alarm siren audio.")
+
+    cancelPlaybackRetry()
+    retryAttemptIndex = 0
 
     vibrationState?.cancellable.cancel()
     vibrationState = nil
@@ -386,13 +428,79 @@ final class AlarmAudioService: AlarmAudioServiceProtocol {
 
   fileprivate func handleEscalationDidFinish() {
     guard let sessionID = activeSessionID else { return }
-    enqueueAudioOperation { engine in
-      _ = await engine.transitionToContinuousSiren(sessionID: sessionID)
+    enqueueAudioOperation { [weak self] engine in
+      let started = await engine.transitionToContinuousSiren(sessionID: sessionID)
+      await self?.handlePlaybackAttemptResult(started: started, sessionID: sessionID)
     }
   }
 
+  private func enqueuePlaybackStart(sessionID: UUID) {
+    let onEscalationDidFinish: @MainActor @Sendable () -> Void = { [weak self] in
+      self?.handleEscalationDidFinish()
+    }
+    enqueueAudioOperation { [weak self] engine in
+      let started = await engine.startPlayback(
+        sessionID: sessionID,
+        onEscalationDidFinish: onEscalationDidFinish
+      )
+      await self?.handlePlaybackAttemptResult(started: started, sessionID: sessionID)
+    }
+  }
+
+  private func handlePlaybackAttemptResult(started: Bool, sessionID: UUID) {
+    guard activeSessionID == sessionID else { return }
+
+    if started {
+      cancelPlaybackRetry()
+      retryAttemptIndex = 0
+      return
+    }
+
+    guard !isAudioInterrupted else { return }
+
+    guard retryAttemptIndex < retryDelays.count else {
+      Logger.anchor.fault("🚨 Exhausted in-app alarm audio playback retries; relying on system notifications.")
+      return
+    }
+
+    let delay = retryDelays[retryAttemptIndex]
+    retryAttemptIndex += 1
+    let attemptNumber = retryAttemptIndex
+    Logger.anchor.error("⚠️ Alarm audio playback failed; scheduling retry #\(attemptNumber, privacy: .public).")
+
+    cancelPlaybackRetry()
+    let retryID = UUID()
+    let clock = self.clock
+    let task = Task { @MainActor [weak self] in
+      do {
+        try await clock.sleep(for: delay)
+      } catch {
+        return
+      }
+      guard let self,
+            !Task.isCancelled,
+            self.activeSessionID == sessionID else {
+        return
+      }
+      if self.retryState?.id == retryID {
+        self.retryState = nil
+      }
+      self.enqueuePlaybackStart(sessionID: sessionID)
+    }
+    retryState = (id: retryID, cancellable: TaskCancellable(task))
+  }
+
+  var hasPendingPlaybackRetry: Bool {
+    retryState != nil
+  }
+
+  private func cancelPlaybackRetry() {
+    retryState?.cancellable.cancel()
+    retryState = nil
+  }
+
   /// Chains audio operations strictly in FIFO order off the main thread.
-  private func enqueueAudioOperation(_ operation: @escaping @Sendable (AlarmAudioEngine) async -> Void) {
+  private func enqueueAudioOperation(_ operation: @escaping @Sendable (any AlarmAudioPlaying) async -> Void) {
     let previousTask = audioCommandState?.task
     let engine = audioEngine
     let operationID = UUID()
@@ -414,6 +522,8 @@ final class AlarmAudioService: AlarmAudioServiceProtocol {
 
   private func handleInterruptionBegan() {
     guard let sessionID = activeSessionID else { return }
+    isAudioInterrupted = true
+    cancelPlaybackRetry()
     enqueueAudioOperation { engine in
       await engine.handleInterruptionBegan(sessionID: sessionID)
     }
@@ -421,34 +531,27 @@ final class AlarmAudioService: AlarmAudioServiceProtocol {
 
   private func resumeAudioIfActive() {
     guard let sessionID = activeSessionID else { return }
-    let delegate = delegateProxy
-    enqueueAudioOperation { engine in
-      _ = await engine.startPlayback(sessionID: sessionID, delegate: delegate)
-    }
+    isAudioInterrupted = false
+    cancelPlaybackRetry()
+    retryAttemptIndex = 0
+    enqueuePlaybackStart(sessionID: sessionID)
   }
 
   private func startVibrationLoop() {
     vibrationState?.cancellable.cancel()
     let taskID = UUID()
+    let clock = self.clock
+    let interval = vibrationInterval
+    let timeout = vibrationTimeout
+    let vibrateAction = vibrate
 
     let task = Task { @MainActor [weak self] in
-      let deadline = ContinuousClock.now + .seconds(300) // 5 minutes maximum
-
-      while !Task.isCancelled {
-        if ContinuousClock.now >= deadline {
-          Logger.anchor.info("⏰ Vibration loop reached 5-minute safety timeout. Auto-stopping vibration.")
-          break
-        }
-
-        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
-
-        do {
-          try await Task.sleep(for: .seconds(1))
-        } catch {
-          // Task was cancelled during sleep
-          break
-        }
-      }
+      await AlarmAudioService.runVibrationLoop(
+        using: clock,
+        interval: interval,
+        timeout: timeout,
+        vibrateAction: vibrateAction
+      )
 
       if self?.vibrationState?.id == taskID {
         self?.vibrationState = nil
@@ -456,6 +559,31 @@ final class AlarmAudioService: AlarmAudioServiceProtocol {
     }
 
     vibrationState = (id: taskID, cancellable: TaskCancellable(task))
+  }
+
+  private static func runVibrationLoop<C: Clock>(
+    using clock: C,
+    interval: Duration,
+    timeout: Duration,
+    vibrateAction: @MainActor @Sendable () -> Void
+  ) async where C.Duration == Duration {
+    let deadline = clock.now.advanced(by: timeout)
+
+    while !Task.isCancelled {
+      if clock.now >= deadline {
+        Logger.anchor.info("⏰ Vibration loop reached 5-minute safety timeout. Auto-stopping vibration.")
+        break
+      }
+
+      vibrateAction()
+
+      do {
+        try await clock.sleep(for: interval)
+      } catch {
+        // Task was cancelled during sleep
+        break
+      }
+    }
   }
 
   private func startAudioObservers() {

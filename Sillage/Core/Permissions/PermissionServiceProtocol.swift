@@ -9,16 +9,64 @@
 //
 
 import Foundation
+import UserNotifications
+
+public nonisolated enum NotificationAlertCapabilityStatus: Sendable, Equatable {
+  case unknown
+  case notSupported
+  case disabled
+  case enabled
+}
+
+public nonisolated struct NotificationSettingsSnapshot: Sendable, Equatable {
+  public let authorizationStatus: UNAuthorizationStatus
+  public let criticalAlertSetting: UNNotificationSetting
+  public let timeSensitiveSetting: UNNotificationSetting
+
+  public init(
+    authorizationStatus: UNAuthorizationStatus,
+    criticalAlertSetting: UNNotificationSetting,
+    timeSensitiveSetting: UNNotificationSetting
+  ) {
+    self.authorizationStatus = authorizationStatus
+    self.criticalAlertSetting = criticalAlertSetting
+    self.timeSensitiveSetting = timeSensitiveSetting
+  }
+}
+
+public nonisolated protocol NotificationAuthorizationProviding: Sendable {
+  func notificationSettings() async -> NotificationSettingsSnapshot
+  func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
+}
+
+public nonisolated struct SystemNotificationAuthorizationProvider: NotificationAuthorizationProviding {
+  public init() {}
+
+  public func notificationSettings() async -> NotificationSettingsSnapshot {
+    let settings = await UNUserNotificationCenter.current().notificationSettings()
+    return NotificationSettingsSnapshot(
+      authorizationStatus: settings.authorizationStatus,
+      criticalAlertSetting: settings.criticalAlertSetting,
+      timeSensitiveSetting: settings.timeSensitiveSetting
+    )
+  }
+
+  public func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
+    try await UNUserNotificationCenter.current().requestAuthorization(options: options)
+  }
+}
 
 @MainActor
 public protocol PermissionServiceProtocol: AnyObject {
-    var locationStatus: PermissionStatus { get }
-    var notificationStatus: PermissionStatus { get }
-    var motionStatus: PermissionStatus { get }
-    
-    func requestLocationAuthorization() async
-    func requestNotificationAuthorization() async -> Bool
-    func requestCriticalNotificationAuthorization() async -> Bool
-    func requestMotionAuthorization() async
-    func openSystemSettings()
+  var locationStatus: PermissionStatus { get }
+  var notificationStatus: PermissionStatus { get }
+  var criticalAlertStatus: NotificationAlertCapabilityStatus { get }
+  var timeSensitiveStatus: NotificationAlertCapabilityStatus { get }
+  var motionStatus: PermissionStatus { get }
+
+  func requestLocationAuthorization() async
+  func requestNotificationAuthorization() async -> Bool
+  func requestCriticalNotificationAuthorization() async -> Bool
+  func requestMotionAuthorization() async
+  func openSystemSettings()
 }

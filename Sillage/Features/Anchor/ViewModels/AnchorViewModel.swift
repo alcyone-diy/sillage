@@ -202,6 +202,15 @@ final class AnchorViewModel {
 
   func cancelDrop() {
     Logger.anchor.info("Canceling anchor drop before arming.")
+    clearAnchorSession()
+  }
+
+  func weighAnchor() {
+    Logger.anchor.info("Weighing anchor and clearing active watch.")
+    clearAnchorSession()
+  }
+
+  private func clearAnchorSession() {
     self.anchorDropError = nil
     cancelPendingAction()
     anchorService.clear()

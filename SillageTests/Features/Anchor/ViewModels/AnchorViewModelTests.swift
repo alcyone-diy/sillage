@@ -417,6 +417,28 @@ final class AnchorViewModelTests: XCTestCase {
     XCTAssertEqual(setupToken?.invalidateCallCount, 1)
   }
 
+  func testWeighAnchor_clearsActiveWatchAndPendingArmAction() async throws {
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let (anchorService, positioningService, notificationService) = await makeIsolatedAnchorService(directoryURL: tempDir)
+    let coord = CLLocationCoordinate2D(latitude: 47.2, longitude: -1.5)
+    anchorService.drop(coordinate: coord, radius: Measurement(value: 50.0, unit: .meters))
+
+    let viewModel = AnchorViewModel(anchorService: anchorService)
+    let pendingPermService = PermissionService(positioningService: positioningService, notificationService: notificationService)
+    viewModel.requestArmAlarm(in: pendingPermService)
+    XCTAssertNotNil(viewModel.permissionGateType)
+
+    viewModel.weighAnchor()
+    try await waitFor(timeout: .seconds(1)) {
+      viewModel.status == .inactive && viewModel.anchorCoordinate == nil
+    }
+    XCTAssertNil(viewModel.permissionGateType)
+    XCTAssertEqual(anchorService.status, .inactive)
+  }
+
   private func makeIsolatedAnchorService(
     directoryURL: URL
   ) async -> (AnchorService, AnchorViewModelMockPositioningService, MockNotificationService) {
