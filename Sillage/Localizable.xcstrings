@@ -467,6 +467,9 @@
     "Create Checklist" : {
 
     },
+    "Critical alerts are disabled. Anchor alarms will not bypass silent mode." : {
+
+    },
     "Critical GPS accuracy (%@). Anchor alarm is temporarily unreliable." : {
 
     },
@@ -1122,6 +1125,9 @@
     "Note: The alarm only works in the background if you are recording a track or the anchor alarm is active." : {
 
     },
+    "Notifications are disabled. Anchor alarms will not appear." : {
+
+    },
     "Offline chart not found (id: %@)." : {
 
     },
@@ -1385,6 +1391,9 @@
     "SLIDE TO DISARM" : {
 
     },
+    "SLIDE TO WEIGH ANCHOR" : {
+
+    },
     "SOG" : {
 
     },
@@ -1526,6 +1535,9 @@
 
     },
     "Time Horizon" : {
+
+    },
+    "Time Sensitive alerts are disabled. Focus modes may silence anchor alarms." : {
 
     },
     "Title" : {
