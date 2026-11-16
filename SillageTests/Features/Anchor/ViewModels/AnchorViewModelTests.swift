@@ -439,6 +439,56 @@ final class AnchorViewModelTests: XCTestCase {
     XCTAssertEqual(anchorService.status, .inactive)
   }
 
+  func testCancelPendingDrop_returnsToSetupAndDeactivatesService() async throws {
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let (anchorService, _, _) = await makeIsolatedAnchorService(directoryURL: tempDir)
+    let viewModel = AnchorViewModel(anchorService: anchorService)
+    XCTAssertEqual(viewModel.state, .setup)
+    XCTAssertEqual(anchorService.status, .inactive)
+
+    viewModel.dropAnchor()
+    try await waitFor(timeout: .seconds(1)) { viewModel.state == .droppedPendingPosition }
+    XCTAssertEqual(anchorService.status, .droppedPendingPosition)
+    XCTAssertNil(anchorService.activeWatch?.coordinate)
+
+    viewModel.cancelDrop()
+    try await waitFor(timeout: .seconds(1)) { viewModel.state == .setup && viewModel.anchorCoordinate == nil }
+    XCTAssertEqual(anchorService.status, .inactive)
+    XCTAssertNil(anchorService.activeWatch)
+  }
+
+  func testDisarmAndWeighArmedAnchor_transitionsThroughDroppedToSetup() async throws {
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let (anchorService, _, _) = await makeIsolatedAnchorService(directoryURL: tempDir)
+    let viewModel = AnchorViewModel(anchorService: anchorService)
+    let coord = CLLocationCoordinate2D(latitude: 47.2, longitude: -1.5)
+
+    anchorService.arm(coordinate: coord, radius: Measurement(value: 50.0, unit: .meters))
+    try await waitFor(timeout: .seconds(1)) { viewModel.state == .armed(isDragging: false) }
+    XCTAssertEqual(anchorService.status, .armed)
+
+    viewModel.disarmAlarm()
+    try await waitFor(timeout: .seconds(1)) { viewModel.state == .dropped }
+    XCTAssertEqual(anchorService.status, .dropped)
+    if let droppedCoord = anchorService.activeWatch?.coordinate {
+      XCTAssertEqual(droppedCoord.latitude, coord.latitude, accuracy: 0.0001)
+      XCTAssertEqual(droppedCoord.longitude, coord.longitude, accuracy: 0.0001)
+    } else {
+      XCTFail("Expected dropped coordinate to remain intact after disarming")
+    }
+
+    viewModel.weighAnchor()
+    try await waitFor(timeout: .seconds(1)) { viewModel.state == .setup && viewModel.anchorCoordinate == nil }
+    XCTAssertEqual(anchorService.status, .inactive)
+    XCTAssertNil(anchorService.activeWatch)
+  }
+
   private func makeIsolatedAnchorService(
     directoryURL: URL
   ) async -> (AnchorService, AnchorViewModelMockPositioningService, MockNotificationService) {

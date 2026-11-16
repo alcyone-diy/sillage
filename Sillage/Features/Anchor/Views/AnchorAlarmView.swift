@@ -453,7 +453,11 @@ fileprivate struct SlideActionButton: View {
   let title: LocalizedStringKey
   let action: () -> Void
   
-  @State private var offset: CGFloat = 0.0
+  @GestureState(
+    resetTransaction: Transaction(animation: .spring(response: 0.3, dampingFraction: 0.7))
+  )
+  private var dragTranslation: CGFloat = 0.0
+
   private var trackColor: Color { customTrackColor ?? marineTheme.colors.destructiveBackground }
   private var thumbColor: Color { customThumbColor ?? marineTheme.colors.destructive }
   private var textColor: Color { customTextColor ?? marineTheme.colors.destructive }
@@ -462,6 +466,8 @@ fileprivate struct SlideActionButton: View {
     GeometryReader { geo in
       let thumbSize: CGFloat = marineTheme.minTouchTarget
       let maxOffset = max(0, geo.size.width - thumbSize)
+      let currentOffset = min(max(dragTranslation, 0), maxOffset)
+      let isReadyToTrigger = maxOffset > 0 && currentOffset >= maxOffset * 0.9
       
       ZStack(alignment: .leading) {
         // Track background
@@ -477,7 +483,7 @@ fileprivate struct SlideActionButton: View {
           .minimumScaleFactor(0.7)
           .padding(.horizontal, thumbSize + MarineTheme.Spacing.small)
           .frame(maxWidth: .infinity)
-          .opacity(maxOffset > 0 ? 1.0 - Double(offset / maxOffset) : 1.0)
+          .opacity(maxOffset > 0 ? 1.0 - Double(currentOffset / maxOffset) : 1.0)
         
         // Draggable Thumb
         ZStack {
@@ -490,24 +496,24 @@ fileprivate struct SlideActionButton: View {
             .font(.title2.bold())
             .foregroundColor(marineTheme.colors.onPrimary)
         }
-        .offset(x: offset)
+        .contentShape(Rectangle())
+        .offset(x: currentOffset)
         .gesture(
-          DragGesture(minimumDistance: 30)
-            .onChanged { value in
-              let newOffset = value.translation.width
-              offset = min(max(newOffset, 0), maxOffset)
+          DragGesture(minimumDistance: 10, coordinateSpace: NamedCoordinateSpace.named("SlideActionTrack"))
+            .updating($dragTranslation) { value, state, _ in
+              state = value.translation.width
             }
             .onEnded { value in
-              if offset >= maxOffset * 0.9 {
+              let finalOffset = min(max(value.translation.width, 0), maxOffset)
+              if maxOffset > 0, finalOffset >= maxOffset * 0.9 {
                 action()
-                withAnimation(.spring()) { offset = 0 }
-              } else {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                  offset = 0
-                }
               }
             }
         )
+      }
+      .coordinateSpace(NamedCoordinateSpace.named("SlideActionTrack"))
+      .sensoryFeedback(.impact(weight: .heavy), trigger: isReadyToTrigger) { _, isReady in
+        isReady
       }
     }
     .frame(height: marineTheme.minTouchTarget)
