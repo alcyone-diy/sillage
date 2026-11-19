@@ -11,6 +11,7 @@
 import Foundation
 import CoreLocation
 import OSLog
+import os
 
 @MainActor
 public protocol BackgroundLocationToken: AnyObject {
@@ -20,24 +21,25 @@ public protocol BackgroundLocationToken: AnyObject {
 /// Hardware positioning service bridging Apple CoreLocation with the Sillage positioning domain.
 ///
 /// Architecture & Design Decisions:
-/// - **Modern Swift Concurrency (`CLLocationUpdate.liveUpdates`)**: Receives location fixes through a
-///   native `AsyncSequence` configured with `.otherNavigation`, decoupling ingestion from legacy delegate buffers.
-/// - **Hardware-Level Power & Throttling (`CLLocationManager`)**: Keeps an internal `CLLocationManager`
-///   instance exclusively to configure underlying hardware filters (`distanceFilter`, `desiredAccuracy`).
-///   This ensures `locationd` throttles updates in hardware rather than waking the CPU at 1 Hz.
-/// - **System Authorization Lifecycle**: Conforms to `NSObject` and `CLLocationManagerDelegate`
-///   specifically to intercept `locationManagerDidChangeAuthorization` and bridge status changes to `authContinuations`.
-/// - **Marine Safety**: Unconditionally disables `pausesLocationUpdatesAutomatically` to ensure GPS fixes
-///   never cease while drifting, sailing slowly, or standing an anchor watch.
+/// - **Single CoreLocation Stream (`CLLocationManager`)**: Uses a single `CLLocationManager` instance
+///   with `locationManager(_:didUpdateLocations:)` funneled sequentially via an `AsyncStream<[CLLocation]>`
+///   to the `@MainActor`. `CLLocationUpdate.liveUpdates` was intentionally avoided because it runs an
+///   independent session that ignores `distanceFilter`, `desiredAccuracy`, and `pausesLocationUpdatesAutomatically`
+///   and auto-pauses when stationary—unsafe for anchor watch and slow drifting.
+/// - **Dynamic Background Privileges (RAII)**: Dynamically toggles `allowsBackgroundLocationUpdates` and
+///   `showsBackgroundLocationIndicator` based on active `BackgroundLocationToken` leases, while keeping
+///   auto-pause disabled (`pausesLocationUpdatesAutomatically = false`) during background sessions.
+/// - **Strict Boundary Sanitization**: Intercepts Apple sentinel values (`-1.0` for speed, course, and
+///   accuracies) and drops transient invalid coordinates at the service boundary so they never leak into the domain.
 @MainActor
 class CoreLocationPositioningService: NSObject, PositioningService, CLLocationManagerDelegate {
-  
+
   private let locationManager: CLLocationManager
-  
+
   var currentAuthorizationStatus: CLAuthorizationStatus {
     locationManager.authorizationStatus
   }
-  
+
   var currentDistanceFilter: Measurement<UnitLength> {
     Measurement(value: locationManager.distanceFilter, unit: .meters)
   }
@@ -46,13 +48,30 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   var activityType: CLActivityType {
     locationManager.activityType
   }
-  
+
+  /// Exposed for unit testing verification of the underlying CLLocationManager configuration.
+  var desiredAccuracy: CLLocationAccuracy {
+    locationManager.desiredAccuracy
+  }
+
+  /// Exposed for unit testing verification of background privilege configuration.
+  var allowsBackgroundLocationUpdates: Bool {
+    locationManager.allowsBackgroundLocationUpdates
+  }
+
+  /// Exposed for unit testing verification of the system background indicator configuration.
+  var showsBackgroundLocationIndicator: Bool {
+    locationManager.showsBackgroundLocationIndicator
+  }
+
   public private(set) var lastKnownLocation: NavigationFix?
-  
+
   // MARK: - Configuration Constants
-  
+
   private enum PositioningConfig {
     static let defaultDistanceFilter: Double = 10.0
+    static let zeroDistance = Measurement<UnitLength>(value: 0.0, unit: .meters)
+    static let degradedAccuracyThreshold = Measurement<UnitLength>(value: 50.0, unit: .meters)
 
     static func clAccuracy(for mode: GPSAccuracyMode) -> CLLocationAccuracy {
       switch mode {
@@ -101,29 +120,47 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     return stream
   }
   
-  private var updateTask: Task<Void, Never>?
-  private var serviceSession: CLServiceSession?
+  private let rawLocationContinuation: AsyncStream<[CLLocation]>.Continuation
+  // Guarded by an unfair lock rather than @MainActor isolation so nonisolated deinit can cancel deterministically.
+  private let funnelTaskLock = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
+  private var isUpdatingLocations = false
   private var requestedFilters: [String: Double] = [:]
 
   // MARK: - Pauses Location Updates Automatically (Debug)
 
+  /// Mirrors the configured debug preference independently from `locationManager.pausesLocationUpdatesAutomatically`,
+  /// which is forced to `false` during active background sessions and may be coerced by CoreLocation on Simulator.
   private(set) var pausesLocationUpdatesAutomatically: Bool
 
   init(
     initialAccuracyMode: GPSAccuracyMode,
     initialPausesLocationUpdatesAutomatically: Bool = false
   ) {
+    let (stream, continuation) = AsyncStream.makeStream(of: [CLLocation].self)
+    self.rawLocationContinuation = continuation
     self.pausesLocationUpdatesAutomatically = initialPausesLocationUpdatesAutomatically
     self.locationManager = CLLocationManager()
     super.init()
 
-    // Delegate is retained strictly for authorization and hardware error callbacks.
+    // Capture [weak self] per iteration rather than before the loop so the infinite AsyncStream
+    // never retains self across suspension points and deinit remains deterministic.
+    let funnelTask = Task { @MainActor [weak self] in
+      for await locations in stream {
+        guard !Task.isCancelled, let self = self else { break }
+        for location in locations {
+          self.processLocation(location)
+        }
+      }
+    }
+    self.funnelTaskLock.withLock { $0 = funnelTask }
+
+    // Delegate handles location updates, authorization changes, and hardware errors.
     self.locationManager.delegate = self
 
     // Hardware Accuracy: Configured at the locationManager level so locationd applies it upstream.
     self.locationManager.desiredAccuracy = PositioningConfig.clAccuracy(for: initialAccuracyMode)
     Logger.telemetry.info("CoreLocationPositioningService initialised with accuracy: \(initialAccuracyMode.displayName, privacy: .public)")
-    
+
     // Hardware Throttling: Managed in meters by locationd to prevent unnecessary CPU wakeups (Rule 10).
     self.locationManager.distanceFilter = PositioningConfig.defaultDistanceFilter
 
@@ -135,16 +172,23 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
       self.locationManager.activityType = .otherNavigation
     }
 
-    // Marine Safety: A vessel is never paused. Defaults to false to prevent
-    // iOS from silently suspending GPS updates during slow drifting or anchor watch.
-    // Can be toggled at runtime via developer settings for debugging.
+    // Marine Safety & Background Privileges: Auto-pause defaults to false; background privileges
+    // and indicator are dynamically acquired via BackgroundLocationToken (Rule 10).
     self.locationManager.pausesLocationUpdatesAutomatically = initialPausesLocationUpdatesAutomatically
+    self.locationManager.allowsBackgroundLocationUpdates = false
+    self.locationManager.showsBackgroundLocationIndicator = false
   }
 
   deinit {
-    updateTask?.cancel()
-    backgroundActivitySession?.invalidate()
-    serviceSession?.invalidate()
+    // Finish the stream and cancel the funnel task deterministically; `locationManager.delegate` is weak
+    // and `@MainActor`-isolated, so it is safely ignored during `nonisolated deinit`.
+    rawLocationContinuation.finish()
+    let task = funnelTaskLock.withLock { current -> Task<Void, Never>? in
+      let existing = current
+      current = nil
+      return existing
+    }
+    task?.cancel()
   }
 
   // MARK: - Desired Accuracy (Debug)
@@ -163,105 +207,97 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   /// Must be called exclusively through AppEnvironment.updatePausesLocationUpdatesAutomatically(to:).
   func setPausesLocationUpdatesAutomatically(_ pauses: Bool) {
     self.pausesLocationUpdatesAutomatically = pauses
-    locationManager.pausesLocationUpdatesAutomatically = pauses
+    // Never re-enable auto-pause while a background session (track/anchor) is holding privileges.
+    if activeBackgroundSessions.isEmpty {
+      locationManager.pausesLocationUpdatesAutomatically = pauses
+    }
     Logger.telemetry.info("GPS pausesLocationUpdatesAutomatically changed to \(pauses, privacy: .public)")
   }
   
-  // MARK: - Foreground Update Tracking
-  
-  private var activeUpdateTokens = Set<UUID>()
-  
+  // MARK: - Token Lifecycle
+
+  /// RAII lease token shared by foreground update and background activity callers.
+  /// `invalidate()` runs synchronously on `@MainActor` so privilege release takes effect
+  /// immediately, while `deinit` provides a single-shot fallback if the caller forgets to invalidate.
   @MainActor
-  private final class LocationUpdateTokenImpl: LocationUpdateToken {
-    let id: UUID
-    private let onDeinit: @Sendable (UUID) -> Void
-    private var isInvalidated = false
-    
-    init(id: UUID, onDeinit: @escaping @Sendable (UUID) -> Void) {
+  private final class ManagedLocationToken: LocationUpdateToken, BackgroundLocationToken {
+    private let id: UUID
+    private let onInvalidate: @MainActor @Sendable (UUID) -> Void
+    private let invalidatedLock = OSAllocatedUnfairLock(initialState: false)
+
+    init(id: UUID, onInvalidate: @escaping @MainActor @Sendable (UUID) -> Void) {
       self.id = id
-      self.onDeinit = onDeinit
+      self.onInvalidate = onInvalidate
     }
-    
+
     func invalidate() {
-      guard !isInvalidated else { return }
-      isInvalidated = true
-      onDeinit(id)
+      let shouldInvalidate = invalidatedLock.withLock { isInvalidated -> Bool in
+        guard !isInvalidated else { return false }
+        isInvalidated = true
+        return true
+      }
+      guard shouldInvalidate else { return }
+      onInvalidate(id)
     }
-    
+
+    // Swift 6: deinit on an actor-isolated class is always nonisolated.
+    // The lock ensures deterministic single-shot cleanup across invalidate() and deinit.
     nonisolated deinit {
-      onDeinit(id)
-    }
-  }
-  
-  func requestLocationUpdates() -> any LocationUpdateToken {
-    let tokenID = UUID()
-    let token = LocationUpdateTokenImpl(id: tokenID) { @Sendable [weak self] id in
-      guard let service = self else { return }
+      let shouldInvalidate = invalidatedLock.withLock { isInvalidated -> Bool in
+        guard !isInvalidated else { return false }
+        isInvalidated = true
+        return true
+      }
+      guard shouldInvalidate else { return }
+      let id = self.id
+      let callback = self.onInvalidate
       Task { @MainActor in
-        service.releaseUpdateToken(id: id)
+        callback(id)
       }
     }
-    
+  }
+
+  // MARK: - Foreground Update Tracking
+
+  private var activeUpdateTokens = Set<UUID>()
+
+  func requestLocationUpdates() -> any LocationUpdateToken {
+    let tokenID = UUID()
+    let token = ManagedLocationToken(id: tokenID) { [weak self] id in
+      self?.releaseUpdateToken(id: id)
+    }
+
     let wasEmpty = activeUpdateTokens.isEmpty
     activeUpdateTokens.insert(tokenID)
-    
+
     let status = locationManager.authorizationStatus
     if wasEmpty && (status == .authorizedWhenInUse || status == .authorizedAlways) {
       startUpdatingLocation()
     }
-    
+
     return token
   }
-  
+
   private func releaseUpdateToken(id: UUID) {
     activeUpdateTokens.remove(id)
     if activeUpdateTokens.isEmpty {
       stopUpdatingLocation()
     }
   }
-  
+
   // MARK: - Background Activity Tracking
-  
+
   private var activeBackgroundSessions = Set<UUID>()
-  private var backgroundActivitySession: CLBackgroundActivitySession?
-  
-  @MainActor
-  private final class LocationActivityToken: BackgroundLocationToken {
-    let id: UUID
-    private let onDeinit: @Sendable (UUID) -> Void
-    private var isInvalidated = false
-    
-    init(id: UUID, onDeinit: @escaping @Sendable (UUID) -> Void) {
-      self.id = id
-      self.onDeinit = onDeinit
-    }
-    
-    func invalidate() {
-      guard !isInvalidated else { return }
-      isInvalidated = true
-      onDeinit(id)
-    }
-    
-    // Swift 6: deinit on an actor-isolated class is always nonisolated.
-    // We delegate the cleanup to a @Sendable closure injected during initialization
-    // to guarantee safe execution without breaking actor boundaries.
-    nonisolated deinit {
-      onDeinit(id)
-    }
-  }
-  
+
   func requestBackgroundLocation() -> any BackgroundLocationToken {
     let tokenID = UUID()
-    let token = LocationActivityToken(id: tokenID) { @Sendable [weak self] id in
-      guard let service = self else { return }
-      Task { @MainActor in
-        service.releaseBackgroundToken(id: id)
-      }
+    let token = ManagedLocationToken(id: tokenID) { [weak self] id in
+      self?.releaseBackgroundToken(id: id)
     }
-    
+
     activeBackgroundSessions.insert(tokenID)
     updateBackgroundLocationStatus()
-    
+
     return token
   }
   
@@ -272,22 +308,17 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   
   private func updateBackgroundLocationStatus() {
     let needsBackground = !activeBackgroundSessions.isEmpty
-    
-    // Modern iOS 17/18 background management:
-    // CLBackgroundActivitySession manages background privileges and the system indicator
-    // declaratively, avoiding conflicting legacy flags (allowsBackgroundLocationUpdates).
-    if needsBackground && backgroundActivitySession == nil {
-      backgroundActivitySession = CLBackgroundActivitySession()
-    } else if !needsBackground {
-      backgroundActivitySession?.invalidate()
-      backgroundActivitySession = nil
-    }
+    // CLLocationManager requires both flags (with `location` in UIBackgroundModes) so background
+    // tracking continues and the system indicator remains visible across WhenInUse and Always grants.
+    locationManager.allowsBackgroundLocationUpdates = needsBackground
+    locationManager.showsBackgroundLocationIndicator = needsBackground
+    locationManager.pausesLocationUpdatesAutomatically = needsBackground ? false : pausesLocationUpdatesAutomatically
   }
   
   func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String) {
     let meters = distance.converted(to: .meters).value
-    guard meters > 0 else {
-      Logger.telemetry.warning("Invalid distance filter requested by \(identifier, privacy: .public): \(meters)m. Must be > 0.")
+    guard distance > PositioningConfig.zeroDistance, meters.isFinite else {
+      Logger.telemetry.warning("Invalid distance filter requested by \(identifier, privacy: .public): \(meters, privacy: .public)m. Must be > 0.")
       return
     }
     requestedFilters[identifier] = meters
@@ -322,85 +353,80 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
   }
   
   private func startUpdatingLocation() {
-    guard updateTask == nil else { return }
-
-    // iOS 18 Declarative Authorization:
-    // Retains an active CLServiceSession while streaming to ensure in-use privileges persist.
-    if serviceSession == nil {
-      serviceSession = CLServiceSession(authorization: .whenInUse)
-    }
-
-    // Starts hardware tracking in locationd so distanceFilter and background updates remain active.
+    guard !isUpdatingLocations else { return }
+    isUpdatingLocations = true
+    Logger.telemetry.info("Starting CLLocationManager location updates")
     locationManager.startUpdatingLocation()
-
-    Logger.telemetry.info("Starting CLLocationUpdate.liveUpdates(.otherNavigation)")
-    updateTask = Task { [weak self] in
-      do {
-        // Apple's CLLocationUpdate.Updates iterator is throwing (mutating func next() async throws -> CLLocationUpdate?).
-        // Therefore, 'for try await' and do-catch are mandatory in Swift to catch system errors (e.g., location disabled).
-        let updates = CLLocationUpdate.liveUpdates(.otherNavigation)
-        for try await update in updates {
-          guard !Task.isCancelled else { break }
-          guard let self = self else { break }
-
-          if let location = update.location {
-            self.processLocation(location)
-          }
-        }
-      } catch {
-        guard !Task.isCancelled else { return }
-        guard let self = self else { return }
-        Logger.telemetry.error("CLLocationUpdate stream failed with error: \(error.localizedDescription, privacy: .public)")
-        for continuation in self.locationContinuations.values {
-          continuation.yield(.lost(error))
-        }
-      }
-    }
   }
   
   private func stopUpdatingLocation() {
-    Logger.telemetry.info("Stopping CLLocationUpdate.liveUpdates")
-    updateTask?.cancel()
-    updateTask = nil
+    guard isUpdatingLocations else { return }
+    isUpdatingLocations = false
+    Logger.telemetry.info("Stopping CLLocationManager location updates")
     locationManager.stopUpdatingLocation()
-    serviceSession?.invalidate()
-    serviceSession = nil
+  }
+
+  private func yieldLocationState(_ state: PositioningState) {
+    for continuation in locationContinuations.values {
+      continuation.yield(state)
+    }
   }
   
-  private func processLocation(_ latestLocation: CLLocation) {
+  /// Sanitizes a raw `CLLocation` at the infrastructure boundary and emits `.active` or `.degraded`
+  /// states to domain subscribers, dropping isolated invalid fixes. Internal for deterministic unit testing.
+  func processLocation(_ latestLocation: CLLocation) {
     let accuracy = latestLocation.horizontalAccuracy
-    
-    // 1. Drop strictly invalid coordinates (Apple API definition)
-    guard accuracy >= 0 else {
-      Logger.telemetry.warning("CoreLocationPositioningService dropped strictly invalid coordinate (accuracy < 0)")
-      return 
+
+    // 1. Drop transient invalid fixes (invalid coordinate, non-finite or negative accuracy) without
+    // emitting `.lost`. Stream loss is reported via `didFailWithError` so isolated invalid samples do not
+    // trigger false anchor alarms or split track segments; `lastKnownLocation` remains untouched.
+    guard CLLocationCoordinate2DIsValid(latestLocation.coordinate),
+          accuracy.isFinite,
+          accuracy >= 0 else {
+      Logger.telemetry.warning("CoreLocationPositioningService dropped invalid fix (accuracy: \(accuracy, privacy: .public)m)")
+      return
     }
     
+    // Wrap once in Measurement and compare directly against the precomputed threshold to avoid unit conversion overhead (Rule 4).
+    let horizontalAccuracy = Measurement<UnitLength>(value: accuracy, unit: .meters)
+
     // 2. Mark as degraded if accuracy is poor, but coordinate is physically valid
-    let isDegraded = accuracy > 50
+    let isDegraded = horizontalAccuracy > PositioningConfig.degradedAccuracyThreshold
     
     if isDegraded {
       Logger.telemetry.warning("CoreLocationPositioningService coordinates are degraded: \(accuracy, privacy: .public)m")
     }
     
+    // 3. Couple course & courseAccuracy: CoreLocation uses -1.0 independently on either field when invalid,
+    // and NavigationFix requires both or neither. Normalize 360° -> 0° to satisfy the SQLite `< 360` CHECK constraint.
     let rawCourse = latestLocation.course
+    let rawCourseAccuracy = latestLocation.courseAccuracy
     var courseOverGround: Measurement<UnitAngle>?
-    if rawCourse >= 0 && latestLocation.courseAccuracy >= 0 {
-      courseOverGround = Measurement(value: rawCourse, unit: .degrees)
+    var courseOverGroundAccuracy: Measurement<UnitAngle>?
+    if rawCourse.isFinite, rawCourseAccuracy.isFinite,
+       rawCourse >= 0, rawCourse <= 360, rawCourseAccuracy >= 0 {
+      let normalizedCourse = rawCourse == 360 ? 0 : rawCourse
+      courseOverGround = Measurement(value: normalizedCourse, unit: .degrees)
+      courseOverGroundAccuracy = Measurement(value: rawCourseAccuracy, unit: .degrees)
     }
     
+    // 4. Couple speed & speedAccuracy: speed must also be checked >= 0 because speedAccuracy >= 0 does not
+    // guarantee a valid speed, and leaking -1.0 breaks HUD/anchor displays and SQLite `>= 0` CHECK constraints.
+    let rawSpeed = latestLocation.speed
+    let rawSpeedAccuracy = latestLocation.speedAccuracy
     var speedOverGround: Measurement<UnitSpeed>?
     var speedOverGroundAccuracy: Measurement<UnitSpeed>?
-    if latestLocation.speedAccuracy >= 0 {
-      speedOverGround = Measurement(value: latestLocation.speed, unit: .metersPerSecond)
-      speedOverGroundAccuracy = Measurement(value: latestLocation.speedAccuracy, unit: .metersPerSecond)
+    if rawSpeed.isFinite, rawSpeedAccuracy.isFinite,
+       rawSpeed >= 0, rawSpeedAccuracy >= 0 {
+      speedOverGround = Measurement(value: rawSpeed, unit: .metersPerSecond)
+      speedOverGroundAccuracy = Measurement(value: rawSpeedAccuracy, unit: .metersPerSecond)
     }
     
     let filteredLocation = NavigationFix(
       coordinate: latestLocation.coordinate,
-      horizontalAccuracy: Measurement(value: accuracy, unit: .meters),
+      horizontalAccuracy: horizontalAccuracy,
       courseOverGround: courseOverGround,
-      courseOverGroundAccuracy: (latestLocation.courseAccuracy >= 0) ? Measurement(value: latestLocation.courseAccuracy, unit: .degrees) : nil,
+      courseOverGroundAccuracy: courseOverGroundAccuracy,
       speedOverGround: speedOverGround,
       speedOverGroundAccuracy: speedOverGroundAccuracy,
       timestamp: latestLocation.timestamp
@@ -409,36 +435,41 @@ class CoreLocationPositioningService: NSObject, PositioningService, CLLocationMa
     self.lastKnownLocation = filteredLocation
     
     let state: PositioningState = isDegraded ? .degraded(filteredLocation) : .active(filteredLocation)
-    for continuation in locationContinuations.values {
-      continuation.yield(state)
-    }
+    yieldLocationState(state)
   }
 
   // MARK: - CLLocationManagerDelegate
 
+  nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    // Funnel through an AsyncStream to guarantee sequential, deterministic processing on the MainActor.
+    rawLocationContinuation.yield(locations)
+  }
+
   nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-    Task { @MainActor in
-      for continuation in authContinuations.values {
-        continuation.yield(manager.authorizationStatus)
+    // Snapshot status synchronously before hopping actors so we observe the callback's exact state.
+    let status = manager.authorizationStatus
+    Task { @MainActor [weak self] in
+      guard let self = self else { return }
+      for continuation in self.authContinuations.values {
+        continuation.yield(status)
       }
       
-      switch manager.authorizationStatus {
+      switch status {
       case .authorizedWhenInUse, .authorizedAlways:
-        if !activeUpdateTokens.isEmpty {
-          startUpdatingLocation()
+        if !self.activeUpdateTokens.isEmpty {
+          self.startUpdatingLocation()
         }
       default:
-        stopUpdatingLocation()
+        self.stopUpdatingLocation()
       }
     }
   }
 
   nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
     Logger.telemetry.error("CoreLocationPositioningService failed with error: \(error.localizedDescription, privacy: .public)")
-    Task { @MainActor in
-      for continuation in locationContinuations.values {
-        continuation.yield(.lost(error))
-      }
+    Task { @MainActor [weak self] in
+      guard let self = self else { return }
+      self.yieldLocationState(.lost(error))
     }
   }
 }

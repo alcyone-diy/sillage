@@ -350,6 +350,8 @@ public final class TrackRecordingService {
     
     // 4. Start the engine (No 'await' beyond this point to avoid race conditions)
     let service = positioningService
+    // Acquire both orthogonal leases so GPS updates stay active independently of other consumers.
+    locationUpdateToken = service.requestLocationUpdates()
     backgroundLocationToken = service.requestBackgroundLocation()
     service.requestDistanceFilter(Measurement(value: 5, unit: .meters), for: "TrackRecording")
     startFlushTimer()

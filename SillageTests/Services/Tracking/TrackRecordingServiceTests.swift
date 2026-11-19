@@ -11,6 +11,7 @@
 import Testing
 import CoreLocation
 import Foundation
+import GRDB
 @testable import Sillage
 
 @MainActor
@@ -510,6 +511,57 @@ struct TrackRecordingServiceTests {
     _ = try await service.stopRecording()
     
     // Assertions
+    #expect(mockPositioning.locationUpdateTokenInvalidatedCount == 1)
+    #expect(mockPositioning.backgroundLocationTokenInvalidatedCount == 1)
+    #expect(mockPositioning.requestedDistanceFilters["TrackRecording"] == nil)
+  }
+
+  @Test("TrackRecording recovery acquires both LocationUpdateToken and BackgroundLocationToken and releases both on stop")
+  func testTrackRecording_RecoverRecording_AcquiresAndReleasesBothTokens() async throws {
+    let mockPositioning = MockPositioningService()
+    let databaseManager = try makeDatabaseManager()
+    let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
+    let mockMessages = MessageService()
+
+    let sessionID = UUID().uuidString
+    let startTime = Date().addingTimeInterval(-60)
+    let sessionRecord = TrackSessionRecord(id: sessionID, startTime: startTime)
+    let pointRecord = TrackPointRecord(
+      id: nil,
+      sessionID: sessionID,
+      timestamp: startTime,
+      segmentIndex: 0,
+      coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+    )
+
+    try await databaseManager.writer.write { db in
+      try sessionRecord.insert(db)
+      try pointRecord.insert(db)
+    }
+    mockPreferences.saveActiveTrackSessionID(sessionID)
+
+    let service = TrackRecordingService(
+      positioningService: mockPositioning,
+      databaseManager: databaseManager,
+      preferencesService: mockPreferences,
+      messageService: mockMessages
+    )
+
+    await service.attemptRecoveryIfNeeded()
+
+    #expect(service.state == .waitingForFix)
+    #expect(mockPositioning.requestLocationUpdatesCallCount == 1)
+    #expect(mockPositioning.requestBackgroundLocationCallCount == 1)
+    #expect(mockPositioning.requestedDistanceFilters["TrackRecording"] == 5.0)
+
+    let resumedFix = createNavigationFix(latitude: 45.001, longitude: -1.001, timestamp: Date())
+    mockPositioning.emit(fix: resumedFix)
+    try await waitUntil { service.state == .recording }
+
+    _ = try await service.stopRecording()
+
     #expect(mockPositioning.locationUpdateTokenInvalidatedCount == 1)
     #expect(mockPositioning.backgroundLocationTokenInvalidatedCount == 1)
     #expect(mockPositioning.requestedDistanceFilters["TrackRecording"] == nil)

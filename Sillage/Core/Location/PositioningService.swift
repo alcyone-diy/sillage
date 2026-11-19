@@ -25,7 +25,10 @@ protocol PositioningService {
 
   func requestAuthorization()
   
+  /// Acquires an RAII lease enabling background GPS execution while held.
+  /// Orthogonal to `requestLocationUpdates()`: callers needing live fixes in the background must hold both tokens.
   func requestBackgroundLocation() -> any BackgroundLocationToken
+  /// Acquires an RAII lease keeping hardware location updates active while held.
   func requestLocationUpdates() -> any LocationUpdateToken
   
   func requestDistanceFilter(_ distance: Measurement<UnitLength>, for identifier: String)
