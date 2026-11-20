@@ -9,7 +9,6 @@
 //
 
 import Foundation
-import UIKit
 @preconcurrency import MapLibre
 import OSLog
 import os
@@ -244,7 +243,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       self.isDownloading = true
       self.isDownloadComplete = false
       self.downloadProgress = initialProgress
-      self.updateIdleTimerState()
+      self.updateBackgroundTaskState()
       self.downloadResourcesPerSecond = 0.0
       self.startObservingProgress()
       next.pack.resume()
@@ -278,7 +277,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       self.isDownloading = true
       self.isDownloadComplete = false
       self.downloadProgress = (expected > 0) ? Double(completed) / Double(expected) : nil
-      self.updateIdleTimerState()
+      self.updateBackgroundTaskState()
       self.downloadResourcesPerSecond = 0.0
       self.startObservingProgress()
       pack.resume()
@@ -420,7 +419,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.isDownloadComplete = false
     self.downloadError = nil
     self.downloadResourcesPerSecond = 0.0
-    self.updateIdleTimerState()
+    self.updateBackgroundTaskState()
     Logger.offline.info("Resuming newly added pack: \(regionName, privacy: .public)")
     pack.resume()
     
@@ -455,7 +454,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.isDownloadComplete = false
     self.downloadProgress = 0.0
     self.downloadError = nil
-    self.updateIdleTimerState()
+    self.updateBackgroundTaskState()
 
     let pipeline = OpenSeaMapRasterFetchPipeline()
 
@@ -489,7 +488,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
           self.isDownloadComplete = true
           self.activeWorker = nil
           self.activeWorkerTask = nil
-          self.updateIdleTimerState()
+          self.updateBackgroundTaskState()
 
           let info = OfflineRegionInfo(
             id: destinationURL.lastPathComponent,
@@ -511,7 +510,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
           self.downloadError = error
           self.activeWorker = nil
           self.activeWorkerTask = nil
-          self.updateIdleTimerState()
+          self.updateBackgroundTaskState()
           Logger.offline.error("MBTiles download failed: \(error.localizedDescription, privacy: .public)")
         }
       }
@@ -543,7 +542,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       activePack = nil
       downloadProgress = nil
       downloadResourcesPerSecond = 0.0
-      self.updateIdleTimerState()
+      self.updateBackgroundTaskState()
 
       MLNOfflineStorage.shared.removePack(pack) { [weak self] error in
         Task { @MainActor [weak self] in
@@ -559,7 +558,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       activePack = nil
       downloadProgress = nil
       downloadResourcesPerSecond = 0.0
-      self.updateIdleTimerState()
+      self.updateBackgroundTaskState()
       self.loadExistingPacks()
     }
   }
@@ -570,9 +569,8 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     downloadProgress = nil
   }
 
-  private func updateIdleTimerState() {
+  private func updateBackgroundTaskState() {
     let isActive = (self.activePack != nil || self.activeWorker != nil)
-    UIApplication.shared.isIdleTimerDisabled = isActive
     if isActive {
       if backgroundTaskToken == nil {
         backgroundTaskToken = BackgroundTaskRunner.acquireToken(name: "OfflineMapDownload")
@@ -680,7 +678,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.isDownloading = false
     self.downloadError = error ?? OfflineMapManagerError.unknown
     self.activePack = nil
-    self.updateIdleTimerState()
+    self.updateBackgroundTaskState()
     self.progressObservationTask?.cancel()
   }
   
@@ -688,7 +686,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.isDownloading = false
     self.downloadError = OfflineMapManagerError.downloadInterrupted
     self.activePack = nil
-    self.updateIdleTimerState()
+    self.updateBackgroundTaskState()
     self.errorObservationTask?.cancel()
   }
   
@@ -704,7 +702,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     if self.activePack == nil {
       self.isDownloading = false
     }
-    self.updateIdleTimerState()
+    self.updateBackgroundTaskState()
   }
   
   private func updateProgress(_ currentProgress: Double) {

@@ -11,7 +11,6 @@
 import Foundation
 import Observation
 import OSLog
-import UIKit
 
 @MainActor
 @Observable
@@ -89,16 +88,7 @@ final class TrackDetailViewModel {
     let tempDir = FileManager.default.temporaryDirectory
     let uniqueURL = tempDir.appendingPathComponent("\(UUID().uuidString)_\(fileName)")
 
-    // Prevent device from sleeping during long track exports to avoid background task suspension
-    UIApplication.shared.isIdleTimerDisabled = true
-
     exportTask = Task { [weak self] in
-      defer {
-        Task { @MainActor in
-          UIApplication.shared.isIdleTimerDisabled = false
-        }
-      }
-
       guard let self else { return }
 
       do {

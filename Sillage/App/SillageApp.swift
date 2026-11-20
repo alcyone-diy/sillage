@@ -57,6 +57,8 @@ struct SillageApp: App {
       }
       .environment(environment)
       .onAppear {
+        // CRITICAL MARINE SAFETY: The screen must NEVER automatically go to sleep while Sillage is open.
+        // No other service or ViewModel is allowed to reset `isIdleTimerDisabled` to `false`.
         UIApplication.shared.isIdleTimerDisabled = true
       }
       .task {
