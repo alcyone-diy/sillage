@@ -30,7 +30,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     try await super.tearDown()
   }
 
-  private static func response(_ request: URLRequest, status: Int) -> HTTPURLResponse {
+  nonisolated private static func response(_ request: URLRequest, status: Int) -> HTTPURLResponse {
     let url = request.url ?? URL(fileURLWithPath: "/")
     return HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil) ?? HTTPURLResponse()
   }

@@ -11,7 +11,7 @@
 import SwiftUI
 
 struct CardHeightPreferenceKey: PreferenceKey {
-  static var defaultValue: [UUID: CGFloat] = [:]
+  static let defaultValue: [UUID: CGFloat] = [:]
   static func reduce(value: inout [UUID: CGFloat], nextValue: () -> [UUID: CGFloat]) {
     value.merge(nextValue(), uniquingKeysWith: { $1 })
   }

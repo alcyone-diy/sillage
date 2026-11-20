@@ -18,8 +18,8 @@ final class GeoGarageOfflineTileProviderTests: XCTestCase {
   private var tempDirURL: URL?
   private var testSubdirName: String = ""
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     let uniqueID = UUID().uuidString
     testSubdirName = "TestCharts_\(uniqueID)"
     guard let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
@@ -28,11 +28,11 @@ final class GeoGarageOfflineTileProviderTests: XCTestCase {
     tempDirURL = dir
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     if let tempDirURL {
       try? FileManager.default.removeItem(at: tempDirURL)
     }
-    super.tearDown()
+    try await super.tearDown()
   }
 
   // MARK: - Test Helpers

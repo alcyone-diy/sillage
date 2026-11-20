@@ -13,104 +13,96 @@ import UserNotifications
 import MapLibre
 import OSLog
 
+@MainActor
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
-    
-    private var pendingNotificationID: String?
-    
-    weak var appViewModel: AppViewModel? {
-        didSet {
-            if let pendingID = pendingNotificationID {
-                Task { @MainActor [weak self] in
-                    self?.appViewModel?.handleNotification(identifier: pendingID)
-                }
-                self.pendingNotificationID = nil
-            }
-        }
-    }
 
-    weak var chartDownloader: GeoGarageChartDownloader? {
-        didSet {
-            if let pending = pendingBackgroundCompletion {
-                chartDownloader?.setBackgroundCompletionHandler(pending)
-                pendingBackgroundCompletion = nil
-            }
-        }
-    }
+  private var pendingNotificationID: String?
 
-    private var pendingBackgroundCompletion: (() -> Void)?
-
-    func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
-    ) -> Bool {
-        // CRITICAL FIX: MapLibre's C++ core (mbgl::HTTPFileSource) hardcodes 
-        // [NSURLSessionConfiguration defaultSessionConfiguration] and ignores MLNNetworkConfiguration.
-        // Therefore, URLProtocol.registerClass is MANDATORY for custom schemes.
-        // This does NOT pollute the app's global networking because canInit(with:) strictly
-        // filters for "sillage-geo" schemes, letting regular http/https pass through instantly.
-        URLProtocol.registerClass(TileProxyProtocol.self)
-        
-        // Critical: The delegate must be assigned before the app finishes launching
-        // so that iOS knows how to route foreground notifications.
-        UNUserNotificationCenter.current().delegate = self
-        return true
-    }
-
-    // MARK: - Background URLSession Events
-
-    func application(
-        _ application: UIApplication,
-        handleEventsForBackgroundURLSession identifier: String,
-        completionHandler: @escaping () -> Void
-    ) {
-        Logger.caas.info("AppDelegate: handleEventsForBackgroundURLSession for \(identifier, privacy: .public)")
-        if identifier == GeoGarageChartDownloader.backgroundSessionIdentifier {
-            if let chartDownloader {
-                chartDownloader.setBackgroundCompletionHandler(completionHandler)
-            } else {
-                pendingBackgroundCompletion = completionHandler
-            }
-        } else {
-            completionHandler()
-        }
-    }
-    
-    // Ensures the notification banner and sound trigger even if the app is currently open and active on the screen.
-    func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
-    ) {
-        if #available(iOS 14.0, *) {
-            completionHandler([.banner, .list, .sound, .badge])
-        } else {
-            completionHandler([.alert, .sound, .badge])
-        }
-    }
-    
-    // Handles the user tapping on a notification or pressing an action button
-    func userNotificationCenter(
-        _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse,
-        withCompletionHandler completionHandler: @escaping () -> Void
-    ) {
-        let identifier = response.notification.request.identifier
-        let actionIdentifier = response.actionIdentifier
-        let targetIdentifier = (actionIdentifier != UNNotificationDefaultActionIdentifier && actionIdentifier != UNNotificationDismissActionIdentifier) ? actionIdentifier : identifier
-        
+  weak var appViewModel: AppViewModel? {
+    didSet {
+      if let pendingID = pendingNotificationID {
         Task { @MainActor [weak self] in
-            guard let self = self else {
-                completionHandler()
-                return
-            }
-            
-            if let appViewModel = self.appViewModel {
-                appViewModel.handleNotification(identifier: targetIdentifier)
-            } else {
-                self.pendingNotificationID = targetIdentifier
-            }
-            
-            completionHandler()
+          self?.appViewModel?.handleNotification(identifier: pendingID)
         }
+        self.pendingNotificationID = nil
+      }
     }
+  }
+
+  weak var chartDownloader: GeoGarageChartDownloader? {
+    didSet {
+      if let pending = pendingBackgroundCompletion {
+        chartDownloader?.setBackgroundCompletionHandler(pending)
+        pendingBackgroundCompletion = nil
+      }
+    }
+  }
+
+  private var pendingBackgroundCompletion: (@MainActor () -> Void)?
+
+  func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+  ) -> Bool {
+    // CRITICAL FIX: MapLibre's C++ core (mbgl::HTTPFileSource) hardcodes
+    // [NSURLSessionConfiguration defaultSessionConfiguration] and ignores MLNNetworkConfiguration.
+    // Therefore, URLProtocol.registerClass is MANDATORY for custom schemes.
+    // This does NOT pollute the app's global networking because canInit(with:) strictly
+    // filters for "sillage-geo" schemes, letting regular http/https pass through instantly.
+    URLProtocol.registerClass(TileProxyProtocol.self)
+
+    // Critical: The delegate must be assigned before the app finishes launching
+    // so that iOS knows how to route foreground notifications.
+    UNUserNotificationCenter.current().delegate = self
+    return true
+  }
+
+  // MARK: - Background URLSession Events
+
+  func application(
+    _ application: UIApplication,
+    handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+  ) {
+    Logger.caas.info("AppDelegate: handleEventsForBackgroundURLSession for \(identifier, privacy: .public)")
+    if identifier == GeoGarageChartDownloader.backgroundSessionIdentifier {
+      let mainActorCompletion: @MainActor () -> Void = {
+        completionHandler()
+      }
+      if let chartDownloader {
+        chartDownloader.setBackgroundCompletionHandler(mainActorCompletion)
+      } else {
+        pendingBackgroundCompletion = mainActorCompletion
+      }
+    } else {
+      completionHandler()
+    }
+  }
+
+  // Ensures the notification banner and sound trigger even if the app is currently open and active on the screen.
+  nonisolated func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification
+  ) async -> UNNotificationPresentationOptions {
+    [.banner, .list, .sound, .badge]
+  }
+
+  // Handles the user tapping on a notification or pressing an action button
+  nonisolated func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse
+  ) async {
+    let identifier = response.notification.request.identifier
+    let actionIdentifier = response.actionIdentifier
+    let targetIdentifier = (actionIdentifier != UNNotificationDefaultActionIdentifier && actionIdentifier != UNNotificationDismissActionIdentifier) ? actionIdentifier : identifier
+
+    await MainActor.run { [weak self] in
+      guard let self = self else { return }
+      if let appViewModel = self.appViewModel {
+        appViewModel.handleNotification(identifier: targetIdentifier)
+      } else {
+        self.pendingNotificationID = targetIdentifier
+      }
+    }
+  }
 }

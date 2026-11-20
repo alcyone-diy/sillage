@@ -30,10 +30,8 @@ struct TileURLComponents: Sendable {
   let y: Int
 }
 
-class TileProxyProtocol: URLProtocol, @unchecked Sendable {
+final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
   private let taskLock = OSAllocatedUnfairLock<(task: Task<Void, Never>?, isStopped: Bool)>(initialState: (task: nil, isStopped: false))
-
-  private static let tilePathRegex = #/^/([^/]+)/([^/]+)/(\d+)/(\d+)/(\d+)\.png$/#
 
   private static let dependenciesLock = OSAllocatedUnfairLock<(
     offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)?,
@@ -102,12 +100,12 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     // This top-level cancellation propagates down the entire hierarchy (including child Tasks).
     taskLock.withLock { lockState in
       guard !lockState.isStopped else { return }
-      lockState.task = Task { [weak self] in
+      lockState.task = Task.detached { @Sendable [weak self] in
         guard let self = self else { return }
 
         do {
           try Task.checkCancellation()
-          guard let (data, source) = try await fetchTileData(for: url) else {
+          guard let (data, source) = try await Self.fetchTileData(for: url) else {
             try Task.checkCancellation()
             self.client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
             return
@@ -168,7 +166,8 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
   // MARK: - Tile Resolution (Hybrid Offline/Online Pipeline)
 
-  private func fetchTileData(for url: URL, depth: Int = 0) async throws -> (Data, TilePayloadSource)? {
+  @concurrent
+  private static func fetchTileData(for url: URL, depth: Int = 0) async throws -> (Data, TilePayloadSource)? {
     guard let host = url.host, host == "tiles.geogarage.com" else { return nil }
 
     // 1. Safe parsing of XYZ tile coordinates
@@ -201,18 +200,19 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
     // 5. Overzoom / 404 fallback logic (parent tile upscaling or transparent tile)
     if depth >= 2 {
-      if let data = generateTransparentTile() {
+      if let data = Self.transparentTileData {
         return (data, .transparent)
       }
       return nil
     }
 
-    return try await generateFallbackTile(for: url, depth: depth)
+    return try await Self.generateFallbackTile(for: url, depth: depth)
   }
 
   // MARK: - URL Parsing
 
   private static func parseTileURL(_ url: URL) -> TileURLComponents? {
+    let tilePathRegex = #/^/([^/]+)/([^/]+)/(\d+)/(\d+)/(\d+)\.png$/#
     guard let match = url.path.firstMatch(of: tilePathRegex) else {
       Logger.network.warning("Failed to match GeoGarage tile URL path format: \(url.path, privacy: .public)")
       return nil
@@ -233,32 +233,26 @@ class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
   // MARK: - Fallback & Overzooming
 
-  private func generateFallbackTile(for url: URL, depth: Int) async throws -> (Data, TilePayloadSource)? {
-    guard let match = url.path.firstMatch(of: Self.tilePathRegex) else { return nil }
+  private static func generateFallbackTile(for url: URL, depth: Int) async throws -> (Data, TilePayloadSource)? {
+    guard let components = Self.parseTileURL(url) else { return nil }
 
-    let clientID = String(match.output.1)
-    let layerID = String(match.output.2)
-    guard let z = Int(String(match.output.3)),
-          let x = Int(String(match.output.4)),
-          let y = Int(String(match.output.5)) else { return nil }
-
-    let parentZ = z - 1
+    let parentZ = components.z - 1
     guard parentZ >= 0 else { return nil }
-    let parentX = x / 2
-    let parentY = y / 2
+    let parentX = components.x / 2
+    let parentY = components.y / 2
 
     // Reconstruct URL with parent components
-    guard let host = url.host, let parentURL = URL(string: "https://\(host)/\(clientID)/\(layerID)/\(parentZ)/\(parentX)/\(parentY).png") else { return nil }
+    guard let host = url.host, let parentURL = URL(string: "https://\(host)/\(components.clientID)/\(components.layerID)/\(parentZ)/\(parentX)/\(parentY).png") else { return nil }
 
     // Recursively fetch parent tile
-    guard let (parentData, _) = try await fetchTileData(for: parentURL, depth: depth + 1),
+    guard let (parentData, _) = try await Self.fetchTileData(for: parentURL, depth: depth + 1),
           let source = CGImageSourceCreateWithData(parentData as CFData, nil),
           let parentImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
       return nil
     }
 
-    let quadrantX = x % 2
-    let quadrantY = y % 2
+    let quadrantX = components.x % 2
+    let quadrantY = components.y % 2
 
     // Inherit cancellation context so that heavy image cropping is cancelled if tile goes off-screen
     let data = try? await Task {

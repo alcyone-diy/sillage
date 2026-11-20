@@ -51,9 +51,7 @@ final class SimulatedAltimeterProvider: AltimeterProvider {
   func startRelativeAltitudeUpdates(to queue: OperationQueue, withHandler handler: @escaping CMAltitudeHandler) {
     let kpa = scenario.currentPressure.converted(to: .kilopascals).value
     let data = SimulatedCMAltitudeData(pressureKPa: kpa)
-    queue.addOperation {
-      handler(data, nil)
-    }
+    handler(data, nil)
   }
 
   func stopRelativeAltitudeUpdates() {}

@@ -11,8 +11,7 @@
 import Foundation
 @testable import Sillage
 
-@MainActor
-final class MockNotificationService: NotificationService {
+final class MockNotificationService: NotificationService, @unchecked Sendable {
   var sentNotifications: [(title: String, body: String, identifier: String)] = []
   
   func sendNotification(title: String, body: String, identifier: String, delay: TimeInterval? = nil) async throws {

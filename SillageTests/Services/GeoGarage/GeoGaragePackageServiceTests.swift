@@ -9,6 +9,7 @@
 //
 
 import XCTest
+import os
 @testable import Sillage
 
 @MainActor
@@ -16,26 +17,26 @@ final class GeoGaragePackageServiceTests: XCTestCase {
 
   private var session: URLSession!
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MockURLProtocol.reset()
     session = MockURLProtocol.makeMockSession()
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     MockURLProtocol.reset()
     session = nil
-    super.tearDown()
+    try await super.tearDown()
   }
 
   /// Headers that would still carry a legacy CaaS key.
-  private static func legacyKeyHeaders(of request: URLRequest) -> [String] {
+  nonisolated private static func legacyKeyHeaders(of request: URLRequest) -> [String] {
     (request.allHTTPHeaderFields ?? [:]).keys.filter { $0.lowercased().hasPrefix("api") }
   }
 
   /// x-www-form-urlencoded body of an intercepted request. URLSession only hands the body to a
   /// URLProtocol as a stream (`httpBodyStream`), never in `httpBody`.
-  private static func formBody(of request: URLRequest) -> [String: String] {
+  nonisolated private static func formBody(of request: URLRequest) -> [String: String] {
     var data = request.httpBody ?? Data()
     if data.isEmpty, let stream = request.httpBodyStream {
       stream.open()
@@ -199,12 +200,15 @@ final class GeoGaragePackageServiceTests: XCTestCase {
 
   func testPollUntilComplete_emitsProgressAndFinishesOnSuccess() async throws {
     let packageUUID = UUID(uuidString: "3FA85F64-5717-4562-B3FC-2C963F66AFA6")!
-    var callCount = 0
+    let callCountLock = OSAllocatedUnfairLock(initialState: 0)
 
     MockURLProtocol.setHandler { request in
-      callCount += 1
+      let currentCall = callCountLock.withLock { count -> Int in
+        count += 1
+        return count
+      }
       let json: Data
-      if callCount == 1 {
+      if currentCall == 1 {
         json = """
         {
           "uuid": "\(packageUUID.uuidString.lowercased())",
@@ -334,17 +338,20 @@ final class GeoGaragePackageServiceTests: XCTestCase {
 
   func testPollUntilComplete_withExponentialBackoff() async throws {
     let packageUUID = UUID(uuidString: "3FA85F64-5717-4562-B3FC-2C963F66AFA6")!
-    var callCount = 0
+    let callCountLock = OSAllocatedUnfairLock(initialState: 0)
 
     MockURLProtocol.setHandler { request in
-      callCount += 1
+      let currentCall = callCountLock.withLock { count -> Int in
+        count += 1
+        return count
+      }
       let json: Data
-      if callCount < 3 {
+      if currentCall < 3 {
         json = """
         {
           "uuid": "\(packageUUID.uuidString.lowercased())",
           "state": "PROGRESS",
-          "monitor": "\(callCount * 250)/1000"
+          "monitor": "\(currentCall * 250)/1000"
         }
         """.data(using: .utf8)!
       } else {
@@ -382,6 +389,6 @@ final class GeoGaragePackageServiceTests: XCTestCase {
     }
 
     XCTAssertEqual(states, [.progress, .progress, .success])
-    XCTAssertEqual(callCount, 3)
+    XCTAssertEqual(callCountLock.withLock { $0 }, 3)
   }
 }

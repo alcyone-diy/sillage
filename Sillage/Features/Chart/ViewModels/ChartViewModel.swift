@@ -437,25 +437,24 @@ final class ChartViewModel {
   // MARK: - Data Observation & Management
   
   private func setupGeoGarageLayersObservation() {
-    let authService = self.authService
-
-    func observeLayers() {
-      withObservationTracking {
-        _ = authService.availableLayers
-        _ = authService.isGeoGarageAuthenticated
-      } onChange: { [weak self] in
-        Task { @MainActor [weak self] in
-          guard let self = self else { return }
-          self.updateAvailableGeoGarageLayers()
-          self.updateUnauthenticatedGeoGarageWarning()
-          observeLayers()
-        }
-      }
-    }
-
     updateAvailableGeoGarageLayers()
     updateUnauthenticatedGeoGarageWarning()
-    observeLayers()
+    observeGeoGarageLayers()
+  }
+
+  private func observeGeoGarageLayers() {
+    let authService = self.authService
+    withObservationTracking {
+      _ = authService.availableLayers
+      _ = authService.isGeoGarageAuthenticated
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in
+        guard let self = self else { return }
+        self.updateAvailableGeoGarageLayers()
+        self.updateUnauthenticatedGeoGarageWarning()
+        self.observeGeoGarageLayers()
+      }
+    }
   }
 
   private func updateAvailableGeoGarageLayers() {
@@ -467,7 +466,7 @@ final class ChartViewModel {
   private func startObservingLocalCharts() {
     observationTask = TaskCancellable(Task { @MainActor [weak self] in
       guard let storageService = self?.chartStorageService else { return }
-      let stream = await storageService.observeMBTilesDirectory()
+      let stream = storageService.observeMBTilesDirectory()
       for await files in stream {
         guard let self = self else { return }
         // Keep local charts sorted alphabetically by filename for predictable UI presentation
@@ -479,36 +478,6 @@ final class ChartViewModel {
   }
   
   private func setupWaypointService() {
-    let waypointService = self.waypointService
-
-    func observeSelection() {
-      withObservationTracking {
-        _ = waypointService.goToWaypointID
-      } onChange: { [weak self] in
-        Task { @MainActor [weak self] in
-          guard let self = self else { return }
-          self.handleGoToWaypointChange(id: waypointService.goToWaypointID)
-          observeSelection()
-        }
-      }
-    }
-    
-    func observeWaypoints() {
-      withObservationTracking {
-        _ = waypointService.currentWaypoints
-        _ = waypointService.draftWaypoint
-      } onChange: { [weak self] in
-        Task { @MainActor [weak self] in
-          guard let self = self else { return }
-          self.handleWaypointsChange(
-            waypoints: waypointService.currentWaypoints,
-            draftWaypoint: waypointService.draftWaypoint
-          )
-          observeWaypoints()
-        }
-      }
-    }
-    
     // Initial handling
     handleWaypointsChange(
       waypoints: waypointService.currentWaypoints,
@@ -516,8 +485,38 @@ final class ChartViewModel {
     )
     handleGoToWaypointChange(id: waypointService.goToWaypointID)
     
-    observeSelection()
-    observeWaypoints()
+    observeWaypointSelection()
+    observeWaypointsList()
+  }
+
+  private func observeWaypointSelection() {
+    let waypointService = self.waypointService
+    withObservationTracking {
+      _ = waypointService.goToWaypointID
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in
+        guard let self = self else { return }
+        self.handleGoToWaypointChange(id: self.waypointService.goToWaypointID)
+        self.observeWaypointSelection()
+      }
+    }
+  }
+
+  private func observeWaypointsList() {
+    let waypointService = self.waypointService
+    withObservationTracking {
+      _ = waypointService.currentWaypoints
+      _ = waypointService.draftWaypoint
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in
+        guard let self = self else { return }
+        self.handleWaypointsChange(
+          waypoints: self.waypointService.currentWaypoints,
+          draftWaypoint: self.waypointService.draftWaypoint
+        )
+        self.observeWaypointsList()
+      }
+    }
   }
   
   /// Observes finalized track sessions via native NotificationCenter async stream.
@@ -854,22 +853,22 @@ final class ChartViewModel {
       }
     })
     
-    let anchorViewModel = self.anchorViewModel
+    observeAnchorSetupMode()
+  }
 
-    func observeSetupMode() {
-      withObservationTracking {
-        _ = anchorViewModel.isDisplayingSetupVisuals
-        _ = anchorViewModel.configuredRadius
-        _ = anchorViewModel.anchorCoordinate
-      } onChange: { [weak self] in
-        Task { @MainActor [weak self] in
-          guard let self = self else { return }
-          self.handleAnchorStateChange()
-          observeSetupMode()
-        }
+  private func observeAnchorSetupMode() {
+    let anchorViewModel = self.anchorViewModel
+    withObservationTracking {
+      _ = anchorViewModel.isDisplayingSetupVisuals
+      _ = anchorViewModel.configuredRadius
+      _ = anchorViewModel.anchorCoordinate
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in
+        guard let self = self else { return }
+        self.handleAnchorStateChange()
+        self.observeAnchorSetupMode()
       }
     }
-    observeSetupMode()
   }
   
   private func handleAnchorStateChange(vesselCoord: CLLocationCoordinate2D? = nil) {
@@ -1448,7 +1447,7 @@ final class ChartViewModel {
     }
     
     let (visualState, bounds) = await Task.detached(priority: .userInitiated) {
-      return await Self.processTrackData(points)
+      Self.processTrackData(points)
     }.value
     
     guard let visualState = visualState else {
@@ -1498,7 +1497,7 @@ final class ChartViewModel {
     self.displayedTrackSessionID = nil
   }
   
-  private static func processTrackData(_ points: [TrackPoint]) -> (SavedTrackVisualState?, GeographicBoundingBox?) {
+  nonisolated private static func processTrackData(_ points: [TrackPoint]) -> (SavedTrackVisualState?, GeographicBoundingBox?) {
     guard points.count >= 2 else { return (nil, nil) }
     
     let strideCount = max(1, points.count / 10000)

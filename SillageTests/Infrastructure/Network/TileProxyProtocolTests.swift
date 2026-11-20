@@ -73,8 +73,8 @@ final class TileProxyProtocolTests: XCTestCase {
   private var mockKeychain: MockKeychainManager?
   private var customSession: URLSession?
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     let offline = MockOfflineTileProvider()
     let network = MockTileProxyManager()
     let keychain = MockKeychainManager()
@@ -97,7 +97,7 @@ final class TileProxyProtocolTests: XCTestCase {
     customSession = URLSession(configuration: config)
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     customSession?.invalidateAndCancel()
     customSession = nil
     TileProxyProtocol.resetForTesting()
@@ -105,7 +105,7 @@ final class TileProxyProtocolTests: XCTestCase {
     mockNetworkManager = nil
     mockKeychain = nil
     URLCache.shared.removeAllCachedResponses()
-    super.tearDown()
+    try await super.tearDown()
   }
 
   // MARK: - canInit Tests

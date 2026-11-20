@@ -25,6 +25,7 @@ final class AppEnvironment {
   /// ships in the binary; the secret lives in the Keychain.
   public let geoGaragePartnerSecretService: any GeoGaragePartnerSecretServiceProtocol
   
+  @MainActor
   struct AppContainer {
     let userDefaults: UserDefaults
     let messageService: MessageService
@@ -213,24 +214,11 @@ final class AppEnvironment {
       kinematicsService.velocityWindowDuration = developerSettingsService.velocityWindowDuration
       instrumentDampingService.cogDampingDuration = developerSettingsService.cogDampingDuration
 
-      func observeDeveloperSettings() {
-        withObservationTracking {
-          _ = developerSettingsService.cogSogCalculationSource
-          _ = developerSettingsService.noiseMultiplier
-          _ = developerSettingsService.velocityWindowDuration
-          _ = developerSettingsService.cogDampingDuration
-        } onChange: { [weak kinematicsService, weak instrumentDampingService, weak developerSettingsService] in
-          Task { @MainActor [weak kinematicsService, weak instrumentDampingService, weak developerSettingsService] in
-            guard let settings = developerSettingsService else { return }
-            kinematicsService?.calculationSource = settings.cogSogCalculationSource
-            kinematicsService?.noiseMultiplier = settings.noiseMultiplier
-            kinematicsService?.velocityWindowDuration = settings.velocityWindowDuration
-            instrumentDampingService?.cogDampingDuration = settings.cogDampingDuration
-            observeDeveloperSettings()
-          }
-        }
-      }
-      observeDeveloperSettings()
+      observeDeveloperSettings(
+        developerSettingsService: developerSettingsService,
+        kinematicsService: kinematicsService,
+        instrumentDampingService: instrumentDampingService
+      )
       #endif
       
       #if DEBUG
@@ -301,18 +289,7 @@ final class AppEnvironment {
         initialGoToWaypointID: preferencesService.goToWaypointID
       )
 
-      func observeWaypointGoTo() {
-        withObservationTracking {
-          _ = waypointService.goToWaypointID
-        } onChange: { [weak waypointService, weak preferencesService] in
-          Task { @MainActor [weak waypointService, weak preferencesService] in
-            guard let service = waypointService, let preferences = preferencesService else { return }
-            preferences.goToWaypointID = service.goToWaypointID
-            observeWaypointGoTo()
-          }
-        }
-      }
-      observeWaypointGoTo()
+      observeWaypointGoTo(waypointService: waypointService, preferencesService: preferencesService)
 
       let checklistService = ChecklistService(databaseManager: databaseManager, userDefaults: self.userDefaults)
       try await checklistService.seedDefaultTemplatesIfNeeded()
@@ -363,34 +340,18 @@ final class AppEnvironment {
         await geoGarageOfflineTileProvider.close()
       }
 
-      func observeGeoGarageDownloads() {
-        withObservationTracking {
-          _ = geoGarageDownloadRepository.downloads
-          _ = preferencesService.geoGarageCustomerID
-        } onChange: { [weak self, weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider, weak preferencesService] in
-          Task { @MainActor [weak self, weak geoGarageDownloadRepository, weak geoGarageOfflineTileProvider, weak preferencesService] in
-            guard let self = self,
-                  let repo = geoGarageDownloadRepository,
-                  let provider = geoGarageOfflineTileProvider,
-                  let preferences = preferencesService else { return }
-            guard let secret = await self.keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
-                  let customerID = preferences.geoGarageCustomerID, !customerID.isEmpty else {
-              await provider.close()
-              observeGeoGarageDownloads()
-              return
-            }
-            await provider.reloadDownloads(repo.downloads, sharedSecret: secret, customerID: customerID)
-            observeGeoGarageDownloads()
-          }
-        }
-      }
-      observeGeoGarageDownloads()
+      observeGeoGarageDownloads(
+        downloadRepository: geoGarageDownloadRepository,
+        offlineTileProvider: geoGarageOfflineTileProvider,
+        preferencesService: preferencesService
+      )
 
       let geoGaragePackageService = GeoGaragePackageService()
       let geoGarageChartDownloader = GeoGarageChartDownloader(
         packageService: geoGaragePackageService,
         downloadRepository: geoGarageDownloadRepository
       )
+      (UIApplication.shared.delegate as? AppDelegate)?.chartDownloader = geoGarageChartDownloader
       
       let backgroundMonitoringService = DefaultBackgroundMonitoringService(
         positioningService: positioningService
@@ -545,6 +506,86 @@ final class AppEnvironment {
     } catch {
       Logger.system.error("❌ AppEnvironment bootstrap failed: \(error.localizedDescription, privacy: .public)")
       state = .error(error)
+    }
+  }
+
+  #if DEBUG
+  private func observeDeveloperSettings<C: Clock & Sendable>(
+    developerSettingsService: DeveloperSettingsService,
+    kinematicsService: VesselKinematicsService,
+    instrumentDampingService: InstrumentDampingService<C>
+  ) where C.Duration == Duration {
+    withObservationTracking {
+      _ = developerSettingsService.cogSogCalculationSource
+      _ = developerSettingsService.noiseMultiplier
+      _ = developerSettingsService.velocityWindowDuration
+      _ = developerSettingsService.cogDampingDuration
+    } onChange: { [weak self, weak kinematicsService, weak instrumentDampingService, weak developerSettingsService] in
+      Task { @MainActor [weak self, weak kinematicsService, weak instrumentDampingService, weak developerSettingsService] in
+        guard let self,
+              let settings = developerSettingsService,
+              let kinematics = kinematicsService,
+              let damping = instrumentDampingService else { return }
+        kinematics.calculationSource = settings.cogSogCalculationSource
+        kinematics.noiseMultiplier = settings.noiseMultiplier
+        kinematics.velocityWindowDuration = settings.velocityWindowDuration
+        damping.cogDampingDuration = settings.cogDampingDuration
+        self.observeDeveloperSettings(
+          developerSettingsService: settings,
+          kinematicsService: kinematics,
+          instrumentDampingService: damping
+        )
+      }
+    }
+  }
+  #endif
+
+  private func observeWaypointGoTo(
+    waypointService: WaypointService,
+    preferencesService: PreferencesService
+  ) {
+    withObservationTracking {
+      _ = waypointService.goToWaypointID
+    } onChange: { [weak self, weak waypointService, weak preferencesService] in
+      Task { @MainActor [weak self, weak waypointService, weak preferencesService] in
+        guard let self, let service = waypointService, let preferences = preferencesService else { return }
+        preferences.goToWaypointID = service.goToWaypointID
+        self.observeWaypointGoTo(waypointService: service, preferencesService: preferences)
+      }
+    }
+  }
+
+  private func observeGeoGarageDownloads(
+    downloadRepository: GeoGarageDownloadRepository,
+    offlineTileProvider: GeoGarageOfflineTileProvider,
+    preferencesService: PreferencesService
+  ) {
+    withObservationTracking {
+      _ = downloadRepository.downloads
+      _ = preferencesService.geoGarageCustomerID
+    } onChange: { [weak self, weak downloadRepository, weak offlineTileProvider, weak preferencesService] in
+      Task { @MainActor [weak self, weak downloadRepository, weak offlineTileProvider, weak preferencesService] in
+        guard let self,
+              let repo = downloadRepository,
+              let provider = offlineTileProvider,
+              let preferences = preferencesService else { return }
+        guard let secret = await self.keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
+              let customerID = preferences.geoGarageCustomerID, !customerID.isEmpty else {
+          await provider.close()
+          self.observeGeoGarageDownloads(
+            downloadRepository: repo,
+            offlineTileProvider: provider,
+            preferencesService: preferences
+          )
+          return
+        }
+        await provider.reloadDownloads(repo.downloads, sharedSecret: secret, customerID: customerID)
+        self.observeGeoGarageDownloads(
+          downloadRepository: repo,
+          offlineTileProvider: provider,
+          preferencesService: preferences
+        )
+      }
     }
   }
 

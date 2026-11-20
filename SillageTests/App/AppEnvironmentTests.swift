@@ -142,8 +142,9 @@ final class AppEnvironmentTests: XCTestCase {
 
     await mockKeychain.save(token: "test_access_token", for: GeoGarageKeychainKeys.accessToken)
 
-    addTeardownBlock { [weak self] in
-      await self?.mockKeychain.deleteToken(for: GeoGarageKeychainKeys.accessToken)
+    let keychain = mockKeychain
+    addTeardownBlock {
+      await keychain?.deleteToken(for: GeoGarageKeychainKeys.accessToken)
     }
 
     await environment.bootstrap()

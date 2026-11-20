@@ -48,6 +48,7 @@ private final class MockAlarmAudioEngine: AlarmAudioPlaying, @unchecked Sendable
     stateLock.withLock { $0.stopCallCount }
   }
 
+  @MainActor
   func triggerEscalationFinished() {
     let callback = stateLock.withLock { $0.latestEscalationCallback }
     callback?()

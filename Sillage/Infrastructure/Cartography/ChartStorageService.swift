@@ -57,7 +57,7 @@ public actor ChartStorageService {
 
   /// Creates an asynchronous stream that emits the list of MBTiles files whenever the directory changes.
   /// - Returns: An `AsyncStream` yielding arrays of `MBTileFile`.
-  public func observeMBTilesDirectory() -> AsyncStream<[MBTileFile]> {
+  nonisolated public func observeMBTilesDirectory() -> AsyncStream<[MBTileFile]> {
     AsyncStream { continuation in
       guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
         continuation.finish()
@@ -84,8 +84,9 @@ public actor ChartStorageService {
       )
       
       // Define the handler triggered on directory changes.
-      dispatchSource.setEventHandler {
-        Task {
+      dispatchSource.setEventHandler { [weak self] in
+        Task { [weak self] in
+          guard let self else { return }
           do {
             let updatedFiles = try await self.discoverMBTiles()
             continuation.yield(updatedFiles)
@@ -109,7 +110,8 @@ public actor ChartStorageService {
       dispatchSource.resume()
       
       // Emit the initial state immediately.
-      Task {
+      Task { [weak self] in
+        guard let self else { return }
         if let initialFiles = try? await self.discoverMBTiles() {
           continuation.yield(initialFiles)
         }

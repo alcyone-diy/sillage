@@ -385,23 +385,14 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       return
     }
     
-    MLNOfflineStorage.shared.addPack(for: region, withContext: contextData) { [weak self] pack, error in
-      Task { @MainActor [weak self] in
-        if let error = error {
-          Logger.offline.error("Failed to add offline pack for '\(regionName, privacy: .public)': \(error.localizedDescription, privacy: .public)")
-          self?.isDownloading = false
-          self?.downloadError = error
-          return
-        }
-        
-        guard let pack = pack else {
-          Logger.offline.error("Failed to add offline pack for '\(regionName, privacy: .public)': pack is nil")
-          self?.isDownloading = false
-          self?.downloadError = OfflineMapManagerError.unknown
-          return
-        }
-        
+    Task { @MainActor [weak self] in
+      do {
+        let pack = try await MLNOfflineStorage.shared.addPack(for: region, withContext: contextData)
         self?.handlePackAdded(pack, regionName: regionName)
+      } catch {
+        Logger.offline.error("Failed to add offline pack for '\(regionName, privacy: .public)': \(error.localizedDescription, privacy: .public)")
+        self?.isDownloading = false
+        self?.downloadError = error
       }
     }
   }

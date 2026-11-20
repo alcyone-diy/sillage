@@ -70,14 +70,14 @@ final class GeoGarageAuthServiceTests: XCTestCase {
 
   // MARK: - Helpers
 
-  private static func response(_ request: URLRequest, status: Int) -> HTTPURLResponse {
+  nonisolated private static func response(_ request: URLRequest, status: Int) -> HTTPURLResponse {
     let url = request.url ?? URL(fileURLWithPath: "/")
     return HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil) ?? HTTPURLResponse()
   }
 
   /// x-www-form-urlencoded body of an intercepted request. URLSession only hands the body to a
   /// URLProtocol as a stream (`httpBodyStream`), never in `httpBody`.
-  private static func formBody(of request: URLRequest) -> [String: String] {
+  nonisolated private static func formBody(of request: URLRequest) -> [String: String] {
     var data = request.httpBody ?? Data()
     if data.isEmpty, let stream = request.httpBodyStream {
       stream.open()
@@ -338,8 +338,9 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     let log = RequestLog()
     installPortalHandler(log: log)
 
-    async let first = service.refreshTokens()
-    async let second = service.refreshTokens()
+    let authService = try XCTUnwrap(service)
+    async let first = authService.refreshTokens()
+    async let second = authService.refreshTokens()
     let (a, b) = try await (first, second)
 
     XCTAssertEqual(a.refresh_token, b.refresh_token)

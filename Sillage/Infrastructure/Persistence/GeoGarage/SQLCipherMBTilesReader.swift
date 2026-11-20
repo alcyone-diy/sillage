@@ -48,6 +48,7 @@ final class SQLCipherMBTilesReader: SQLCipherMBTilesReaderProtocol, Sendable {
 
   // MARK: - Tile Retrieval
 
+  @concurrent
   func tile(z: Int, x: Int, y: Int) async -> Data? {
     guard z >= 0, x >= 0, y >= 0 else { return nil }
 

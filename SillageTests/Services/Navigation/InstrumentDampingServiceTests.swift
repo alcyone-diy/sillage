@@ -104,9 +104,9 @@ struct InstrumentDampingServiceTests {
     }
     
     func requestAuthorization() {}
-    private final class MockLocationUpdateToken: LocationUpdateToken {
-      let onInvalidate: () -> Void
-      init(onInvalidate: @escaping () -> Void) {
+    private final class MockLocationUpdateToken: LocationUpdateToken, @unchecked Sendable {
+      nonisolated let onInvalidate: @Sendable () -> Void
+      nonisolated init(onInvalidate: @escaping @Sendable () -> Void) {
         self.onInvalidate = onInvalidate
       }
       func invalidate() {

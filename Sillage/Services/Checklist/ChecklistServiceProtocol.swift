@@ -12,6 +12,7 @@ import Foundation
 import CoreLocation
 
 /// Public contract defining operations on maritime checklist templates and sessions.
+@MainActor
 public protocol ChecklistServiceProtocol: Sendable {
   // MARK: - Templates
 

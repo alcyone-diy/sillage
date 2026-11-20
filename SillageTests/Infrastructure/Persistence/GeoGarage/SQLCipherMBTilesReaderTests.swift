@@ -17,18 +17,18 @@ final class SQLCipherMBTilesReaderTests: XCTestCase {
 
   private var tempDirURL: URL?
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     tempDirURL = dir
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     if let tempDirURL {
       try? FileManager.default.removeItem(at: tempDirURL)
     }
-    super.tearDown()
+    try await super.tearDown()
   }
 
   // MARK: - Error Handling

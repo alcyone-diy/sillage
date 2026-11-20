@@ -15,15 +15,15 @@ import XCTest
 final class TelemetryPreferencesTests: XCTestCase {
   private var isolatedDefaults: IsolatedUserDefaults?
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     isolatedDefaults = IsolatedUserDefaults(prefix: "TelemetryPreferencesTests")
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     isolatedDefaults?.tearDown()
     isolatedDefaults = nil
-    super.tearDown()
+    try await super.tearDown()
   }
 
   func testDefaultMetrics_LoadedWhenNoSavedPreferencesExist() throws {

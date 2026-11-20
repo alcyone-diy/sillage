@@ -14,6 +14,7 @@ import Foundation
 /// (`https://callbackHost/callbackPath?code=…&state=…`). Abstracts ASWebAuthenticationSession so the Services
 /// layer and the tests do not depend on AuthenticationServices.
 /// A user cancellation must be thrown as `AuthError.cancelled`.
+@MainActor
 protocol GeoGarageAuthorizationPresenting {
   func authorize(url: URL, callbackHost: String, callbackPath: String) async throws -> URL
 }

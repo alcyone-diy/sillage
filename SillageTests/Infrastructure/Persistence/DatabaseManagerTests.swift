@@ -15,7 +15,7 @@ import CoreLocation
 @testable import Sillage
 
 @Suite("Database Manager Tests")
-final class DatabaseManagerTests {
+final class DatabaseManagerTests: Sendable {
   let dbManager: DatabaseManager
   
   init() throws {
@@ -171,9 +171,9 @@ final class DatabaseManagerTests {
     
     #expect(recentPoints.count == 3)
     // Should be oldest of the recent ones first (chronological order)
-    let timestamp0 = await recentPoints[0].timestamp
-    let timestamp1 = await recentPoints[1].timestamp
-    let timestamp2 = await recentPoints[2].timestamp
+    let timestamp0 = recentPoints[0].timestamp
+    let timestamp1 = recentPoints[1].timestamp
+    let timestamp2 = recentPoints[2].timestamp
     #expect(timestamp0.timeIntervalSince1970 == 1020)
     #expect(timestamp1.timeIntervalSince1970 == 1030)
     #expect(timestamp2.timeIntervalSince1970 == 1040)

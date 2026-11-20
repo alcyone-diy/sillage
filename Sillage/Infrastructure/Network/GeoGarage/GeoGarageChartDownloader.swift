@@ -30,7 +30,18 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
   private var session: URLSession!
 
   private let tasksLock = OSAllocatedUnfairLock<[Int: ActiveTaskContext]>(initialState: [:])
-  private let backgroundCompletionHandlerLock = OSAllocatedUnfairLock<(() -> Void)?>(initialState: nil)
+  private let backgroundCompletionHandlerLock = OSAllocatedUnfairLock<(@MainActor () -> Void)?>(initialState: nil)
+
+  private var stagingDirectoryURL: URL {
+    let baseDir = chartsDirectoryURL
+      ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+      ?? FileManager.default.temporaryDirectory
+    return baseDir.appendingPathComponent("GeoGarageStaging", isDirectory: true)
+  }
+
+  private func stagingFileURL(for packageID: UUID) -> URL {
+    stagingDirectoryURL.appendingPathComponent("\(packageID.uuidString.lowercased()).mbtiles")
+  }
 
   init(
     packageService: GeoGaragePackageServiceProtocol,
@@ -57,21 +68,45 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
     queue.name = "com.alcyone.sillage.geogaragedownloader.queue"
     queue.maxConcurrentOperationCount = 2
     self.session = URLSession(configuration: config, delegate: self, delegateQueue: queue)
-
-    // Technical Design: Cancel any pre-existing orphan tasks from previous OS sessions so that we start with a clean slate
-    self.session.getAllTasks { tasks in
-      for task in tasks {
-        Logger.caas.info("Cancelling orphaned background download task \(task.taskIdentifier, privacy: .public) on startup")
-        task.cancel()
-      }
-    }
   }
 
   // MARK: - Background URLSession Completion Handling
 
-  func setBackgroundCompletionHandler(_ handler: @escaping () -> Void) {
+  func setBackgroundCompletionHandler(_ handler: @escaping @MainActor () -> Void) {
     backgroundCompletionHandlerLock.withLock {
       $0 = handler
+    }
+  }
+
+  // MARK: - Orphan Cleanup
+
+  func cleanupOrphanedDownloads(retainingPackageIDs: Set<UUID>) async {
+    let retainedLowercased = Set(retainingPackageIDs.map { $0.uuidString.lowercased() })
+
+    let existingTasks = await session.allTasks
+    for task in existingTasks {
+      let hasActiveContinuation = tasksLock.withLock { $0[task.taskIdentifier] != nil }
+      guard !hasActiveContinuation else { continue }
+
+      if let desc = task.taskDescription?.lowercased(), retainedLowercased.contains(desc) {
+        continue
+      }
+      Logger.caas.info("Cancelling orphaned background download task \(task.taskIdentifier, privacy: .public)")
+      task.cancel()
+    }
+
+    let stagingDir = stagingDirectoryURL
+    guard FileManager.default.fileExists(atPath: stagingDir.path),
+          let contents = try? FileManager.default.contentsOfDirectory(at: stagingDir, includingPropertiesForKeys: nil) else {
+      return
+    }
+
+    for fileURL in contents {
+      let stem = fileURL.deletingPathExtension().lastPathComponent.lowercased()
+      if !retainedLowercased.contains(stem) {
+        try? FileManager.default.removeItem(at: fileURL)
+        Logger.caas.info("Removed orphaned staged file at \(fileURL.path, privacy: .public)")
+      }
     }
   }
 
@@ -90,30 +125,69 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
     progressHandler: (@Sendable (Int64, Int64) -> Void)? = nil
   ) async throws(CaasError) -> OfflineChartDownload {
     let appliedZoomMax = zoomMax ?? AppConstants.Cartography.Zoom.defaultOfflineZoomMax
-    Logger.caas.info("Initiating background download for package \(packageID.uuidString, privacy: .public) from \(downloadURL.absoluteString, privacy: .public)")
-
-    let downloadTask = session.downloadTask(with: downloadURL)
-    let taskID = downloadTask.taskIdentifier
+    let expectedStagingURL = stagingFileURL(for: packageID)
 
     let stagedTempLocation: URL
-    do {
-      stagedTempLocation = try await withTaskCancellationHandler {
-        try await withCheckedThrowingContinuation { continuation in
-          tasksLock.withLock {
-            $0[taskID] = ActiveTaskContext(
-              progressHandler: progressHandler,
-              continuation: continuation
-            )
-          }
-          downloadTask.resume()
+    if FileManager.default.fileExists(atPath: expectedStagingURL.path) {
+      Logger.caas.info("Found already-completed background download in staging for package \(packageID.uuidString, privacy: .public)")
+      stagedTempLocation = expectedStagingURL
+    } else {
+      Logger.caas.info("Initiating or reattaching background download for package \(packageID.uuidString, privacy: .public) from \(downloadURL.absoluteString, privacy: .public)")
+
+      let existingTasks = await session.allTasks
+      let matchingTask = existingTasks.compactMap { $0 as? URLSessionDownloadTask }.first { task in
+        guard task.state != .canceling && task.state != .completed else { return false }
+        if let desc = task.taskDescription, desc.caseInsensitiveCompare(packageID.uuidString) == .orderedSame {
+          return true
         }
-      } onCancel: {
-        downloadTask.cancel()
+        return task.originalRequest?.url == downloadURL
       }
-    } catch {
-      tasksLock.withLock { _ = $0.removeValue(forKey: taskID) }
-      Logger.caas.error("Download failed for package \(packageID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-      throw CaasError.downloadFailed(underlying: error.localizedDescription)
+
+      if FileManager.default.fileExists(atPath: expectedStagingURL.path) {
+        Logger.caas.info("Found staged file after task inspection for package \(packageID.uuidString, privacy: .public)")
+        stagedTempLocation = expectedStagingURL
+      } else {
+        let downloadTask: URLSessionDownloadTask
+        if let matchingTask {
+          Logger.caas.info("Reattaching to active background download task \(matchingTask.taskIdentifier, privacy: .public) for package \(packageID.uuidString, privacy: .public)")
+          matchingTask.taskDescription = packageID.uuidString
+          downloadTask = matchingTask
+        } else {
+          let newTask = session.downloadTask(with: downloadURL)
+          newTask.taskDescription = packageID.uuidString
+          downloadTask = newTask
+        }
+
+        let taskID = downloadTask.taskIdentifier
+
+        do {
+          stagedTempLocation = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+              let alreadyStaged = tasksLock.withLock { state -> Bool in
+                if FileManager.default.fileExists(atPath: expectedStagingURL.path) {
+                  return true
+                }
+                state[taskID] = ActiveTaskContext(
+                  progressHandler: progressHandler,
+                  continuation: continuation
+                )
+                return false
+              }
+              if alreadyStaged {
+                continuation.resume(returning: expectedStagingURL)
+              } else {
+                downloadTask.resume()
+              }
+            }
+          } onCancel: {
+            downloadTask.cancel()
+          }
+        } catch {
+          tasksLock.withLock { _ = $0.removeValue(forKey: taskID) }
+          Logger.caas.error("Download failed for package \(packageID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+          throw CaasError.downloadFailed(underlying: error.localizedDescription)
+        }
+      }
     }
 
     // Guaranteed cleanup of the staged file
@@ -251,10 +325,23 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
   ) {
     let taskID = downloadTask.taskIdentifier
 
+    guard let rawDescription = downloadTask.taskDescription,
+          let packageID = UUID(uuidString: rawDescription) else {
+      let continuation = tasksLock.withLock { $0.removeValue(forKey: taskID)?.continuation }
+      try? FileManager.default.removeItem(at: location)
+      continuation?.resume(throwing: CaasError.downloadFailed(underlying: "Missing or invalid packageID taskDescription on background download task."))
+      return
+    }
+
     // Apple requirement: The file at `location` will be deleted immediately after this method returns.
-    // We must move it synchronously to a temporary staged file.
-    let stagedURL = FileManager.default.temporaryDirectory.appendingPathComponent("caas_\(UUID().uuidString).mbtiles")
+    // Move it synchronously to a deterministic path in GeoGarageStaging/<packageID>.mbtiles so it survives
+    // even if `didFinishDownloadingTo` fires before `resumePendingDownloadIfNeeded()` registers a continuation.
+    let stagingDir = stagingDirectoryURL
+    let stagedURL = stagingFileURL(for: packageID)
     do {
+      if !FileManager.default.fileExists(atPath: stagingDir.path) {
+        try FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+      }
       if FileManager.default.fileExists(atPath: stagedURL.path) {
         try FileManager.default.removeItem(at: stagedURL)
       }
@@ -287,8 +374,8 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
       return current
     }
     if let handler {
-      DispatchQueue.main.async {
-        Logger.caas.info("Invoking background URLSession completion handler on Main thread")
+      Task { @MainActor in
+        Logger.caas.info("Invoking background URLSession completion handler on MainActor")
         handler()
       }
     }

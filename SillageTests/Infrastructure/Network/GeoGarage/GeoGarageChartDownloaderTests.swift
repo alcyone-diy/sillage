@@ -18,21 +18,22 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
   private var session: URLSession!
   private var tempDirURL: URL!
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     MockURLProtocol.reset()
     session = MockURLProtocol.makeMockSession()
-    tempDirURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    try? FileManager.default.createDirectory(at: tempDirURL, withIntermediateDirectories: true)
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    tempDirURL = dir
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     MockURLProtocol.reset()
     session = nil
     if let tempDirURL {
       try? FileManager.default.removeItem(at: tempDirURL)
     }
-    super.tearDown()
+    try await super.tearDown()
   }
 
   // MARK: - Mock Package Service
@@ -219,5 +220,78 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
     // Verify repository entry removed
     let downloadsAfter = repository.downloads
     XCTAssertTrue(downloadsAfter.isEmpty)
+  }
+
+  // MARK: - Deterministic Staging & Orphan Cleanup
+
+  func testDownload_consumesPreStagedFileWithoutNetworkCall() async throws {
+    let packageUUID = try XCTUnwrap(UUID(uuidString: "3FA85F64-5717-4562-B3FC-2C963F66AFA6"))
+    let fileContent = try XCTUnwrap("Pre-staged MBTiles Content".data(using: .utf8))
+    let expectedMD5 = Insecure.MD5.hash(data: fileContent).map { String(format: "%02hhx", $0) }.joined()
+
+    let stagingDir = tempDirURL.appendingPathComponent("GeoGarageStaging", isDirectory: true)
+    try FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+    let stagedFile = stagingDir.appendingPathComponent("\(packageUUID.uuidString.lowercased()).mbtiles")
+    try fileContent.write(to: stagedFile)
+
+    MockURLProtocol.setErrorHandler { _ in
+      URLError(.notConnectedToInternet)
+    }
+
+    let mockPackageService = MockPackageService()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+
+    let downloader = GeoGarageChartDownloader(
+      packageService: mockPackageService,
+      downloadRepository: repository,
+      sessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      chartsDirectoryURL: tempDirURL
+    )
+
+    let downloadURL = try XCTUnwrap(URL(string: "https://caas.geogarage.com/packages/\(packageUUID.uuidString)/download"))
+    let record = try await downloader.download(
+      packageID: packageUUID,
+      downloadURL: downloadURL,
+      expectedMD5: expectedMD5,
+      layerID: "shom",
+      layerName: "SHOM France",
+      boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
+      zoomMax: 14,
+      accessToken: "test_access_token"
+    )
+
+    XCTAssertEqual(record.id, packageUUID)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: stagedFile.path), "Staged file should be moved/cleaned after installation")
+    let destinationFile = tempDirURL.appendingPathComponent("shom_\(packageUUID.uuidString.lowercased()).mbtiles")
+    XCTAssertTrue(FileManager.default.fileExists(atPath: destinationFile.path))
+  }
+
+  func testCleanupOrphanedDownloads_removesUnretainedStagedFiles() async throws {
+    let retainedID = try XCTUnwrap(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+    let orphanedID = try XCTUnwrap(UUID(uuidString: "22222222-2222-2222-2222-222222222222"))
+
+    let stagingDir = tempDirURL.appendingPathComponent("GeoGarageStaging", isDirectory: true)
+    try FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+    let retainedFile = stagingDir.appendingPathComponent("\(retainedID.uuidString.lowercased()).mbtiles")
+    let orphanedFile = stagingDir.appendingPathComponent("\(orphanedID.uuidString.lowercased()).mbtiles")
+    try Data("retained".utf8).write(to: retainedFile)
+    try Data("orphaned".utf8).write(to: orphanedFile)
+
+    let mockPackageService = MockPackageService()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+
+    let downloader = GeoGarageChartDownloader(
+      packageService: mockPackageService,
+      downloadRepository: repository,
+      sessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      chartsDirectoryURL: tempDirURL
+    )
+
+    await downloader.cleanupOrphanedDownloads(retainingPackageIDs: [retainedID])
+
+    XCTAssertTrue(FileManager.default.fileExists(atPath: retainedFile.path))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: orphanedFile.path))
   }
 }

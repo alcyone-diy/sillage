@@ -75,19 +75,9 @@ final class DebugViewModel {
     )
     
     Task { @MainActor [weak anchorService] in
-      var bgTaskID: UIBackgroundTaskIdentifier = .invalid
-      bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "DebugAnchorAlarm") {
-        if bgTaskID != .invalid {
-          UIApplication.shared.endBackgroundTask(bgTaskID)
-          bgTaskID = .invalid
-        }
-      }
-      
+      let bgToken = BackgroundTaskRunner.acquireToken(name: "DebugAnchorAlarm")
       defer {
-        if bgTaskID != .invalid {
-          UIApplication.shared.endBackgroundTask(bgTaskID)
-          bgTaskID = .invalid
-        }
+        bgToken.invalidate()
       }
       
       do {
@@ -96,7 +86,7 @@ final class DebugViewModel {
         anchorService.simulateDebugDragging()
         anchorService.alarmAudioService.startSiren()
       } catch {
-        Logger.anchor.info("Debug anchor alarm task cancelled: \(error.localizedDescription)")
+        Logger.anchor.info("Debug anchor alarm task cancelled: \(error.localizedDescription, privacy: .public)")
       }
     }
   }

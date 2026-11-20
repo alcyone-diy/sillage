@@ -20,7 +20,8 @@ nonisolated enum StreamingMD5Validator {
   /// Yields execution cooperatively via `await Task.yield()` after each 1 MB chunk to prevent thread starvation.
   /// - Parameter url: File URL on disk.
   /// - Returns: Lowercase hex string of the MD5 checksum.
-  /// - Throws: `CaasError.fileSystemError` if file handle cannot be opened or read.
+  /// - Throws: `CaasError.fileSystemError` if file handle cannot be opened or read, or `CaasError.downloadFailed` if cancelled.
+  @concurrent
   static func computeMD5(for url: URL) async throws(CaasError) -> String {
     let fileHandle: FileHandle
     do {
@@ -35,6 +36,12 @@ nonisolated enum StreamingMD5Validator {
     var hasher = Insecure.MD5()
 
     while true {
+      do {
+        try Task.checkCancellation()
+      } catch {
+        throw CaasError.downloadFailed(underlying: "MD5 validation cancelled: \(error.localizedDescription)")
+      }
+
       let chunk: Data
       do {
         guard let readData = try fileHandle.read(upToCount: chunkSize), !readData.isEmpty else {
@@ -58,6 +65,7 @@ nonisolated enum StreamingMD5Validator {
   ///   - url: File URL on disk.
   ///   - expectedMD5: Expected MD5 hex string from the CAAS server response.
   /// - Throws: `CaasError.md5Mismatch` if hashes differ, or `CaasError.fileSystemError` on I/O failure.
+  @concurrent
   static func validateMD5(for url: URL, expectedMD5: String) async throws(CaasError) {
     let computed = try await computeMD5(for: url)
     guard computed.lowercased() == expectedMD5.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {

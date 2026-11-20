@@ -9,32 +9,36 @@
 //
 
 import Foundation
+import os
 
 /// A custom URLProtocol subclass allowing deterministic request intercept and response mocking
 /// for URLSession tests under Swift 6 strict concurrency.
 final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
-  private static let lock = NSLock()
-  private static var requestHandlers: [(URLRequest) -> (HTTPURLResponse, Data?)] = []
-  private static var errorHandlers: [(URLRequest) -> Error?] = []
+  private struct HandlerState: Sendable {
+    var requestHandlers: [@Sendable (URLRequest) -> (HTTPURLResponse, Data?)] = []
+    var errorHandlers: [@Sendable (URLRequest) -> Error?] = []
+  }
+
+  private static let stateLock = OSAllocatedUnfairLock<HandlerState>(initialState: HandlerState())
 
   static func reset() {
-    lock.lock()
-    defer { lock.unlock() }
-    requestHandlers.removeAll()
-    errorHandlers.removeAll()
+    stateLock.withLock { state in
+      state.requestHandlers.removeAll()
+      state.errorHandlers.removeAll()
+    }
   }
 
-  static func setHandler(_ handler: @escaping (URLRequest) -> (HTTPURLResponse, Data?)) {
-    lock.lock()
-    defer { lock.unlock() }
-    requestHandlers.append(handler)
+  static func setHandler(_ handler: @escaping @Sendable (URLRequest) -> (HTTPURLResponse, Data?)) {
+    stateLock.withLock { state in
+      state.requestHandlers.append(handler)
+    }
   }
 
-  static func setErrorHandler(_ handler: @escaping (URLRequest) -> Error?) {
-    lock.lock()
-    defer { lock.unlock() }
-    errorHandlers.append(handler)
+  static func setErrorHandler(_ handler: @escaping @Sendable (URLRequest) -> Error?) {
+    stateLock.withLock { state in
+      state.errorHandlers.append(handler)
+    }
   }
 
   static func makeMockConfiguration() -> URLSessionConfiguration {
@@ -56,10 +60,9 @@ final class MockURLProtocol: URLProtocol, @unchecked Sendable {
   }
 
   override func startLoading() {
-    MockURLProtocol.lock.lock()
-    let errorHandlersCopy = MockURLProtocol.errorHandlers
-    let requestHandlersCopy = MockURLProtocol.requestHandlers
-    MockURLProtocol.lock.unlock()
+    let (errorHandlersCopy, requestHandlersCopy) = MockURLProtocol.stateLock.withLock { state in
+      (state.errorHandlers, state.requestHandlers)
+    }
 
     for errorHandler in errorHandlersCopy {
       if let error = errorHandler(request) {

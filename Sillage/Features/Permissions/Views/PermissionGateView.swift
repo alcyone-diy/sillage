@@ -113,6 +113,7 @@ enum PermissionGateType: Identifiable, Hashable {
         }
     }
     
+    @MainActor
     func currentStatus(in service: PermissionService) -> PermissionStatus {
         switch self {
         case .location: return service.locationStatus
@@ -121,6 +122,7 @@ enum PermissionGateType: Identifiable, Hashable {
         }
     }
     
+    @MainActor
     func requestAuthorization(in service: PermissionService) async {
         switch self {
         case .location: await service.requestLocationAuthorization()

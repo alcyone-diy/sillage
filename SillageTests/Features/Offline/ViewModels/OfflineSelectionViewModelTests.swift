@@ -224,7 +224,6 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     }
   }
 
-  @MainActor
   private final class MockDiskSpaceProvider: DiskSpaceProviderProtocol, @unchecked Sendable {
     var availableBytes: Double = 10_000_000_000 // 10 GB default (sufficient space)
 

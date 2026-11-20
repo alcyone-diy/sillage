@@ -15,7 +15,7 @@ import SwiftUI
 struct MarineCrosshairView: View {
   @Environment(\.marineTheme) private var marineTheme
 
-  static let defaultSize: CGFloat = 44.0
+  nonisolated static let defaultSize: CGFloat = 44.0
 
   var size: CGFloat
   var color: Color?

@@ -43,6 +43,7 @@ final class GeoGarageOfflineTileProvider: GeoGarageOfflineTileProviderProtocol, 
 
   // MARK: - Tile Retrieval (Concurrent & Non-blocking)
 
+  @concurrent
   func tile(layerID: String, z: Int, x: Int, y: Int) async -> Data? {
     guard !layerID.isEmpty, z >= 0, x >= 0, y >= 0 else { return nil }
 
@@ -68,6 +69,7 @@ final class GeoGarageOfflineTileProvider: GeoGarageOfflineTileProviderProtocol, 
 
   // MARK: - Download Synchronization
 
+  @concurrent
   func reloadDownloads(
     _ downloads: [OfflineChartDownload],
     sharedSecret: String,

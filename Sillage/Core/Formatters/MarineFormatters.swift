@@ -14,13 +14,6 @@ public struct MarineFormatters {
   /// The global boundary threshold (0.1 NM / 185.2 meters) between short distances
   /// (formatted using iOS system units) and long distances (formatted in nautical miles).
   public static let shortDistanceThreshold = Measurement<UnitLength>(value: 185.2, unit: .meters)
-
-  public static let fileSizeFormatter: MeasurementFormatter = {
-    let formatter = MeasurementFormatter()
-    formatter.unitOptions = .naturalScale
-    formatter.numberFormatter.maximumFractionDigits = 1
-    return formatter
-  }()
 }
 
 extension Duration {

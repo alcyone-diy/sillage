@@ -29,9 +29,14 @@ protocol GeoGarageChartDownloaderProtocol: Sendable {
 
   /// Deletes the local MBTiles file from disk and removes the record from the download repository.
   func deleteLocalChart(id: UUID) async throws(CaasError)
+
+  /// Cancels any background download tasks and deletes any staged files not matching `retainingPackageIDs`.
+  func cleanupOrphanedDownloads(retainingPackageIDs: Set<UUID>) async
 }
 
 extension GeoGarageChartDownloaderProtocol {
+  func cleanupOrphanedDownloads(retainingPackageIDs: Set<UUID>) async {}
+
   func download(
     packageID: UUID,
     downloadURL: URL,

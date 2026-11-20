@@ -296,6 +296,9 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
       return false
     }
 
+    let validPackageIDs = Set(preferencesService.pendingCAASDownloads.compactMap(\.packageID))
+    await downloader.cleanupOrphanedDownloads(retainingPackageIDs: validPackageIDs)
+
     // App Resume Storage Re-evaluation:
     // If the app terminated and resumed, re-evaluate disk space for any pending downloads that intended to retain an old chart.
     let candidates = preferencesService.pendingCAASDownloads.compactMap { pending -> (id: UUID, replacesID: UUID, boundsWKT: String, zoomMax: Int)? in

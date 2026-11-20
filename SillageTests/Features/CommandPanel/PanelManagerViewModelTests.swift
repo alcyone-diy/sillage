@@ -16,14 +16,14 @@ final class PanelManagerViewModelTests: XCTestCase {
 
   private var viewModel: PanelManagerViewModel!
 
-  override func setUp() {
-    super.setUp()
+  override func setUp() async throws {
+    try await super.setUp()
     viewModel = PanelManagerViewModel()
   }
 
-  override func tearDown() {
+  override func tearDown() async throws {
     viewModel = nil
-    super.tearDown()
+    try await super.tearDown()
   }
 
   // MARK: - Initial State

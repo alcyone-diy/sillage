@@ -218,14 +218,9 @@ public final class ChecklistTemplateDetailViewModel {
     await load()
     guard templateId != nil else { return }
 
-    await withTaskGroup(of: Void.self) { group in
-      group.addTask { @MainActor [weak self] in
-        await self?.observeActiveSessions()
-      }
-      group.addTask { @MainActor [weak self] in
-        await self?.observeCompletedSessions()
-      }
-    }
+    async let active: Void = observeActiveSessions()
+    async let completed: Void = observeCompletedSessions()
+    _ = await (active, completed)
   }
 
   /// Observes active in-progress checklist sessions for this template.
