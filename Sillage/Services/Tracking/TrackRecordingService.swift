@@ -164,8 +164,11 @@ public final class TrackRecordingService {
     }
     
     guard let sessionID = currentSessionID,
-          let endTime = telemetry.lastRecordedNavigationFix?.timestamp else {
+          let endTime = telemetry.lastRecordedTimestamp else {
       resetSessionState()
+      currentSessionID = nil
+      persistenceWriter = nil
+      preferencesService.clearActiveTrackSessionID()
       throw TrackRecordingError.abortedNoFix
     }
     
@@ -342,7 +345,11 @@ public final class TrackRecordingService {
     let previousPoints = try await databaseManager.fetchRecentPoints(for: trackSession.id, limit: Configuration.maxTrackPoints)
     
     // 2. Setup internal state
-    telemetry.restore(from: trackSession, lastSegmentIndex: lastSegmentIndex)
+    telemetry.restore(
+      from: trackSession,
+      lastSegmentIndex: lastSegmentIndex,
+      lastRecordedTimestamp: previousPoints.last?.timestamp ?? trackSession.endTime
+    )
     trackPoints = ArraySlice(previousPoints)
     
     // 3. Setup dependencies
@@ -484,11 +491,9 @@ public final class TrackRecordingService {
   private func buildTelemetryUpdate(endTime: Date? = nil) -> TrackTelemetryUpdate? {
     guard let sessionID = currentSessionID else { return nil }
     
-    let finalEndTime = endTime ?? telemetry.lastRecordedNavigationFix?.timestamp
-    
     return TrackTelemetryUpdate(
       id: sessionID,
-      endTimestamp_unix: finalEndTime?.timeIntervalSince1970,
+      endTimestamp_unix: endTime?.timeIntervalSince1970,
       totalDuration_s: activeSessionDuration()?.timeInterval,
       totalDistanceOverGround_m: telemetry.totalDistanceOverGround?.converted(to: .meters).value,
       southLatitude_deg: telemetry.geographicBoundingBox?.southWest.latitude,

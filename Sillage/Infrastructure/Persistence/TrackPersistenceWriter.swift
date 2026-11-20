@@ -47,9 +47,9 @@ public final class TrackPersistenceWriter: Sendable {
             buffer.append(point)
             
           case .flush(let telemetryUpdate, let onCompletion):
+            defer { onCompletion?() }
             if !buffer.isEmpty || telemetryUpdate != nil {
               let batch = buffer
-              buffer.removeAll()
               try await databaseManager.writer.write { db in
                 try batch.forEach { try $0.insert(db) }
                 if let update = telemetryUpdate {
@@ -69,26 +69,21 @@ public final class TrackPersistenceWriter: Sendable {
                     ])
                 }
               }
+              buffer.removeAll()
             }
-            onCompletion?()
             
           case .finish(let onCompletion):
+            defer { onCompletion() }
             if !buffer.isEmpty {
               let batch = buffer
-              buffer.removeAll()
               try await databaseManager.writer.write { db in
                 try batch.forEach { try $0.insert(db) }
               }
+              buffer.removeAll()
             }
-            onCompletion()
           }
         } catch {
           Logger.database.error("TrackPersistenceWriter failed to execute database action: \(error.localizedDescription, privacy: .public)")
-          if case .flush(_, let onCompletion) = action {
-            onCompletion?()
-          } else if case .finish(let onCompletion) = action {
-            onCompletion()
-          }
         }
       }
     }

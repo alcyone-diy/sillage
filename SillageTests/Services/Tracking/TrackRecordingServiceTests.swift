@@ -566,4 +566,130 @@ struct TrackRecordingServiceTests {
     #expect(mockPositioning.backgroundLocationTokenInvalidatedCount == 1)
     #expect(mockPositioning.requestedDistanceFilters["TrackRecording"] == nil)
   }
+
+  @Test("Stop recording while paused finalizes session instead of throwing abortedNoFix")
+  func testStopRecordingWhilePausedFinalizesSession() async throws {
+    let dbManager = try makeDatabaseManager()
+    let mockPositioning = MockPositioningService()
+    let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
+
+    let service = TrackRecordingService(
+      positioningService: mockPositioning,
+      databaseManager: dbManager,
+      preferencesService: mockPreferences,
+      messageService: MessageService()
+    )
+
+    service.startRecording()
+    let fixTime = Date(timeIntervalSince1970: 2000)
+    mockPositioning.emit(fix: createNavigationFix(latitude: 45.0, longitude: -1.0, timestamp: fixTime))
+    try await waitUntil { service.state == .recording }
+
+    service.pauseRecording()
+    #expect(service.state == .paused)
+
+    await service.emergencyFlushAsync()
+    let activeID = try #require(mockPreferences.activeTrackSessionID)
+    let activeSessionWhilePaused = try await dbManager.reader.read { db in
+      try TrackSessionRecord.fetchOne(db, key: activeID)?.toDomain()
+    }
+    #expect(activeSessionWhilePaused?.endTime == nil)
+
+    let finalizedSessionID = try await service.stopRecording()
+    #expect(!finalizedSessionID.isEmpty)
+    #expect(service.state == .idle)
+    #expect(mockPreferences.activeTrackSessionID == nil)
+
+    let persistedSession = try await dbManager.reader.read { db in
+      try TrackSessionRecord.fetchOne(db, key: finalizedSessionID)?.toDomain()
+    }
+    #expect(persistedSession?.endTime == fixTime)
+  }
+
+  @Test("Stop recording immediately after recovery before new fix finalizes session")
+  func testStopRecordingImmediatelyAfterRecoveryFinalizesSession() async throws {
+    let mockPositioning = MockPositioningService()
+    let databaseManager = try makeDatabaseManager()
+    let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
+
+    let sessionID = UUID().uuidString
+    let startTime = Date().addingTimeInterval(-120)
+    let pointTime = Date().addingTimeInterval(-60)
+    let sessionRecord = TrackSessionRecord(id: sessionID, startTime: startTime)
+    let pointRecord = TrackPointRecord(
+      id: nil,
+      sessionID: sessionID,
+      timestamp: pointTime,
+      segmentIndex: 0,
+      coordinate: CLLocationCoordinate2D(latitude: 45.0, longitude: -1.0),
+      horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+    )
+
+    try await databaseManager.writer.write { db in
+      try sessionRecord.insert(db)
+      try pointRecord.insert(db)
+    }
+    mockPreferences.saveActiveTrackSessionID(sessionID)
+
+    let service = TrackRecordingService(
+      positioningService: mockPositioning,
+      databaseManager: databaseManager,
+      preferencesService: mockPreferences,
+      messageService: MessageService()
+    )
+
+    await service.attemptRecoveryIfNeeded()
+    #expect(service.state == .waitingForFix)
+
+    let finalizedID = try await service.stopRecording()
+    #expect(finalizedID == sessionID)
+    #expect(service.state == .idle)
+    #expect(mockPreferences.activeTrackSessionID == nil)
+
+    let persistedSession = try await databaseManager.reader.read { db in
+      try TrackSessionRecord.fetchOne(db, key: sessionID)?.toDomain()
+    }
+    #expect(persistedSession?.endTime != nil)
+  }
+
+  @Test("Stop recording after recovering an empty session without points throws abortedNoFix and clears activeTrackSessionID")
+  func testStopRecordingAfterRecoveringEmptySessionThrowsAbortedNoFixAndClearsActiveSessionID() async throws {
+    let mockPositioning = MockPositioningService()
+    let databaseManager = try makeDatabaseManager()
+    let mockPreferences = MockPreferencesService()
+    mockPreferences.clearAll()
+
+    let sessionID = UUID().uuidString
+    let startTime = Date().addingTimeInterval(-60)
+    let sessionRecord = TrackSessionRecord(id: sessionID, startTime: startTime)
+
+    try await databaseManager.writer.write { db in
+      try sessionRecord.insert(db)
+    }
+    mockPreferences.saveActiveTrackSessionID(sessionID)
+
+    let service = TrackRecordingService(
+      positioningService: mockPositioning,
+      databaseManager: databaseManager,
+      preferencesService: mockPreferences,
+      messageService: MessageService()
+    )
+
+    await service.attemptRecoveryIfNeeded()
+    #expect(service.state == .waitingForFix)
+    #expect(service.telemetry.lastRecordedTimestamp == nil)
+
+    do {
+      _ = try await service.stopRecording()
+      Issue.record("Expected abortedNoFix error to be thrown for empty recovered session")
+    } catch TrackRecordingService.TrackRecordingError.abortedNoFix {
+      // Expected
+    }
+
+    #expect(service.state == .idle)
+    #expect(service.telemetry.state == .stopped)
+    #expect(mockPreferences.activeTrackSessionID == nil)
+  }
 }

@@ -48,6 +48,7 @@ public struct TrackSessionTelemetry: Sendable {
   
   public private(set) var lastReceivedNavigationFix: NavigationFix?
   public private(set) var lastRecordedNavigationFix: NavigationFix?
+  public private(set) var lastRecordedTimestamp: Date?
   public private(set) var lastRecordedNavigationFixMonotonicTime: ContinuousClock.Instant?
 
   // MARK: - Public
@@ -70,6 +71,7 @@ public struct TrackSessionTelemetry: Sendable {
     maxSpeedOverGround = nil
     lastReceivedNavigationFix = nil
     lastRecordedNavigationFix = nil
+    lastRecordedTimestamp = nil
     lastRecordedNavigationFixMonotonicTime = nil
   }
   
@@ -112,7 +114,8 @@ public struct TrackSessionTelemetry: Sendable {
   
   public mutating func restore(
     from session: TrackSession,
-    lastSegmentIndex: Int?
+    lastSegmentIndex: Int?,
+    lastRecordedTimestamp: Date? = nil
   ) {
     guard state == .stopped else {
       return
@@ -126,8 +129,9 @@ public struct TrackSessionTelemetry: Sendable {
     totalDistanceOverGround = session.totalDistanceOverGround
     geographicBoundingBox = session.boundingBox
     maxSpeedOverGround = session.maxSpeedOverGround
-    segmentIndex = (lastSegmentIndex == nil) ? 0 : lastSegmentIndex
+    segmentIndex = lastSegmentIndex
     totalPointCount = session.totalPointCount
+    self.lastRecordedTimestamp = lastRecordedTimestamp ?? session.endTime
     lastRecordedNavigationFixMonotonicTime = nil
   }
   
@@ -239,6 +243,7 @@ public struct TrackSessionTelemetry: Sendable {
     }
     
     lastRecordedNavigationFix = fix
+    lastRecordedTimestamp = fix.timestamp
     lastRecordedNavigationFixMonotonicTime = now
   }
 }

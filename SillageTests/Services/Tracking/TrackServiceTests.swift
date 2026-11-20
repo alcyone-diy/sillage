@@ -311,6 +311,45 @@ struct TrackServiceTests {
     #expect(content.contains("<trkpt lat=\"46.150000\" lon=\"-1.150000\">"))
   }
 
+  @Test("exportSession splits multiple segments into separate trkseg tags and escapes sessionID")
+  func testExportSessionMultipleSegmentsAndEscapedSessionID() async throws {
+    let dbManager = try makeDatabaseManager()
+    let trackService = TrackService(databaseManager: dbManager)
+    let sessionID = "session<&>\"'1"
+    let session = TrackSessionRecord(id: sessionID, startTime: Date())
+
+    try await dbManager.write { [session] db in
+      try session.insert(db)
+      let p1 = TrackPointRecord(
+        id: nil,
+        sessionID: sessionID,
+        timestamp: Date(timeIntervalSince1970: 1000),
+        segmentIndex: 0,
+        coordinate: CLLocationCoordinate2D(latitude: 46.15, longitude: -1.15),
+        horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+      )
+      let p2 = TrackPointRecord(
+        id: nil,
+        sessionID: sessionID,
+        timestamp: Date(timeIntervalSince1970: 2000),
+        segmentIndex: 1,
+        coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.16),
+        horizontalAccuracy: Measurement(value: 5.0, unit: .meters)
+      )
+      try p1.insert(db)
+      try p2.insert(db)
+    }
+
+    let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_export_segments_\(UUID().uuidString).gpx")
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    for try await _ in trackService.exportSession(id: sessionID, to: tempURL) {}
+
+    let content = try String(contentsOf: tempURL, encoding: .utf8)
+    #expect(content.contains("<desc>Session ID: session&lt;&amp;&gt;&quot;&apos;1</desc>"))
+    #expect(content.contains("</trkseg>\n          <trkseg>"))
+  }
+
   @Test("exportSession cancellation stops export and cleans up temporary file")
   func testExportSessionCancellationCleansUpFileAndThrows() async throws {
     let dbManager = try makeDatabaseManager()

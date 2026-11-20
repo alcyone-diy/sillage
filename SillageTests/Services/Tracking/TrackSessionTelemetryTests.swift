@@ -355,7 +355,28 @@ struct TrackSessionTelemetryTests {
     #expect(telemetry.totalPointCount == session.totalPointCount + 1)
     #expect(telemetry.lastReceivedNavigationFix == fix1)
     #expect(telemetry.lastRecordedNavigationFix == fix1)
+    #expect(telemetry.lastRecordedTimestamp == fix1.timestamp)
     #expect(telemetry.lastRecordedNavigationFixMonotonicTime == secondSegmentMonotonicTime)
+  }
+
+  @Test("Restore telemetry when lastSegmentIndex is nil initializes first segment at 0")
+  func testRestoreWithNilLastSegmentIndex() throws {
+    var telemetry = TrackSessionTelemetry()
+    let startDate = Date(timeIntervalSince1970: 1000)
+    let session = TrackSession(
+      id: "test-empty-restore",
+      startTime: startDate,
+      totalPointCount: 0
+    )
+
+    telemetry.restore(from: session, lastSegmentIndex: nil)
+    #expect(telemetry.segmentIndex == nil)
+    #expect(telemetry.lastRecordedTimestamp == nil)
+
+    let fix1 = makeMockFix(timestamp: startDate.addingTimeInterval(5))
+    try telemetry.process(fix: fix1, filters: .default)
+    #expect(telemetry.segmentIndex == 0)
+    #expect(telemetry.lastRecordedTimestamp == fix1.timestamp)
   }
   
   @Test("Pause and resume")

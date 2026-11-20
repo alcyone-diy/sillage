@@ -153,7 +153,10 @@ public struct TrackService: Sendable {
               .fetchCount(db)
             let request = TrackPointRecord
               .filter(TrackPointRecord.Columns.sessionID == id)
-              .order(TrackPointRecord.Columns.timestamp_unix.asc)
+              .order(
+                TrackPointRecord.Columns.segmentIndex.asc,
+                TrackPointRecord.Columns.timestamp_unix.asc
+              )
             let cursor = try request.fetchCursor(db)
 
             return try GPXExportService.export(

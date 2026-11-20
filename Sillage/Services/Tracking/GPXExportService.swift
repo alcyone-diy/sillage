@@ -48,13 +48,14 @@ public struct GPXExportService: Sendable {
 
     do {
       // Escaping XML special characters to prevent broken GPX files if the user inputs special characters in the session name.
+      let safeSessionID = sessionID.xmlEscaped
       let safeName = (sessionName ?? sessionID).xmlEscaped
       let header = """
       <?xml version="1.0" encoding="UTF-8"?>
       <gpx version="1.1" creator="\(AppConstants.appName)" xmlns="http://www.topografix.com/GPX/1/1" xmlns:sillage="\(AppConstants.appURL.absoluteString)/gpx">
         <trk>
           <name>\(safeName)</name>
-          <desc>Session ID: \(sessionID)</desc>
+          <desc>Session ID: \(safeSessionID)</desc>
           <trkseg>
       """
       if let headerData = header.data(using: .utf8) {
@@ -66,6 +67,7 @@ public struct GPXExportService: Sendable {
 
       var pointBuffer = ""
       var count = 0
+      var currentSegmentIndex: Int?
       let total = totalCount ?? 0
       var lastEmittedProgress: Double = 0.0
 
@@ -74,6 +76,11 @@ public struct GPXExportService: Sendable {
         try Task.checkCancellation()
 
         let point = record.domainModel
+        if let activeSegment = currentSegmentIndex, point.segmentIndex != activeSegment {
+          pointBuffer += "\n          </trkseg>\n          <trkseg>"
+        }
+        currentSegmentIndex = point.segmentIndex
+
         let latString = String(format: "%.6f", locale: enUSLocale, point.coordinate.latitude)
         let lonString = String(format: "%.6f", locale: enUSLocale, point.coordinate.longitude)
         let timeString = isoFormatter.string(from: point.timestamp)
