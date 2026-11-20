@@ -311,7 +311,7 @@ struct ContentView: View {
       .presentationDetents([.medium, .large])
       .presentationDragIndicator(.visible)
     }
-    .onChange(of: appViewModel.pendingNotificationIntent) { _, intent in
+    .onChange(of: appViewModel.pendingNotificationIntent, initial: true) { _, intent in
       guard let intent else { return }
       switch intent {
       case .barometerDrop:
