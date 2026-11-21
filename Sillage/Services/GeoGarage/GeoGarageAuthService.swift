@@ -62,6 +62,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
 
   private let session: URLSession
   @ObservationIgnored private var refreshTask: Task<AuthSuccessResponse, Error>?
+  @ObservationIgnored private var authGeneration: Int = 0
 
   private var authorizeEndpoint: URL? {
     URL(string: "\(AppConstants.GeoGarage.accountsBaseURLString)/o/authorize/")
@@ -99,9 +100,13 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
 
   func logout() async {
     // A refresh still in flight would complete after logout, store the new token pair and flip
-    // isGeoGarageAuthenticated back on. Cancellation surfaces as AuthError.cancelled.
-    refreshTask?.cancel()
+    // isGeoGarageAuthenticated back on. Increment authGeneration and wait for the cancelled task
+    // to finish before clearing Keychain tokens so no late store() can survive logout.
+    authGeneration &+= 1
+    let pendingRefresh = refreshTask
     refreshTask = nil
+    pendingRefresh?.cancel()
+    _ = try? await pendingRefresh?.value
     await keychainManager.deleteToken(for: GeoGarageKeychainKeys.accessToken)
     await keychainManager.deleteToken(for: GeoGarageKeychainKeys.refreshToken)
     // The decryption secret belongs to the session: drop it with the tokens, otherwise another
@@ -224,7 +229,9 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   }
 
   private func performRefresh() async throws -> AuthSuccessResponse {
+    let generation = authGeneration
     guard let refreshToken = await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.refreshToken) else {
+      guard generation == authGeneration else { throw AuthError.cancelled }
       let failure = AuthError.tokenExpired
       self.authError = failure
       throw failure
@@ -238,11 +245,24 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
         ],
         onInvalidGrant: .tokenExpired
       )
+      try Task.checkCancellation()
+      guard generation == authGeneration else {
+        throw AuthError.cancelled
+      }
       await store(tokens)
+      // Invariant: logout() increments authGeneration and awaits pendingRefresh?.value before
+      // calling deleteToken(), so any tokens written here during a concurrent logout are wiped
+      // by logout() itself. We must not delete tokens on an external cancellation when
+      // generation == authGeneration, because the server already rotated the single-use refresh token.
+      guard generation == authGeneration, !Task.isCancelled else {
+        throw AuthError.cancelled
+      }
       self.authError = nil
       self.isGeoGarageAuthenticated = true
       Logger.network.info("GeoGarage tokens refreshed.")
       return tokens
+    } catch is CancellationError {
+      throw AuthError.cancelled
     } catch let error as AuthError {
       switch error {
       case .networkError, .cancelled:
@@ -349,7 +369,17 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     let (data, response): (Data, URLResponse)
     do {
       (data, response) = try await session.data(for: request)
+    } catch is CancellationError {
+      Logger.network.info("GeoGarage account settings fetch cancelled.")
+      throw AuthError.cancelled
+    } catch let error as URLError where error.code == .cancelled {
+      Logger.network.info("GeoGarage account settings fetch cancelled.")
+      throw AuthError.cancelled
     } catch {
+      if Task.isCancelled {
+        Logger.network.info("GeoGarage account settings fetch cancelled.")
+        throw AuthError.cancelled
+      }
       let cached = layerRepository.layers
       if !cached.isEmpty {
         let customerID = preferencesService.geoGarageCustomerID ?? ""

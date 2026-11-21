@@ -294,4 +294,79 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
     XCTAssertTrue(FileManager.default.fileExists(atPath: retainedFile.path))
     XCTAssertFalse(FileManager.default.fileExists(atPath: orphanedFile.path))
   }
+
+  func testDownload_http401_throwsAuthenticationRequiredWithoutStaging() async throws {
+    let packageUUID = try XCTUnwrap(UUID(uuidString: "4FA85F64-5717-4562-B3FC-2C963F66AFA6"))
+    MockURLProtocol.setHandler { request in
+      let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+      return (response, Data("Unauthorized".utf8))
+    }
+
+    let mockPackageService = MockPackageService()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+    let downloader = GeoGarageChartDownloader(
+      packageService: mockPackageService,
+      downloadRepository: repository,
+      sessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      chartsDirectoryURL: tempDirURL
+    )
+
+    let downloadURL = try XCTUnwrap(URL(string: "https://caas.geogarage.com/packages/\(packageUUID.uuidString)/download"))
+    do {
+      _ = try await downloader.download(
+        packageID: packageUUID,
+        downloadURL: downloadURL,
+        expectedMD5: "d41d8cd98f00b204e9800998ecf8427e",
+        layerID: "shom",
+        layerName: "SHOM France",
+        boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
+        zoomMax: 14,
+        accessToken: "expired_token"
+      )
+      XCTFail("Expected CaasError.authenticationRequired")
+    } catch {
+      XCTAssertEqual(error, .authenticationRequired)
+    }
+
+    let stagedFile = tempDirURL
+      .appendingPathComponent("GeoGarageStaging", isDirectory: true)
+      .appendingPathComponent("\(packageUUID.uuidString.lowercased()).mbtiles")
+    XCTAssertFalse(FileManager.default.fileExists(atPath: stagedFile.path))
+  }
+
+  func testDownload_http500_throwsRequestFailedWithoutStaging() async throws {
+    let packageUUID = try XCTUnwrap(UUID(uuidString: "5FA85F64-5717-4562-B3FC-2C963F66AFA6"))
+    MockURLProtocol.setHandler { request in
+      let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
+      return (response, Data("Server Error".utf8))
+    }
+
+    let mockPackageService = MockPackageService()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+    let downloader = GeoGarageChartDownloader(
+      packageService: mockPackageService,
+      downloadRepository: repository,
+      sessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      chartsDirectoryURL: tempDirURL
+    )
+
+    let downloadURL = try XCTUnwrap(URL(string: "https://caas.geogarage.com/packages/\(packageUUID.uuidString)/download"))
+    do {
+      _ = try await downloader.download(
+        packageID: packageUUID,
+        downloadURL: downloadURL,
+        expectedMD5: "d41d8cd98f00b204e9800998ecf8427e",
+        layerID: "shom",
+        layerName: "SHOM France",
+        boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
+        zoomMax: 14,
+        accessToken: "test_access_token"
+      )
+      XCTFail("Expected CaasError.requestFailed(statusCode: 500)")
+    } catch {
+      XCTAssertEqual(error, .requestFailed(statusCode: 500))
+    }
+  }
 }

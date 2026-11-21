@@ -79,6 +79,9 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
     guard (200...299).contains(httpResponse.statusCode) else {
       let bodyText = String(data: data, encoding: .utf8) ?? "unknown error"
       Logger.caas.error("Package request failed with HTTP \(httpResponse.statusCode, privacy: .public): \(bodyText, privacy: .public)")
+      if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+        throw CaasError.authenticationRequired
+      }
       throw CaasError.requestFailed(statusCode: httpResponse.statusCode)
     }
 
@@ -129,6 +132,9 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
 
     guard (200...299).contains(httpResponse.statusCode) else {
       Logger.caas.error("Fetch status failed for package \(packageID.uuidString, privacy: .public) with HTTP \(httpResponse.statusCode, privacy: .public)")
+      if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+        throw CaasError.authenticationRequired
+      }
       throw CaasError.requestFailed(statusCode: httpResponse.statusCode)
     }
 
@@ -172,6 +178,9 @@ actor GeoGaragePackageService: GeoGaragePackageServiceProtocol {
     guard (200...299).contains(httpResponse.statusCode) else {
       let body = String(data: data, encoding: .utf8) ?? ""
       Logger.caas.warning("Server package deletion returned HTTP \(httpResponse.statusCode, privacy: .public): \(body, privacy: .public)")
+      if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+        throw CaasError.authenticationRequired
+      }
       throw CaasError.requestFailed(statusCode: httpResponse.statusCode)
     }
 

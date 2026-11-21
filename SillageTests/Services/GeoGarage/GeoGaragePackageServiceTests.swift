@@ -391,4 +391,68 @@ final class GeoGaragePackageServiceTests: XCTestCase {
     XCTAssertEqual(states, [.progress, .progress, .success])
     XCTAssertEqual(callCountLock.withLock { $0 }, 3)
   }
+
+  func testRequestPackage_http401_throwsAuthenticationRequired() async throws {
+    MockURLProtocol.setHandler { request in
+      let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+      return (response, Data("Unauthorized".utf8))
+    }
+
+    let service = GeoGaragePackageService(
+      baseURL: try XCTUnwrap(URL(string: "https://caas.geogarage.com")),
+      session: session
+    )
+    let request = PackageRequest(
+      layerID: "shom",
+      zoneWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
+      zoomMax: 14,
+      format: .mbtiles,
+      cipher: .v4
+    )
+
+    do {
+      _ = try await service.requestPackage(request, accessToken: "expired")
+      XCTFail("Expected CaasError.authenticationRequired")
+    } catch {
+      XCTAssertEqual(error, .authenticationRequired)
+    }
+  }
+
+  func testFetchStatus_http403_throwsAuthenticationRequired() async throws {
+    MockURLProtocol.setHandler { request in
+      let response = HTTPURLResponse(url: request.url!, statusCode: 403, httpVersion: nil, headerFields: nil)!
+      return (response, Data("Forbidden".utf8))
+    }
+
+    let service = GeoGaragePackageService(
+      baseURL: try XCTUnwrap(URL(string: "https://caas.geogarage.com")),
+      session: session
+    )
+
+    do {
+      _ = try await service.fetchStatus(packageID: UUID(), accessToken: "expired")
+      XCTFail("Expected CaasError.authenticationRequired")
+    } catch {
+      XCTAssertEqual(error, .authenticationRequired)
+    }
+  }
+
+  func testDeletePackage_http401_throwsAuthenticationRequired() async throws {
+    MockURLProtocol.setHandler { request in
+      let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+      return (response, Data("Unauthorized".utf8))
+    }
+
+    let service = GeoGaragePackageService(
+      baseURL: try XCTUnwrap(URL(string: "https://caas.geogarage.com")),
+      session: session
+    )
+
+    do {
+      try await service.deletePackage(packageID: UUID(), accessToken: "expired")
+      XCTFail("Expected CaasError.authenticationRequired")
+    } catch {
+      XCTAssertEqual(error, .authenticationRequired)
+    }
+  }
 }

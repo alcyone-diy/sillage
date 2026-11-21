@@ -547,5 +547,68 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     XCTAssertFalse(service.isGeoGarageAuthenticated)
     XCTAssertTrue(service.availableLayers.isEmpty)
   }
+
+  @MainActor
+  func testFetchAccountSettings_cancelledTask_throwsCancelledInsteadOfReturningCache() async throws {
+    let cachedLayer = GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-01-01", validUntil: "2027-01-01")
+    await layerRepository.saveLayers([cachedLayer])
+    _ = await layerRepository.loadCachedLayers()
+
+    let settingsJSON = self.settingsJSON
+    MockURLProtocol.setHandler { request in
+      (Self.response(request, status: 200), Data(settingsJSON.utf8))
+    }
+
+    let task = Task { @MainActor in
+      try await service.fetchAccountSettings(accessToken: "valid-access")
+    }
+    task.cancel()
+
+    do {
+      _ = try await task.value
+      XCTFail("Expected AuthError.cancelled")
+    } catch let error as AuthError {
+      guard case .cancelled = error else {
+        return XCTFail("Expected AuthError.cancelled, got \(error)")
+      }
+    }
+  }
+
+  @MainActor
+  func testRefreshTokens_concurrentLogout_leavesLoggedOutAndClearsKeychain() async throws {
+    await mockKeychain.save(token: "old-access", for: GeoGarageKeychainKeys.accessToken)
+    await mockKeychain.save(token: "old-refresh", for: GeoGarageKeychainKeys.refreshToken)
+    service.isGeoGarageAuthenticated = true
+
+    let tokenJSON = self.tokenJSON
+    let requestStarted = expectation(description: "Token refresh request reached URLProtocol")
+    MockURLProtocol.setHandler { request in
+      requestStarted.fulfill()
+      Thread.sleep(forTimeInterval: 0.15)
+      return (Self.response(request, status: 200), Data(tokenJSON.utf8))
+    }
+
+    let refreshTask = Task { @MainActor in
+      try await service.refreshTokens()
+    }
+
+    await fulfillment(of: [requestStarted], timeout: 2.0)
+    await service.logout()
+
+    do {
+      _ = try await refreshTask.value
+      XCTFail("Expected AuthError.cancelled after concurrent logout")
+    } catch let error as AuthError {
+      guard case .cancelled = error else {
+        return XCTFail("Expected AuthError.cancelled, got \(error)")
+      }
+    }
+
+    XCTAssertFalse(service.isGeoGarageAuthenticated)
+    let storedAccess = await mockKeychain.retrieveToken(for: GeoGarageKeychainKeys.accessToken)
+    let storedRefresh = await mockKeychain.retrieveToken(for: GeoGarageKeychainKeys.refreshToken)
+    XCTAssertNil(storedAccess)
+    XCTAssertNil(storedRefresh)
+  }
 }
 

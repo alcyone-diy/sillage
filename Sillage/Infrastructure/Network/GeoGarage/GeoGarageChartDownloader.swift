@@ -182,6 +182,10 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
           } onCancel: {
             downloadTask.cancel()
           }
+        } catch let error as CaasError {
+          tasksLock.withLock { _ = $0.removeValue(forKey: taskID) }
+          Logger.caas.error("Download failed for package \(packageID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+          throw error
         } catch {
           tasksLock.withLock { _ = $0.removeValue(forKey: taskID) }
           Logger.caas.error("Download failed for package \(packageID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
@@ -330,6 +334,25 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
       let continuation = tasksLock.withLock { $0.removeValue(forKey: taskID)?.continuation }
       try? FileManager.default.removeItem(at: location)
       continuation?.resume(throwing: CaasError.downloadFailed(underlying: "Missing or invalid packageID taskDescription on background download task."))
+      return
+    }
+
+    guard let httpResponse = downloadTask.response as? HTTPURLResponse else {
+      let continuation = tasksLock.withLock { $0.removeValue(forKey: taskID)?.continuation }
+      try? FileManager.default.removeItem(at: location)
+      Logger.caas.error("Background download failed for package \(packageID.uuidString, privacy: .public): missing HTTPURLResponse")
+      continuation?.resume(throwing: CaasError.downloadFailed(underlying: "Invalid non-HTTP response received."))
+      return
+    }
+
+    guard (200...299).contains(httpResponse.statusCode) else {
+      let continuation = tasksLock.withLock { $0.removeValue(forKey: taskID)?.continuation }
+      try? FileManager.default.removeItem(at: location)
+      Logger.caas.error("Background download failed for package \(packageID.uuidString, privacy: .public) with HTTP \(httpResponse.statusCode, privacy: .public)")
+      let caasError: CaasError = (httpResponse.statusCode == 401 || httpResponse.statusCode == 403)
+        ? .authenticationRequired
+        : .requestFailed(statusCode: httpResponse.statusCode)
+      continuation?.resume(throwing: caasError)
       return
     }
 
