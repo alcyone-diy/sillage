@@ -497,6 +497,8 @@ struct MapLibreView: UIViewRepresentable {
     var hasExceededTrackingMargin: Bool = false
     var lastBounds: CGRect = .zero
     var lastAimingCoordinate: CLLocationCoordinate2D?
+    var hasAppliedInitialCamera: Bool = false
+    var pendingReloadCamera: (center: CLLocationCoordinate2D, zoomLevel: Double, direction: CLLocationDirection)?
     
     init(_ parent: MapLibreView) {
       self.parent = parent
@@ -507,6 +509,13 @@ struct MapLibreView: UIViewRepresentable {
           guard !Task.isCancelled, let self else { break }
           guard let mapView = self.mapView else { continue }
           Logger.chart.info("Network reconnected, forcing MapLibre complete style reload")
+          if self.hasAppliedInitialCamera {
+            self.pendingReloadCamera = (
+              center: mapView.centerCoordinate,
+              zoomLevel: mapView.zoomLevel,
+              direction: mapView.direction
+            )
+          }
           mapView.reloadStyle(nil)
         }
       }
@@ -1014,6 +1023,19 @@ struct MapLibreView: UIViewRepresentable {
       return mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
     }
 
+    /// Returns the geographic coordinate currently under the aiming crosshair (40% from top),
+    /// or `nil` if the map view has not yet been laid out with non-zero bounds.
+    func reticleCoordinate(in mapView: MLNMapView) -> CLLocationCoordinate2D? {
+      guard mapView.bounds.width > 0, mapView.bounds.height > 0 else {
+        return nil
+      }
+      let aimingPoint = CGPoint(
+        x: mapView.bounds.midX,
+        y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
+      )
+      return mapView.convert(aimingPoint, toCoordinateFrom: mapView)
+    }
+
     func setupSubscription(for mapView: MLNMapView) {
       // Connect ensureVisible callback from MapCalloutViewModel
       parent.viewModel.calloutViewModel.onEnsureVisibleRequested = { [weak self, weak mapView] sheetHeight in
@@ -1087,13 +1109,9 @@ struct MapLibreView: UIViewRepresentable {
          !parent.viewModel.calloutViewModel.isCentering &&
          parent.viewModel.calloutViewModel.aimingCoordinate == nil {
         let now = CACurrentMediaTime()
-        if now - lastCalloutTargetUpdateTime >= 0.032 {
+        if now - lastCalloutTargetUpdateTime >= 0.032,
+           let targetCoord = reticleCoordinate(in: mapView) {
           lastCalloutTargetUpdateTime = now
-          let aimingPoint = CGPoint(
-            x: mapView.bounds.midX,
-            y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
-          )
-          let targetCoord = mapView.convert(aimingPoint, toCoordinateFrom: mapView)
           parent.viewModel.calloutViewModel.updateTarget(coordinate: targetCoord)
         }
       }
@@ -1227,10 +1245,17 @@ struct MapLibreView: UIViewRepresentable {
       // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
       // In SwiftUI, `didFinishLoading` can fire before the map view has a non-zero frame.
       // Calling coordinate bounds on a `.zero` frame corrupts the MapLibre camera (`NaN` zoom level).
-      // Instead, we simply jump the camera back to the exact metadata `centerCoordinate` and `zoomLevel`.
-      // This is required because loading the blank JSON style resets the map to (0,0), which leaves it looking at
-      // the African coast where no French marine chart tiles exist, causing the map to appear blank.
-      mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.chartDirection.converted(to: .degrees).value, animated: false)
+      // Loading `blank-style.json` (which has no center/zoom) resets the MapLibre camera to (0,0),
+      // so we must restore the camera whenever a style finishes loading:
+      // - On a style reload (e.g., `NetworkDidReconnect`), restore the exact pre-reload camera.
+      // - On initial boot, apply the ViewModel's starting camera once.
+      if let savedCamera = pendingReloadCamera {
+        pendingReloadCamera = nil
+        mapView.setCenter(savedCamera.center, zoomLevel: savedCamera.zoomLevel, direction: savedCamera.direction, animated: false)
+      } else if !hasAppliedInitialCamera {
+        hasAppliedInitialCamera = true
+        mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.chartDirection.converted(to: .degrees).value, animated: false)
+      }
     }
     
     func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
@@ -1272,13 +1297,14 @@ struct MapLibreView: UIViewRepresentable {
         if self.parent.viewModel.calloutViewModel.isCalloutVisible &&
            self.parent.viewModel.calloutViewModel.targetWaypointID == nil &&
            !self.parent.viewModel.measureToolViewModel.isActive {
-          if self.parent.viewModel.calloutViewModel.isCentering {
+          if self.parent.viewModel.calloutViewModel.isCentering,
+             let reticleCoord = reticleCoordinate(in: mapView) {
             // Trigger SwiftUI crosshair opacity = 1.0; MapLibreView.updateUIView will hide the MapLibre
             // crosshair layer in the exact same SwiftUI render transaction.
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-              self.parent.viewModel.calloutViewModel.interruptCentering(at: mapView.centerCoordinate)
+              self.parent.viewModel.calloutViewModel.interruptCentering(at: reticleCoord)
             }
           }
         }
@@ -1448,12 +1474,8 @@ struct MapLibreView: UIViewRepresentable {
       if !self.isLongPressActive &&
          self.parent.viewModel.calloutViewModel.isCalloutVisible &&
          self.parent.viewModel.calloutViewModel.targetWaypointID == nil &&
-         !self.parent.viewModel.measureToolViewModel.isActive {
-        let aimingPoint = CGPoint(
-          x: mapView.bounds.midX,
-          y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
-        )
-        let aimingCoord = mapView.convert(aimingPoint, toCoordinateFrom: mapView)
+         !self.parent.viewModel.measureToolViewModel.isActive,
+         let aimingCoord = reticleCoordinate(in: mapView) {
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
