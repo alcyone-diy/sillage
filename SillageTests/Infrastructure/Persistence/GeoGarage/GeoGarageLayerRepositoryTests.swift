@@ -8,6 +8,7 @@
 //  See LICENSE file in the project root for full license information.
 //
 
+import GRDB
 import XCTest
 @testable import Sillage
 
@@ -169,5 +170,111 @@ final class GeoGarageLayerRepositoryTests: XCTestCase {
     await repo.clearCache()
 
     XCTAssertFalse(FileManager.default.fileExists(atPath: legacyURL.path), "Legacy file should be deleted on clearCache.")
+  }
+
+  func testLegacyCacheMigration_preservesFileWhenDatabaseWriteFails() async throws {
+    guard let dbManager else {
+      XCTFail("DatabaseManager should not be nil")
+      return
+    }
+
+    let tempDir = FileManager.default.temporaryDirectory
+    let legacyURL = tempDir.appendingPathComponent("legacy_layers_fail_\(UUID().uuidString).json")
+
+    let legacyLayers = [
+      GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-02-01", validUntil: "2027-02-01")
+    ]
+    let data = try JSONEncoder().encode(legacyLayers)
+    try data.write(to: legacyURL)
+
+    defer {
+      if FileManager.default.fileExists(atPath: legacyURL.path) {
+        try? FileManager.default.removeItem(at: legacyURL)
+      }
+    }
+
+    try await dbManager.writer.write { db in
+      try db.execute(sql: """
+        CREATE TRIGGER fail_geogarage_layer_insert
+        BEFORE INSERT ON geogarage_layer
+        BEGIN
+          SELECT RAISE(ABORT, 'Simulated DB write failure');
+        END;
+        """)
+    }
+
+    let repo = GeoGarageLayerRepository(databaseManager: dbManager, legacyCacheFileURL: legacyURL)
+    let failedLoad = await repo.loadCachedLayers()
+
+    XCTAssertTrue(failedLoad.isEmpty)
+    XCTAssertTrue(
+      FileManager.default.fileExists(atPath: legacyURL.path),
+      "Legacy JSON file must be preserved when database migration fails."
+    )
+
+    // Remove failure trigger and verify migration succeeds on next attempt
+    try await dbManager.writer.write { db in
+      try db.execute(sql: "DROP TRIGGER fail_geogarage_layer_insert;")
+    }
+
+    let recoveredLoad = await repo.loadCachedLayers()
+    XCTAssertEqual(recoveredLoad.count, 1)
+    XCTAssertEqual(recoveredLoad.first?.layer, "shom")
+    XCTAssertFalse(
+      FileManager.default.fileExists(atPath: legacyURL.path),
+      "Legacy JSON file should be removed once migration succeeds."
+    )
+  }
+
+  func testLegacyCacheMigration_deletesCorruptedJSONFile() async throws {
+    guard let dbManager else {
+      XCTFail("DatabaseManager should not be nil")
+      return
+    }
+
+    let tempDir = FileManager.default.temporaryDirectory
+    let legacyURL = tempDir.appendingPathComponent("legacy_layers_corrupt_\(UUID().uuidString).json")
+    try Data("{ not valid json".utf8).write(to: legacyURL)
+
+    defer {
+      if FileManager.default.fileExists(atPath: legacyURL.path) {
+        try? FileManager.default.removeItem(at: legacyURL)
+      }
+    }
+
+    let repo = GeoGarageLayerRepository(databaseManager: dbManager, legacyCacheFileURL: legacyURL)
+    let loaded = await repo.loadCachedLayers()
+
+    XCTAssertTrue(loaded.isEmpty)
+    XCTAssertFalse(
+      FileManager.default.fileExists(atPath: legacyURL.path),
+      "Corrupted legacy JSON file should be deleted to avoid repeated decode failures."
+    )
+  }
+
+  func testLegacyCacheMigration_deletesEmptyJSONArrayFile() async throws {
+    guard let dbManager else {
+      XCTFail("DatabaseManager should not be nil")
+      return
+    }
+
+    let tempDir = FileManager.default.temporaryDirectory
+    let legacyURL = tempDir.appendingPathComponent("legacy_layers_empty_\(UUID().uuidString).json")
+    try Data("[]".utf8).write(to: legacyURL)
+
+    defer {
+      if FileManager.default.fileExists(atPath: legacyURL.path) {
+        try? FileManager.default.removeItem(at: legacyURL)
+      }
+    }
+
+    let repo = GeoGarageLayerRepository(databaseManager: dbManager, legacyCacheFileURL: legacyURL)
+    let loaded = await repo.loadCachedLayers()
+
+    XCTAssertTrue(loaded.isEmpty)
+    XCTAssertFalse(
+      FileManager.default.fileExists(atPath: legacyURL.path),
+      "Empty legacy JSON array file should be cleaned up."
+    )
   }
 }

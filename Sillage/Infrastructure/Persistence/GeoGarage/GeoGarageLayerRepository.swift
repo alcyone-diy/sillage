@@ -43,12 +43,9 @@ final class GeoGarageLayerRepository: GeoGarageLayerRepositoryProtocol {
     await migrateAndRemoveLegacyCacheFileIfNeeded()
 
     do {
-      let records = try await databaseManager.reader.read { db in
-        try GeoGarageLayerRecord
-          .order(GeoGarageLayerRecord.Columns.brandName.asc, GeoGarageLayerRecord.Columns.layer.asc)
-          .fetchAll(db)
+      let loadedLayers = try await databaseManager.reader.read { db in
+        try fetchSortedLayers(db)
       }
-      let loadedLayers = records.map(\.domainModel)
       self.layers = loadedLayers
       Logger.storage.info("Loaded \(loadedLayers.count, privacy: .public) GeoGarage layer(s) from database.")
       return loadedLayers
@@ -61,19 +58,20 @@ final class GeoGarageLayerRepository: GeoGarageLayerRepositoryProtocol {
 
   func saveLayers(_ newLayers: [GeoGarageLayer]) async {
     do {
-      try await databaseManager.writer.write { db in
+      let sortedLayers = try await databaseManager.writer.write { db in
         try GeoGarageLayerRecord.deleteAll(db)
         for layer in newLayers {
           let record = GeoGarageLayerRecord(domainModel: layer)
           try record.save(db)
         }
+        return try fetchSortedLayers(db)
       }
-      self.layers = newLayers
-      Logger.storage.debug("Successfully saved \(newLayers.count, privacy: .public) GeoGarage layers to database.")
+      self.layers = sortedLayers
+      Logger.storage.debug("Successfully saved \(sortedLayers.count, privacy: .public) GeoGarage layers to database.")
+      await removeLegacyCacheFile()
     } catch {
       Logger.storage.error("Failed to save GeoGarage layers to database: \(error, privacy: .public)")
     }
-    await removeLegacyCacheFile()
   }
 
   func clearCache() async {
@@ -83,30 +81,62 @@ final class GeoGarageLayerRepository: GeoGarageLayerRepositoryProtocol {
       }
       self.layers = []
       Logger.storage.debug("GeoGarage layer cache cleared from database.")
+      await removeLegacyCacheFile()
     } catch {
       Logger.storage.error("Failed to clear GeoGarage layer cache from database: \(error, privacy: .public)")
     }
-    await removeLegacyCacheFile()
+  }
+
+  // MARK: - Query Helper
+
+  private nonisolated func fetchSortedLayers(_ db: Database) throws -> [GeoGarageLayer] {
+    try GeoGarageLayerRecord
+      .order(GeoGarageLayerRecord.Columns.brandName.asc, GeoGarageLayerRecord.Columns.layer.asc)
+      .fetchAll(db)
+      .map(\.domainModel)
   }
 
   // MARK: - Legacy Cache Cleanup
+
+  private enum LegacyCacheLoadResult: Sendable {
+    case notFound
+    case loaded([GeoGarageLayer])
+    case corrupted
+    case readFailed
+  }
 
   private func migrateAndRemoveLegacyCacheFileIfNeeded() async {
     guard let legacyURL = legacyCacheFileURL else { return }
 
     // Déporte toute lecture synchrone disque hors du MainActor
-    let legacyLayers: [GeoGarageLayer]? = await Task.detached(priority: .background) {
-      guard FileManager.default.fileExists(atPath: legacyURL.path) else { return nil }
+    let loadResult: LegacyCacheLoadResult = await Task.detached(priority: .background) {
+      guard FileManager.default.fileExists(atPath: legacyURL.path) else { return .notFound }
+      let data: Data
       do {
-        let data = try Data(contentsOf: legacyURL)
-        return try JSONDecoder().decode([GeoGarageLayer].self, from: data)
+        data = try Data(contentsOf: legacyURL)
       } catch {
-        Logger.storage.error("Failed to decode legacy GeoGarage layer cache file: \(error, privacy: .public)")
-        return nil
+        Logger.storage.error("Failed to read legacy GeoGarage layer cache file: \(error, privacy: .public)")
+        return .readFailed
+      }
+      do {
+        let layers = try JSONDecoder().decode([GeoGarageLayer].self, from: data)
+        return .loaded(layers)
+      } catch {
+        Logger.storage.error("Failed to decode corrupted legacy GeoGarage layer cache file: \(error, privacy: .public)")
+        return .corrupted
       }
     }.value
 
-    if let legacyLayers, !legacyLayers.isEmpty {
+    switch loadResult {
+    case .notFound, .readFailed:
+      return
+    case .corrupted:
+      await removeLegacyCacheFile()
+    case .loaded(let legacyLayers):
+      if legacyLayers.isEmpty {
+        await removeLegacyCacheFile()
+        return
+      }
       do {
         try await databaseManager.writer.write { db in
           let existingCount = try GeoGarageLayerRecord.fetchCount(db)
@@ -117,12 +147,11 @@ final class GeoGarageLayerRepository: GeoGarageLayerRepositoryProtocol {
             }
           }
         }
+        await removeLegacyCacheFile()
       } catch {
         Logger.storage.error("Failed to migrate legacy GeoGarage layers to database: \(error, privacy: .public)")
       }
     }
-
-    await removeLegacyCacheFile()
   }
 
   private func removeLegacyCacheFile() async {

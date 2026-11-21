@@ -85,18 +85,27 @@ final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
     downloadsDidChangeContinuations.removeAll()
   }
 
+  // MARK: - Query Helper
+
+  private nonisolated func fetchSortedDownloads(_ db: Database) throws -> [OfflineChartDownload] {
+    try GeoGarageDownloadRecord
+      .order(
+        GeoGarageDownloadRecord.Columns.download_timestamp_unix.desc,
+        GeoGarageDownloadRecord.Columns.id.asc
+      )
+      .fetchAll(db)
+      .compactMap { $0.toDomain() }
+  }
+
   // MARK: - Load
 
   /// Loads downloaded packages from the SQLite database.
   /// Should be called during app bootstrap before accessing `downloads`.
   func load() async {
     do {
-      let records = try await databaseManager.reader.read { db in
-        try GeoGarageDownloadRecord
-          .order(GeoGarageDownloadRecord.Columns.download_timestamp_unix.desc)
-          .fetchAll(db)
+      self.downloads = try await databaseManager.reader.read { db in
+        try fetchSortedDownloads(db)
       }
-      self.downloads = records.compactMap { $0.toDomain() }
       Logger.caas.info("Loaded \(self.downloads.count, privacy: .public) offline chart download(s) from database.")
     } catch {
       Logger.caas.error("Failed to load download repository from database: \(error, privacy: .public)")
@@ -111,20 +120,15 @@ final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
   ///
   /// **State Consistency Architecture**:
   /// Database persistence is the single source of truth. Mutations are reflected in `self.downloads`
-  /// **only** after `databaseManager.writer.write` succeeds.
+  /// **only** after `databaseManager.writer.write` succeeds, using the canonical sorted query.
   func save(_ download: OfflineChartDownload) async throws {
     let record = GeoGarageDownloadRecord(domainModel: download)
     do {
-      try await databaseManager.writer.write { db in
+      let sortedDownloads = try await databaseManager.writer.write { db in
         try record.save(db)
+        return try fetchSortedDownloads(db)
       }
-      var snapshot = downloads
-      if let existingIndex = snapshot.firstIndex(where: { $0.id == download.id }) {
-        snapshot[existingIndex] = download
-      } else {
-        snapshot.insert(download, at: 0)
-      }
-      self.downloads = snapshot
+      self.downloads = sortedDownloads
       Logger.caas.debug("Saved download \(download.id.uuidString, privacy: .public) to database.")
     } catch {
       Logger.caas.error("Failed to persist download \(download.id.uuidString, privacy: .public) to database: \(error, privacy: .public)")

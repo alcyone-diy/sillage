@@ -101,6 +101,45 @@ final class GeoGarageDownloadRepositoryTests: XCTestCase {
     XCTAssertEqual(repository.downloads.count, 2)
   }
 
+  func testSave_maintainsDescendingOrderWhenInsertingOlderDownload() async throws {
+    let newer = makeDownload(layerID: "shom", downloadDate: Date(timeIntervalSince1970: 2_000_000))
+    let older = makeDownload(layerID: "noaa", downloadDate: Date(timeIntervalSince1970: 1_000_000))
+
+    try await repository.save(newer)
+    try await repository.save(older)
+
+    XCTAssertEqual(repository.downloads.map(\.id), [newer.id, older.id])
+  }
+
+  func testSave_maintainsDescendingOrderWhenUpdatingDownloadDate() async throws {
+    let firstID = UUID()
+    let secondID = UUID()
+
+    let initialFirst = makeDownload(
+      id: firstID,
+      layerID: "shom",
+      downloadDate: Date(timeIntervalSince1970: 1_000_000)
+    )
+    let second = makeDownload(
+      id: secondID,
+      layerID: "noaa",
+      downloadDate: Date(timeIntervalSince1970: 2_000_000)
+    )
+
+    try await repository.save(initialFirst)
+    try await repository.save(second)
+    XCTAssertEqual(repository.downloads.map(\.id), [secondID, firstID])
+
+    let updatedFirst = makeDownload(
+      id: firstID,
+      layerID: "shom",
+      downloadDate: Date(timeIntervalSince1970: 3_000_000)
+    )
+    try await repository.save(updatedFirst)
+
+    XCTAssertEqual(repository.downloads.map(\.id), [firstID, secondID])
+  }
+
   // MARK: - Delete
 
   func testDelete_removesCorrectEntry() async throws {
