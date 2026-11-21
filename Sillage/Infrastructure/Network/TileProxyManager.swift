@@ -12,6 +12,12 @@ import Foundation
 import CoreGraphics
 import OSLog
 
+/// Errors raised by `TileProxyManager` for non-200/non-404 HTTP responses.
+enum TileProxyError: Error, Sendable, Equatable {
+  case authenticationRequired(statusCode: Int)
+  case httpError(statusCode: Int)
+}
+
 /// Protocol for network tile downloading with authentication headers.
 protocol TileProxyManagerProtocol: Sendable {
   func fetchTile(z: Int, x: Int, y: Int, layerID: String) async throws -> Data?
@@ -61,18 +67,32 @@ actor TileProxyManager: TileProxyManagerProtocol {
     if let token = await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) {
       request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
+    let taggedRequest: URLRequest
+    if let mutableRequest = (request as NSURLRequest).mutableCopy() as? NSMutableURLRequest {
+      URLProtocol.setProperty(true, forKey: TileProxyProtocol.handledRequestPropertyKey, in: mutableRequest)
+      taggedRequest = mutableRequest as URLRequest
+    } else {
+      taggedRequest = request
+    }
 
-    let (data, response) = try await self.session.data(for: request)
+    let (data, response) = try await self.session.data(for: taggedRequest)
     guard let httpResponse = response as? HTTPURLResponse else {
       Logger.network.error("Failed to cast response to HTTPURLResponse.")
       throw URLError(.badServerResponse)
     }
-    
-    if httpResponse.statusCode == 200 {
+
+    switch httpResponse.statusCode {
+    case 200:
       return data
+    case 404:
+      // Missing tile at this zoom level: allow overzoom fallback in TileProxyProtocol
+      return nil
+    case 401, 403:
+      Logger.network.warning("GeoGarage tile request unauthorized (HTTP \(httpResponse.statusCode, privacy: .public)) for \(url.path, privacy: .public)")
+      throw TileProxyError.authenticationRequired(statusCode: httpResponse.statusCode)
+    default:
+      Logger.network.error("GeoGarage tile request failed (HTTP \(httpResponse.statusCode, privacy: .public)) for \(url.path, privacy: .public)")
+      throw TileProxyError.httpError(statusCode: httpResponse.statusCode)
     }
-    
-    // Everything else returns nil to avoid fatally killing MapLibre's source
-    return nil
   }
 }

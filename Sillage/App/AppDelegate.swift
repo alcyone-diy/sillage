@@ -44,11 +44,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    // CRITICAL FIX: MapLibre's C++ core (mbgl::HTTPFileSource) hardcodes
-    // [NSURLSessionConfiguration defaultSessionConfiguration] and ignores MLNNetworkConfiguration.
-    // Therefore, URLProtocol.registerClass is MANDATORY for custom schemes.
-    // This does NOT pollute the app's global networking because canInit(with:) strictly
-    // filters for "sillage-geo" schemes, letting regular http/https pass through instantly.
+    // Registers TileProxyProtocol globally (URLSession.shared / NSURLConnection) as a fallback
+    // alongside the explicit MLNNetworkConfiguration.sessionConfiguration injection in AppEnvironment.
+    // TileProxyProtocol.canInit(with:) strictly filters for "tiles.geogarage.com" and skips
+    // requests already tagged by TileProxyManager.
     URLProtocol.registerClass(TileProxyProtocol.self)
 
     // Critical: The delegate must be assigned before the app finishes launching

@@ -10,6 +10,7 @@
 
 import Foundation
 import Observation
+import os
 import OSLog
 import MapLibre
 
@@ -322,10 +323,30 @@ final class AppEnvironment {
           }
         }
       )
+      let lastAuthRefreshAttempt = OSAllocatedUnfairLock<ContinuousClock.Instant?>(initialState: nil)
       TileProxyProtocol.configure(
         offlineTileProvider: geoGarageOfflineTileProvider,
         tileProxyManager: tileProxyManager,
-        keychainManager: keychainManager
+        keychainManager: keychainManager,
+        onAuthenticationFailure: { [weak geoGarageAuthService] in
+          let shouldAttempt = lastAuthRefreshAttempt.withLock { lastAttempt in
+            let now = ContinuousClock.now
+            if let lastAttempt, now - lastAttempt < .seconds(10) {
+              return false
+            }
+            lastAttempt = now
+            return true
+          }
+          guard shouldAttempt else { return }
+          Task { @MainActor in
+            guard let authService = geoGarageAuthService else { return }
+            do {
+              _ = try await authService.refreshTokens()
+            } catch {
+              Logger.network.warning("GeoGarage token refresh after tile 401/403 failed: \(error.localizedDescription, privacy: .public)")
+            }
+          }
+        }
       )
 
       // Empty until the user signs in; skip tile loading until valid credentials (secret & customerID) are present.

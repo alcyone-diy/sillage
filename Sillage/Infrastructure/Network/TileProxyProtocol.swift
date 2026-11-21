@@ -31,13 +31,20 @@ struct TileURLComponents: Sendable {
 }
 
 final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
+  static let handledRequestPropertyKey = "com.alcyone.sillage.TileProxyProtocol.handled"
+
+  private struct AuthFailureHandler: Sendable {
+    let call: @Sendable () -> Void
+  }
+
   private let taskLock = OSAllocatedUnfairLock<(task: Task<Void, Never>?, isStopped: Bool)>(initialState: (task: nil, isStopped: false))
 
   private static let dependenciesLock = OSAllocatedUnfairLock<(
     offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)?,
     tileProxyManager: (any TileProxyManagerProtocol)?,
-    keychainManager: (any KeychainManaging)?
-  )>(initialState: (offlineTileProvider: nil, tileProxyManager: nil, keychainManager: nil))
+    keychainManager: (any KeychainManaging)?,
+    authFailureHandler: AuthFailureHandler?
+  )>(initialState: (offlineTileProvider: nil, tileProxyManager: nil, keychainManager: nil, authFailureHandler: nil))
 
   static var offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)? {
     dependenciesLock.withLock { $0.offlineTileProvider }
@@ -51,11 +58,16 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     dependenciesLock.withLock { $0.keychainManager }
   }
 
+  static var onAuthenticationFailure: (@Sendable () -> Void)? {
+    dependenciesLock.withLock { $0.authFailureHandler }?.call
+  }
+
   /// Injects runtime dependencies without singletons.
   static func configure(
     offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)?,
     tileProxyManager: (any TileProxyManagerProtocol)? = nil,
-    keychainManager: (any KeychainManaging)? = nil
+    keychainManager: (any KeychainManaging)? = nil,
+    onAuthenticationFailure: (@Sendable () -> Void)? = nil
   ) {
     dependenciesLock.withLock { state in
       state.offlineTileProvider = offlineTileProvider
@@ -64,6 +76,9 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
       }
       if let keychainManager {
         state.keychainManager = keychainManager
+      }
+      if let onAuthenticationFailure {
+        state.authFailureHandler = AuthFailureHandler(call: onAuthenticationFailure)
       }
     }
   }
@@ -74,12 +89,16 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
       state.offlineTileProvider = nil
       state.tileProxyManager = nil
       state.keychainManager = nil
+      state.authFailureHandler = nil
     }
   }
 
   // MARK: - URLProtocol Lifecycle
 
   override class func canInit(with request: URLRequest) -> Bool {
+    if URLProtocol.property(forKey: Self.handledRequestPropertyKey, in: request) != nil {
+      return false
+    }
     guard let url = request.url else { return false }
     return url.host == "tiles.geogarage.com"
   }
@@ -147,7 +166,17 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
         } catch is CancellationError {
           // URLProtocol contract: do not call didFailWithError if stopped by the client
           return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+          // URLSession throws URLError(.cancelled) when the parent Task is cancelled
+          return
+        } catch let proxyError as TileProxyError {
+          guard !Task.isCancelled else { return }
+          if case .authenticationRequired = proxyError {
+            Self.onAuthenticationFailure?()
+          }
+          self.client?.urlProtocol(self, didFailWithError: proxyError)
         } catch {
+          guard !Task.isCancelled else { return }
           self.client?.urlProtocol(self, didFailWithError: error)
         }
       }
@@ -296,11 +325,6 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     context.interpolationQuality = .none
 
     let targetRect = CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight)
-    
-    // Invert Y axis for CoreGraphics context drawing
-    context.translateBy(x: 0, y: CGFloat(targetHeight))
-    context.scaleBy(x: 1.0, y: -1.0)
-    
     context.draw(croppedImage, in: targetRect)
 
     guard let scaledImage = context.makeImage() else { return nil }
