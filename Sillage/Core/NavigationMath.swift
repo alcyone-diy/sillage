@@ -152,14 +152,17 @@ extension CLLocationCoordinate2D {
   /// - Parameters:
   ///   - origin: The starting coordinate of the leg track line.
   ///   - destination: The target destination coordinate of the leg track line.
-  /// - Returns: Physical cross-track error distance as a `Measurement<UnitLength>`.
-  func crossTrackError(from origin: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D) -> Measurement<UnitLength> {
+  /// - Returns: Physical cross-track error distance as a `Measurement<UnitLength>`, or `nil` if the leg is indeterminate (`origin == destination`).
+  func crossTrackError(from origin: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D) -> Measurement<UnitLength>? {
+    guard let bearingToDestination = origin.greatCircleBearing(to: destination) else {
+      return nil
+    }
+
     let distanceToOrigin = origin.distance(to: self)
     let dist13InMeters = distanceToOrigin.converted(to: .meters).value
 
     guard dist13InMeters > 0,
-          let bearingToCurrent = origin.greatCircleBearing(to: self),
-          let bearingToDestination = origin.greatCircleBearing(to: destination) else {
+          let bearingToCurrent = origin.greatCircleBearing(to: self) else {
       return Measurement(value: 0.0, unit: .meters)
     }
 
@@ -167,11 +170,13 @@ extension CLLocationCoordinate2D {
     let theta13 = bearingToCurrent.converted(to: .radians).value
     let theta12 = bearingToDestination.converted(to: .radians).value
 
-    let crossTrackDistanceRadians = asin(sin(delta13) * sin(theta13 - theta12))
+    let rawSinArg = sin(delta13) * sin(theta13 - theta12)
+    let clampedSinArg = min(1.0, max(-1.0, rawSinArg))
+    let crossTrackDistanceRadians = asin(clampedSinArg)
     let crossTrackMeters = crossTrackDistanceRadians * Self.earthRadius.value
 
     if crossTrackMeters.isNaN || crossTrackMeters.isInfinite {
-      return Measurement(value: 0.0, unit: .meters)
+      return nil
     }
 
     return Measurement(value: crossTrackMeters, unit: .meters)

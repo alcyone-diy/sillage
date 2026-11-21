@@ -190,4 +190,23 @@ final class MagneticDeclinationServiceTests: XCTestCase {
       XCTAssertEqual(dec.value, 0.496358, accuracy: 0.001, "Must match NOAA WMM2025 test value to 3 decimal places")
     }
   }
+
+  func testParseRejectsHeaderOnlyAndTruncatedWMMFiles() {
+    let headerOnlyWMM = """
+        2025.0            WMM-2025        11/20/2024
+    99999999999999999999999999999999999999999999999999
+    """
+    XCTAssertThrowsError(try WorldMagneticModel.parse(content: headerOnlyWMM)) { error in
+      XCTAssertEqual(error as? WorldMagneticModel.ParseError, .incompleteCoefficients)
+    }
+
+    let truncatedDegreeWMM = """
+        2025.0            WMM-2025        11/20/2024
+      1   0   -29404.5       0.0       6.7       0.0
+    99999999999999999999999999999999999999999999999999
+    """
+    XCTAssertThrowsError(try WorldMagneticModel.parse(content: truncatedDegreeWMM)) { error in
+      XCTAssertEqual(error as? WorldMagneticModel.ParseError, .incompleteCoefficients)
+    }
+  }
 }

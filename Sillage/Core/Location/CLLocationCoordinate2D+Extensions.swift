@@ -65,7 +65,8 @@ extension CLLocationCoordinate2D {
     let dLat = lat2 - lat1
     let dLon = lon2 - lon1
 
-    let a = sin(dLat / 2.0) * sin(dLat / 2.0) + cos(lat1) * cos(lat2) * sin(dLon / 2.0) * sin(dLon / 2.0)
+    let rawA = sin(dLat / 2.0) * sin(dLat / 2.0) + cos(lat1) * cos(lat2) * sin(dLon / 2.0) * sin(dLon / 2.0)
+    let a = min(1.0, max(0.0, rawA))
     let c = 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
 
     let distanceInMeters = Self.earthRadius.value * c

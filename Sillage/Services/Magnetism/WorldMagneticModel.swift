@@ -34,6 +34,7 @@ nonisolated public struct WorldMagneticModel: Sendable {
   public enum ParseError: Error, Sendable {
     case emptyFile
     case invalidHeader
+    case incompleteCoefficients
   }
 
   public init(
@@ -76,6 +77,7 @@ nonisolated public struct WorldMagneticModel: Sendable {
     var h = [Double](repeating: 0.0, count: totalEntries)
     var dg = [Double](repeating: 0.0, count: totalEntries)
     var dh = [Double](repeating: 0.0, count: totalEntries)
+    var parsedOrdersByDegree: [Int: Set<Int>] = [:]
 
     for line in lines.dropFirst() {
       if line.hasPrefix("9999") {
@@ -102,6 +104,17 @@ nonisolated public struct WorldMagneticModel: Sendable {
         h[idx] = hVal
         dg[idx] = dgVal
         dh[idx] = dhVal
+        parsedOrdersByDegree[n, default: []].insert(m)
+      }
+    }
+
+    guard let parsedMaxDegree = parsedOrdersByDegree.keys.max(), parsedMaxDegree >= 1 else {
+      throw ParseError.incompleteCoefficients
+    }
+
+    for degree in 1...parsedMaxDegree {
+      guard parsedOrdersByDegree[degree]?.count == degree + 1 else {
+        throw ParseError.incompleteCoefficients
       }
     }
 

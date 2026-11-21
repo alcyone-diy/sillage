@@ -24,40 +24,22 @@ nonisolated public enum OfflinePackageSizeEstimator {
   private static let minZoomLevel: Int = 8
 
   /// Estimates the uncompressed/compressed MBTiles archive package size for a bounding box up to `zoomMax`.
+  /// Returns `nil` if `zoomMax` is outside valid GeoGarage offline bounds (`minZoomLevel...30`).
   public static func estimatePackageSize(
     bounds: GeographicBoundingBox,
     zoomMax: Int
-  ) -> Measurement<UnitInformationStorage> {
+  ) -> Measurement<UnitInformationStorage>? {
+    guard zoomMax >= minZoomLevel, zoomMax <= 30 else {
+      return nil
+    }
     let startZoom = max(minZoomLevel, min(zoomMax, 10))
-    var totalTiles: Int = 0
+    guard startZoom <= zoomMax else {
+      return nil
+    }
 
-    let sw = bounds.southWest
-    let ne = bounds.northEast
-
-    let minLon = min(sw.longitude, ne.longitude)
-    let maxLon = max(sw.longitude, ne.longitude)
-    let minLat = max(-85.05112878, min(sw.latitude, ne.latitude))
-    let maxLat = min(85.05112878, max(sw.latitude, ne.latitude))
-
+    var totalTiles = 0
     for z in startZoom...zoomMax {
-      let n = pow(2.0, Double(z))
-
-      let minX = max(0, min(Int(n) - 1, Int(floor((minLon + 180.0) / 360.0 * n))))
-      let maxX = max(0, min(Int(n) - 1, Int(floor((maxLon + 180.0) / 360.0 * n))))
-
-      let minLatRad = Measurement(value: minLat, unit: UnitAngle.degrees).converted(to: .radians).value
-      let maxLatRad = Measurement(value: maxLat, unit: UnitAngle.degrees).converted(to: .radians).value
-
-      let yAtMaxLat = (1.0 - (log(tan(.pi / 4.0 + maxLatRad / 2.0)) / .pi)) / 2.0 * n
-      let yAtMinLat = (1.0 - (log(tan(.pi / 4.0 + minLatRad / 2.0)) / .pi)) / 2.0 * n
-
-      let minY = max(0, min(Int(n) - 1, Int(floor(yAtMaxLat))))
-      let maxY = max(0, min(Int(n) - 1, Int(floor(yAtMinLat))))
-
-      let tilesX = max(1, maxX - minX + 1)
-      let tilesY = max(1, maxY - minY + 1)
-
-      totalTiles += (tilesX * tilesY)
+      totalTiles += MBTilesCoordinateMath.tileCount(for: bounds, zoom: z, clampLatitude: true)
     }
 
     let estimatedBytes = (Double(totalTiles) * averageTileSizeBytes) + mbtilesOverheadBytes
@@ -65,10 +47,14 @@ nonisolated public enum OfflinePackageSizeEstimator {
   }
 
   /// Convenience estimator from WKT POLYGON string.
+  /// Returns `nil` if `zoomMax` is outside valid GeoGarage offline bounds (`minZoomLevel...30`).
   public static func estimatePackageSize(
     wkt: String,
     zoomMax: Int
-  ) -> Measurement<UnitInformationStorage> {
+  ) -> Measurement<UnitInformationStorage>? {
+    guard zoomMax >= minZoomLevel, zoomMax <= 30 else {
+      return nil
+    }
     guard let box = GeographicBoundingBox(wkt: wkt) else {
       // Fallback baseline package size: 50 MB
       return Measurement(value: 50, unit: .megabytes)

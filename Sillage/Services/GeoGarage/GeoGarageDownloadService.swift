@@ -309,9 +309,12 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     for candidate in candidates {
       let estimatedSize = OfflinePackageSizeEstimator.estimatePackageSize(wkt: candidate.boundsWKT, zoomMax: candidate.zoomMax)
       let available = diskSpaceProvider.availableDiskSpace()
-      let hasSufficientSpace = available.map {
-        OfflineStoragePolicy.hasSufficientSpace(availableSpace: $0, estimatedDownloadSize: estimatedSize)
-      } ?? false
+      let hasSufficientSpace: Bool
+      if let estimatedSize, let available {
+        hasSufficientSpace = OfflineStoragePolicy.hasSufficientSpace(availableSpace: available, estimatedDownloadSize: estimatedSize)
+      } else {
+        hasSufficientSpace = false
+      }
 
       if !hasSufficientSpace {
         Logger.offline.warning("App resumed with constrained disk space. Deleting retained previous chart \(candidate.replacesID.uuidString, privacy: .public) before resuming download.")
@@ -567,9 +570,12 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
       if let replacesID = activeDownloads.first(where: { $0.id == localID })?.item.replacesChartID {
         let estimatedSize = OfflinePackageSizeEstimator.estimatePackageSize(wkt: zoneWKT, zoomMax: zoomMax)
         let available = diskSpaceProvider.availableDiskSpace()
-        let hasSufficientSpace = available.map {
-          OfflineStoragePolicy.hasSufficientSpace(availableSpace: $0, estimatedDownloadSize: estimatedSize)
-        } ?? false
+        let hasSufficientSpace: Bool
+        if let estimatedSize, let available {
+          hasSufficientSpace = OfflineStoragePolicy.hasSufficientSpace(availableSpace: available, estimatedDownloadSize: estimatedSize)
+        } else {
+          hasSufficientSpace = false
+        }
 
         if !hasSufficientSpace {
           Logger.offline.warning("Insufficient storage buffer to retain chart \(replacesID.uuidString, privacy: .public). Deleting upfront before download.")

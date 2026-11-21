@@ -454,5 +454,93 @@ struct GeographicBoundingBoxTests {
     #expect(antiMeridianBox.contains(CLLocationCoordinate2D(latitude: 0.0, longitude: -175.0))) // in western half
     #expect(!antiMeridianBox.contains(CLLocationCoordinate2D(latitude: 0.0, longitude: 0.0))) // outside
   }
+
+  @Test("Estimated area handles 360° full globe and >180° spans accurately")
+  func testEstimatedAreaFullGlobeAndWideSpan() {
+    let fullGlobe = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: -90.0, longitude: -180.0),
+      northEast: CLLocationCoordinate2D(latitude: 90.0, longitude: 180.0)
+    )
+    // Exact sphere surface area: 4 * pi * R^2 ≈ 5.1006447e14 m^2
+    let expectedEarthArea = 4.0 * .pi * 6_371_000.0 * 6_371_000.0
+    #expect(abs(fullGlobe.estimatedArea.value - expectedEarthArea) < 1e9)
+
+    let span200 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: -10.0, longitude: -100.0),
+      northEast: CLLocationCoordinate2D(latitude: 10.0, longitude: 100.0)
+    )
+    let span160 = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: -10.0, longitude: -80.0),
+      northEast: CLLocationCoordinate2D(latitude: 10.0, longitude: 80.0)
+    )
+    #expect(span200.estimatedArea.value > span160.estimatedArea.value)
+  }
+
+  @Test("Merge corner-touching boxes produces two separate rings without self-intersection")
+  func testMergeCornerTouchingBoxes() {
+    let swBox = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 0.0, longitude: 0.0),
+      northEast: CLLocationCoordinate2D(latitude: 10.0, longitude: 10.0)
+    )
+    let neBox = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 10.0, longitude: 10.0),
+      northEast: CLLocationCoordinate2D(latitude: 20.0, longitude: 20.0)
+    )
+
+    let polygons = GeographicBoundingBox.mergeIntoNonIntersectingPolygons([swBox, neBox])
+
+    #expect(polygons.count == 2)
+    #expect(polygons.allSatisfy { $0.count == 5 })
+  }
+
+  @Test("Enclosing two coordinates across anti-meridian picks shortest arc")
+  func testEnclosingAcrossAntiMeridian() {
+    let westOfDateLine = CLLocationCoordinate2D(latitude: 10.0, longitude: 179.0)
+    let eastOfDateLine = CLLocationCoordinate2D(latitude: 20.0, longitude: -179.0)
+
+    let bounds = GeographicBoundingBox.enclosing(westOfDateLine, eastOfDateLine)
+
+    #expect(bounds.crossesAntiMeridian)
+    #expect(bounds.southWest.longitude == 179.0)
+    #expect(bounds.northEast.longitude == -179.0)
+    #expect(bounds.southWest.latitude == 10.0)
+    #expect(bounds.northEast.latitude == 20.0)
+  }
+
+  @Test("CrossTrackError returns nil when origin equals destination and clamps asin")
+  func testCrossTrackErrorIndeterminateLeg() {
+    let point = CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    let origin = CLLocationCoordinate2D(latitude: 46.0, longitude: -1.0)
+
+    #expect(point.crossTrackError(from: origin, to: origin) == nil)
+  }
+
+  @Test("Haversine distance is finite at antipodes")
+  func testAntipodalDistanceIsFinite() {
+    let northPole = CLLocationCoordinate2D(latitude: 90.0, longitude: 0.0)
+    let southPole = CLLocationCoordinate2D(latitude: -90.0, longitude: 0.0)
+
+    let distance = northPole.distance(to: southPole)
+    #expect(!distance.value.isNaN)
+    #expect(distance.value > 20_000_000.0)
+  }
+
+  @Test("Cumulative expand around the globe preserves non-zero spherical zone area")
+  func testCumulativeExpandAroundGlobeEstimatedArea() {
+    var box = GeographicBoundingBox(coordinate: CLLocationCoordinate2D(latitude: -10.0, longitude: 10.0))
+    box.expand(toInclude: CLLocationCoordinate2D(latitude: 10.0, longitude: 130.0))  // [10, 130] (120°)
+    box.expand(toInclude: CLLocationCoordinate2D(latitude: 10.0, longitude: -110.0)) // [-110, 130] (240°)
+    box.expand(toInclude: CLLocationCoordinate2D(latitude: 10.0, longitude: -150.0)) // [-150, 130] (280°)
+    box.expand(toInclude: CLLocationCoordinate2D(latitude: 10.0, longitude: 170.0))  // [170, 130] (320°)
+    box.expand(toInclude: CLLocationCoordinate2D(latitude: 10.0, longitude: 135.0))  // [170, 135] (325°)
+    box.expand(toInclude: CLLocationCoordinate2D(latitude: 10.0, longitude: 150.0))  // [170, 150] (340°)
+    box.expand(toInclude: CLLocationCoordinate2D(latitude: 10.0, longitude: 159.0))  // [170, 159] (349°)
+    box.expand(toInclude: CLLocationCoordinate2D(latitude: 10.0, longitude: 164.0))  // [170, 164] (354°)
+
+    // Covers almost the entire -10°..+10° tropical band (354° of longitude)
+    let expectedFullBandArea = 2.0 * .pi * 6_371_000.0 * 6_371_000.0 * (sin(10.0 * .pi / 180.0) - sin(-10.0 * .pi / 180.0))
+    #expect(box.estimatedArea.value > expectedFullBandArea * 0.95)
+    #expect(box.estimatedArea.value <= expectedFullBandArea)
+  }
 }
 

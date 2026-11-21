@@ -111,6 +111,26 @@ final class MBTilesDownloadWorkerTests: XCTestCase {
     XCTAssertNil(invalidCoord.tmsRow)
   }
 
+  func testTileXAt180NormalizesToZeroAndAntiMeridianBoundsIncludeWestSegment() {
+    // Point semantics: +180.0° and -180.0° share the same meridian (column 0)
+    XCTAssertEqual(MBTilesCoordinateMath.tileX(longitude: 180.0, zoom: 2), 0)
+    XCTAssertEqual(MBTilesCoordinateMath.tileX(longitude: -180.0, zoom: 2), 0)
+
+    // Bounding box crossing the anti-meridian (170°E to 170°W) at zoom 2 (4x4 grid, columns 0..3)
+    // West segment [170, 180] -> column 3; East segment [-180, -170] -> column 0
+    let antiMeridianBounds = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: -10.0, longitude: 170.0),
+      northEast: CLLocationCoordinate2D(latitude: 10.0, longitude: -170.0)
+    )
+    let tiles = MBTilesCoordinateMath.tileCoordinates(for: antiMeridianBounds, zoom: 2)
+    let xColumns = Set(tiles.map(\.x))
+
+    XCTAssertTrue(xColumns.contains(3), "West segment ending at 180.0° must include rightmost column (1 << zoom) - 1")
+    XCTAssertTrue(xColumns.contains(0), "East segment starting at -180.0° must include column 0")
+    XCTAssertEqual(xColumns, [0, 3])
+    XCTAssertEqual(MBTilesCoordinateMath.tileCount(for: antiMeridianBounds, zoom: 2), tiles.count)
+  }
+
   // MARK: - Worker SQLite & Resumability Tests
 
   func testWorkerCreatesMBTilesAndWritesMetadataAndTiles() async throws {

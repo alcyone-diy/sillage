@@ -568,15 +568,7 @@ final class ChartViewModel {
     // 4. Emit the event
     let event: CameraMoveEvent
     if let boatCoordinate = instrumentDampingService.state?.coordinate {
-      let minLat = min(visualState.coordinate.latitude, boatCoordinate.latitude)
-      let maxLat = max(visualState.coordinate.latitude, boatCoordinate.latitude)
-      let minLon = min(visualState.coordinate.longitude, boatCoordinate.longitude)
-      let maxLon = max(visualState.coordinate.longitude, boatCoordinate.longitude)
-      
-      let bounds = GeographicBoundingBox(
-        southWest: CLLocationCoordinate2D(latitude: minLat, longitude: minLon),
-        northEast: CLLocationCoordinate2D(latitude: maxLat, longitude: maxLon)
-      )
+      let bounds = GeographicBoundingBox.enclosing(visualState.coordinate, boatCoordinate)
       
       // Use padding to ensure points are not hidden behind UI panels
       event = CameraMoveEvent.fitBounds(

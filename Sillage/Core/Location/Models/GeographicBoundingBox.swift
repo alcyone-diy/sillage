@@ -45,6 +45,14 @@ public struct GeographicBoundingBox: Sendable, Equatable, Hashable, Codable {
     self.northEast = coordinate
   }
 
+  /// Creates the minimal bounding box enclosing two coordinates along the shortest longitudinal arc.
+  /// Automatically crosses the anti-meridian when the shorter arc spans `±180°`.
+  public nonisolated static func enclosing(_ first: CLLocationCoordinate2D, _ second: CLLocationCoordinate2D) -> GeographicBoundingBox {
+    var box = GeographicBoundingBox(coordinate: first)
+    box.expand(toInclude: second)
+    return box
+  }
+
   /// Parses a standard WKT (Well-Known Text) POLYGON string into a `GeographicBoundingBox`.
   /// Uses strict `en_US_POSIX` scanning to avoid locale-specific decimal separator bugs (e.g. French comma).
   public nonisolated init?(wkt: String) {
@@ -267,7 +275,22 @@ public struct GeographicBoundingBox: Sendable, Equatable, Hashable, Codable {
         guard var destinations = unvisitedEdges[current], !destinations.isEmpty else {
           break
         }
-        let next = destinations.removeFirst()
+
+        // Disambiguate degree-4 corner vertices (where two occupied cells touch diagonally):
+        // Directed edges keep the interior on the left, so preferring the left turn (-inDy, inDx)
+        // cleanly separates touching polygons instead of creating self-intersecting figure-8 rings.
+        let nextIndex: Int
+        if destinations.count > 1, currentLoop.count >= 2 {
+          let prev = currentLoop[currentLoop.count - 2]
+          let inDx = current.c - prev.c
+          let inDy = current.r - prev.r
+          let leftTurnTarget = GridPoint(c: current.c - inDy, r: current.r + inDx)
+          nextIndex = destinations.firstIndex(of: leftTurnTarget) ?? 0
+        } else {
+          nextIndex = 0
+        }
+
+        let next = destinations.remove(at: nextIndex)
         if destinations.isEmpty {
           unvisitedEdges.removeValue(forKey: current)
         } else {
@@ -317,19 +340,29 @@ public struct GeographicBoundingBox: Sendable, Equatable, Hashable, Codable {
     return polygons
   }
   
-  /// Estimated area (approximation via Haversine for the bounding box)
+  /// Exact spherical zone area: `A = R² * Δλ_rad * (sin(φ_max) - sin(φ_min))`.
+  /// Correctly handles full-globe `360°` longitudinal spans and anti-meridian crossings.
   public nonisolated var estimatedArea: Measurement<UnitArea> {
-    let heightPoint = CLLocation(latitude: northEast.latitude, longitude: 0)
-    let swPoint = CLLocation(latitude: southWest.latitude, longitude: 0)
-    let heightMeters = heightPoint.distance(from: swPoint)
-    
-    let centerLat = (southWest.latitude + northEast.latitude) / 2.0
-    let angularWidth = (northEast.longitude - southWest.longitude + 360.0).truncatingRemainder(dividingBy: 360.0)
-    let leftPoint = CLLocation(latitude: centerLat, longitude: 0)
-    let rightPoint = CLLocation(latitude: centerLat, longitude: angularWidth)
-    let widthMeters = leftPoint.distance(from: rightPoint)
-    
-    return Measurement(value: widthMeters * heightMeters, unit: UnitArea.squareMeters)
+    let earthRadiusMeters = 6_371_000.0
+    let minLat = max(-90.0, min(90.0, min(southWest.latitude, northEast.latitude)))
+    let maxLat = max(-90.0, min(90.0, max(southWest.latitude, northEast.latitude)))
+
+    let minLatRad = Measurement(value: minLat, unit: UnitAngle.degrees).converted(to: .radians).value
+    let maxLatRad = Measurement(value: maxLat, unit: UnitAngle.degrees).converted(to: .radians).value
+
+    let deltaLonDeg: Double
+    if southWest.longitude == northEast.longitude {
+      deltaLonDeg = 0.0
+    } else if southWest.longitude < northEast.longitude {
+      deltaLonDeg = northEast.longitude - southWest.longitude
+    } else {
+      deltaLonDeg = 360.0 - (southWest.longitude - northEast.longitude)
+    }
+
+    let deltaLonRad = Measurement(value: deltaLonDeg, unit: UnitAngle.degrees).converted(to: .radians).value
+    let areaSquareMeters = earthRadiusMeters * earthRadiusMeters * deltaLonRad * (sin(maxLatRad) - sin(minLatRad))
+
+    return Measurement(value: max(0.0, areaSquareMeters), unit: UnitArea.squareMeters)
   }
   
   /// Compares two bounding boxes with a geographic epsilon tolerance to prevent infinite render loops

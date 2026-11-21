@@ -47,14 +47,18 @@ nonisolated public enum MBTilesCoordinateMath {
   private static let maxMercatorLatitudeDegrees: Double = 85.0511287798066
 
   /// Converts a WGS84 longitude into a Slippy Map tile X coordinate at the specified zoom.
+  /// Normalizes `+180.0°` to column `0` (matching `-180.0°` on the anti-meridian).
   /// Returns `nil` if inputs are invalid or outside valid bounds (Nil over Defaults).
   public static func tileX(longitude: CLLocationDegrees, zoom: Int) -> Int? {
     guard zoom >= 0 && zoom <= 30, !longitude.isNaN, !longitude.isInfinite else { return nil }
     guard longitude >= -180.0 && longitude <= 180.0 else { return nil }
 
-    let n = Double(1 << zoom)
-    let x = Int(floor((longitude + 180.0) / 360.0 * n))
-    guard x >= 0 && x < (1 << zoom) else { return nil }
+    let tileCount = 1 << zoom
+    if longitude == 180.0 {
+      return 0
+    }
+    let x = Int(floor((longitude + 180.0) / 360.0 * Double(tileCount)))
+    guard x >= 0 && x < tileCount else { return nil }
     return x
   }
 
@@ -97,6 +101,70 @@ nonisolated public enum MBTilesCoordinateMath {
     return maxTiles - 1 - tmsRow
   }
 
+  /// Computes the Slippy Map X/Y tile index ranges for a non-anti-meridian-crossing segment.
+  /// Handles the eastern boundary `northEast.longitude == 180.0` (with `southWest.longitude < 180.0`)
+  /// by mapping it to the rightmost column `(1 << zoom) - 1`.
+  private static func tileRanges(
+    forSegment segment: GeographicBoundingBox,
+    zoom: Int,
+    clampLatitude: Bool
+  ) -> (xRange: ClosedRange<Int>, yRange: ClosedRange<Int>)? {
+    guard zoom >= 0 && zoom <= 30 else { return nil }
+
+    let maxTileIndex = (1 << zoom) - 1
+    guard let xMin = tileX(longitude: segment.southWest.longitude, zoom: zoom) else {
+      return nil
+    }
+
+    let xMax: Int
+    if segment.northEast.longitude == 180.0 && segment.southWest.longitude < 180.0 {
+      xMax = maxTileIndex
+    } else {
+      guard let resolvedXMax = tileX(longitude: segment.northEast.longitude, zoom: zoom) else {
+        return nil
+      }
+      xMax = resolvedXMax
+    }
+
+    let northLat: CLLocationDegrees
+    let southLat: CLLocationDegrees
+    if clampLatitude {
+      northLat = min(maxMercatorLatitudeDegrees, max(-maxMercatorLatitudeDegrees, segment.northEast.latitude))
+      southLat = min(maxMercatorLatitudeDegrees, max(-maxMercatorLatitudeDegrees, segment.southWest.latitude))
+    } else {
+      northLat = segment.northEast.latitude
+      southLat = segment.southWest.latitude
+    }
+
+    guard let yMin = tileY(latitude: northLat, zoom: zoom),
+          let yMax = tileY(latitude: southLat, zoom: zoom) else {
+      return nil
+    }
+
+    return (min(xMin, xMax)...max(xMin, xMax), min(yMin, yMax)...max(yMin, yMax))
+  }
+
+  /// Counts the number of tiles covering the bounding box at a single zoom level in O(1) memory.
+  /// Correctly splits anti-meridian crossing bounds and handles the `180.0°` eastern boundary.
+  public static func tileCount(
+    for bounds: GeographicBoundingBox,
+    zoom: Int,
+    clampLatitude: Bool = false
+  ) -> Int {
+    guard zoom >= 0 && zoom <= 30 else { return 0 }
+    let segments = bounds.splitAtAntiMeridian()
+    var count = 0
+
+    for segment in segments {
+      guard let ranges = tileRanges(forSegment: segment, zoom: zoom, clampLatitude: clampLatitude) else {
+        continue
+      }
+      count += ranges.xRange.count * ranges.yRange.count
+    }
+
+    return count
+  }
+
   /// Generates the list of unique Slippy Map tile coordinates covering the given bounding box at a single zoom level.
   /// Discards invalid segments without falling back to dummy defaults.
   public static func tileCoordinates(for bounds: GeographicBoundingBox, zoom: Int) -> [TileCoordinate] {
@@ -105,20 +173,12 @@ nonisolated public enum MBTilesCoordinateMath {
     var tiles: Set<TileCoordinate> = []
 
     for segment in segments {
-      guard let xMin = tileX(longitude: segment.southWest.longitude, zoom: zoom),
-            let xMax = tileX(longitude: segment.northEast.longitude, zoom: zoom),
-            let yMin = tileY(latitude: segment.northEast.latitude, zoom: zoom),
-            let yMax = tileY(latitude: segment.southWest.latitude, zoom: zoom) else {
+      guard let ranges = tileRanges(forSegment: segment, zoom: zoom, clampLatitude: false) else {
         continue
       }
 
-      let xStart = min(xMin, xMax)
-      let xEnd = max(xMin, xMax)
-      let yStart = min(yMin, yMax)
-      let yEnd = max(yMin, yMax)
-
-      for x in xStart...xEnd {
-        for y in yStart...yEnd {
+      for x in ranges.xRange {
+        for y in ranges.yRange {
           tiles.insert(TileCoordinate(zoom: zoom, x: x, y: y))
         }
       }
