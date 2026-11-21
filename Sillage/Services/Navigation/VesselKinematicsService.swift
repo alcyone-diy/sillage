@@ -40,7 +40,7 @@ final class VesselKinematicsService: PositioningService {
   public private(set) var lastKnownLocation: NavigationFix?
 
   private var upstreamToken: (any LocationUpdateToken)?
-  private var pipelineTask: Task<Void, Never>?
+  nonisolated(unsafe) private var pipelineTask: Task<Void, Never>?
   private var activeUpdateTokens = Set<UUID>()
   private var locationContinuations: [UUID: AsyncStream<PositioningState>.Continuation] = [:]
   private var lastObservedSource: COGSOGCalculationSource?
@@ -63,9 +63,8 @@ final class VesselKinematicsService: PositioningService {
     locationContinuations[id] = continuation
 
     continuation.onTermination = { @Sendable [weak self] _ in
-      guard let service = self else { return }
-      Task { @MainActor in
-        service.locationContinuations.removeValue(forKey: id)
+      Task { @MainActor [weak self] in
+        self?.locationContinuations.removeValue(forKey: id)
       }
     }
     return stream
@@ -146,9 +145,9 @@ final class VesselKinematicsService: PositioningService {
     upstreamToken = positioningService.requestLocationUpdates()
 
     pipelineTask = Task { [weak self] in
-      guard let self = self else { return }
-      for await rawState in self.positioningService.locationUpdates {
-        guard !Task.isCancelled else { break }
+      guard let stream = self?.positioningService.locationUpdates else { return }
+      for await rawState in stream {
+        guard !Task.isCancelled, let self else { break }
         await self.processPositioningState(rawState)
       }
     }
@@ -172,23 +171,27 @@ final class VesselKinematicsService: PositioningService {
     if lastObservedSource != currentSource {
       Logger.navigation.notice("[KinematicsService] Calculation source switched to '\(currentSource.rawValue, privacy: .public)'. Resetting kinematics buffer.")
       await calculator.reset()
+      guard !Task.isCancelled else { return }
       lastObservedSource = currentSource
     }
 
     switch rawState {
     case .active(let rawFix):
       let enrichedFix = await processFix(rawFix, source: currentSource)
+      guard !Task.isCancelled else { return }
       self.lastKnownLocation = enrichedFix
       yieldState(.active(enrichedFix))
 
     case .degraded(let rawFix):
       let enrichedFix = await processFix(rawFix, source: currentSource)
+      guard !Task.isCancelled else { return }
       self.lastKnownLocation = enrichedFix
       yieldState(.degraded(enrichedFix))
 
     case .lost(let error):
       Logger.navigation.warning("[KinematicsService] GPS signal lost. Reason: \(error.localizedDescription, privacy: .public)")
       await calculator.reset()
+      guard !Task.isCancelled else { return }
       self.lastKnownLocation = nil
       yieldState(.lost(error))
     }

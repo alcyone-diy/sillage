@@ -268,6 +268,22 @@ class PreferencesService: PreferencesServiceProtocol {
     }
   }
 
+  @ObservationIgnored
+  nonisolated(unsafe) private var customerIDDidChangeContinuations: [UUID: AsyncStream<Void>.Continuation] = [:]
+
+  /// Multicast stream emitting whenever `geoGarageCustomerID` changes.
+  var geoGarageCustomerIDDidChangeStream: AsyncStream<Void> {
+    let (stream, continuation) = AsyncStream.makeStream(of: Void.self)
+    let id = UUID()
+    customerIDDidChangeContinuations[id] = continuation
+    continuation.onTermination = { @Sendable [weak self] _ in
+      Task { @MainActor [weak self] in
+        self?.customerIDDidChangeContinuations.removeValue(forKey: id)
+      }
+    }
+    return stream
+  }
+
   var geoGarageCustomerID: String? {
     didSet {
       if let value = geoGarageCustomerID {
@@ -276,6 +292,9 @@ class PreferencesService: PreferencesServiceProtocol {
       } else {
         defaults.removeObject(forKey: geoGarageCustomerIDKey)
         keychainManager?.deleteTokenSync(for: GeoGarageKeychainKeys.customerID)
+      }
+      for continuation in customerIDDidChangeContinuations.values {
+        continuation.yield()
       }
     }
   }
@@ -366,6 +385,13 @@ class PreferencesService: PreferencesServiceProtocol {
   var gpsAccuracyMode: GPSAccuracyMode {
     get { GPSAccuracyMode(rawValue: rawGPSAccuracyMode) ?? .best }
     set { rawGPSAccuracyMode = newValue.rawValue }
+  }
+
+  deinit {
+    for continuation in customerIDDidChangeContinuations.values {
+      continuation.finish()
+    }
+    customerIDDidChangeContinuations.removeAll()
   }
 
   init(

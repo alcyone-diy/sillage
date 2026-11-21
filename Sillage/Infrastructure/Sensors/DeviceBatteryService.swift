@@ -26,6 +26,11 @@ public final class DeviceBatteryService: DeviceBatteryServiceProtocol {
   public private(set) var batteryLevel: Float?
   public private(set) var batteryState: UIDevice.BatteryState
 
+  @ObservationIgnored
+  nonisolated(unsafe) private var levelObservationTask: Task<Void, Never>?
+  @ObservationIgnored
+  nonisolated(unsafe) private var stateObservationTask: Task<Void, Never>?
+
   public init() {
     UIDevice.current.isBatteryMonitoringEnabled = true
 
@@ -40,20 +45,25 @@ public final class DeviceBatteryService: DeviceBatteryServiceProtocol {
     setupNotificationObservations()
   }
 
+  deinit {
+    levelObservationTask?.cancel()
+    stateObservationTask?.cancel()
+  }
+
   private func setupNotificationObservations() {
     let levelSequence = NotificationCenter.default.notifications(named: UIDevice.batteryLevelDidChangeNotification)
     let stateSequence = NotificationCenter.default.notifications(named: UIDevice.batteryStateDidChangeNotification)
 
-    Task { [weak self] in
+    levelObservationTask = Task { [weak self] in
       for await _ in levelSequence {
-        guard let self else { break }
+        guard !Task.isCancelled, let self else { break }
         self.updateBatteryStatus()
       }
     }
 
-    Task { [weak self] in
+    stateObservationTask = Task { [weak self] in
       for await _ in stateSequence {
-        guard let self else { break }
+        guard !Task.isCancelled, let self else { break }
         self.updateBatteryStatus()
       }
     }

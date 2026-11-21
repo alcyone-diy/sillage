@@ -65,13 +65,7 @@ final class PermissionService: PermissionServiceProtocol {
         self.authorizationProvider = authorizationProvider
         
         // Sync initialization for statuses that don't require async
-        let motionAuth = CMMotionActivityManager.authorizationStatus()
-        switch motionAuth {
-        case .notDetermined: self.motionStatus = .notDetermined
-        case .restricted, .denied: self.motionStatus = .denied
-        case .authorized: self.motionStatus = .authorized
-        @unknown default: self.motionStatus = .unknown
-        }
+        refreshMotionStatus()
         
         let locAuth = positioningService.currentAuthorizationStatus
         switch locAuth {
@@ -103,7 +97,21 @@ final class PermissionService: PermissionServiceProtocol {
     }
     
     private func checkInitialStatuses() async {
+        refreshMotionStatus()
         await refreshNotificationStatuses()
+    }
+
+    private func refreshMotionStatus() {
+        #if DEBUG
+        if isForcedAuthorizedForScreenshots { return }
+        #endif
+        let motionAuth = CMMotionActivityManager.authorizationStatus()
+        switch motionAuth {
+        case .notDetermined: self.motionStatus = .notDetermined
+        case .restricted, .denied: self.motionStatus = .denied
+        case .authorized: self.motionStatus = .authorized
+        @unknown default: self.motionStatus = .unknown
+        }
     }
 
     private func refreshNotificationStatuses() async {
@@ -162,8 +170,9 @@ final class PermissionService: PermissionServiceProtocol {
     
     private func observeLocationStatus() {
         locationObservationTask = Task { [weak self] in
-            guard let self = self else { return }
-            for await status in self.positioningService.authorizationStatusStream {
+            guard let stream = self?.positioningService.authorizationStatusStream else { return }
+            for await status in stream {
+                guard !Task.isCancelled, let self = self else { break }
                 self.updateLocationStatus(from: status)
             }
         }

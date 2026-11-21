@@ -46,7 +46,29 @@ extension GeoGarageDownloadRepositoryProtocol {
 @Observable
 @MainActor
 final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
-  private(set) var downloads: [OfflineChartDownload] = []
+  private(set) var downloads: [OfflineChartDownload] = [] {
+    didSet {
+      for continuation in downloadsDidChangeContinuations.values {
+        continuation.yield()
+      }
+    }
+  }
+
+  @ObservationIgnored
+  nonisolated(unsafe) private var downloadsDidChangeContinuations: [UUID: AsyncStream<Void>.Continuation] = [:]
+
+  /// Multicast stream emitting whenever `downloads` changes.
+  var downloadsDidChangeStream: AsyncStream<Void> {
+    let (stream, continuation) = AsyncStream.makeStream(of: Void.self)
+    let id = UUID()
+    downloadsDidChangeContinuations[id] = continuation
+    continuation.onTermination = { @Sendable [weak self] _ in
+      Task { @MainActor [weak self] in
+        self?.downloadsDidChangeContinuations.removeValue(forKey: id)
+      }
+    }
+    return stream
+  }
 
   private let databaseManager: DatabaseManager
 
@@ -54,6 +76,13 @@ final class GeoGarageDownloadRepository: GeoGarageDownloadRepositoryProtocol {
 
   init(databaseManager: DatabaseManager) {
     self.databaseManager = databaseManager
+  }
+
+  deinit {
+    for continuation in downloadsDidChangeContinuations.values {
+      continuation.finish()
+    }
+    downloadsDidChangeContinuations.removeAll()
   }
 
   // MARK: - Load

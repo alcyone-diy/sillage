@@ -58,6 +58,12 @@ public final class BarometricService {
   /// Tracks the last time data was saved to the store to throttle disk I/O
   private var lastSaveTimestamp: Date = .distantPast
   
+  /// Monotonic session identifier to discard stale CoreMotion callbacks after stop/restart
+  private var activeSessionID: UInt64 = 0
+  
+  @ObservationIgnored
+  nonisolated(unsafe) private var persistenceTask: Task<Void, Never>?
+  
   init(
     historyStore: BarometricHistoryStore,
     preferencesService: PreferencesServiceProtocol,
@@ -74,6 +80,10 @@ public final class BarometricService {
     self.dateProvider = dateProvider
     
     observeAlarmToggle()
+  }
+  
+  deinit {
+    persistenceTask?.cancel()
   }
   
   private func observeAlarmToggle() {
@@ -119,6 +129,9 @@ public final class BarometricService {
       return
     }
     
+    activeSessionID &+= 1
+    let sessionID = activeSessionID
+    
     sensorState = .calibrating
     microBuffer.removeAll()
     lastSaveTimestamp = .distantPast
@@ -130,7 +143,8 @@ public final class BarometricService {
       
       if let error {
         Logger.barometer.error("Altimeter error: \(error.localizedDescription, privacy: .public)")
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
+          guard let self, self.activeSessionID == sessionID else { return }
           self.sensorState = .degraded
         }
         return
@@ -142,14 +156,18 @@ public final class BarometricService {
       let rawPressure = Measurement(value: data.pressure.doubleValue, unit: UnitPressure.kilopascals)
       
       // Route the background callback back to the MainActor securely
-      Task { @MainActor in
-        self.processRawPressure(rawPressure)
+      Task { @MainActor [weak self] in
+        guard let self, self.activeSessionID == sessionID else { return }
+        self.processRawPressure(rawPressure, sessionID: sessionID)
       }
     }
   }
   
   public func stopUpdates() {
     Logger.barometer.info("Stopping CMAltimeter updates.")
+    activeSessionID &+= 1
+    persistenceTask?.cancel()
+    persistenceTask = nil
     altimeter.stopRelativeAltitudeUpdates()
     sensorState = .idle
     microBuffer.removeAll()
@@ -157,7 +175,8 @@ public final class BarometricService {
   
   // MARK: - Data Processing
   
-  private func processRawPressure(_ rawPressure: Measurement<UnitPressure>) {
+  private func processRawPressure(_ rawPressure: Measurement<UnitPressure>, sessionID: UInt64) {
+    guard activeSessionID == sessionID else { return }
     let now = dateProvider()
     
     // Convert to hectopascals immediately to establish a single base unit
@@ -204,9 +223,10 @@ public final class BarometricService {
       let reading = BarometricReading(timestamp: now, pressure: averagePressure)
       let store = self.historyStore
       
-      Task(priority: .medium) { [weak self] in
-        guard let self else { return }
+      persistenceTask?.cancel()
+      persistenceTask = Task(priority: .medium) { [weak self] in
         await store.add(reading: reading)
+        guard !Task.isCancelled, let self else { return }
         await self.updateTrend()
       }
       

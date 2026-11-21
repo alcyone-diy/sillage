@@ -43,9 +43,9 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   private let clock: C
   private let dateProvider: @Sendable () -> Date
   
-  @ObservationIgnored private var locationUpdatesTask: Task<Void, Never>?
+  @ObservationIgnored nonisolated(unsafe) private var locationUpdatesTask: Task<Void, Never>?
   @ObservationIgnored private var locationUpdateToken: (any LocationUpdateToken)?
-  @ObservationIgnored private var stationaryDataTask: Task<Void, Error>?
+  @ObservationIgnored nonisolated(unsafe) private var stationaryDataTask: Task<Void, Error>?
   @ObservationIgnored private var gpsState: GPSState = .lost
   
   @ObservationIgnored private var courseState: CourseState = .stopped
@@ -76,6 +76,8 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
   }
   
   deinit {
+    locationUpdatesTask?.cancel()
+    stationaryDataTask?.cancel()
     for continuation in continuations.values {
       continuation.finish()
     }
@@ -182,11 +184,21 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
           }
           
           let count = Double(courseOverGroundBuffer.count)
-          var smoothedAngle = atan2(sumY / count, sumX / count)
-          if smoothedAngle < 0 { smoothedAngle += .pi * 2 }
-          
-          finalCourseOverGround = Measurement(value: smoothedAngle, unit: .radians)
-          lastSmoothedCourseOverGround = finalCourseOverGround
+          let meanX = sumX / count
+          let meanY = sumY / count
+          let resultantMagnitude = hypot(meanX, meanY)
+
+          if resultantMagnitude < 1e-6 {
+            // Opposite courses cancelled out; return nil rather than defaulting to 000°
+            finalCourseOverGround = nil
+            lastSmoothedCourseOverGround = nil
+          } else {
+            var smoothedAngle = atan2(meanY, meanX)
+            if smoothedAngle < 0 { smoothedAngle += .pi * 2 }
+
+            finalCourseOverGround = Measurement(value: smoothedAngle, unit: .radians)
+            lastSmoothedCourseOverGround = finalCourseOverGround
+          }
         }
       }
     }

@@ -422,6 +422,10 @@ struct MapLibreView: UIViewRepresentable {
   func makeCoordinator() -> Coordinator {
     Coordinator(self)
   }
+
+  static func dismantleUIView(_ uiView: MLNMapView, coordinator: Coordinator) {
+    coordinator.cancelTasks()
+  }
   
   /// Creates a minimal empty JSON style to force MapLibre to load its engine and fire the finish loading delegate method.
   private func createBlankStyleJSON() -> URL? {
@@ -437,8 +441,9 @@ struct MapLibreView: UIViewRepresentable {
   @MainActor
   class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
     var parent: MapLibreView
-    private var streamTask: Task<Void, Never>?
-    private var pendingBoundsUpdateTask: Task<Void, Never>?
+    nonisolated(unsafe) private var streamTask: Task<Void, Never>?
+    nonisolated(unsafe) private var pendingBoundsUpdateTask: Task<Void, Never>?
+    nonisolated(unsafe) private var networkObservationTask: Task<Void, Never>?
     var lastChartSource: ChartSource?
     weak var mapView: MLNMapView?
     
@@ -497,19 +502,29 @@ struct MapLibreView: UIViewRepresentable {
       self.parent = parent
       super.init()
       
-      NotificationCenter.default.addObserver(forName: NSNotification.Name("NetworkDidReconnect"), object: nil, queue: .main) { [weak self] _ in
-        Task { @MainActor [weak self] in
-          guard let self = self, let mapView = self.mapView else { return }
+      networkObservationTask = Task { @MainActor [weak self] in
+        for await _ in NotificationCenter.default.notifications(named: NSNotification.Name("NetworkDidReconnect")) {
+          guard !Task.isCancelled, let self else { break }
+          guard let mapView = self.mapView else { continue }
           Logger.chart.info("Network reconnected, forcing MapLibre complete style reload")
           mapView.reloadStyle(nil)
         }
       }
     }
     
+    func cancelTasks() {
+      streamTask?.cancel()
+      streamTask = nil
+      pendingBoundsUpdateTask?.cancel()
+      pendingBoundsUpdateTask = nil
+      networkObservationTask?.cancel()
+      networkObservationTask = nil
+    }
+    
     deinit {
       streamTask?.cancel()
       pendingBoundsUpdateTask?.cancel()
-      NotificationCenter.default.removeObserver(self)
+      networkObservationTask?.cancel()
     }
     
     /// Computes the minimal distance between a touch point and an inverted nautical map pin (checking both circular head and needle tip).
@@ -1022,8 +1037,10 @@ struct MapLibreView: UIViewRepresentable {
       }
 
       streamTask?.cancel()
-      streamTask = Task { @MainActor in
-        for await event in parent.viewModel.cameraMoveStream {
+      streamTask = Task { @MainActor [weak self, weak mapView] in
+        guard let stream = self?.parent.viewModel.cameraMoveStream else { return }
+        for await event in stream {
+          guard !Task.isCancelled, let self, let mapView else { break }
           switch event {
           case .fitBounds(let bounds, let padding, let animated):
             let mlnBounds = MLNCoordinateBounds(sw: bounds.southWest, ne: bounds.northEast)

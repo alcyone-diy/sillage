@@ -555,38 +555,92 @@ final class AppEnvironment {
     }
   }
 
+  @ObservationIgnored
+  nonisolated(unsafe) private var geoGarageDownloadsObservationTask: Task<Void, Never>?
+  @ObservationIgnored
+  nonisolated(unsafe) private var geoGarageCustomerIDObservationTask: Task<Void, Never>?
+  @ObservationIgnored
+  nonisolated(unsafe) private var geoGarageSyncTask: Task<Void, Never>?
+
   private func observeGeoGarageDownloads(
     downloadRepository: GeoGarageDownloadRepository,
     offlineTileProvider: GeoGarageOfflineTileProvider,
     preferencesService: PreferencesService
   ) {
-    withObservationTracking {
-      _ = downloadRepository.downloads
-      _ = preferencesService.geoGarageCustomerID
-    } onChange: { [weak self, weak downloadRepository, weak offlineTileProvider, weak preferencesService] in
-      Task { @MainActor [weak self, weak downloadRepository, weak offlineTileProvider, weak preferencesService] in
-        guard let self,
+    geoGarageDownloadsObservationTask?.cancel()
+    geoGarageCustomerIDObservationTask?.cancel()
+    geoGarageSyncTask?.cancel()
+    let downloadsStream = downloadRepository.downloadsDidChangeStream
+    let customerIDStream = preferencesService.geoGarageCustomerIDDidChangeStream
+
+    geoGarageDownloadsObservationTask = Task { @MainActor [weak self, weak downloadRepository, weak offlineTileProvider, weak preferencesService] in
+      for await _ in downloadsStream {
+        guard !Task.isCancelled,
+              let self,
               let repo = downloadRepository,
               let provider = offlineTileProvider,
-              let preferences = preferencesService else { return }
-        guard let secret = await self.keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
-              let customerID = preferences.geoGarageCustomerID, !customerID.isEmpty else {
-          await provider.close()
-          self.observeGeoGarageDownloads(
-            downloadRepository: repo,
-            offlineTileProvider: provider,
-            preferencesService: preferences
-          )
-          return
-        }
-        await provider.reloadDownloads(repo.downloads, sharedSecret: secret, customerID: customerID)
-        self.observeGeoGarageDownloads(
+              let preferences = preferencesService else { break }
+        self.scheduleGeoGarageSync(
           downloadRepository: repo,
           offlineTileProvider: provider,
           preferencesService: preferences
         )
       }
     }
+
+    geoGarageCustomerIDObservationTask = Task { @MainActor [weak self, weak downloadRepository, weak offlineTileProvider, weak preferencesService] in
+      for await _ in customerIDStream {
+        guard !Task.isCancelled,
+              let self,
+              let repo = downloadRepository,
+              let provider = offlineTileProvider,
+              let preferences = preferencesService else { break }
+        self.scheduleGeoGarageSync(
+          downloadRepository: repo,
+          offlineTileProvider: provider,
+          preferencesService: preferences
+        )
+      }
+    }
+  }
+
+  private func scheduleGeoGarageSync(
+    downloadRepository: GeoGarageDownloadRepository,
+    offlineTileProvider: GeoGarageOfflineTileProvider,
+    preferencesService: PreferencesService
+  ) {
+    geoGarageSyncTask?.cancel()
+    geoGarageSyncTask = Task { @MainActor [weak self, weak downloadRepository, weak offlineTileProvider, weak preferencesService] in
+      guard let self,
+            let repo = downloadRepository,
+            let provider = offlineTileProvider,
+            let preferences = preferencesService else { return }
+      await self.syncGeoGarageOfflineTileProvider(
+        downloadRepository: repo,
+        offlineTileProvider: provider,
+        preferencesService: preferences
+      )
+    }
+  }
+
+  private func syncGeoGarageOfflineTileProvider(
+    downloadRepository: GeoGarageDownloadRepository,
+    offlineTileProvider: GeoGarageOfflineTileProvider,
+    preferencesService: PreferencesService
+  ) async {
+    guard let secret = await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
+          !Task.isCancelled,
+          let customerID = preferencesService.geoGarageCustomerID, !customerID.isEmpty else {
+      guard !Task.isCancelled else { return }
+      await offlineTileProvider.close()
+      return
+    }
+    guard !Task.isCancelled else { return }
+    await offlineTileProvider.reloadDownloads(
+      downloadRepository.downloads,
+      sharedSecret: secret,
+      customerID: customerID
+    )
   }
 
   // MARK: - GeoGarage Package Secret Recovery
@@ -927,6 +981,9 @@ final class AppEnvironment {
 
   deinit {
     geoGarageObservationTask?.cancel()
+    geoGarageDownloadsObservationTask?.cancel()
+    geoGarageCustomerIDObservationTask?.cancel()
+    geoGarageSyncTask?.cancel()
     mapLibreObservationTask?.cancel()
     packageSecretRestoreTask?.cancel()
   }
