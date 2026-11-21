@@ -47,17 +47,13 @@ nonisolated public enum OfflinePackageSizeEstimator {
   }
 
   /// Convenience estimator from WKT POLYGON string.
-  /// Returns `nil` if `zoomMax` is outside valid GeoGarage offline bounds (`minZoomLevel...30`).
+  /// Returns `nil` if `wkt` cannot be parsed or `zoomMax` is outside valid GeoGarage offline bounds (`minZoomLevel...30`).
   public static func estimatePackageSize(
     wkt: String,
     zoomMax: Int
   ) -> Measurement<UnitInformationStorage>? {
-    guard zoomMax >= minZoomLevel, zoomMax <= 30 else {
-      return nil
-    }
     guard let box = GeographicBoundingBox(wkt: wkt) else {
-      // Fallback baseline package size: 50 MB
-      return Measurement(value: 50, unit: .megabytes)
+      return nil
     }
     return estimatePackageSize(bounds: box, zoomMax: zoomMax)
   }

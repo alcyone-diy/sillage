@@ -91,6 +91,7 @@ final class OfflinePackageSizeEstimatorTests: XCTestCase {
     XCTAssertNil(OfflinePackageSizeEstimator.estimatePackageSize(bounds: bounds, zoomMax: 5))
     XCTAssertNil(OfflinePackageSizeEstimator.estimatePackageSize(bounds: bounds, zoomMax: 31))
     XCTAssertNil(OfflinePackageSizeEstimator.estimatePackageSize(wkt: "INVALID", zoomMax: 5))
+    XCTAssertNil(OfflinePackageSizeEstimator.estimatePackageSize(wkt: "INVALID", zoomMax: 14))
   }
 
   func testEstimatePackageSize_antiMeridianCrossingMatchesEquivalentWidth() throws {
