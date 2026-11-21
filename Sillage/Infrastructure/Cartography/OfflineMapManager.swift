@@ -137,7 +137,9 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   }
   
   private var progressObservationTask: Task<Void, Never>?
+  private var progressObservationID: UUID?
   private var errorObservationTask: Task<Void, Never>?
+  private var errorObservationID: UUID?
   private var activePack: MLNOfflinePack?
   private var activeWorker: MBTilesDownloadWorker?
   private var activeWorkerTask: Task<Void, Never>?
@@ -417,7 +419,12 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.startObservingProgress()
   }
   
-  func downloadOpenSeaMapRegion(bounds: GeographicBoundingBox, regionName: String, maxZoom: Int) {
+  func downloadOpenSeaMapRegion(
+    bounds: GeographicBoundingBox,
+    regionName: String,
+    maxZoom: Int,
+    replacingRegionID: String? = nil
+  ) {
     Logger.offline.info("downloadOpenSeaMapRegion requested for '\(regionName, privacy: .public)' (SW: \(bounds.southWest.latitude, privacy: .public),\(bounds.southWest.longitude, privacy: .public) NE: \(bounds.northEast.latitude, privacy: .public),\(bounds.northEast.longitude, privacy: .public)), maxZoom: \(maxZoom, privacy: .public)")
 
     let cappedMaxZoom = min(maxZoom, 15)
@@ -438,6 +445,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
       .joined(separator: "_")
     let fileName = sanitizedName.isEmpty ? "openseamap_\(UUID().uuidString.prefix(8))" : "\(sanitizedName)_\(UUID().uuidString.prefix(8))"
     let destinationURL = chartsDirectory.appendingPathComponent("\(fileName).mbtiles")
+    let tempURL = chartsDirectory.appendingPathComponent(".\(UUID().uuidString).mbtiles.tmp")
 
     let worker = MBTilesDownloadWorker()
     self.activeWorker = worker
@@ -449,13 +457,16 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
 
     let pipeline = OpenSeaMapRasterFetchPipeline()
 
-    self.activeWorkerTask = Task { [weak self, worker] in
+    self.activeWorkerTask = Task { [weak self, worker, pipeline] in
+      defer {
+        pipeline.finishAndInvalidateSession()
+      }
       do {
         try await worker.executeDownload(
           bounds: bounds,
           minZoom: minZoom,
           maxZoom: cappedMaxZoom,
-          destinationURL: destinationURL,
+          destinationURL: tempURL,
           regionName: regionName,
           pipeline: pipeline
         ) { [weak self] progress in
@@ -466,9 +477,34 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
           }
         }
 
+        // 1. Remove replaced OpenSeaMap region only after the new MBTiles download succeeds
+        if let replacingRegionID, replacingRegionID != destinationURL.lastPathComponent {
+          let candidateNames = replacingRegionID.hasSuffix(".mbtiles")
+            ? [replacingRegionID]
+            : [replacingRegionID, "\(replacingRegionID).mbtiles"]
+          for candidate in candidateNames {
+            let oldURL = chartsDirectory.appendingPathComponent(candidate)
+            for path in [oldURL.path, oldURL.path + "-wal", oldURL.path + "-shm"]
+            where FileManager.default.fileExists(atPath: path) {
+              try? FileManager.default.removeItem(atPath: path)
+            }
+          }
+        }
+
+        // 2. Atomically promote the hidden temporary MBTiles file to its final destination
+        let finalFileManager = FileManager.default
+        if finalFileManager.fileExists(atPath: destinationURL.path) {
+          try finalFileManager.removeItem(at: destinationURL)
+        }
+        try finalFileManager.moveItem(at: tempURL, to: destinationURL)
+        for sidecar in [tempURL.path + "-wal", tempURL.path + "-shm"]
+        where finalFileManager.fileExists(atPath: sidecar) {
+          try? finalFileManager.removeItem(atPath: sidecar)
+        }
+
         // Single safe file size inspection on download completion
         var finalSizeInBytes: UInt64 = 0
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: destinationURL.path),
+        if let attrs = try? finalFileManager.attributesOfItem(atPath: destinationURL.path),
            let fileSize = attrs[.size] as? NSNumber {
           finalSizeInBytes = fileSize.uint64Value
         }
@@ -480,6 +516,10 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
           self.activeWorker = nil
           self.activeWorkerTask = nil
           self.updateBackgroundTaskState()
+
+          if let replacingRegionID {
+            self.downloadedRegions.removeAll { $0.id == replacingRegionID }
+          }
 
           let info = OfflineRegionInfo(
             id: destinationURL.lastPathComponent,
@@ -575,7 +615,9 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   private func startObservingProgress() {
     progressObservationTask?.cancel()
     errorObservationTask?.cancel()
-    
+
+    let errorTaskID = UUID()
+    errorObservationID = errorTaskID
     errorObservationTask = Task { [weak self] in
       for await notification in NotificationCenter.default.notifications(named: NSNotification.Name.MLNOfflinePackError) {
         guard !Task.isCancelled else { break }
@@ -591,9 +633,11 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
         self.handlePackError(error)
         break
       }
-      self?.clearErrorTask()
+      self?.clearErrorTask(id: errorTaskID)
     }
-    
+
+    let progressTaskID = UUID()
+    progressObservationID = progressTaskID
     progressObservationTask = Task { @MainActor [weak self] in
       var lastProgress: Double = 0.0
       var lastDate = Date()
@@ -661,7 +705,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
         }
       }
       
-      self?.clearProgressTask()
+      self?.clearProgressTask(id: progressTaskID)
     }
   }
   
@@ -732,12 +776,16 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     self.downloadedRegions = updatedRegions
   }
   
-  private func clearErrorTask() {
+  private func clearErrorTask(id: UUID) {
+    guard errorObservationID == id else { return }
     self.errorObservationTask = nil
+    self.errorObservationID = nil
   }
   
-  private func clearProgressTask() {
+  private func clearProgressTask(id: UUID) {
+    guard progressObservationID == id else { return }
     self.progressObservationTask = nil
+    self.progressObservationID = nil
   }
   
   @MainActor
@@ -799,15 +847,10 @@ private func withTimeoutContinuation<T: Sendable>(
 ) async throws -> T {
   try await withCheckedThrowingContinuation { continuation in
     let manager = ContinuationManager(continuation)
-    
-    let resume: @Sendable (Result<T, Error>) -> Void = { result in
-      Task {
-        await manager.resume(with: result)
-      }
-    }
-    
-    Task {
+
+    let timeoutTask = Task {
       try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+      guard !Task.isCancelled else { return }
       Logger.offline.error("MapLibre C++ callback timed out after \(timeoutSeconds, privacy: .public) seconds. Forcing continuation resumption.")
       await manager.resume(with: .failure(NSError(
         domain: "OfflineMapManager",
@@ -815,7 +858,14 @@ private func withTimeoutContinuation<T: Sendable>(
         userInfo: [NSLocalizedDescriptionKey: "MapLibre operation timed out without calling the completion handler."]
       )))
     }
-    
+
+    let resume: @Sendable (Result<T, Error>) -> Void = { result in
+      timeoutTask.cancel()
+      Task {
+        await manager.resume(with: result)
+      }
+    }
+
     operation(resume)
   }
 }

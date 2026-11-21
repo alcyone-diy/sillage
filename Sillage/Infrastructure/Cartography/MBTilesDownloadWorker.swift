@@ -127,130 +127,154 @@ public actor MBTilesDownloadWorker {
     config.qos = .userInitiated
     let dbQueue = try DatabaseQueue(path: destinationURL.path, configuration: config)
     self.databaseQueue = dbQueue
-    defer {
+
+    do {
+      // 2. Provision standard MBTiles 1.3 SQLite Schema
+      try await initializeMBTilesSchema(
+        dbQueue: dbQueue,
+        regionName: regionName,
+        bounds: bounds,
+        minZoom: minZoom,
+        maxZoom: maxZoom,
+        format: pipeline.format
+      )
+
+      // 3. Resumability: Inspect existing tiles in database to avoid duplicate downloads
+      let existingKeys = try await fetchExistingTileKeys(dbQueue: dbQueue)
+      let allCoordinates = MBTilesCoordinateMath.allTileCoordinates(for: bounds, minZoom: minZoom, maxZoom: maxZoom)
+      let totalExpectedTiles = allCoordinates.count
+
+      // Filter to retain only missing coordinates with valid TMS conversions
+      let missingCoordinates = allCoordinates.filter { coord in
+        guard let tms = coord.tmsRow else { return false }
+        let key = TileKey(zoom: coord.zoom, column: coord.x, row: tms)
+        return !existingKeys.contains(key)
+      }
+
+      Logger.offline.info("MBTiles '\(regionName, privacy: .public)': Total \(totalExpectedTiles, privacy: .public) tiles, existing \(existingKeys.count, privacy: .public), remaining to download: \(missingCoordinates.count, privacy: .public)")
+
+      var completedTilesCount = totalExpectedTiles - missingCoordinates.count
+      reportProgress(
+        completedCount: completedTilesCount,
+        totalCount: totalExpectedTiles,
+        force: true,
+        handler: progressHandler
+      )
+
+      if missingCoordinates.isEmpty {
+        self.databaseQueue = nil
+        try? dbQueue.close()
+        Logger.offline.info("MBTiles '\(regionName, privacy: .public)': All tiles already downloaded and verified.")
+        return
+      }
+
+      // 4. Bounded Concurrency TaskGroup (Strictly 2 concurrent operations)
+      var buffer: [BufferedTile] = []
+      buffer.reserveCapacity(batchSize)
+
+      try await withThrowingTaskGroup(of: BufferedTile?.self) { group in
+        var iterator = missingCoordinates.makeIterator()
+
+        // Seed initial tasks up to max concurrency
+        for _ in 0..<min(maxConcurrentFetches, missingCoordinates.count) {
+          if let nextCoord = iterator.next() {
+            group.addTask { [pipeline] in
+              guard !Task.isCancelled else { return nil }
+              guard let tms = nextCoord.tmsRow else { return nil }
+              guard let data = try await pipeline.fetchTileData(zoom: nextCoord.zoom, x: nextCoord.x, y: nextCoord.y) else {
+                return nil
+              }
+              return BufferedTile(zoom: nextCoord.zoom, column: nextCoord.x, row: tms, data: data)
+            }
+          }
+        }
+
+        // Harvest completed results and schedule new ones
+        while let result = try await group.next() {
+          if isCancelled || Task.isCancelled {
+            group.cancelAll()
+            break
+          }
+
+          completedTilesCount += 1
+
+          if let tile = result {
+            accumulatedBytes += Int64(tile.data.count)
+            buffer.append(tile)
+
+            // 5. Batch Writing: Commit 50 tiles per GRDB transaction
+            if buffer.count >= batchSize {
+              let batchToFlush = buffer
+              buffer.removeAll(keepingCapacity: true)
+              try await writeBatch(batchToFlush, into: dbQueue)
+            }
+          }
+
+          // Throttled progress notification
+          reportProgress(
+            completedCount: completedTilesCount,
+            totalCount: totalExpectedTiles,
+            force: false,
+            handler: progressHandler
+          )
+
+          // Schedule next tile
+          if let nextCoord = iterator.next() {
+            group.addTask { [pipeline] in
+              guard !Task.isCancelled else { return nil }
+              guard let tms = nextCoord.tmsRow else { return nil }
+              guard let data = try await pipeline.fetchTileData(zoom: nextCoord.zoom, x: nextCoord.x, y: nextCoord.y) else {
+                return nil
+              }
+              return BufferedTile(zoom: nextCoord.zoom, column: nextCoord.x, row: tms, data: data)
+            }
+          }
+        }
+      }
+
+      if isCancelled || Task.isCancelled {
+        throw MBTilesWorkerError.cancelled
+      }
+
+      // Flush any remaining buffered tiles
+      if !buffer.isEmpty {
+        try await writeBatch(buffer, into: dbQueue)
+        buffer.removeAll()
+      }
+
+      // Force final progress report
+      reportProgress(
+        completedCount: completedTilesCount,
+        totalCount: totalExpectedTiles,
+        force: true,
+        handler: progressHandler
+      )
+
       self.databaseQueue = nil
+      try? dbQueue.close()
+      Logger.offline.info("MBTiles '\(regionName, privacy: .public)' successfully completed and saved at \(destinationURL.lastPathComponent, privacy: .public)")
+    } catch {
+      self.databaseQueue = nil
+      try? dbQueue.close()
+      Self.removeSQLiteFiles(at: destinationURL)
+      throw error
     }
+  }
 
-    // 2. Provision standard MBTiles 1.3 SQLite Schema
-    try await initializeMBTilesSchema(
-      dbQueue: dbQueue,
-      regionName: regionName,
-      bounds: bounds,
-      minZoom: minZoom,
-      maxZoom: maxZoom,
-      format: pipeline.format
-    )
-
-    // 3. Resumability: Inspect existing tiles in database to avoid duplicate downloads
-    let existingKeys = try await fetchExistingTileKeys(dbQueue: dbQueue)
-    let allCoordinates = MBTilesCoordinateMath.allTileCoordinates(for: bounds, minZoom: minZoom, maxZoom: maxZoom)
-    let totalExpectedTiles = allCoordinates.count
-
-    // Filter to retain only missing coordinates with valid TMS conversions
-    let missingCoordinates = allCoordinates.filter { coord in
-      guard let tms = coord.tmsRow else { return false }
-      let key = TileKey(zoom: coord.zoom, column: coord.x, row: tms)
-      return !existingKeys.contains(key)
-    }
-
-    Logger.offline.info("MBTiles '\(regionName, privacy: .public)': Total \(totalExpectedTiles, privacy: .public) tiles, existing \(existingKeys.count, privacy: .public), remaining to download: \(missingCoordinates.count, privacy: .public)")
-
-    var completedTilesCount = totalExpectedTiles - missingCoordinates.count
-    reportProgress(
-      completedCount: completedTilesCount,
-      totalCount: totalExpectedTiles,
-      force: true,
-      handler: progressHandler
-    )
-
-    if missingCoordinates.isEmpty {
-      Logger.offline.info("MBTiles '\(regionName, privacy: .public)': All tiles already downloaded and verified.")
-      return
-    }
-
-    // 4. Bounded Concurrency TaskGroup (Strictly 2 concurrent operations)
-    var buffer: [BufferedTile] = []
-    buffer.reserveCapacity(batchSize)
-
-    try await withThrowingTaskGroup(of: BufferedTile?.self) { group in
-      var iterator = missingCoordinates.makeIterator()
-
-      // Seed initial tasks up to max concurrency
-      for _ in 0..<min(maxConcurrentFetches, missingCoordinates.count) {
-        if let nextCoord = iterator.next() {
-          group.addTask { [pipeline] in
-            guard !Task.isCancelled else { return nil }
-            guard let tms = nextCoord.tmsRow else { return nil }
-            guard let data = try await pipeline.fetchTileData(zoom: nextCoord.zoom, x: nextCoord.x, y: nextCoord.y) else {
-              return nil
-            }
-            return BufferedTile(zoom: nextCoord.zoom, column: nextCoord.x, row: tms, data: data)
-          }
-        }
-      }
-
-      // Harvest completed results and schedule new ones
-      while let result = try await group.next() {
-        if isCancelled || Task.isCancelled {
-          group.cancelAll()
-          break
-        }
-
-        completedTilesCount += 1
-
-        if let tile = result {
-          accumulatedBytes += Int64(tile.data.count)
-          buffer.append(tile)
-
-          // 5. Batch Writing: Commit 50 tiles per GRDB transaction
-          if buffer.count >= batchSize {
-            let batchToFlush = buffer
-            buffer.removeAll(keepingCapacity: true)
-            try await writeBatch(batchToFlush, into: dbQueue)
-          }
-        }
-
-        // Throttled progress notification
-        reportProgress(
-          completedCount: completedTilesCount,
-          totalCount: totalExpectedTiles,
-          force: false,
-          handler: progressHandler
-        )
-
-        // Schedule next tile
-        if let nextCoord = iterator.next() {
-          group.addTask { [pipeline] in
-            guard !Task.isCancelled else { return nil }
-            guard let tms = nextCoord.tmsRow else { return nil }
-            guard let data = try await pipeline.fetchTileData(zoom: nextCoord.zoom, x: nextCoord.x, y: nextCoord.y) else {
-              return nil
-            }
-            return BufferedTile(zoom: nextCoord.zoom, column: nextCoord.x, row: tms, data: data)
-          }
-        }
+  private static func removeSQLiteFiles(at url: URL) {
+    let fileManager = FileManager.default
+    let paths = [
+      url.path,
+      url.path + "-wal",
+      url.path + "-shm"
+    ]
+    for path in paths where fileManager.fileExists(atPath: path) {
+      do {
+        try fileManager.removeItem(atPath: path)
+      } catch {
+        Logger.offline.error("Failed to remove partial MBTiles file at \(path, privacy: .public): \(error.localizedDescription, privacy: .public)")
       }
     }
-
-    // Flush any remaining buffered tiles
-    if !buffer.isEmpty {
-      try await writeBatch(buffer, into: dbQueue)
-      buffer.removeAll()
-    }
-
-    // Force final progress report
-    reportProgress(
-      completedCount: completedTilesCount,
-      totalCount: totalExpectedTiles,
-      force: true,
-      handler: progressHandler
-    )
-
-    if isCancelled {
-      throw MBTilesWorkerError.cancelled
-    }
-
-    Logger.offline.info("MBTiles '\(regionName, privacy: .public)' successfully completed and saved at \(destinationURL.lastPathComponent, privacy: .public)")
   }
 
   // MARK: - SQLite & GRDB Transactions

@@ -698,12 +698,13 @@ final class ChartViewModel {
   /// Initiates the asynchronous import of an MBTiles file and switches the chart to it upon success.
   func importOfflineChart(from url: URL) {
     Task { [weak self] in
+      guard let self else { return }
       do {
-        let importedURL = try await LocalChartManager.shared.importChart(from: url)
-        self?.switchChartSource(to: .localMBTiles(url: importedURL))
+        let importedURL = try await self.chartStorageService.importChart(from: url)
+        self.switchChartSource(to: .localMBTiles(url: importedURL))
       } catch {
-        self?.chartImportError = error.localizedDescription
-        self?.showImportError = true
+        self.chartImportError = error.localizedDescription
+        self.showImportError = true
       }
     }
   }

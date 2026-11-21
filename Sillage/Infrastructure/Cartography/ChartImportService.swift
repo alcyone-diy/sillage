@@ -12,66 +12,50 @@ import Foundation
 import OSLog
 
 final class ChartImportService {
+  private let chartStorageService: ChartStorageService
 
-  func handleIncomingURL(_ url: URL) throws {
+  init(chartStorageService: ChartStorageService = ChartStorageService()) {
+    self.chartStorageService = chartStorageService
+  }
+
+  func handleIncomingURL(_ url: URL) async throws {
     guard url.isFileURL else {
       throw ChartImportError.notAFile
     }
 
+    let fileManager = FileManager.default
     let isSecurityScoped = url.startAccessingSecurityScopedResource()
 
-    // Ensure we clean up Inbox file regardless of success/failure, and stop accessing security scoped resource
-    defer {
+    guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
       if isSecurityScoped {
         url.stopAccessingSecurityScopedResource()
       }
+      throw ChartImportError.destinationCreationFailed
+    }
 
-      // Attempt to delete original file (inbox) if it still exists
-      if FileManager.default.fileExists(atPath: url.path) {
+    let inboxDir = documentsDir.appendingPathComponent("Inbox").standardizedFileURL
+    let standardizedSource = url.standardizedFileURL
+    let isFromInbox = standardizedSource.path.hasPrefix(inboxDir.path + "/")
+
+    // Clean up Inbox file before revoking security-scoped access; never delete external open-in-place files.
+    defer {
+      if isFromInbox && fileManager.fileExists(atPath: url.path) {
         do {
-          try FileManager.default.removeItem(at: url)
+          try fileManager.removeItem(at: url)
           Logger.storage.debug("Successfully cleaned up inbox file at \(url, privacy: .public)")
         } catch {
           Logger.storage.error("Failed to clean up inbox file at \(url, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
       }
-    }
 
-    let fileManager = FileManager.default
-
-    // Construct destination in Documents/Charts
-    guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-      throw ChartImportError.destinationCreationFailed
-    }
-
-    let chartsDir = documentsDir.appendingPathComponent("Charts")
-
-    // Ensure Charts directory exists
-    if !fileManager.fileExists(atPath: chartsDir.path) {
-      do {
-        try fileManager.createDirectory(at: chartsDir, withIntermediateDirectories: true, attributes: nil)
-      } catch {
-        throw ChartImportError.destinationCreationFailed
+      if isSecurityScoped {
+        url.stopAccessingSecurityScopedResource()
       }
     }
 
-    let originalFilename = url.lastPathComponent
-    let fileExtension = url.pathExtension
-    let filenameWithoutExtension = url.deletingPathExtension().lastPathComponent
-
-    var destinationURL = chartsDir.appendingPathComponent(originalFilename)
-
-    // Sequential suffix conflict resolution
-    var suffix = 1
-    while fileManager.fileExists(atPath: destinationURL.path) {
-      let newFilename = "\(filenameWithoutExtension)_\(suffix).\(fileExtension)"
-      destinationURL = chartsDir.appendingPathComponent(newFilename)
-      suffix += 1
-    }
-
     do {
-      try fileManager.moveItem(at: url, to: destinationURL)
-      Logger.storage.debug("Successfully moved chart to \(destinationURL, privacy: .public)")
+      let destinationURL = try await chartStorageService.importChart(from: url)
+      Logger.storage.debug("Successfully imported chart to \(destinationURL, privacy: .public)")
     } catch {
       throw ChartImportError.moveFailed(error)
     }

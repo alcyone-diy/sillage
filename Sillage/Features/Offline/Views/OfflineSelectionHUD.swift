@@ -63,8 +63,9 @@ struct OfflineSelectionHUD: View {
         confirmIcon: "arrow.down.circle",
         isConfirmDisabled: !viewModel.isValidSize,
         onConfirm: {
-          viewModel.startDownload()
-          viewModel.isSelectionModeActive = false
+          if viewModel.startDownload() {
+            viewModel.isSelectionModeActive = false
+          }
         },
         onHeightChange: { height in
           panelManagerViewModel?.actionConfirmationCardHeight = height

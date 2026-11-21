@@ -367,16 +367,17 @@ final class OfflineSelectionViewModel {
 
   /// Initiates an offline map download using the current selection or displayed chart source.
   /// - Parameter chartSource: Optional explicit chart source override (defaults to `chartViewModel.currentChartSource`).
-  func startDownload(chartSource: ChartSource? = nil) {
-    guard let bounds = requireDownloadBounds() else { return }
+  /// - Returns: `true` if initial validation succeeded and the download was started, `false` otherwise.
+  @discardableResult
+  func startDownload(chartSource: ChartSource? = nil) -> Bool {
+    guard let bounds = requireDownloadBounds() else { return false }
 
     let source = chartSource ?? chartViewModel.currentChartSource
 
     // 1. Unified OpenSeaMap MBTiles Offline Pipeline
     // Only route to OpenSeaMap when explicitly requested, or when active viewer is OpenSeaMap and no GeoGarage layer is targeted.
     if chartSource == .openSeaMap || (source == .openSeaMap && selectedLayerID.isEmpty) {
-      startOpenSeaMapDownload(bounds: bounds)
-      return
+      return startOpenSeaMapDownload(bounds: bounds)
     }
 
     // 2. Remote GeoGarage CAAS Pipeline
@@ -385,10 +386,10 @@ final class OfflineSelectionViewModel {
         String(localized: "User is not authenticated with GeoGarage. Please login first."),
         isAuthenticationError: true
       )
-      return
+      return false
     }
 
-    guard let layerToDownload = requireTargetLayerID(explicitSource: chartSource) else { return }
+    guard let layerToDownload = requireTargetLayerID(explicitSource: chartSource) else { return false }
 
     let chartBeingReplaced = self.chartToModify
     let customNameToPreserve = self.pendingCustomName ?? chartBeingReplaced?.customName
@@ -430,13 +431,22 @@ final class OfflineSelectionViewModel {
         customName: customNameToPreserve
       )
     }
+
+    return true
   }
 
   /// Initiates an offline OpenSeaMap MBTiles download using the active selection.
-  private func startOpenSeaMapDownload(bounds: GeographicBoundingBox) {
-    let customNameToPreserve = self.pendingCustomName ?? chartToModify?.customName
+  @discardableResult
+  private func startOpenSeaMapDownload(bounds: GeographicBoundingBox) -> Bool {
+    let chartBeingReplaced = self.chartToModify
+    let customNameToPreserve = self.pendingCustomName ?? chartBeingReplaced?.customName
     let regionName = customNameToPreserve ?? String(localized: "OpenSeaMap \(Date().formatted(date: .abbreviated, time: .shortened))")
     let targetMaxZoom = min(self.zoomMax, 15)
+
+    guard let offlineManager = self.offlineMapManager else {
+      failWithFeedback(String(localized: "Offline map manager unavailable."))
+      return false
+    }
 
     // UI reset MUST be synchronous on the MainActor BEFORE the async download process
     isSelectionModeActive = false
@@ -446,16 +456,18 @@ final class OfflineSelectionViewModel {
     pendingCustomName = nil
     calculationTask?.cancel()
 
-    guard let offlineManager = self.offlineMapManager else {
-      failWithFeedback(String(localized: "Offline map manager unavailable."))
-      return
+    let replacingRegionID = chartBeingReplaced.map {
+      URL(fileURLWithPath: $0.relativePath).lastPathComponent
     }
 
     offlineManager.downloadOpenSeaMapRegion(
       bounds: bounds,
       regionName: regionName,
-      maxZoom: targetMaxZoom
+      maxZoom: targetMaxZoom,
+      replacingRegionID: replacingRegionID
     )
+
+    return true
   }
 
   /// Initiates an offline chart package generation with explicit access token and customer ID.

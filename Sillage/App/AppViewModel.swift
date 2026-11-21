@@ -75,14 +75,17 @@ final class AppViewModel {
       Logger.network.info("Ignoring OAuth callback URL delivered outside the authentication session.")
       return
     }
-    do {
-      try chartImportService.handleIncomingURL(url)
-    } catch let error as ChartImportError {
-      self.importError = error
-      self.showImportError = true
-    } catch {
-      self.importError = .moveFailed(error)
-      self.showImportError = true
+    let importService = self.chartImportService
+    Task { [weak self] in
+      do {
+        try await importService.handleIncomingURL(url)
+      } catch let error as ChartImportError {
+        self?.importError = error
+        self?.showImportError = true
+      } catch {
+        self?.importError = .moveFailed(error)
+        self?.showImportError = true
+      }
     }
   }
 
