@@ -103,9 +103,9 @@ actor GeoGaragePartnerSecretService: GeoGaragePartnerSecretServiceProtocol {
         Logger.network.error("/partners/me/ returned an empty package secret for client \(secrets.clientID, privacy: .public).")
         throw PartnerSecretError.invalidResponse
       }
-      await keychainManager.save(token: secrets.packageSecret, for: Self.keychainAccount)
+      try await keychainManager.save(token: secrets.packageSecret, for: Self.keychainAccount)
       if let customerID = secrets.customerID, !customerID.isEmpty {
-        await keychainManager.save(token: customerID, for: GeoGarageKeychainKeys.customerID)
+        try await keychainManager.save(token: customerID, for: GeoGarageKeychainKeys.customerID)
       }
       Logger.network.info("Partner package secret refreshed for client \(secrets.clientID, privacy: .public).")
       return secrets

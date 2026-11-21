@@ -449,7 +449,18 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
               }
             }
 
-            let resolvedAccessToken = await self.keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken)
+            let resolvedAccessToken: String?
+            do {
+              resolvedAccessToken = try await self.keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken)
+            } catch {
+              Logger.offline.error("Cannot start queued download \(targetID.uuidString, privacy: .public): Keychain access failed (\(error.localizedDescription, privacy: .public)).")
+              self.failDownload(
+                id: targetID,
+                errorMessage: error.localizedDescription,
+                isAuthenticationError: false
+              )
+              return
+            }
             guard !Task.isCancelled, self.activeDownloads.contains(where: { $0.id == targetID }) else { return }
 
             let resolvedCustomer = self.preferencesService.geoGarageCustomerID

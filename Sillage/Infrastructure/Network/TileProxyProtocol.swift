@@ -216,7 +216,7 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
     // 3. Intercept & Verify: Local Authorization Firewall for remote network calls
     let keychain = Self.keychainManager ?? KeychainManager.shared
-    guard await keychain.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) != nil else {
+    guard try await keychain.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) != nil else {
       // Rule 2: Fail-Closed for remote network streaming if unauthenticated
       return nil
     }

@@ -20,7 +20,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     mockKeychain = MockKeychainManager()
-    await mockKeychain.save(token: "token123", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "token123", for: GeoGarageKeychainKeys.accessToken)
   }
 
   override func tearDown() async throws {
@@ -372,10 +372,10 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
   /// The package request carries the user's token: without one in the Keychain, the download
   /// service must never be called.
-  func testStartDownload_withoutAccessToken_failsWithoutCallingTheDownloadService() async {
+  func testStartDownload_withoutAccessToken_failsWithoutCallingTheDownloadService() async throws {
     let mockDownloadService = MockGeoGarageDownloadService()
     let (sut, _, _, _, _, _, _, _) = makeSUT(customDownloadService: mockDownloadService)
-    await mockKeychain.deleteToken(for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.deleteToken(for: GeoGarageKeychainKeys.accessToken)
 
     sut.startDownload(chartSource: nil)
 
@@ -389,7 +389,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertFalse(mockDownloadService.startDownloadCalled, "no package must be requested")
 
     // `setUp` assumes a token is present: put it back for the following tests.
-    await mockKeychain.save(token: "token123", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "token123", for: GeoGarageKeychainKeys.accessToken)
   }
 
   func testStartDownload_openSeaMapSource_routesToOpenSeaMapDownload() {
@@ -431,10 +431,10 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(message?.intent, .openSettings(target: .geoGarage))
   }
 
-  func testStartDownload_withoutAccessToken_postsAppMessage() async {
+  func testStartDownload_withoutAccessToken_postsAppMessage() async throws {
     let messageService = MessageService()
     let (sut, _, _, _, _, _, _, _) = makeSUT(authenticated: true, messageService: messageService)
-    await mockKeychain.deleteToken(for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.deleteToken(for: GeoGarageKeychainKeys.accessToken)
 
     sut.startDownload(chartSource: nil)
 
@@ -449,7 +449,30 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertEqual(message?.severity, .error)
     XCTAssertEqual(message?.intent, .openSettings(target: .geoGarage))
 
-    await mockKeychain.save(token: "token123", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "token123", for: GeoGarageKeychainKeys.accessToken)
+  }
+
+  func testStartDownload_whenKeychainFails_failsWithoutAuthError() async {
+    let mockDownloadService = MockGeoGarageDownloadService()
+    let messageService = MessageService()
+    let (sut, _, _, _, _, _, _, _) = makeSUT(
+      customDownloadService: mockDownloadService,
+      authenticated: true,
+      messageService: messageService
+    )
+    mockKeychain.setStubbedError(.unexpectedStatus(errSecInteractionNotAllowed))
+    defer { mockKeychain.setStubbedError(nil) }
+
+    sut.startDownload(chartSource: nil)
+
+    for _ in 0..<100 {
+      if mockDownloadService.failDownloadCalled { break }
+      try? await Task.sleep(for: .milliseconds(10))
+    }
+
+    XCTAssertTrue(mockDownloadService.failDownloadCalled)
+    XCTAssertFalse(mockDownloadService.lastFailDownloadIsAuthError, "Keychain error must not be reported as an authentication error")
+    XCTAssertFalse(mockDownloadService.startDownloadCalled)
   }
 
   func testStartDownload_withoutAvailableOrSelectedLayer_setsFailedState() {

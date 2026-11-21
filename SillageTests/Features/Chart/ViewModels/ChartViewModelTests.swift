@@ -19,7 +19,7 @@ import GRDB
 @MainActor
 final class ChartViewModelTests: XCTestCase {
 
-  func testSilentAuthFailurePostsDismissableMessage() async {
+  func testSilentAuthFailurePostsDismissableMessage() async throws {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.shouldFailFetchAccountSettings = true
@@ -27,7 +27,7 @@ final class ChartViewModelTests: XCTestCase {
     let mockKeychain = MockKeychainManager()
     
     // We need to set a dummy token so it actually attempts the silent fetch
-    mockKeychain.saveSync(token: "dummy_token", for: GeoGarageKeychainKeys.accessToken)
+    try mockKeychain.saveSync(token: "dummy_token", for: GeoGarageKeychainKeys.accessToken)
     
     let preferencesService = MockPreferencesService()
     let positioningService = MockPositioningService()
@@ -67,14 +67,14 @@ final class ChartViewModelTests: XCTestCase {
     }
   }
 
-  func testSilentAuthNetworkFailureIgnoresMessage() async {
+  func testSilentAuthNetworkFailureIgnoresMessage() async throws {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.shouldFailWithNetworkError = true
     let messageService = MessageService()
     let mockKeychain = MockKeychainManager()
     
-    mockKeychain.saveSync(token: "dummy_token", for: GeoGarageKeychainKeys.accessToken)
+    try mockKeychain.saveSync(token: "dummy_token", for: GeoGarageKeychainKeys.accessToken)
     
     // Create dependencies
     let positioningService = MockPositioningService()
@@ -189,7 +189,7 @@ final class ChartViewModelTests: XCTestCase {
     _ = viewModel
   }
 
-  func testSilentAuthSuccessClearsGeoGarageMessages() async {
+  func testSilentAuthSuccessClearsGeoGarageMessages() async throws {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.shouldFailFetchAccountSettings = false
@@ -204,7 +204,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 1)
 
     let mockKeychain = MockKeychainManager()
-    mockKeychain.saveSync(token: "valid_token", for: GeoGarageKeychainKeys.accessToken)
+    try mockKeychain.saveSync(token: "valid_token", for: GeoGarageKeychainKeys.accessToken)
 
     let positioningService = MockPositioningService()
     let preferencesService = MockPreferencesService()
@@ -285,7 +285,7 @@ final class ChartViewModelTests: XCTestCase {
     _ = viewModel
   }
 
-  func testSilentAuthSuccessClearsOnlyGeoGarageMessagesWhenMultipleCategoriesExist() async {
+  func testSilentAuthSuccessClearsOnlyGeoGarageMessagesWhenMultipleCategoriesExist() async throws {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     mockAuthService.shouldFailFetchAccountSettings = false
@@ -302,7 +302,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 3)
 
     let mockKeychain = MockKeychainManager()
-    mockKeychain.saveSync(token: "valid_token", for: GeoGarageKeychainKeys.accessToken)
+    try mockKeychain.saveSync(token: "valid_token", for: GeoGarageKeychainKeys.accessToken)
 
     let positioningService = MockPositioningService()
     let preferencesService = MockPreferencesService()

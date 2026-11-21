@@ -19,7 +19,7 @@ struct WebAuthenticationSessionPresenter: GeoGarageAuthorizationPresenting {
   let session: WebAuthenticationSession
 
   func authorize(url: URL, callbackHost: String, callbackPath: String) async throws -> URL {
-    Logger.network.info("WebAuthenticationSessionPresenter: authenticating with URL: \(url.absoluteString, privacy: .public), expected callback host: \(callbackHost, privacy: .public), path: \(callbackPath, privacy: .public)")
+    Logger.network.debug("WebAuthenticationSessionPresenter: authenticating (\(url.oauthStructureSummary, privacy: .public), expected callback host: \(callbackHost, privacy: .public), path: \(callbackPath, privacy: .public))")
     do {
       // `.ephemeral`: cookies are not shared with Safari, ensuring that after a logout or when
       // switching accounts, the GeoGarage login screen is presented cleanly instead of auto-logging
@@ -30,18 +30,19 @@ struct WebAuthenticationSessionPresenter: GeoGarageAuthorizationPresenting {
         preferredBrowserSession: .ephemeral,
         additionalHeaderFields: [:]
       )
-      Logger.network.info("WebAuthenticationSessionPresenter: received callback URL: \(callbackURL.absoluteString, privacy: .public)")
+      Logger.network.debug("WebAuthenticationSessionPresenter: received callback (\(callbackURL.oauthCallbackSummary, privacy: .public))")
       return callbackURL
     } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
-      Logger.network.info("WebAuthenticationSessionPresenter: login canceled by user.")
+      Logger.network.debug("WebAuthenticationSessionPresenter: login canceled by user.")
       throw AuthError.cancelled
     } catch is CancellationError {
       // Sign-in task cancelled by the caller (Cancel button, screen dismissed): same silent outcome
       // as the user closing the page.
-      Logger.network.info("WebAuthenticationSessionPresenter: task canceled by caller.")
+      Logger.network.debug("WebAuthenticationSessionPresenter: task canceled by caller.")
       throw AuthError.cancelled
     } catch {
-      Logger.network.error("WebAuthenticationSessionPresenter: session failed with error: \(error.localizedDescription, privacy: .public)")
+      let nsError = error as NSError
+      Logger.network.error("WebAuthenticationSessionPresenter: session failed (domain: \(nsError.domain, privacy: .public), code: \(nsError.code, privacy: .public))")
       throw error
     }
   }

@@ -193,7 +193,7 @@ final class PreferencesServiceTests: XCTestCase {
   func testCustomerIDRestoredFromKeychainWhenUserDefaultsIsWiped() throws {
     let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
     let mockKeychain = MockKeychainManager()
-    mockKeychain.saveSync(token: "cus_reinstall", for: GeoGarageKeychainKeys.customerID)
+    try mockKeychain.saveSync(token: "cus_reinstall", for: GeoGarageKeychainKeys.customerID)
 
     let service = PreferencesService(defaults: defaults, keychainManager: mockKeychain)
 
@@ -207,11 +207,11 @@ final class PreferencesServiceTests: XCTestCase {
     let service = PreferencesService(defaults: defaults, keychainManager: mockKeychain)
 
     service.geoGarageCustomerID = "cus_sync_test"
-    XCTAssertEqual(mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID), "cus_sync_test")
+    XCTAssertEqual(try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID), "cus_sync_test")
     XCTAssertEqual(defaults.string(forKey: "geogarage_customer_id"), "cus_sync_test")
 
     service.geoGarageCustomerID = nil
-    XCTAssertNil(mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID))
+    XCTAssertNil(try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID))
     XCTAssertNil(defaults.string(forKey: "geogarage_customer_id"))
   }
 
@@ -220,13 +220,13 @@ final class PreferencesServiceTests: XCTestCase {
     let mockKeychain = MockKeychainManager()
     // User already had customerID in UserDefaults from previous version, Keychain empty
     defaults.set("cus_existing_user", forKey: "geogarage_customer_id")
-    XCTAssertNil(mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID))
+    XCTAssertNil(try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID))
 
     let service = PreferencesService(defaults: defaults, keychainManager: mockKeychain)
 
     XCTAssertEqual(service.geoGarageCustomerID, "cus_existing_user")
     XCTAssertEqual(
-      mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID),
+      try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID),
       "cus_existing_user",
       "CustomerID should be migrated to Keychain on first launch after update"
     )

@@ -9,29 +9,50 @@
 //
 
 import Foundation
+import OSLog
 import Security
 
-public protocol KeychainManaging: Sendable {
-  func save(token: String, for account: String) async
-  func retrieveToken(for account: String) async -> String?
-  func deleteToken(for account: String) async
+public enum KeychainError: LocalizedError, Equatable, Sendable {
+  case unexpectedStatus(OSStatus)
+  case encodingFailed
+  case decodingFailed
 
-  func saveSync(token: String, for account: String)
-  func retrieveTokenSync(for account: String) -> String?
-  func deleteTokenSync(for account: String)
+  public var errorDescription: String? {
+    switch self {
+    case .unexpectedStatus(let status):
+      if let message = SecCopyErrorMessageString(status, nil) as String? {
+        return "Keychain error (\(status)): \(message)"
+      }
+      return "Keychain error with OSStatus: \(status)"
+    case .encodingFailed:
+      return "Failed to encode token as UTF-8 data."
+    case .decodingFailed:
+      return "Failed to decode Keychain item data as UTF-8 string."
+    }
+  }
+}
+
+public protocol KeychainManaging: Sendable {
+  func save(token: String, for account: String) async throws(KeychainError)
+  func retrieveToken(for account: String) async throws(KeychainError) -> String?
+  func deleteToken(for account: String) async throws(KeychainError)
+
+  func saveSync(token: String, for account: String) throws(KeychainError)
+  func retrieveTokenSync(for account: String) throws(KeychainError) -> String?
+  func deleteTokenSync(for account: String) throws(KeychainError)
 }
 
 extension KeychainManaging {
-  public func retrieveValidToken(for account: String) async -> String? {
-    guard let token = await retrieveToken(for: account)?.trimmingCharacters(in: .whitespacesAndNewlines),
+  public func retrieveValidToken(for account: String) async throws(KeychainError) -> String? {
+    guard let token = try await retrieveToken(for: account)?.trimmingCharacters(in: .whitespacesAndNewlines),
           !token.isEmpty else {
       return nil
     }
     return token
   }
 
-  public func retrieveValidTokenSync(for account: String) -> String? {
-    guard let token = retrieveTokenSync(for: account)?.trimmingCharacters(in: .whitespacesAndNewlines),
+  public func retrieveValidTokenSync(for account: String) throws(KeychainError) -> String? {
+    guard let token = try retrieveTokenSync(for: account)?.trimmingCharacters(in: .whitespacesAndNewlines),
           !token.isEmpty else {
       return nil
     }
@@ -43,29 +64,35 @@ extension KeychainManaging {
 nonisolated struct KeychainManager: KeychainManaging, Sendable {
   static let shared = KeychainManager()
 
+  private static let service = "com.alcyone-sillage.sillage"
+
   private init() {}
 
   /// Saves a token to the Keychain asynchronously.
-  func save(token: String, for account: String) async {
-    saveSync(token: token, for: account)
+  func save(token: String, for account: String) async throws(KeychainError) {
+    try saveSync(token: token, for: account)
   }
 
   /// Retrieves a token from the Keychain asynchronously.
-  func retrieveToken(for account: String) async -> String? {
-    retrieveTokenSync(for: account)
+  func retrieveToken(for account: String) async throws(KeychainError) -> String? {
+    try retrieveTokenSync(for: account)
   }
 
   /// Deletes a token from the Keychain asynchronously.
-  func deleteToken(for account: String) async {
-    deleteTokenSync(for: account)
+  func deleteToken(for account: String) async throws(KeychainError) {
+    try deleteTokenSync(for: account)
   }
 
   /// Saves a token to the Keychain synchronously for non-async contexts.
-  func saveSync(token: String, for account: String) {
-    guard let data = token.data(using: .utf8) else { return }
+  func saveSync(token: String, for account: String) throws(KeychainError) {
+    guard let data = token.data(using: .utf8) else {
+      Logger.system.error("Keychain save failed for account '\(account, privacy: .public)': UTF-8 encoding failed.")
+      throw KeychainError.encodingFailed
+    }
 
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.service,
       kSecAttrAccount as String: account
     ]
 
@@ -73,25 +100,48 @@ nonisolated struct KeychainManager: KeychainManaging, Sendable {
       kSecValueData as String: data
     ]
 
-    // Attempt to update the existing item
-    let status = SecItemUpdate(query as CFDictionary, attributesToUpdate as CFDictionary)
-
-    // If the item doesn't exist, add it
-    if status == errSecItemNotFound {
-      let newItem: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrAccount as String: account,
-        kSecValueData as String: data,
-        kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-      ]
-      SecItemAdd(newItem as CFDictionary, nil)
+    let updateStatus = SecItemUpdate(query as CFDictionary, attributesToUpdate as CFDictionary)
+    if updateStatus == errSecSuccess {
+      return
     }
+
+    if updateStatus != errSecItemNotFound {
+      Logger.system.error("Keychain update failed for account '\(account, privacy: .public)' with OSStatus \(updateStatus, privacy: .public).")
+      throw KeychainError.unexpectedStatus(updateStatus)
+    }
+
+    let newItem: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.service,
+      kSecAttrAccount as String: account,
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+    ]
+
+    let addStatus = SecItemAdd(newItem as CFDictionary, nil)
+    if addStatus == errSecSuccess {
+      return
+    }
+
+    // Handle race condition where another thread inserted the item between SecItemUpdate and SecItemAdd.
+    if addStatus == errSecDuplicateItem {
+      let retryStatus = SecItemUpdate(query as CFDictionary, attributesToUpdate as CFDictionary)
+      if retryStatus == errSecSuccess {
+        return
+      }
+      Logger.system.error("Keychain retry update failed for account '\(account, privacy: .public)' with OSStatus \(retryStatus, privacy: .public).")
+      throw KeychainError.unexpectedStatus(retryStatus)
+    }
+
+    Logger.system.error("Keychain add failed for account '\(account, privacy: .public)' with OSStatus \(addStatus, privacy: .public).")
+    throw KeychainError.unexpectedStatus(addStatus)
   }
 
   /// Retrieves a token from the Keychain synchronously for non-async contexts.
-  func retrieveTokenSync(for account: String) -> String? {
+  func retrieveTokenSync(for account: String) throws(KeychainError) -> String? {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.service,
       kSecAttrAccount as String: account,
       kSecReturnData as String: kCFBooleanTrue as Any,
       kSecMatchLimit as String: kSecMatchLimitOne
@@ -100,20 +150,37 @@ nonisolated struct KeychainManager: KeychainManaging, Sendable {
     var item: CFTypeRef?
     let status = SecItemCopyMatching(query as CFDictionary, &item)
 
-    if status == errSecSuccess, let data = item as? Data {
-      return String(data: data, encoding: .utf8)
+    if status == errSecItemNotFound {
+      return nil
     }
 
-    return nil
+    guard status == errSecSuccess else {
+      Logger.system.error("Keychain retrieve failed for account '\(account, privacy: .public)' with OSStatus \(status, privacy: .public).")
+      throw KeychainError.unexpectedStatus(status)
+    }
+
+    guard let data = item as? Data, let token = String(data: data, encoding: .utf8) else {
+      Logger.system.error("Keychain retrieve failed for account '\(account, privacy: .public)': UTF-8 decoding failed.")
+      throw KeychainError.decodingFailed
+    }
+
+    return token
   }
 
   /// Deletes a token from the Keychain synchronously for non-async contexts.
-  func deleteTokenSync(for account: String) {
+  func deleteTokenSync(for account: String) throws(KeychainError) {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.service,
       kSecAttrAccount as String: account
     ]
 
-    SecItemDelete(query as CFDictionary)
+    let status = SecItemDelete(query as CFDictionary)
+    if status == errSecSuccess || status == errSecItemNotFound {
+      return
+    }
+
+    Logger.system.error("Keychain delete failed for account '\(account, privacy: .public)' with OSStatus \(status, privacy: .public).")
+    throw KeychainError.unexpectedStatus(status)
   }
 }

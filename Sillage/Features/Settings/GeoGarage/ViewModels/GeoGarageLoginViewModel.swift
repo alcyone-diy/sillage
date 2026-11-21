@@ -71,7 +71,7 @@ final class GeoGarageLoginViewModel {
   }
 
   var isAuthenticated: Bool {
-    keychainManager.retrieveValidTokenSync(for: GeoGarageKeychainKeys.accessToken) != nil
+    (try? keychainManager.retrieveValidTokenSync(for: GeoGarageKeychainKeys.accessToken)) != nil
   }
 
   func viewState(authService: GeoGarageAuthServiceProtocol) -> GeoGarageViewState {

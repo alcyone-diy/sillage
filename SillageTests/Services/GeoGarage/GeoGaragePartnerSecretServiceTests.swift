@@ -52,9 +52,9 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     XCTAssertEqual(secrets.customerID, "cus_1")
     XCTAssertEqual(secrets.packageSecret, "s3cret")
     XCTAssertEqual(secrets.teaSecret, "")
-    let stored = await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    let stored = try await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
     XCTAssertEqual(stored, "s3cret")
-    let storedCustomerID = await mockKeychain.retrieveToken(for: GeoGarageKeychainKeys.customerID)
+    let storedCustomerID = try await mockKeychain.retrieveToken(for: GeoGarageKeychainKeys.customerID)
     XCTAssertEqual(storedCustomerID, "cus_1")
   }
 
@@ -70,7 +70,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     XCTAssertNil(secrets.customerID, "user never subscribed: the portal returns null")
   }
 
-  func testRefreshThrowsUnauthorizedOn403AndStoresNothing() async {
+  func testRefreshThrowsUnauthorizedOn403AndStoresNothing() async throws {
     MockURLProtocol.setHandler { request in (Self.response(request, status: 403), Data()) }
     let service = GeoGaragePartnerSecretService(session: session, keychainManager: mockKeychain)
     do {
@@ -81,7 +81,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     } catch {
       XCTFail("unexpected error: \(error)")
     }
-    let stored = await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    let stored = try await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
     XCTAssertNil(stored)
   }
 
@@ -101,7 +101,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     }
   }
 
-  func testRefreshRejectsEmptySecret() async {
+  func testRefreshRejectsEmptySecret() async throws {
     MockURLProtocol.setHandler { request in
       let json = #"{"client_id":"abc","customer_id":"cus_1","package_secret":"","tea_secret":""}"#
       return (Self.response(request, status: 200), Data(json.utf8))
@@ -116,7 +116,7 @@ final class GeoGaragePartnerSecretServiceTests: XCTestCase {
     } catch {
       XCTFail("unexpected error: \(error)")
     }
-    let stored = await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    let stored = try await mockKeychain.retrieveToken(for: GeoGaragePartnerSecretService.keychainAccount)
     XCTAssertNil(stored, "an empty secret must not write anything to the Keychain")
   }
 

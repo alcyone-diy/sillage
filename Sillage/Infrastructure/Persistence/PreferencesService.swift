@@ -288,10 +288,10 @@ class PreferencesService: PreferencesServiceProtocol {
     didSet {
       if let value = geoGarageCustomerID {
         defaults.set(value, forKey: geoGarageCustomerIDKey)
-        keychainManager?.saveSync(token: value, for: GeoGarageKeychainKeys.customerID)
+        try? keychainManager?.saveSync(token: value, for: GeoGarageKeychainKeys.customerID)
       } else {
         defaults.removeObject(forKey: geoGarageCustomerIDKey)
-        keychainManager?.deleteTokenSync(for: GeoGarageKeychainKeys.customerID)
+        try? keychainManager?.deleteTokenSync(for: GeoGarageKeychainKeys.customerID)
       }
       for continuation in customerIDDidChangeContinuations.values {
         continuation.yield()
@@ -414,14 +414,14 @@ class PreferencesService: PreferencesServiceProtocol {
     self.geoGarageUsername = defaults.string(forKey: geoGarageUsernameKey)
 
     let customerIDFromDefaults = defaults.string(forKey: geoGarageCustomerIDKey)
-    let customerIDFromKeychain = keychainManager?.retrieveValidTokenSync(for: GeoGarageKeychainKeys.customerID)
+    let customerIDFromKeychain = try? keychainManager?.retrieveValidTokenSync(for: GeoGarageKeychainKeys.customerID)
     let resolvedCustomerID = customerIDFromDefaults ?? customerIDFromKeychain
     self.geoGarageCustomerID = resolvedCustomerID
     if customerIDFromDefaults == nil, let customerIDFromKeychain {
       defaults.set(customerIDFromKeychain, forKey: geoGarageCustomerIDKey)
     }
     if customerIDFromKeychain == nil, let customerIDFromDefaults {
-      keychainManager?.saveSync(token: customerIDFromDefaults, for: GeoGarageKeychainKeys.customerID)
+      try? keychainManager?.saveSync(token: customerIDFromDefaults, for: GeoGarageKeychainKeys.customerID)
     }
 
     if let data = defaults.data(forKey: pendingCAASDownloadsKey),

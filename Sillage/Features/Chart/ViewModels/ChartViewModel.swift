@@ -761,7 +761,14 @@ final class ChartViewModel {
   
   /// Authenticates with GeoGarage in the background using stored credentials to populate available layers.
   private func silentlyFetchGeoGarageLayers() {
-    guard let accessToken = keychainManager.retrieveValidTokenSync(for: GeoGarageKeychainKeys.accessToken) else {
+    let resolvedAccessToken: String?
+    do {
+      resolvedAccessToken = try keychainManager.retrieveValidTokenSync(for: GeoGarageKeychainKeys.accessToken)
+    } catch {
+      Logger.network.error("Failed to read GeoGarage access token from Keychain during silent layer fetch: \(error.localizedDescription, privacy: .public)")
+      return
+    }
+    guard let accessToken = resolvedAccessToken else {
       Task { @MainActor [weak self] in
         self?.authService.authError = nil
       }

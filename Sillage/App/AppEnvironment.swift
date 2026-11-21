@@ -350,7 +350,7 @@ final class AppEnvironment {
       )
 
       // Empty until the user signs in; skip tile loading until valid credentials (secret & customerID) are present.
-      if let sharedSecret = await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
+      if let sharedSecret = try? await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
          let initialCustomerID = preferencesService.geoGarageCustomerID, !initialCustomerID.isEmpty {
         await geoGarageOfflineTileProvider.reloadDownloads(
           geoGarageDownloadRepository.downloads,
@@ -649,7 +649,7 @@ final class AppEnvironment {
     offlineTileProvider: GeoGarageOfflineTileProvider,
     preferencesService: PreferencesService
   ) async {
-    guard let secret = await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
+    guard let secret = try? await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
           !Task.isCancelled,
           let customerID = preferencesService.geoGarageCustomerID, !customerID.isEmpty else {
       guard !Task.isCancelled else { return }
@@ -679,12 +679,12 @@ final class AppEnvironment {
     preferencesService: PreferencesService
   ) async {
     guard authService.isGeoGarageAuthenticated else { return }
-    let currentSecret = await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    let currentSecret = try? await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount)
     let currentCustomerID = preferencesService.geoGarageCustomerID
     let isSecretMissing = currentSecret == nil
     let isCustomerMissing = currentCustomerID == nil || currentCustomerID?.isEmpty == true
     guard isSecretMissing || isCustomerMissing else { return }
-    guard let accessToken = await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) else { return }
+    guard let accessToken = try? await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) else { return }
 
     do {
       let secrets = try await geoGaragePartnerSecretService.refresh(accessToken: accessToken)
