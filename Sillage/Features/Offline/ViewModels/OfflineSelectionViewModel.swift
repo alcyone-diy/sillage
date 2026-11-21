@@ -412,7 +412,7 @@ final class OfflineSelectionViewModel {
       guard let self else { return }
 
       // The package is requested with the user's token, not an embedded key: no token, no request.
-      guard let token = await self.keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) else {
+      guard await self.keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) != nil else {
         self.failWithFeedback(
           String(localized: "User is not authenticated with GeoGarage. Please login first."),
           isAuthenticationError: true
@@ -425,8 +425,6 @@ final class OfflineSelectionViewModel {
         layerName: layerName,
         zoneWKT: zoneWKT,
         zoomMax: zoomMax,
-        accessToken: token,
-        customerID: customerID,
         chartBeingReplaced: chartBeingReplaced,
         customName: customNameToPreserve
       )
@@ -500,8 +498,6 @@ final class OfflineSelectionViewModel {
         layerName: layerName,
         zoneWKT: zoneWKT,
         zoomMax: zoomMax,
-        accessToken: accessToken,
-        customerID: customerID,
         chartBeingReplaced: chartBeingReplaced,
         customName: customNameToPreserve
       )
@@ -514,8 +510,6 @@ final class OfflineSelectionViewModel {
     layerName: String,
     zoneWKT: String,
     zoomMax: Int,
-    accessToken: String,
-    customerID: String,
     chartBeingReplaced: OfflineChartDownload?,
     customName: String?
   ) async {
@@ -524,8 +518,6 @@ final class OfflineSelectionViewModel {
       layerName: layerName,
       zoneWKT: zoneWKT,
       zoomMax: zoomMax,
-      accessToken: accessToken,
-      customerID: customerID,
       customName: customName,
       replacesChartID: chartBeingReplaced?.id
     )

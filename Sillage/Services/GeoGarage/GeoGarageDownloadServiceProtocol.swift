@@ -40,8 +40,6 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
   ///   - layerName: Human-readable layer name.
   ///   - zoneWKT: Bounding box in WKT POLYGON format.
   ///   - zoomMax: Maximum zoom level to include in the MBTiles archive.
-  ///   - accessToken: OAuth2 access token of the signed-in user (`Authorization: Bearer`).
-  ///   - customerID: User's GeoGarage customer identifier.
   ///   - customName: Optional custom user-assigned name for the chart package.
   ///   - replacesChartID: Optional UUID of an existing chart package being replaced by this modified zone.
   func startDownload(
@@ -49,8 +47,6 @@ protocol GeoGarageDownloadServiceProtocol: AnyObject {
     layerName: String,
     zoneWKT: String,
     zoomMax: Int?,
-    accessToken: String,
-    customerID: String,
     customName: String?,
     replacesChartID: UUID?
   )
@@ -96,8 +92,6 @@ extension GeoGarageDownloadServiceProtocol {
     layerName: String,
     zoneWKT: String,
     zoomMax: Int? = nil,
-    accessToken: String,
-    customerID: String,
     customName: String? = nil,
     replacesChartID: UUID? = nil
   ) {
@@ -106,8 +100,6 @@ extension GeoGarageDownloadServiceProtocol {
       layerName: layerName,
       zoneWKT: zoneWKT,
       zoomMax: zoomMax,
-      accessToken: accessToken,
-      customerID: customerID,
       customName: customName,
       replacesChartID: replacesChartID
     )

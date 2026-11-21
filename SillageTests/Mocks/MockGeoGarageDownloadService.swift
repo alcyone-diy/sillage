@@ -99,8 +99,6 @@ final class MockGeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     layerName: String,
     zoneWKT: String,
     zoomMax: Int?,
-    accessToken: String,
-    customerID: String,
     customName: String? = nil,
     replacesChartID: UUID? = nil
   ) {

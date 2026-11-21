@@ -20,6 +20,7 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     var packageIDToReturn: UUID = UUID()
     var pollResponses: [PackageStatusResponse] = []
     var shouldFailRequest = false
+    var shouldHangPoll = false
 
     func requestPackage(_ request: PackageRequest, accessToken: String) async throws(CaasError) -> UUID {
       if shouldFailRequest {
@@ -54,11 +55,25 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       timeout: Duration
     ) async -> AsyncThrowingStream<PackageStatusResponse, Error> {
       let responses = self.pollResponses
+      let hang = self.shouldHangPoll
       return AsyncThrowingStream { continuation in
-        for resp in responses {
-          continuation.yield(resp)
+        if hang {
+          let task = Task {
+            try await Task.sleep(for: .seconds(10))
+            for resp in responses {
+              continuation.yield(resp)
+            }
+            continuation.finish()
+          }
+          continuation.onTermination = { _ in
+            task.cancel()
+          }
+        } else {
+          for resp in responses {
+            continuation.yield(resp)
+          }
+          continuation.finish()
         }
-        continuation.finish()
       }
     }
   }
@@ -124,6 +139,10 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     service.clearAll()
     service.geoGarageCustomerID = "test_customer_id"
     return service
+  }
+
+  private func makeKeychainManager() -> MockKeychainManager {
+    MockKeychainManager(initialTokens: [GeoGarageKeychainKeys.accessToken: "test_access_token"])
   }
 
   // MARK: - 1. Phase Normalized Progress Tests
@@ -197,15 +216,16 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       downloadRepository: repository,
       preferencesService: preferences,
       networkMonitor: networkMonitor,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: makeKeychainManager()
     )
 
     // Initially idle -> nil progress
     XCTAssertNil(service.globalDownloadProgress)
 
     // Enqueue 2 downloads
-    service.startDownload(layerID: "layer_1", layerName: "Layer 1", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
-    service.startDownload(layerID: "layer_2", layerName: "Layer 2", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
+    service.startDownload(layerID: "layer_1", layerName: "Layer 1", zoneWKT: "POLYGON(())", zoomMax: 12)
+    service.startDownload(layerID: "layer_2", layerName: "Layer 2", zoneWKT: "POLYGON(())", zoomMax: 12)
 
     XCTAssertEqual(service.activeDownloads.count, 2)
     XCTAssertEqual(service.sessionTotalDownloadsCount, 2)
@@ -238,12 +258,13 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       downloadRepository: repository,
       preferencesService: preferences,
       networkMonitor: networkMonitor,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: makeKeychainManager()
     )
 
     // Enqueue 2 downloads
-    service.startDownload(layerID: "chart_1", layerName: "Chart 1", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
-    service.startDownload(layerID: "chart_2", layerName: "Chart 2", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
+    service.startDownload(layerID: "chart_1", layerName: "Chart 1", zoneWKT: "POLYGON(())", zoomMax: 12)
+    service.startDownload(layerID: "chart_2", layerName: "Chart 2", zoneWKT: "POLYGON(())", zoomMax: 12)
 
     XCTAssertEqual(service.sessionTotalDownloadsCount, 2)
     let chart1ID = service.activeDownloads[0].id
@@ -280,10 +301,11 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       downloadRepository: repository,
       preferencesService: preferences,
       networkMonitor: networkMonitor,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: makeKeychainManager()
     )
 
-    service.startDownload(layerID: "chart_offline", layerName: "Chart Offline", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
+    service.startDownload(layerID: "chart_offline", layerName: "Chart Offline", zoneWKT: "POLYGON(())", zoomMax: 12)
 
     // Active downloads should exist
     XCTAssertEqual(service.activeDownloads.count, 1)
@@ -311,10 +333,11 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       downloadRepository: repository,
       preferencesService: preferences,
       networkMonitor: networkMonitor,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: makeKeychainManager()
     )
 
-    service.startDownload(layerID: "chart_cancel", layerName: "Chart Cancel", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
+    service.startDownload(layerID: "chart_cancel", layerName: "Chart Cancel", zoneWKT: "POLYGON(())", zoomMax: 12)
     XCTAssertTrue(service.isDownloading)
 
     service.cancelDownload()
@@ -343,10 +366,11 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       downloadRepository: repository,
       preferencesService: preferences,
       networkMonitor: networkMonitor,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: makeKeychainManager()
     )
 
-    service.startDownload(layerID: "chart_fail", layerName: "Chart Fail", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
+    service.startDownload(layerID: "chart_fail", layerName: "Chart Fail", zoneWKT: "POLYGON(())", zoomMax: 12)
     guard let firstDownload = service.activeDownloads.first else {
       XCTFail("Expected active download to be queued")
       return
@@ -379,10 +403,11 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       downloadRepository: repository,
       preferencesService: preferences,
       networkMonitor: networkMonitor,
-      messageService: messageService
+      messageService: messageService,
+      keychainManager: makeKeychainManager()
     )
 
-    service.startDownload(layerID: "chart_auth_fail", layerName: "Chart Auth Fail", zoneWKT: "POLYGON(())", zoomMax: 12, accessToken: "key", customerID: "cust")
+    service.startDownload(layerID: "chart_auth_fail", layerName: "Chart Auth Fail", zoneWKT: "POLYGON(())", zoomMax: 12)
 
     service.failDownload(with: "Partner key expired", isAuthenticationError: true)
 
@@ -392,5 +417,43 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     XCTAssertEqual(postedMessage.category, .offlineCharts)
     XCTAssertEqual(postedMessage.intent, .openSettings(target: .geoGarage))
     XCTAssertEqual(postedMessage.detail, .raw("Partner key expired"))
+  }
+
+  func testFailDownload_onLastActiveTask_doesNotOverwriteTerminalPhaseWithCancelled() async throws {
+    let packageService = MockPackageService()
+    packageService.shouldHangPoll = true
+    let downloader = MockChartDownloader()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+    let preferences = makePreferencesService()
+    let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
+
+    let service = GeoGarageDownloadService(
+      packageService: packageService,
+      downloader: downloader,
+      downloadRepository: repository,
+      preferencesService: preferences,
+      networkMonitor: networkMonitor,
+      messageService: messageService,
+      keychainManager: makeKeychainManager()
+    )
+
+    service.startDownload(layerID: "chart_fail_last", layerName: "Chart Fail Last", zoneWKT: "POLYGON(())", zoomMax: 12)
+    let downloadID = try XCTUnwrap(service.activeDownloads.first?.id)
+
+    // Allow the background Task to enter pollUntilComplete and suspend
+    try await Task.sleep(for: .milliseconds(30))
+
+    service.failDownload(id: downloadID, errorMessage: "Server 500 error")
+    XCTAssertEqual(service.downloadPhase, .failed(errorMessage: "Server 500 error"))
+
+    // Allow the cancelled Task to unwind its catch is CancellationError block
+    try await Task.sleep(for: .milliseconds(50))
+
+    XCTAssertEqual(service.downloadPhase, .failed(errorMessage: "Server 500 error"))
+    XCTAssertTrue(service.activeDownloads.isEmpty)
+    XCTAssertEqual(service.sessionTotalDownloadsCount, 0)
+    XCTAssertEqual(service.sessionCompletedDownloadsCount, 0)
   }
 }
