@@ -33,9 +33,14 @@ actor SQLiteConnectionPool {
   nonisolated let effectiveRequiresV3Compatibility: Bool
   private let maxConnections: Int
 
+  private struct Waiter {
+    let id: UUID
+    let continuation: CheckedContinuation<SQLiteConnectionHandle, any Error>
+  }
+
   private var availableHandles: [SQLiteConnectionHandle] = []
   private var totalCreated: Int = 0
-  private var waiters: [CheckedContinuation<SQLiteConnectionHandle, any Error>] = []
+  private var waiters: [Waiter] = []
   private var isClosed: Bool = false
 
   // MARK: - Initializer
@@ -89,7 +94,9 @@ actor SQLiteConnectionPool {
   // MARK: - Connection Borrow & Return
 
   /// Borrows a connection handle from the pool, asynchronously suspending if all `maxConnections` are currently checked out.
-  func borrow() async throws(CaasError) -> SQLiteConnectionHandle {
+  func borrow() async throws -> SQLiteConnectionHandle {
+    try Task.checkCancellation()
+
     if isClosed {
       throw CaasError.fileSystemError(underlying: "Connection pool is closed.")
     }
@@ -111,15 +118,30 @@ actor SQLiteConnectionPool {
     }
 
     // 3. Max connections reached: suspend task until a connection is returned (FIFO queue)
-    do {
-      return try await withCheckedThrowingContinuation { continuation in
-        waiters.append(continuation)
+    let waiterID = UUID()
+    return try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        if Task.isCancelled {
+          continuation.resume(throwing: CancellationError())
+          return
+        }
+        if isClosed {
+          continuation.resume(throwing: CaasError.fileSystemError(underlying: "Connection pool is closed."))
+          return
+        }
+        waiters.append(Waiter(id: waiterID, continuation: continuation))
       }
-    } catch let error as CaasError {
-      throw error
-    } catch {
-      throw CaasError.fileSystemError(underlying: error.localizedDescription)
+    } onCancel: {
+      Task { [weak self] in
+        await self?.cancelWaiter(id: waiterID)
+      }
     }
+  }
+
+  private func cancelWaiter(id: UUID) {
+    guard let index = waiters.firstIndex(where: { $0.id == id }) else { return }
+    let waiter = waiters.remove(at: index)
+    waiter.continuation.resume(throwing: CancellationError())
   }
 
   /// Returns a borrowed connection handle back to the pool or hands it off to the next waiting query.
@@ -138,7 +160,7 @@ actor SQLiteConnectionPool {
     // Hand off to the first pending waiter (FIFO)
     if !waiters.isEmpty {
       let nextWaiter = waiters.removeFirst()
-      nextWaiter.resume(returning: handle)
+      nextWaiter.continuation.resume(returning: handle)
       return
     }
 
@@ -154,17 +176,17 @@ actor SQLiteConnectionPool {
 
     // Resume all pending waiters with error
     for waiter in waiters {
-      waiter.resume(throwing: CaasError.fileSystemError(underlying: "Connection pool closed."))
+      waiter.continuation.resume(throwing: CaasError.fileSystemError(underlying: "Connection pool closed."))
     }
     waiters.removeAll()
 
-    // Finalize all available handles
+    // Finalize all available handles (borrowed handles will be finalized and decremented upon returnHandle)
     for handle in availableHandles {
       sqlite3_finalize(handle.statement)
       sqlite3_close_v2(handle.db)
     }
+    totalCreated -= availableHandles.count
     availableHandles.removeAll()
-    totalCreated = 0
 
     Logger.caas.info("SQLiteConnectionPool closed.")
   }

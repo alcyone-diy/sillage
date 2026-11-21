@@ -50,11 +50,17 @@ final class SQLCipherMBTilesReader: SQLCipherMBTilesReaderProtocol, Sendable {
 
   @concurrent
   func tile(z: Int, x: Int, y: Int) async -> Data? {
-    guard z >= 0, x >= 0, y >= 0 else { return nil }
+    // Validate zoom level (max 30 so `1 << z` and `Int32` conversions never overflow/trap)
+    // and ensure tile coordinates fall within [0, 2^z - 1].
+    guard z >= 0, z <= 30 else { return nil }
+    let gridSize = 1 << z
+    guard x >= 0, x < gridSize, y >= 0, y < gridSize else { return nil }
 
     let handle: SQLiteConnectionHandle
     do {
       handle = try await pool.borrow()
+    } catch is CancellationError {
+      return nil
     } catch {
       Logger.caas.error("Failed to borrow SQLite connection from pool: \(error.localizedDescription, privacy: .public)")
       return nil
@@ -67,7 +73,7 @@ final class SQLCipherMBTilesReader: SQLCipherMBTilesReaderProtocol, Sendable {
     }
 
     // Convert XYZ row (top-left origin) to TMS row (bottom-left origin)
-    let tmsY = (1 << z) - 1 - y
+    let tmsY = gridSize - 1 - y
 
     let statement = handle.statement
     sqlite3_bind_int(statement, 1, Int32(z))

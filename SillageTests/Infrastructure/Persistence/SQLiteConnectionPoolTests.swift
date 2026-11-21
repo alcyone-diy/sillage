@@ -225,4 +225,71 @@ final class SQLiteConnectionPoolTests: XCTestCase {
     await pool.returnHandle(handle)
     await pool.close()
   }
+
+  func testPool_borrowCancellation_unblocksImmediately() async throws {
+    let key = "pool_cancel_key"
+    let dbURL = try createTestEncryptedDB(fileName: "pool_cancel.mbtiles", key: key)
+
+    let pool = try SQLiteConnectionPool(
+      fileURL: dbURL,
+      encryptionKey: key,
+      requiresV3Compatibility: true,
+      maxConnections: 1,
+      prewarmCount: 1
+    )
+
+    let heldHandle = try await pool.borrow()
+
+    let waitingTask = Task {
+      _ = try await pool.borrow()
+    }
+
+    try await Task.sleep(nanoseconds: 50_000_000)
+    waitingTask.cancel()
+
+    do {
+      _ = try await waitingTask.value
+      XCTFail("Cancelled borrow() must throw CancellationError")
+    } catch is CancellationError {
+      // Expected
+    }
+
+    // Pool remains usable for subsequent requests once heldHandle is returned
+    let nextTask = Task {
+      let handle = try await pool.borrow()
+      await pool.returnHandle(handle)
+    }
+
+    await pool.returnHandle(heldHandle)
+    try await nextTask.value
+    await pool.close()
+  }
+
+  func testPool_returnHandleAfterClose_doesNotUnderflow() async throws {
+    let key = "pool_close_return_key"
+    let dbURL = try createTestEncryptedDB(fileName: "pool_close_return.mbtiles", key: key)
+
+    let pool = try SQLiteConnectionPool(
+      fileURL: dbURL,
+      encryptionKey: key,
+      requiresV3Compatibility: true,
+      maxConnections: 2,
+      prewarmCount: 2
+    )
+
+    // Borrow 1 handle while 1 remains in availableHandles
+    let handle = try await pool.borrow()
+    await pool.close()
+    await pool.returnHandle(handle)
+
+    do {
+      _ = try await pool.borrow()
+      XCTFail("Borrowing from a closed pool must throw CaasError.fileSystemError")
+    } catch let error as CaasError {
+      guard case .fileSystemError = error else {
+        XCTFail("Expected CaasError.fileSystemError, got \(error)")
+        return
+      }
+    }
+  }
 }
