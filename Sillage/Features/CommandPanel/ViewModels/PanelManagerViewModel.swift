@@ -56,6 +56,9 @@ public final class PanelManagerViewModel {
   /// The view stack path for the Command Panel.
   public var commandPath: [CommandDestination] = []
 
+  /// Tracks whether the panel is temporarily suspended (preserving `commandPath` across dismiss).
+  @ObservationIgnored private var isSuspended = false
+
   // MARK: - Action Confirmation Card Layout State
   public var actionConfirmationCardHeight: CGFloat = 0
   public var actionConfirmationCardBottomPadding: CGFloat = 0
@@ -64,6 +67,7 @@ public final class PanelManagerViewModel {
 
   /// Opens the specified panel.
   public func openPanel(_ panel: ActivePanel) {
+    isSuspended = false
     withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
       activePanel = panel
     }
@@ -85,17 +89,21 @@ public final class PanelManagerViewModel {
     openPanel(.command)
   }
 
-  /// Closes any active panel and resets the UI path state.
+  /// Closes any active panel and resets the UI path state after the dismiss animation completes.
   public func closePanel() {
-    resetCommandPath()
+    isSuspended = false
     withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
       activePanel = .none
+    } completion: { [weak self] in
+      guard let self, self.activePanel == .none, !self.isSuspended else { return }
+      self.resetCommandPath()
     }
   }
 
   /// Suspends the active panel by closing it without clearing the command path,
   /// allowing it to be resumed after an interactive chart action (e.g. waypoint position adjustment).
   public func suspendPanel() {
+    isSuspended = true
     withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
       activePanel = .none
     }
@@ -103,11 +111,18 @@ public final class PanelManagerViewModel {
 
   /// Resumes a previously suspended panel.
   public func resumePanel() {
+    isSuspended = false
     withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
       activePanel = .command
     }
   }
 
+  /// Handles UIKit native sheet dismissal completion.
+  /// Clears the command path only when the panel is genuinely closed (not suspended or rotating to a drawer).
+  public func handleSheetDismissed() {
+    guard activePanel == .none, !isSuspended else { return }
+    resetCommandPath()
+  }
 
   /// Toggles the visibility of the specified panel.
   /// If it is already active, it is closed. Otherwise, it is opened.
@@ -121,6 +136,7 @@ public final class PanelManagerViewModel {
 
   /// Resets the UI path to the root menu.
   private func resetCommandPath() {
+    guard !commandPath.isEmpty else { return }
     commandPath.removeAll()
   }
 

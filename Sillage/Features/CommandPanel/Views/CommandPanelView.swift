@@ -334,21 +334,13 @@ struct CommandPanelView: View {
 
 @MainActor
 private struct WaypointListContainer: View {
-  let waypointService: WaypointService
-  @State private var viewModel: WaypointListViewModel?
+  @State private var viewModel: WaypointListViewModel
+
+  init(waypointService: WaypointService) {
+    _viewModel = State(wrappedValue: WaypointListViewModel(waypointService: waypointService))
+  }
 
   var body: some View {
-    Group {
-      if let viewModel {
-        WaypointListView(viewModel: viewModel)
-      } else {
-        Color.clear
-      }
-    }
-    .onAppear {
-      if viewModel == nil {
-        viewModel = WaypointListViewModel(waypointService: waypointService)
-      }
-    }
+    WaypointListView(viewModel: viewModel)
   }
 }

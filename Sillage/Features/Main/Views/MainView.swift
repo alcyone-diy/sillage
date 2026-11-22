@@ -221,7 +221,12 @@ struct ContentView: View {
         }
       }
       // 3. The Native Bottom Drawer (For iPhone Portrait ONLY)
-      .sheet(isPresented: $localSheetPresented) {
+      .sheet(
+        isPresented: $localSheetPresented,
+        onDismiss: {
+          panelManagerViewModel.handleSheetDismissed()
+        }
+      ) {
         if useNativeSheet {
           panelView
             .presentationDetents([.medium, .large])

@@ -58,6 +58,50 @@ final class PanelManagerViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.activePanel, .none)
   }
 
+  func testSuspendPanelPreservesPathAcrossSheetDismissAndResume() {
+    viewModel.openPanel(.command)
+    let expectedPath: [PanelManagerViewModel.CommandDestination] = [.waypoints, .waypointDetail("wp_1")]
+    viewModel.commandPath = expectedPath
+
+    viewModel.suspendPanel()
+
+    XCTAssertEqual(viewModel.activePanel, .none)
+    XCTAssertEqual(viewModel.commandPath, expectedPath)
+
+    // UIKit native sheet dismissal triggered by suspendPanel() must not clear the path
+    viewModel.handleSheetDismissed()
+    XCTAssertEqual(viewModel.commandPath, expectedPath)
+
+    viewModel.resumePanel()
+    XCTAssertEqual(viewModel.activePanel, .command)
+    XCTAssertEqual(viewModel.commandPath, expectedPath)
+  }
+
+  func testHandleSheetDismissedDuringRotationPreservesPath() {
+    viewModel.openPanel(.command)
+    let expectedPath: [PanelManagerViewModel.CommandDestination] = [.settings, .chartPreferences]
+    viewModel.commandPath = expectedPath
+
+    // Rotation from Portrait sheet to Landscape drawer triggers sheet onDismiss while activePanel remains .command
+    viewModel.handleSheetDismissed()
+
+    XCTAssertEqual(viewModel.activePanel, .command)
+    XCTAssertEqual(viewModel.commandPath, expectedPath)
+  }
+
+  func testHandleSheetDismissedAfterCloseClearsPath() {
+    viewModel.openPanel(.command)
+    viewModel.commandPath = [.settings, .chartPreferences]
+    viewModel.activePanel = .none
+
+    viewModel.handleSheetDismissed()
+    XCTAssertTrue(viewModel.commandPath.isEmpty)
+
+    // Idempotent on repeated dismissal callbacks
+    viewModel.handleSheetDismissed()
+    XCTAssertTrue(viewModel.commandPath.isEmpty)
+  }
+
   func testOpenAnchorAlarmPanelAppendsDestination() {
     viewModel.openAnchorAlarmPanel()
 
