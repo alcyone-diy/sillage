@@ -147,16 +147,35 @@ struct MapCalloutView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(marineTheme.colors.panelBackground)
-        .navigationTitle(calloutNavigationTitle)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.visible, for: .navigationBar)
         .toolbar {
-          if let waypointID = calloutViewModel.targetWaypointID,
-             let waypoint = waypointService.currentWaypoints.first(where: { $0.id == waypointID }) {
-            ToolbarItem(placement: .principal) {
+          // Symmetric invisible leading spacer matching the close button's visual width so
+          // UINavigationBar keeps wide GPS coordinates centered without shrinking them in Glove Mode.
+          if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarLeading) {
+              leadingBalanceSpacer
+            }
+            .sharedBackgroundVisibility(.hidden)
+          } else {
+            ToolbarItem(placement: .topBarLeading) {
+              leadingBalanceSpacer
+            }
+          }
+
+          // Always mount the principal ToolbarItem so UIKit never tears down/recreates titleView
+          // when switching between a snapped waypoint and open-water coordinates, keeping the title centered.
+          ToolbarItem(placement: .principal) {
+            if let waypointID = calloutViewModel.targetWaypointID,
+               let waypoint = waypointService.currentWaypoints.first(where: { $0.id == waypointID }) {
               navigationPrincipalView(
                 title: Text(waypoint.name),
                 subtitle: Text(waypoint.coordinate.formatted(.marineCoordinate))
+              )
+            } else {
+              navigationPrincipalView(
+                title: Text(verbatim: calloutViewModel.formattedCoordinate ?? "---")
               )
             }
           }
@@ -217,15 +236,10 @@ struct MapCalloutView: View {
   
   // MARK: - Navigation Bar Items
 
-  private var calloutNavigationTitle: Text {
-    if let waypointID = calloutViewModel.targetWaypointID,
-       let waypoint = waypointService.currentWaypoints.first(where: { $0.id == waypointID }) {
-      return Text(waypoint.name)
-    } else if let formatted = calloutViewModel.formattedCoordinate {
-      return Text(verbatim: formatted)
-    } else {
-      return Text(verbatim: "---")
-    }
+  private var leadingBalanceSpacer: some View {
+    Color.clear
+      .frame(width: marineTheme.metrics.closeButtonCircleSize, height: 1)
+      .accessibilityHidden(true)
   }
 
   @ViewBuilder
@@ -237,6 +251,7 @@ struct MapCalloutView: View {
         .foregroundColor(marineTheme.colors.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+        .transaction { $0.animation = nil }
 
       if let subtitle {
         subtitle
@@ -245,6 +260,7 @@ struct MapCalloutView: View {
           .foregroundColor(marineTheme.colors.textSecondary)
           .lineLimit(1)
           .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+          .transaction { $0.animation = nil }
       }
     }
   }
