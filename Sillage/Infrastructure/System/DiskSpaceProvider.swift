@@ -34,15 +34,28 @@ nonisolated public final class SystemDiskSpaceProvider: DiskSpaceProviderProtoco
         .volumeAvailableCapacityKey
       ])
 
-      if let important = values.volumeAvailableCapacityForImportantUsage, important > 0 {
-        return Measurement(value: Double(important), unit: .bytes)
-      } else if let regular = values.volumeAvailableCapacity, regular > 0 {
-        return Measurement(value: Double(regular), unit: .bytes)
-      }
+      return Self.resolveAvailableSpace(
+        importantUsageBytes: values.volumeAvailableCapacityForImportantUsage,
+        regularBytes: values.volumeAvailableCapacity
+      )
     } catch {
       Logger.storage.error("Failed to query available volume storage: \(error.localizedDescription, privacy: .public)")
     }
 
+    return nil
+  }
+
+  internal nonisolated static func resolveAvailableSpace(
+    importantUsageBytes: Int64?,
+    regularBytes: Int?
+  ) -> Measurement<UnitInformationStorage>? {
+    if let important = importantUsageBytes, important > 0 {
+      return Measurement(value: Double(important), unit: .bytes)
+    } else if let regular = regularBytes, regular > 0 {
+      return Measurement(value: Double(regular), unit: .bytes)
+    } else if importantUsageBytes == 0 || regularBytes == 0 {
+      return Measurement(value: 0, unit: .bytes)
+    }
     return nil
   }
 }
