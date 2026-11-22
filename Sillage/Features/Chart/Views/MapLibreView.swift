@@ -460,6 +460,9 @@ struct MapLibreView: UIViewRepresentable {
     private var longPressBeganPoint: CGPoint?
     private static let longPressDragThreshold: CGFloat = 6.0
     private var isMagneticRecentering: Bool = false
+    private var isStartingMagneticRecenter: Bool = false
+    private var isUserPanMoveActive: Bool = false
+    private var panStartWaypointID: String?
     private let snapFeedbackGenerator = UISelectionFeedbackGenerator()
     private var measurePinDragOffset: CGPoint = .zero
     private var isUserActivelyInteractingWithPins: Bool {
@@ -1169,6 +1172,16 @@ struct MapLibreView: UIViewRepresentable {
       return candidates
     }
 
+    /// Returns true while the user still has a finger actively driving a MapLibre camera gesture.
+    /// When false during a user pan (`isUserPanMoveActive`), the map is coasting on deceleration inertia.
+    private func hasActiveMapTouchGesture(in mapView: MLNMapView) -> Bool {
+      guard let recognizers = mapView.gestureRecognizers else { return false }
+      return recognizers.contains { recognizer in
+        guard recognizer != pinPanGesture else { return false }
+        return recognizer.state == .began || recognizer.state == .changed
+      }
+    }
+
     private func evaluateWaypointSnap(
       at point: CGPoint,
       in mapView: MLNMapView,
@@ -1279,8 +1292,27 @@ struct MapLibreView: UIViewRepresentable {
             } else {
               calloutVM.updateReticleVisualOffset(snap.visualOffset)
             }
+
+            // Stop pan deceleration inertia once the finger is off screen so the reticle catches
+            // a waypoint instead of coasting past it, while never blocking an active finger drag
+            // or a short flick meant to leave the waypoint already targeted when the pan began.
+            if isUserPanMoveActive &&
+               !hasActiveMapTouchGesture(in: mapView) &&
+               snap.waypointID != panStartWaypointID {
+              let offsetDistance = hypot(snap.visualOffset.width, snap.visualOffset.height)
+              if offsetDistance > 1.0 {
+                isMagneticRecentering = true
+                isUserPanMoveActive = false
+                panStartWaypointID = nil
+                isStartingMagneticRecenter = true
+                defer { isStartingMagneticRecenter = false }
+                let newCenterCoordinate = centerCoordinateToPosition(snap.coordinate, at: reticlePoint, in: mapView)
+                mapView.setCenter(newCenterCoordinate, animated: true)
+              }
+            }
           } else if previousWaypointID != nil {
             // Immediately transition sheet from waypoint back to empty water upon detaching
+            panStartWaypointID = nil
             lastCalloutTargetUpdateTime = now
             let targetCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
             calloutVM.updateTarget(coordinate: targetCoord, waypointID: nil, visualOffset: .zero)
@@ -1469,6 +1501,9 @@ struct MapLibreView: UIViewRepresentable {
       if !reason.contains(.programmatic) {
         self.parent.viewModel.isMapMoving = true
         self.isMagneticRecentering = false
+        let isUserPan = reason.contains(.gesturePan)
+        self.isUserPanMoveActive = isUserPan
+        self.panStartWaypointID = isUserPan ? self.parent.viewModel.calloutViewModel.targetWaypointID : nil
         self.snapFeedbackGenerator.prepare()
         if self.parent.viewModel.calloutViewModel.isCalloutVisible &&
            !self.parent.viewModel.measureToolViewModel.isActive {
@@ -1510,6 +1545,9 @@ struct MapLibreView: UIViewRepresentable {
             self.hasExceededTrackingMargin = false
           }
         }
+      } else {
+        self.isUserPanMoveActive = false
+        self.panStartWaypointID = nil
       }
     }
     
@@ -1653,10 +1691,14 @@ struct MapLibreView: UIViewRepresentable {
     // Capture user's chart movements to sync the final camera state and evaluate tracking mode persistence.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       self.parent.viewModel.isMapMoving = false
+      self.isUserPanMoveActive = false
+      self.panStartWaypointID = nil
 
       // Synchronously hand off from MapLibre crosshair to SwiftUI crosshair on the exact frame camera movement stops,
       // or gently recenter onto a magnetically snapped waypoint once manual panning settles.
-      if !self.isLongPressActive &&
+      // Skip only when this callback is a synchronous re-entrant cancellation from starting a magnetic recenter.
+      if !self.isStartingMagneticRecenter &&
+         !self.isLongPressActive &&
          self.parent.viewModel.calloutViewModel.isCalloutVisible &&
          !self.parent.viewModel.measureToolViewModel.isActive,
          let reticlePoint = reticleScreenPoint(in: mapView) {
