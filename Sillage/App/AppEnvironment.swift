@@ -370,7 +370,7 @@ final class AppEnvironment {
         preferencesService: preferencesService
       )
 
-      let geoGaragePackageService = GeoGaragePackageService()
+      let geoGaragePackageService = GeoGaragePackageService(session: authSession)
       let geoGarageChartDownloader = GeoGarageChartDownloader(
         packageService: geoGaragePackageService,
         downloadRepository: geoGarageDownloadRepository

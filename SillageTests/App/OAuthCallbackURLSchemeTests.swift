@@ -21,18 +21,19 @@ final class OAuthCallbackURLSchemeTests: XCTestCase {
     XCTAssertEqual(redirect.path, AppConstants.GeoGarage.oauthCallbackPath)
   }
 
-  func testOAuthCallbackURLIsIgnoredByChartImport() throws {
+  func testOAuthCallbackURLIsIgnoredByChartImport() async throws {
     let viewModel = AppViewModel(preferencesService: MockPreferencesService())
     let url = try XCTUnwrap(URL(string: "\(AppConstants.GeoGarage.oauthRedirectURI)?code=abc&state=xyz"))
-    viewModel.handleIncomingURL(url)
+    await viewModel.processIncomingURL(url)
     XCTAssertFalse(viewModel.showImportError)
     XCTAssertNil(viewModel.importError)
   }
 
-  func testNonHTTPSCallbackURLIsNotIgnoredByChartImport() throws {
+  func testNonHTTPSCallbackURLIsNotIgnoredByChartImport() async throws {
     let viewModel = AppViewModel(preferencesService: MockPreferencesService())
     let url = try XCTUnwrap(URL(string: "http://\(AppConstants.GeoGarage.oauthCallbackHost)\(AppConstants.GeoGarage.oauthCallbackPath)?code=abc&state=xyz"))
-    viewModel.handleIncomingURL(url)
+    await viewModel.processIncomingURL(url)
     XCTAssertTrue(viewModel.showImportError)
+    XCTAssertNotNil(viewModel.importError)
   }
 }

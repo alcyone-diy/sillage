@@ -66,6 +66,12 @@ final class AppViewModel {
   }
 
   func handleIncomingURL(_ url: URL) {
+    Task { [weak self] in
+      await self?.processIncomingURL(url)
+    }
+  }
+
+  func processIncomingURL(_ url: URL) async {
     // OAuth callback (HTTPS / Associated Domains): ASWebAuthenticationSession intercepts it itself.
     // If it still lands here (link opened by hand), it is not a chart to import: no import error.
     let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -75,17 +81,14 @@ final class AppViewModel {
       Logger.network.info("Ignoring OAuth callback URL delivered outside the authentication session.")
       return
     }
-    let importService = self.chartImportService
-    Task { [weak self] in
-      do {
-        try await importService.handleIncomingURL(url)
-      } catch let error as ChartImportError {
-        self?.importError = error
-        self?.showImportError = true
-      } catch {
-        self?.importError = .moveFailed(error)
-        self?.showImportError = true
-      }
+    do {
+      try await chartImportService.handleIncomingURL(url)
+    } catch let error as ChartImportError {
+      self.importError = error
+      self.showImportError = true
+    } catch {
+      self.importError = .moveFailed(error)
+      self.showImportError = true
     }
   }
 

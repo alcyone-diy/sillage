@@ -128,10 +128,11 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   func testBootstrap_triggersPendingDownloadRecoveryOnOfflineSelectionViewModel() async throws {
+    let packageID = UUID()
     testPreferencesService.geoGarageCustomerID = "cust_recovery_test"
 
     let pending = PendingCAASDownload(
-      packageID: UUID(),
+      packageID: packageID,
       layerID: "fr_shom",
       layerName: "France Atlantic",
       boundsWKT: "POLYGON((-5 48, -4 48, -4 49, -5 49, -5 48))",
@@ -141,10 +142,35 @@ final class AppEnvironmentTests: XCTestCase {
     testPreferencesService.pendingCAASDownloads = [pending]
 
     try await mockKeychain.save(token: "test_access_token", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "cust_recovery_test", for: GeoGarageKeychainKeys.customerID)
+
+    let expectedPackagePath = "/packages/\(packageID.uuidString.lowercased())"
+    MockURLProtocol.setHandler { request in
+      guard let url = request.url else {
+        XCTFail("Expected request URL in MockURLProtocol handler")
+        return (HTTPURLResponse(), Data())
+      }
+      if request.httpMethod == "GET" && url.path == expectedPackagePath {
+        let body = #"{"uuid":"\#(packageID.uuidString.lowercased())","state":"PROGRESS","monitor":"10/100"}"#
+        guard let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil) else {
+          XCTFail("Failed to construct HTTPURLResponse(200) for \(url)")
+          return (HTTPURLResponse(), Data())
+        }
+        return (response, Data(body.utf8))
+      }
+      guard let response = HTTPURLResponse(url: url, statusCode: 403, httpVersion: nil, headerFields: nil) else {
+        XCTFail("Failed to construct HTTPURLResponse(403) for \(url)")
+        return (HTTPURLResponse(), Data())
+      }
+      return (response, Data())
+    }
 
     let keychain = mockKeychain
-    addTeardownBlock {
+    let env = environment
+    addTeardownBlock { @MainActor in
+      env?.geoGarageDownloadService?.cancelDownload()
       try? await keychain?.deleteToken(for: GeoGarageKeychainKeys.accessToken)
+      try? await keychain?.deleteToken(for: GeoGarageKeychainKeys.customerID)
     }
 
     await environment.bootstrap()
