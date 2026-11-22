@@ -27,7 +27,7 @@ final class ChartViewModelTests: XCTestCase {
     let mockKeychain = MockKeychainManager()
     
     // We need to set a dummy token so it actually attempts the silent fetch
-    try mockKeychain.saveSync(token: "dummy_token", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "dummy_token", for: GeoGarageKeychainKeys.accessToken)
     
     let preferencesService = MockPreferencesService()
     let positioningService = MockPositioningService()
@@ -74,7 +74,7 @@ final class ChartViewModelTests: XCTestCase {
     let messageService = MessageService()
     let mockKeychain = MockKeychainManager()
     
-    try mockKeychain.saveSync(token: "dummy_token", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "dummy_token", for: GeoGarageKeychainKeys.accessToken)
     
     // Create dependencies
     let positioningService = MockPositioningService()
@@ -204,7 +204,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 1)
 
     let mockKeychain = MockKeychainManager()
-    try mockKeychain.saveSync(token: "valid_token", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "valid_token", for: GeoGarageKeychainKeys.accessToken)
 
     let positioningService = MockPositioningService()
     let preferencesService = MockPreferencesService()
@@ -302,7 +302,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(messageService.messages.count, 3)
 
     let mockKeychain = MockKeychainManager()
-    try mockKeychain.saveSync(token: "valid_token", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "valid_token", for: GeoGarageKeychainKeys.accessToken)
 
     let positioningService = MockPositioningService()
     let preferencesService = MockPreferencesService()
@@ -336,6 +336,41 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertTrue(remainingCategories.contains(.network))
     XCTAssertTrue(remainingCategories.contains(.weather))
     XCTAssertFalse(remainingCategories.contains(.geoGarage))
+    _ = viewModel
+  }
+
+  func testSilentAuthKeychainErrorDoesNotCrashOrFetchAccountSettings() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.shouldFailFetchAccountSettings = true
+    let messageService = MessageService()
+    let mockKeychain = MockKeychainManager()
+    mockKeychain.setStubbedError(.unexpectedStatus(errSecAuthFailed))
+
+    let positioningService = MockPositioningService()
+    let preferencesService = MockPreferencesService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(positioningService: positioningService, preferencesService: preferencesService, notificationService: LocalNotificationService(), permissionService: permissionService, backgroundMonitoringService: backgroundMonitoringService, stateStore: MockAnchorStateStore())
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      waypointService: nil,
+      messageService: messageService,
+      keychainManager: mockKeychain
+    )
+
+    if let task = viewModel.silentFetchTask?.task {
+      _ = await task.value
+    }
+
+    XCTAssertEqual(messageService.messages.count, 0, "Keychain read error during silent fetch should be logged and return without posting auth failure")
     _ = viewModel
   }
 

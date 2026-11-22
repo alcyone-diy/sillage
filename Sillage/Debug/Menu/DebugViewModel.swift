@@ -23,11 +23,15 @@ final class DebugViewModel {
     self.keychainManager = keychainManager
   }
   
-  func invalidateGeoGarageToken() {
-    try? keychainManager.saveSync(token: "invalid_debug_token", for: GeoGarageKeychainKeys.accessToken)
-    // An invalid access token is refreshed silently: simulating an expired session also requires
-    // corrupting the refresh token.
-    try? keychainManager.saveSync(token: "invalid_debug_refresh_token", for: GeoGarageKeychainKeys.refreshToken)
+  func invalidateGeoGarageToken() async {
+    do {
+      try await keychainManager.save(token: "invalid_debug_token", for: GeoGarageKeychainKeys.accessToken)
+      // An invalid access token is refreshed silently: simulating an expired session also requires
+      // corrupting the refresh token.
+      try await keychainManager.save(token: "invalid_debug_refresh_token", for: GeoGarageKeychainKeys.refreshToken)
+    } catch {
+      Logger.system.error("Failed to corrupt GeoGarage debug tokens in Keychain: \(error.localizedDescription, privacy: .public)")
+    }
   }
   
   func scheduleDebugBarometerNotification(permissionService: PermissionServiceProtocol, notificationService: NotificationService) async throws {

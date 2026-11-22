@@ -761,27 +761,26 @@ final class ChartViewModel {
   
   /// Authenticates with GeoGarage in the background using stored credentials to populate available layers.
   private func silentlyFetchGeoGarageLayers() {
-    let resolvedAccessToken: String?
-    do {
-      resolvedAccessToken = try keychainManager.retrieveValidTokenSync(for: GeoGarageKeychainKeys.accessToken)
-    } catch {
-      Logger.network.error("Failed to read GeoGarage access token from Keychain during silent layer fetch: \(error.localizedDescription, privacy: .public)")
-      return
-    }
-    guard let accessToken = resolvedAccessToken else {
-      Task { @MainActor [weak self] in
-        self?.authService.authError = nil
-      }
-      return
-    }
-    
+    silentFetchTask?.cancel()
     silentFetchTask = TaskCancellable(Task { [weak self] in
+      guard let self else { return }
+      let resolvedAccessToken: String?
       do {
-        guard let authService = self?.authService else { return }
-        _ = try await authService.fetchAccountSettings(accessToken: accessToken)
-        self?.clearGeoGarageMessages()
+        resolvedAccessToken = try await self.keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken)
       } catch {
-        self?.handleGeoGarageAuthError(error)
+        Logger.network.error("Failed to read GeoGarage access token from Keychain during silent layer fetch: \(error.localizedDescription, privacy: .public)")
+        return
+      }
+      guard !Task.isCancelled else { return }
+      guard let accessToken = resolvedAccessToken else {
+        self.authService.authError = nil
+        return
+      }
+      do {
+        _ = try await self.authService.fetchAccountSettings(accessToken: accessToken)
+        self.clearGeoGarageMessages()
+      } catch {
+        self.handleGeoGarageAuthError(error)
       }
     })
   }

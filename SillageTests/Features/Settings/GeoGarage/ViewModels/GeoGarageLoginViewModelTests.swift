@@ -185,7 +185,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.errorMessage, AuthError.tokenExpired.localizedDescription)
   }
 
-  func testViewStateReflectsAuthenticationAndErrors() {
+  func testViewStateReflectsAuthenticationAndErrors() async throws {
     let mockAuthService = MockGeoGarageAuthService()
     let mockKeychain = MockKeychainManager()
     let viewModel = GeoGarageLoginViewModel(
@@ -195,17 +195,74 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
       keychainManager: mockKeychain
     )
 
+    XCTAssertNil(viewModel.isAuthenticated)
+    XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .checking)
+
+    await viewModel.refreshAuthenticationStatus()
+    XCTAssertEqual(viewModel.isAuthenticated, false)
     XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .unauthenticated(error: nil))
 
     viewModel.errorMessage = "boom"
     XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .unauthenticated(error: "boom"))
 
     viewModel.errorMessage = nil
-    try? mockKeychain.saveSync(token: "tok", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "tok", for: GeoGarageKeychainKeys.accessToken)
+    await viewModel.refreshAuthenticationStatus()
+    XCTAssertEqual(viewModel.isAuthenticated, true)
     XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .authenticated)
 
     mockAuthService.authError = AuthError.tokenExpired
     XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .authenticationError(error: AuthError.tokenExpired.localizedDescription))
+  }
+
+  func testRefreshAuthenticationStatusHandlesKeychainError() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let mockKeychain = MockKeychainManager()
+    mockKeychain.setStubbedError(.unexpectedStatus(errSecAuthFailed))
+    let viewModel = GeoGarageLoginViewModel(
+      offlineMapManager: MockOfflineMapManager(),
+      partnerSecretService: MockGeoGaragePartnerSecretService(),
+      downloadRepository: MockDownloadRepo(),
+      keychainManager: mockKeychain
+    )
+
+    XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .checking)
+
+    await viewModel.refreshAuthenticationStatus()
+
+    XCTAssertEqual(viewModel.isAuthenticated, false)
+    XCTAssertEqual(viewModel.viewState(authService: mockAuthService), .unauthenticated(error: nil))
+  }
+
+  func testLoginAndLogoutUpdateIsAuthenticatedState() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let messageService = MessageService()
+    let chartViewModel = makeChartViewModel(authService: mockAuthService, messageService: messageService)
+    let viewModel = GeoGarageLoginViewModel(
+      offlineMapManager: MockOfflineMapManager(),
+      partnerSecretService: MockGeoGaragePartnerSecretService(),
+      downloadRepository: MockDownloadRepo(),
+      keychainManager: MockKeychainManager()
+    )
+
+    XCTAssertNil(viewModel.isAuthenticated)
+    await viewModel.refreshAuthenticationStatus()
+    XCTAssertEqual(viewModel.isAuthenticated, false)
+
+    let loginResult = await viewModel.login(
+      authService: mockAuthService,
+      messageService: messageService,
+      presenter: MockGeoGarageAuthorizationPresenter()
+    )
+    XCTAssertTrue(loginResult)
+    XCTAssertEqual(viewModel.isAuthenticated, true)
+
+    await viewModel.performLogout(
+      authService: mockAuthService,
+      messageService: messageService,
+      chartViewModel: chartViewModel
+    )
+    XCTAssertEqual(viewModel.isAuthenticated, false)
   }
 
   func testLogoutClearsGeoGarageMessagesAndDelegatesToChartViewModel() async {

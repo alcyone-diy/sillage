@@ -61,7 +61,8 @@ extension KeychainManaging {
 }
 
 /// A lightweight, robust manager for securely storing and retrieving items in the iOS Keychain.
-nonisolated struct KeychainManager: KeychainManaging, Sendable {
+/// Implemented as an `actor` so async callers always leave `@MainActor` and serialize `SecItem*` access.
+actor KeychainManager: KeychainManaging {
   static let shared = KeychainManager()
 
   private static let service = "com.alcyone-sillage.sillage"
@@ -69,22 +70,22 @@ nonisolated struct KeychainManager: KeychainManaging, Sendable {
   private init() {}
 
   /// Saves a token to the Keychain asynchronously.
-  func save(token: String, for account: String) async throws(KeychainError) {
+  func save(token: String, for account: String) throws(KeychainError) {
     try saveSync(token: token, for: account)
   }
 
   /// Retrieves a token from the Keychain asynchronously.
-  func retrieveToken(for account: String) async throws(KeychainError) -> String? {
+  func retrieveToken(for account: String) throws(KeychainError) -> String? {
     try retrieveTokenSync(for: account)
   }
 
   /// Deletes a token from the Keychain asynchronously.
-  func deleteToken(for account: String) async throws(KeychainError) {
+  func deleteToken(for account: String) throws(KeychainError) {
     try deleteTokenSync(for: account)
   }
 
   /// Saves a token to the Keychain synchronously for non-async contexts.
-  func saveSync(token: String, for account: String) throws(KeychainError) {
+  nonisolated func saveSync(token: String, for account: String) throws(KeychainError) {
     guard let data = token.data(using: .utf8) else {
       Logger.system.error("Keychain save failed for account '\(account, privacy: .public)': UTF-8 encoding failed.")
       throw KeychainError.encodingFailed
@@ -138,7 +139,7 @@ nonisolated struct KeychainManager: KeychainManaging, Sendable {
   }
 
   /// Retrieves a token from the Keychain synchronously for non-async contexts.
-  func retrieveTokenSync(for account: String) throws(KeychainError) -> String? {
+  nonisolated func retrieveTokenSync(for account: String) throws(KeychainError) -> String? {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.service,
@@ -168,7 +169,7 @@ nonisolated struct KeychainManager: KeychainManaging, Sendable {
   }
 
   /// Deletes a token from the Keychain synchronously for non-async contexts.
-  func deleteTokenSync(for account: String) throws(KeychainError) {
+  nonisolated func deleteTokenSync(for account: String) throws(KeychainError) {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.service,

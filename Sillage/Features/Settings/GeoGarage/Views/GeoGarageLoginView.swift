@@ -82,6 +82,10 @@ struct GeoGarageLoginContentView: View {
         .padding(.top, MarineTheme.Spacing.extraLarge)
 
         switch viewModel.viewState(authService: authService) {
+        case .checking:
+          ProgressView()
+            .controlSize(.large)
+            .padding(.top, MarineTheme.Spacing.extraLarge)
         case .authenticated:
           authenticatedView()
         case .authenticationError(let error):
@@ -95,7 +99,10 @@ struct GeoGarageLoginContentView: View {
       .padding(.horizontal)
     }
     .background(marineTheme.colors.panelBackground)
-    .navigationTitle(viewModel.isAuthenticated ? "GeoGarage Account" : "GeoGarage Login")
+    .navigationTitle(viewModel.isAuthenticated == true ? "GeoGarage Account" : "GeoGarage Login")
+    .task {
+      await viewModel.refreshAuthenticationStatus()
+    }
     .navigationBarTitleDisplayMode(.inline)
     .navigationBarBackButtonHidden(viewModel.isLoading)
     .interactiveDismissDisabled(viewModel.isLoading)

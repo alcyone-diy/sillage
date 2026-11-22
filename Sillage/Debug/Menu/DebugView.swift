@@ -270,7 +270,9 @@ struct DebugView: View {
         .marineListCell()
         .confirmationDialog("Corrupt GeoGarage Token", isPresented: $showCorruptTokenConfirmation, titleVisibility: .visible) {
           Button("Corrupt Token", role: .destructive) {
-            viewModel.invalidateGeoGarageToken()
+            Task {
+              await viewModel.invalidateGeoGarageToken()
+            }
           }
           Button("Cancel", role: .cancel) { }
         } message: {
