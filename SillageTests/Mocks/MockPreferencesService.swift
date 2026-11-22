@@ -70,6 +70,10 @@ final class MockPreferencesService: PreferencesServiceProtocol {
 
   var savedAnchorRadius: Measurement<UnitLength> = Measurement(value: 25.0, unit: .meters)
   var hudEditOpenCount: Int = 0
+  var activeTelemetryMetrics: [TelemetryMetric] = PreferencesService.defaultTelemetryMetrics
+  func resetTelemetryMetricsToDefaults() {
+    activeTelemetryMetrics = PreferencesService.defaultTelemetryMetrics
+  }
   var gpsAccuracyMode: GPSAccuracyMode = .bestForNavigation
   var pendingCAASDownloads: [PendingCAASDownload] = []
 
@@ -101,6 +105,7 @@ final class MockPreferencesService: PreferencesServiceProtocol {
     barometerOffset = Measurement(value: 0, unit: .hectopascals)
     savedAnchorRadius = Measurement(value: 25.0, unit: .meters)
     hudEditOpenCount = 0
+    activeTelemetryMetrics = PreferencesService.defaultTelemetryMetrics
     gpsAccuracyMode = .bestForNavigation
     pendingCAASDownloads = []
   }

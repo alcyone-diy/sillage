@@ -279,4 +279,53 @@ final class PreferencesServiceTests: XCTestCase {
     let reloadedService = PreferencesService(defaults: defaults)
     XCTAssertEqual(reloadedService.pendingCAASDownloads, [initialPending])
   }
+
+  // MARK: - Telemetry Metrics Persistence
+
+  func testDefaultTelemetryMetrics_LoadedWhenNoSavedPreferencesExist() throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let preferences = PreferencesService(defaults: defaults)
+    XCTAssertEqual(preferences.activeTelemetryMetrics, PreferencesService.defaultTelemetryMetrics)
+    XCTAssertEqual(preferences.activeTelemetryMetrics, [.sog, .cog, .btw, .rng])
+  }
+
+  func testSaveAndLoadActiveTelemetryMetrics_PersistsCorrectly() throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let preferences = PreferencesService(defaults: defaults)
+    let customMetrics: [TelemetryMetric] = [.sog, .cog, .battery]
+
+    preferences.activeTelemetryMetrics = customMetrics
+
+    let reloadedPreferences = PreferencesService(defaults: defaults)
+    XCTAssertEqual(reloadedPreferences.activeTelemetryMetrics, customMetrics)
+  }
+
+  func testSaveAndLoadEmptyActiveTelemetryMetrics_PersistsEmptyStateAcrossRelaunch() throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let preferences = PreferencesService(defaults: defaults)
+
+    preferences.activeTelemetryMetrics = []
+
+    let reloadedPreferences = PreferencesService(defaults: defaults)
+    XCTAssertEqual(reloadedPreferences.activeTelemetryMetrics, [])
+  }
+
+  func testCorruptedActiveTelemetryMetricsData_FallsBackToDefaultMetrics() throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    defaults.set(Data("invalid-json".utf8), forKey: "sillage.telemetry.activeMetrics")
+
+    let preferences = PreferencesService(defaults: defaults)
+    XCTAssertEqual(preferences.activeTelemetryMetrics, PreferencesService.defaultTelemetryMetrics)
+  }
+
+  func testResetTelemetryMetricsToDefaults_RestoresDefaultConfiguration() throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let preferences = PreferencesService(defaults: defaults)
+    preferences.activeTelemetryMetrics = [.battery, .xte]
+
+    XCTAssertEqual(preferences.activeTelemetryMetrics, [.battery, .xte])
+
+    preferences.resetTelemetryMetricsToDefaults()
+    XCTAssertEqual(preferences.activeTelemetryMetrics, PreferencesService.defaultTelemetryMetrics)
+  }
 }

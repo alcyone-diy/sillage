@@ -45,6 +45,56 @@ public enum TelemetryEditMode: Sendable, Equatable, Hashable {
 /// Renders telemetry cells either in a continuous horizontal strip with vertical dividers
 /// or in an explicit column-based grid without vertical dividers.
 /// Supports interactive Edit Modes (`.remove` or `.add`) displaying action badges on telemetry cells.
+/// Shared HUD container surface styling (`.regularMaterial` background, `MarineTheme` border, and elevation shadow).
+/// Supports any `InsettableShape` (e.g. `RoundedRectangle` for HUD cards, `Capsule` for compact recovery pills).
+public struct MarineHUDSurfaceModifier<S: InsettableShape>: ViewModifier {
+  let shape: S
+  let isHighlighted: Bool
+  @Environment(\.marineTheme) private var marineTheme
+
+  public init(shape: S, isHighlighted: Bool = false) {
+    self.shape = shape
+    self.isHighlighted = isHighlighted
+  }
+
+  public func body(content: Content) -> some View {
+    content
+      .background(.regularMaterial, in: shape)
+      .overlay(
+        shape.stroke(
+          isHighlighted ? marineTheme.colors.accent.opacity(0.8) : marineTheme.colors.border.opacity(0.4),
+          lineWidth: isHighlighted ? MarineTheme.Metrics.borderWidth : MarineTheme.Metrics.borderWidth / 2
+        )
+      )
+      .shadow(
+        color: Color.black.opacity(0.15),
+        radius: MarineTheme.Metrics.shadowRadius * 3,
+        x: 0,
+        y: MarineTheme.Metrics.shadowOffset * 3
+      )
+  }
+}
+
+public extension View {
+  /// Applies the standard marine HUD card surface styling with the specified `InsettableShape`.
+  func marineHUDSurface<S: InsettableShape>(
+    in shape: S,
+    isHighlighted: Bool = false
+  ) -> some View {
+    modifier(MarineHUDSurfaceModifier(shape: shape, isHighlighted: isHighlighted))
+  }
+
+  /// Applies the standard marine HUD card surface styling with the default rounded rectangle shape.
+  func marineHUDSurface(isHighlighted: Bool = false) -> some View {
+    modifier(
+      MarineHUDSurfaceModifier(
+        shape: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous),
+        isHighlighted: isHighlighted
+      )
+    )
+  }
+}
+
 public struct MarineTelemetryHUDCard: View {
   let items: [MarineTelemetryItem]
   let layout: TelemetryHUDLayout
@@ -68,18 +118,7 @@ public struct MarineTelemetryHUDCard: View {
     contentView
       .padding(.horizontal, MarineTheme.Spacing.medium)
       .padding(.vertical, MarineTheme.Spacing.small + 2)
-      .background(
-        .regularMaterial,
-        in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
-          .stroke(
-            editMode != .none ? marineTheme.colors.accent.opacity(0.8) : marineTheme.colors.border.opacity(0.4),
-            lineWidth: editMode != .none ? MarineTheme.Metrics.borderWidth : MarineTheme.Metrics.borderWidth / 2
-          )
-      )
-      .shadow(color: Color.black.opacity(0.15), radius: MarineTheme.Metrics.shadowRadius * 3, x: 0, y: MarineTheme.Metrics.shadowOffset * 3)
+      .marineHUDSurface(isHighlighted: editMode != .none)
   }
 
   @ViewBuilder

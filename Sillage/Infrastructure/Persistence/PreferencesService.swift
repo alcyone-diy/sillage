@@ -161,6 +161,8 @@ protocol PreferencesServiceProtocol: AnyObject {
 
   // MARK: - HUD Settings
   var hudEditOpenCount: Int { get set }
+  var activeTelemetryMetrics: [TelemetryMetric] { get set }
+  func resetTelemetryMetricsToDefaults()
 
   // MARK: - GPS Debug Settings
   var gpsAccuracyMode: GPSAccuracyMode { get set }
@@ -198,8 +200,11 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let baroAlarmSensitivityKey = "baroAlarmSensitivity"
   @ObservationIgnored private let barometerOffsetHPaKey = "barometerOffsetHPa"
 
+  static let defaultTelemetryMetrics: [TelemetryMetric] = [.sog, .cog, .btw, .rng]
+
   @ObservationIgnored private let savedAnchorRadiusMetersKey = "savedAnchorRadiusMeters"
   @ObservationIgnored private let hudEditOpenCountKey = "sillage.prefs.hudEditOpenCount"
+  @ObservationIgnored private let activeTelemetryMetricsKey = "sillage.telemetry.activeMetrics"
   @ObservationIgnored private let gpsAccuracyModeKey = "gpsAccuracyMode"
 
   @ObservationIgnored private let defaults: UserDefaults
@@ -387,6 +392,17 @@ class PreferencesService: PreferencesServiceProtocol {
     didSet { defaults.set(hudEditOpenCount, forKey: hudEditOpenCountKey) }
   }
 
+  var activeTelemetryMetrics: [TelemetryMetric] {
+    didSet {
+      do {
+        let encoded = try JSONEncoder().encode(activeTelemetryMetrics)
+        defaults.set(encoded, forKey: activeTelemetryMetricsKey)
+      } catch {
+        Logger.telemetry.error("Failed to encode activeTelemetryMetrics: \(error.localizedDescription, privacy: .public)")
+      }
+    }
+  }
+
   private var rawGPSAccuracyMode: String {
     didSet { defaults.set(rawGPSAccuracyMode, forKey: gpsAccuracyModeKey) }
   }
@@ -460,6 +476,16 @@ class PreferencesService: PreferencesServiceProtocol {
 
     self.rawAnchorRadiusMeters = defaults.object(forKey: savedAnchorRadiusMetersKey) as? Double ?? 25.0
     self.hudEditOpenCount = defaults.integer(forKey: hudEditOpenCountKey)
+    if let data = defaults.data(forKey: activeTelemetryMetricsKey) {
+      do {
+        self.activeTelemetryMetrics = try JSONDecoder().decode([TelemetryMetric].self, from: data)
+      } catch {
+        Logger.telemetry.error("Failed to decode activeTelemetryMetrics: \(error.localizedDescription, privacy: .public)")
+        self.activeTelemetryMetrics = Self.defaultTelemetryMetrics
+      }
+    } else {
+      self.activeTelemetryMetrics = Self.defaultTelemetryMetrics
+    }
     self.rawGPSAccuracyMode = defaults.string(forKey: gpsAccuracyModeKey) ?? GPSAccuracyMode.bestForNavigation.rawValue
   }
 
@@ -484,6 +510,10 @@ class PreferencesService: PreferencesServiceProtocol {
 
   func clearActiveTrackSessionID() {
     self.activeTrackSessionID = nil
+  }
+
+  func resetTelemetryMetricsToDefaults() {
+    activeTelemetryMetrics = Self.defaultTelemetryMetrics
   }
 
   func clearAll() {
@@ -512,6 +542,7 @@ class PreferencesService: PreferencesServiceProtocol {
     barometerOffset = Measurement(value: 0, unit: .hectopascals)
     savedAnchorRadius = Measurement(value: 25.0, unit: .meters)
     hudEditOpenCount = 0
+    activeTelemetryMetrics = Self.defaultTelemetryMetrics
     gpsAccuracyMode = .bestForNavigation
   }
 }

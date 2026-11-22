@@ -11,14 +11,13 @@
 import SwiftUI
 
 /// An adaptive, user-customizable overlay displaying vital navigation and hardware telemetry metrics.
-/// Dynamically renders user-selected metrics from `TelemetryPreferences` (e.g. SOG, COG, BTW, RNG, XTE, Battery)
+/// Dynamically renders user-selected metrics from `PreferencesService` (e.g. SOG, COG, BTW, RNG, XTE, Battery)
 /// and automatically switches between a 2-column grid layout in Compact size classes (iPhone Portrait)
 /// and a continuous horizontal strip in Regular size classes (iPhone Landscape, iPad).
 /// Supports interactive Edit Mode (`isEditingHUD == true`), squish long-press feedback, and ephemeral short-tap hint toasts capped at 2 successful Edit Mode entries.
 @MainActor
 public struct VitalTelemetryHUD: View {
   @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
-  @Environment(TelemetryPreferences.self) private var envPreferences: TelemetryPreferences?
   @Environment(PreferencesService.self) private var preferencesService
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @Environment(\.locale) private var locale
@@ -30,15 +29,7 @@ public struct VitalTelemetryHUD: View {
   @State private var showEditHint: Bool = false
   @State private var hintTask: Task<Void, Never>? = nil
 
-  private var customPreferences: TelemetryPreferences?
-
-  public init(preferences: TelemetryPreferences? = nil) {
-    self.customPreferences = preferences
-  }
-
-  private var preferences: TelemetryPreferences {
-    customPreferences ?? envPreferences ?? TelemetryPreferences()
-  }
+  public init() {}
 
   /// Technical Design Choice: Speculative-Free Layout Adaptation
   /// Replaces multi-pass `ViewThatFits` measuring wrappers with explicit environment size class checks.
@@ -54,55 +45,53 @@ public struct VitalTelemetryHUD: View {
 
   public var body: some View {
     VStack(spacing: MarineTheme.Spacing.medium) {
-      MarineTelemetryHUDCard(
-        items: telemetryItems,
-        layout: currentLayout,
-        editMode: isEditingHUD ? .remove : .none,
-        onItemTapped: { metricId in
-          guard isEditingHUD else { return }
-          if let metric = TelemetryMetric(rawValue: metricId) {
-            withAnimation(.default) {
-              preferences.activeMetrics.removeAll(where: { $0 == metric })
+      if preferencesService.activeTelemetryMetrics.isEmpty && !isEditingHUD {
+        emptyHUDRecoveryPill
+      } else if !preferencesService.activeTelemetryMetrics.isEmpty {
+        MarineTelemetryHUDCard(
+          items: telemetryItems,
+          layout: currentLayout,
+          editMode: isEditingHUD ? .remove : .none,
+          onItemTapped: { metricId in
+            guard isEditingHUD else { return }
+            if let metric = TelemetryMetric(rawValue: metricId) {
+              withAnimation(.default) {
+                preferencesService.activeTelemetryMetrics.removeAll(where: { $0 == metric })
+              }
             }
           }
+        )
+        .scaleEffect((isPressingHUD && !isEditingHUD) ? 0.95 : 1.0)
+        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressingHUD)
+        .onLongPressGesture(minimumDuration: 0.8) { isPressing in
+          guard !isEditingHUD else {
+            isPressingHUD = false
+            return
+          }
+          withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
+            isPressingHUD = isPressing
+          }
+        } perform: {
+          openEditMode()
         }
-      )
-      .scaleEffect((isPressingHUD && !isEditingHUD) ? 0.95 : 1.0)
-      .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressingHUD)
-      .onLongPressGesture(minimumDuration: 0.8) { isPressing in
-        guard !isEditingHUD else {
-          isPressingHUD = false
-          return
-        }
-        withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
-          isPressingHUD = isPressing
-        }
-      } perform: {
-        guard !isEditingHUD else { return }
-        isPressingHUD = false
-        withAnimation(.spring()) {
-          isEditingHUD = true
-          showEditHint = false
-          preferencesService.hudEditOpenCount += 1
-        }
-      }
-      .simultaneousGesture(
-        TapGesture().onEnded {
-          guard !isEditingHUD, preferencesService.hudEditOpenCount < 2 else { return }
+        .simultaneousGesture(
+          TapGesture().onEnded {
+            guard !isEditingHUD, preferencesService.hudEditOpenCount < 2 else { return }
 
-          hintTask?.cancel()
-          withAnimation(.easeInOut(duration: 0.25)) {
-            showEditHint = true
-          }
-          hintTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled else { return }
+            hintTask?.cancel()
             withAnimation(.easeInOut(duration: 0.25)) {
-              showEditHint = false
+              showEditHint = true
+            }
+            hintTask = Task { @MainActor in
+              try? await Task.sleep(for: .seconds(3))
+              guard !Task.isCancelled else { return }
+              withAnimation(.easeInOut(duration: 0.25)) {
+                showEditHint = false
+              }
             }
           }
-        }
-      )
+        )
+      }
 
       if showEditHint && !isEditingHUD {
         HStack(spacing: 6) {
@@ -136,7 +125,39 @@ public struct VitalTelemetryHUD: View {
       isPressingHUD = false
     }
     .animation(.spring(), value: isEditingHUD)
-    .animation(.default, value: preferences.activeMetrics)
+    .animation(.default, value: preferencesService.activeTelemetryMetrics)
+  }
+
+  /// Compact recovery affordance displayed when all telemetry instruments are hidden.
+  /// Enforces `marineTheme.minTouchTarget` (44pt standard, 66pt in Glove Mode) and opens the instrument reservoir on tap.
+  private var emptyHUDRecoveryPill: some View {
+    Button {
+      openEditMode()
+    } label: {
+      HStack(spacing: MarineTheme.Spacing.small) {
+        Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+          .marineFont(.subheadline)
+        Text("Instruments")
+          .marineFont(.subheadline)
+      }
+      .foregroundStyle(marineTheme.colors.textPrimary)
+      .padding(.horizontal, MarineTheme.Spacing.medium)
+      .frame(minHeight: marineTheme.minTouchTarget)
+      .marineHUDSurface(in: Capsule())
+      .contentShape(Capsule())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(Text("Customize telemetry instruments"))
+  }
+
+  private func openEditMode() {
+    guard !isEditingHUD else { return }
+    isPressingHUD = false
+    withAnimation(.spring()) {
+      isEditingHUD = true
+      showEditHint = false
+      preferencesService.hudEditOpenCount += 1
+    }
   }
 
   /// Telemetry Reservoir overlay presenting inactive instruments available for addition to the main HUD card.
@@ -180,7 +201,7 @@ public struct VitalTelemetryHUD: View {
             onItemTapped: { metricId in
               if let metric = TelemetryMetric(rawValue: metricId) {
                 withAnimation(.default) {
-                  preferences.activeMetrics.append(metric)
+                  preferencesService.activeTelemetryMetrics.append(metric)
                 }
               }
             }
@@ -201,11 +222,11 @@ public struct VitalTelemetryHUD: View {
   }
 
   private var telemetryItems: [MarineTelemetryItem] {
-    preferences.activeMetrics.map { createTelemetryItem(for: $0) }
+    preferencesService.activeTelemetryMetrics.map { createTelemetryItem(for: $0) }
   }
 
   private var inactiveTelemetryItems: [MarineTelemetryItem] {
-    let inactiveMetrics = TelemetryMetric.allCases.filter { !preferences.activeMetrics.contains($0) }
+    let inactiveMetrics = TelemetryMetric.allCases.filter { !preferencesService.activeTelemetryMetrics.contains($0) }
     return inactiveMetrics.map { createTelemetryItem(for: $0) }
   }
 
@@ -249,62 +270,51 @@ public struct VitalTelemetryHUD: View {
 
 #if DEBUG
 #Preview("Novice User - With Tap Hint") {
-  struct PreviewContainer: View {
-    let defaultPrefs: TelemetryPreferences = TelemetryPreferences()
-    let partialPrefs: TelemetryPreferences = {
-      let prefs = TelemetryPreferences()
-      prefs.activeMetrics = [.sog, .cog]
-      return prefs
-    }()
+  VStack(spacing: MarineTheme.Spacing.large) {
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+      Text("Compact Mode - Default Active Metrics")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      VitalTelemetryHUD()
+        .environment(\.horizontalSizeClass, .compact)
+        .environment(PreferencesService.previewNovice)
+    }
 
-    var body: some View {
-      VStack(spacing: 24) {
-        VStack(alignment: .leading, spacing: 6) {
-          Text("Compact Mode - Default Active Metrics")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          VitalTelemetryHUD(preferences: defaultPrefs)
-            .environment(\.horizontalSizeClass, .compact)
-        }
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+      Text("Compact Mode - Partial Active Metrics (SOG & COG)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      VitalTelemetryHUD()
+        .environment(\.horizontalSizeClass, .compact)
+        .environment(PreferencesService.previewPartial)
+    }
 
-        VStack(alignment: .leading, spacing: 6) {
-          Text("Compact Mode - Partial Active Metrics (SOG & COG)")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          VitalTelemetryHUD(preferences: partialPrefs)
-            .environment(\.horizontalSizeClass, .compact)
-        }
-      }
-      .padding()
-      .background(Color.gray.opacity(0.3))
-      .environment(PreferencesService.previewNovice)
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+      Text("Compact Mode - Empty HUD Recovery Pill")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      VitalTelemetryHUD()
+        .environment(\.horizontalSizeClass, .compact)
+        .environment(PreferencesService.previewEmpty)
     }
   }
-
-  return PreviewContainer()
+  .padding()
+  .background(Color.gray.opacity(0.3))
 }
 
 #Preview("Experienced User - Hint Suppressed") {
-  struct PreviewContainer: View {
-    let defaultPrefs: TelemetryPreferences = TelemetryPreferences()
-
-    var body: some View {
-      VStack(spacing: 24) {
-        VStack(alignment: .leading, spacing: 6) {
-          Text("Experienced User (hudEditOpenCount >= 2)")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          VitalTelemetryHUD(preferences: defaultPrefs)
-            .environment(\.horizontalSizeClass, .compact)
-        }
-      }
-      .padding()
-      .background(Color.gray.opacity(0.3))
-      .environment(PreferencesService.previewExperienced)
+  VStack(spacing: MarineTheme.Spacing.large) {
+    VStack(alignment: .leading, spacing: MarineTheme.Spacing.small) {
+      Text("Experienced User (hudEditOpenCount >= 2)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      VitalTelemetryHUD()
+        .environment(\.horizontalSizeClass, .compact)
     }
   }
-
-  return PreviewContainer()
+  .padding()
+  .background(Color.gray.opacity(0.3))
+  .environment(PreferencesService.previewExperienced)
 }
 
 extension PreferencesService {
@@ -315,6 +325,26 @@ extension PreferencesService {
     defaults.removePersistentDomain(forName: suiteName)
     let service = PreferencesService(defaults: defaults)
     service.hudEditOpenCount = 0
+    return service
+  }
+
+  @MainActor
+  static var previewPartial: PreferencesService {
+    let suiteName = "preview.preferences.partial"
+    let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+    defaults.removePersistentDomain(forName: suiteName)
+    let service = PreferencesService(defaults: defaults)
+    service.activeTelemetryMetrics = [.sog, .cog]
+    return service
+  }
+
+  @MainActor
+  static var previewEmpty: PreferencesService {
+    let suiteName = "preview.preferences.empty"
+    let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+    defaults.removePersistentDomain(forName: suiteName)
+    let service = PreferencesService(defaults: defaults)
+    service.activeTelemetryMetrics = []
     return service
   }
 
