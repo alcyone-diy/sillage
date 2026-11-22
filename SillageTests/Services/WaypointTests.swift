@@ -667,7 +667,7 @@ final class WaypointTests: XCTestCase {
     let previewVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
     XCTAssertEqual(previewVisualState.coordinate.latitude, 47.25, accuracy: 0.0001)
     XCTAssertEqual(previewVisualState.coordinate.longitude, -2.35, accuracy: 0.0001)
-    XCTAssertTrue(previewVisualState.isSelected)
+    XCTAssertEqual(chartVM.activeWaypointDetailViewModel?.editingWaypointID, waypoint.id)
     
     // 4. User cancels / reverts edits without saving
     vm.revert()
@@ -675,10 +675,9 @@ final class WaypointTests: XCTestCase {
     let revertedVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
     XCTAssertEqual(revertedVisualState.coordinate.latitude, 46.16, accuracy: 0.0001)
     XCTAssertEqual(revertedVisualState.coordinate.longitude, -1.15, accuracy: 0.0001)
-    // As long as the dialog is still open (even after revert / read-only), it stays selected
-    XCTAssertTrue(revertedVisualState.isSelected)
+    XCTAssertEqual(chartVM.activeWaypointDetailViewModel?.editingWaypointID, waypoint.id)
     
-    // 5. Test dismissing / cleaning up activeWaypointDetailViewModel restores original coordinates and unselects
+    // 5. Test dismissing / cleaning up activeWaypointDetailViewModel restores original coordinates
     vm.updateCoordinate(CLLocationCoordinate2D(latitude: 48.0, longitude: -3.0))
     let modifiedVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
     XCTAssertEqual(modifiedVisualState.coordinate.latitude, 48.0, accuracy: 0.0001)
@@ -687,7 +686,7 @@ final class WaypointTests: XCTestCase {
     let restoredVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first(where: { $0.id == waypoint.id }))
     XCTAssertEqual(restoredVisualState.coordinate.latitude, 46.16, accuracy: 0.0001)
     XCTAssertEqual(restoredVisualState.coordinate.longitude, -1.15, accuracy: 0.0001)
-    XCTAssertFalse(restoredVisualState.isSelected)
+    XCTAssertNil(chartVM.activeWaypointDetailViewModel)
   }
 
   func testExistingGoToWaypointLivePreviewAndRevert() async throws {
@@ -763,21 +762,22 @@ final class WaypointTests: XCTestCase {
     let previewGoTo = try XCTUnwrap(chartVM.goToWaypointVisualState)
     XCTAssertEqual(previewGoTo.coordinate.latitude, 47.50, accuracy: 0.0001)
     XCTAssertEqual(previewGoTo.coordinate.longitude, -2.80, accuracy: 0.0001)
-    XCTAssertTrue(previewGoTo.isSelected)
+    XCTAssertEqual(chartVM.activeWaypointDetailViewModel?.editingWaypointID, waypoint.id)
     
     vm.revert()
     
     let revertedGoTo = try XCTUnwrap(chartVM.goToWaypointVisualState)
     XCTAssertEqual(revertedGoTo.coordinate.latitude, 46.16, accuracy: 0.0001)
     XCTAssertEqual(revertedGoTo.coordinate.longitude, -1.15, accuracy: 0.0001)
-    XCTAssertTrue(revertedGoTo.isSelected)
+    XCTAssertEqual(chartVM.activeWaypointDetailViewModel?.editingWaypointID, waypoint.id)
 
     chartVM.activeWaypointDetailViewModel = nil
-    let unselectedGoTo = try XCTUnwrap(chartVM.goToWaypointVisualState)
-    XCTAssertFalse(unselectedGoTo.isSelected)
+    let restoredGoTo = try XCTUnwrap(chartVM.goToWaypointVisualState)
+    XCTAssertEqual(restoredGoTo.coordinate.latitude, 46.16, accuracy: 0.0001)
+    XCTAssertNil(chartVM.activeWaypointDetailViewModel)
   }
 
-  func testExistingWaypointReadOnlyDialogShowsSelectedOnMap() async throws {
+  func testExistingWaypointReadOnlyDialogDoesNotMutateVisualState() async throws {
     let dbManager = try DatabaseManager.inMemory()
     let service = WaypointService(databaseManager: dbManager)
     
@@ -825,7 +825,7 @@ final class WaypointTests: XCTestCase {
     }
     
     let initialVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first)
-    XCTAssertFalse(initialVisualState.isSelected)
+    XCTAssertNil(chartVM.activeWaypointDetailViewModel)
     
     // Open in read-only mode (startEditable: false)
     let vm = WaypointDetailViewModel(
@@ -836,12 +836,14 @@ final class WaypointTests: XCTestCase {
     chartVM.activeWaypointDetailViewModel = vm
     
     let openDialogVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first)
-    XCTAssertTrue(openDialogVisualState.isSelected)
+    XCTAssertEqual(openDialogVisualState, initialVisualState)
+    XCTAssertEqual(chartVM.activeWaypointDetailViewModel?.editingWaypointID, waypoint.id)
     
     // Close dialog
     chartVM.activeWaypointDetailViewModel = nil
     let closedDialogVisualState = try XCTUnwrap(chartVM.visibleWaypointVisualStates.first)
-    XCTAssertFalse(closedDialogVisualState.isSelected)
+    XCTAssertEqual(closedDialogVisualState, initialVisualState)
+    XCTAssertNil(chartVM.activeWaypointDetailViewModel)
   }
 
   func testWaypointDetailViewModelFetchesPointInformation() async throws {

@@ -40,32 +40,20 @@ final class MarineMapViewTests: XCTestCase {
     XCTAssertEqual(anchor, expectedPoint)
   }
 
-  func testAimingCrosshairAnchoringForOneFingerZoom() {
+  func testAimingCrosshairAnchoringForAllZoomGestures() {
     let mapView = MarineMapView(frame: CGRect(x: 0, y: 0, width: 300, height: 600))
     final class CrosshairState {
-      var isDisplayed: Bool = true
+      var yFraction: CGFloat? = AppConstants.Map.aimingCrosshairYFraction
     }
     let state = CrosshairState()
 
     mapView.customGestureAnchorProvider = { [weak mapView, weak state] gesture in
-      guard let mapView, state?.isDisplayed == true else { return nil }
-      if gesture is UILongPressGestureRecognizer {
-        return CGPoint(
-          x: mapView.bounds.midX,
-          y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
-        )
-      }
-      if let tapGesture = gesture as? UITapGestureRecognizer {
-        let isDoubleTapZoomIn = tapGesture.numberOfTapsRequired == 2 && tapGesture.numberOfTouchesRequired == 1
-        let isTwoFingerTapZoomOut = tapGesture.numberOfTapsRequired == 1 && tapGesture.numberOfTouchesRequired == 2
-        if isDoubleTapZoomIn || isTwoFingerTapZoomOut {
-          return CGPoint(
-            x: mapView.bounds.midX,
-            y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
-          )
-        }
-      }
-      return nil
+      guard let mapView else { return nil }
+      return MarineMapView.zoomAnchorPoint(
+        for: gesture,
+        in: mapView.bounds,
+        crosshairYFraction: state?.yFraction
+      )
     }
 
     let quickZoomGesture = UILongPressGestureRecognizer()
@@ -82,32 +70,37 @@ final class MarineMapViewTests: XCTestCase {
     singleTapGesture.numberOfTouchesRequired = 1
 
     let pinchGesture = UIPinchGestureRecognizer()
+    let panGesture = UIPanGestureRecognizer()
 
-    let expectedAimingPoint = CGPoint(
+    let expectedCalloutPoint = CGPoint(
       x: 150.0,
       y: 600.0 * AppConstants.Map.aimingCrosshairYFraction
     )
 
-    // 1. Quick zoom (one-finger zoom) anchors on aiming crosshair
-    XCTAssertEqual(mapView.anchorPoint(forGesture: quickZoomGesture), expectedAimingPoint)
+    // 1. All zoom gestures (quick zoom, double-tap, two-finger tap, pinch) anchor on callout crosshair (40%)
+    XCTAssertEqual(mapView.anchorPoint(forGesture: quickZoomGesture), expectedCalloutPoint)
+    XCTAssertEqual(mapView.anchorPoint(forGesture: doubleTapGesture), expectedCalloutPoint)
+    XCTAssertEqual(mapView.anchorPoint(forGesture: twoFingerTapGesture), expectedCalloutPoint)
+    XCTAssertEqual(mapView.anchorPoint(forGesture: pinchGesture), expectedCalloutPoint)
 
-    // 2. Double-tap zoom-in anchors on aiming crosshair
-    XCTAssertEqual(mapView.anchorPoint(forGesture: doubleTapGesture), expectedAimingPoint)
+    // 2. Non-zoom gestures fall back to default MapLibre behavior
+    XCTAssertNotEqual(mapView.anchorPoint(forGesture: singleTapGesture), expectedCalloutPoint)
+    XCTAssertNotEqual(mapView.anchorPoint(forGesture: panGesture), expectedCalloutPoint)
 
-    // 3. Two-finger tap zoom-out anchors on aiming crosshair
-    XCTAssertEqual(mapView.anchorPoint(forGesture: twoFingerTapGesture), expectedAimingPoint)
+    // 3. Position picker HUDs (WaypointAdjustHUD, AnchorAdjustHUD, AnchorDropHUD) anchor at 50% center
+    state.yFraction = AppConstants.Map.positionPickerCrosshairYFraction
+    let expectedPickerPoint = CGPoint(
+      x: 150.0,
+      y: 600.0 * AppConstants.Map.positionPickerCrosshairYFraction
+    )
+    XCTAssertEqual(mapView.anchorPoint(forGesture: quickZoomGesture), expectedPickerPoint)
+    XCTAssertEqual(mapView.anchorPoint(forGesture: doubleTapGesture), expectedPickerPoint)
+    XCTAssertEqual(mapView.anchorPoint(forGesture: twoFingerTapGesture), expectedPickerPoint)
+    XCTAssertEqual(mapView.anchorPoint(forGesture: pinchGesture), expectedPickerPoint)
 
-    // 4. Single-tap falls back to default MapLibre behavior
-    let singleTapAnchor = mapView.anchorPoint(forGesture: singleTapGesture)
-    XCTAssertNotEqual(singleTapAnchor, expectedAimingPoint)
-
-    // 5. Pinch gesture falls back to default MapLibre behavior
-    let pinchAnchor = mapView.anchorPoint(forGesture: pinchGesture)
-    XCTAssertNotEqual(pinchAnchor, expectedAimingPoint)
-
-    // 6. When crosshair is NOT displayed, quick zoom falls back to default MapLibre behavior
-    state.isDisplayed = false
-    let fallbackAnchor = mapView.anchorPoint(forGesture: quickZoomGesture)
-    XCTAssertNotEqual(fallbackAnchor, expectedAimingPoint)
+    // 4. When no crosshair is displayed, all zoom gestures fall back to default MapLibre behavior
+    state.yFraction = nil
+    XCTAssertNotEqual(mapView.anchorPoint(forGesture: quickZoomGesture), expectedCalloutPoint)
+    XCTAssertNotEqual(mapView.anchorPoint(forGesture: pinchGesture), expectedPickerPoint)
   }
 }

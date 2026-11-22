@@ -26,4 +26,33 @@ final class MarineMapView: MLNMapView {
     }
     return super.anchorPoint(forGesture: gesture)
   }
+
+  /// Computes the zoom anchor point locked onto an active crosshair for all zoom gestures
+  /// (pinch, one-finger quick zoom, double-tap zoom-in, two-finger tap zoom-out).
+  /// Returns `nil` when no crosshair is active or for non-zoom gestures so MapLibre preserves default behavior.
+  static func zoomAnchorPoint(
+    for gesture: UIGestureRecognizer,
+    in bounds: CGRect,
+    crosshairYFraction: CGFloat?
+  ) -> CGPoint? {
+    guard let crosshairYFraction, bounds.width > 0, bounds.height > 0 else {
+      return nil
+    }
+
+    let anchor = CGPoint(x: bounds.midX, y: bounds.height * crosshairYFraction)
+
+    if gesture is UIPinchGestureRecognizer || gesture is UILongPressGestureRecognizer {
+      return anchor
+    }
+
+    if let tapGesture = gesture as? UITapGestureRecognizer {
+      let isDoubleTapZoomIn = tapGesture.numberOfTapsRequired == 2 && tapGesture.numberOfTouchesRequired == 1
+      let isTwoFingerTapZoomOut = tapGesture.numberOfTapsRequired == 1 && tapGesture.numberOfTouchesRequired == 2
+      if isDoubleTapZoomIn || isTwoFingerTapZoomOut {
+        return anchor
+      }
+    }
+
+    return nil
+  }
 }

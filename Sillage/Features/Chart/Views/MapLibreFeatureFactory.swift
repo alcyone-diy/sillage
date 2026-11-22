@@ -137,33 +137,29 @@ enum MapLibreFeatureFactory {
     }
   }
 
-  static func createGoToWaypointFeature(from state: WaypointVisualState?, targetWaypointID: String? = nil) -> MLNPointFeature? {
+  static func createGoToWaypointFeature(from state: WaypointVisualState?) -> MLNPointFeature? {
     guard let state = state else { return nil }
     let feature = MLNPointFeature()
     feature.coordinate = state.coordinate
-    let isTarget = state.isSelected || (targetWaypointID != nil && state.id == targetWaypointID) || state.isDraft
     feature.attributes = [
       MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
       MapFeatureKey.id.rawValue: state.id,
       MapFeatureKey.name.rawValue: state.name,
-      MapFeatureKey.color.rawValue: state.colorHex,
-      "isCalloutTarget": isTarget
+      MapFeatureKey.color.rawValue: state.colorHex
     ]
     return feature
   }
 
-  static func createVisibleWaypointsFeature(from states: [WaypointVisualState], targetWaypointID: String? = nil) -> MLNShapeCollectionFeature? {
+  static func createVisibleWaypointsFeature(from states: [WaypointVisualState]) -> MLNShapeCollectionFeature? {
     guard !states.isEmpty else { return nil }
     let features: [MLNPointFeature] = states.map { waypoint in
       let feature = MLNPointFeature()
       feature.coordinate = waypoint.coordinate
-      let isTarget = waypoint.isSelected || (targetWaypointID != nil && waypoint.id == targetWaypointID) || waypoint.isDraft
       feature.attributes = [
         MapFeatureKey.type.rawValue: MapFeatureType.waypoint.rawValue,
         MapFeatureKey.id.rawValue: waypoint.id,
         MapFeatureKey.name.rawValue: waypoint.name,
-        MapFeatureKey.color.rawValue: waypoint.colorHex,
-        "isCalloutTarget": isTarget
+        MapFeatureKey.color.rawValue: waypoint.colorHex
       ]
       return feature
     }

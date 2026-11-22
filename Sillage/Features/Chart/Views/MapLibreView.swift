@@ -41,39 +41,37 @@ struct MapLibreView: UIViewRepresentable {
     // Initialization of the MapLibre view without a frame
     let mapView = MarineMapView(frame: .zero)
     
-    // Anchor one-finger quick zoom to the nautical aiming crosshair when displayed
+    // Anchor all zoom gestures (pinch, one-finger quick zoom, double-tap, two-finger tap)
+    // to the active nautical crosshair so zooming never drifts the aimed point off the reticle.
     mapView.customGestureAnchorProvider = { [weak coordinator = context.coordinator, weak mapView] gesture in
       guard let coordinator, let mapView else { return nil }
-      let calloutVM = coordinator.parent.viewModel.calloutViewModel
-      let measureVM = coordinator.parent.viewModel.measureToolViewModel
-      
-      let isCrosshairDisplayed = calloutVM.isCalloutVisible &&
-        calloutVM.targetWaypointID == nil &&
+      let viewModel = coordinator.parent.viewModel
+      let calloutVM = viewModel.calloutViewModel
+      let measureVM = viewModel.measureToolViewModel
+
+      let isPositionPickerCrosshairDisplayed =
+        viewModel.anchorViewModel.isAdjustingAnchor ||
+        viewModel.anchorViewModel.isPreparingDropAnchor ||
+        viewModel.waypointAdjustmentSession != nil
+
+      let isCalloutCrosshairDisplayed =
+        calloutVM.isCalloutVisible &&
         !measureVM.isActive
-      
-      guard isCrosshairDisplayed, mapView.bounds.width > 0, mapView.bounds.height > 0 else {
-        return nil
+
+      let crosshairYFraction: CGFloat?
+      if isPositionPickerCrosshairDisplayed {
+        crosshairYFraction = AppConstants.Map.positionPickerCrosshairYFraction
+      } else if isCalloutCrosshairDisplayed {
+        crosshairYFraction = AppConstants.Map.aimingCrosshairYFraction
+      } else {
+        crosshairYFraction = nil
       }
-      
-      // Center quick zoom, double-tap zoom-in, and two-finger tap zoom-out on the aiming crosshair
-      if gesture is UILongPressGestureRecognizer {
-        return CGPoint(
-          x: mapView.bounds.midX,
-          y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
-        )
-      }
-      if let tapGesture = gesture as? UITapGestureRecognizer {
-        let isDoubleTapZoomIn = tapGesture.numberOfTapsRequired == 2 && tapGesture.numberOfTouchesRequired == 1
-        let isTwoFingerTapZoomOut = tapGesture.numberOfTapsRequired == 1 && tapGesture.numberOfTouchesRequired == 2
-        if isDoubleTapZoomIn || isTwoFingerTapZoomOut {
-          return CGPoint(
-            x: mapView.bounds.midX,
-            y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
-          )
-        }
-      }
-      
-      return nil
+
+      return MarineMapView.zoomAnchorPoint(
+        for: gesture,
+        in: mapView.bounds,
+        crosshairYFraction: crosshairYFraction
+      )
     }
     
     // Explicitly disable automatic inset adjustments to avoid conflicts with SwiftUI Safe Areas
@@ -218,19 +216,16 @@ struct MapLibreView: UIViewRepresentable {
       }
       
       // Displayed waypoints feature update
-      let targetWaypointID = viewModel.calloutViewModel.targetWaypointID
-      if visibleWaypointVisualStates != context.coordinator.lastVisibleWaypointVisualStates || targetWaypointID != context.coordinator.lastCalloutTargetWaypointID {
-        MapStyleController.updateVisibleWaypoints(states: visibleWaypointVisualStates, targetWaypointID: targetWaypointID, in: style, theme: marineTheme)
+      if visibleWaypointVisualStates != context.coordinator.lastVisibleWaypointVisualStates {
+        MapStyleController.updateVisibleWaypoints(states: visibleWaypointVisualStates, in: style, theme: marineTheme)
         context.coordinator.lastVisibleWaypointVisualStates = visibleWaypointVisualStates
       }
       
       // GoTo waypoint feature update
-      if goToWaypointVisualState != context.coordinator.lastGoToWaypointVisualState || targetWaypointID != context.coordinator.lastCalloutTargetWaypointID {
-        MapStyleController.updateGoToWaypoint(state: goToWaypointVisualState, targetWaypointID: targetWaypointID, in: style, theme: marineTheme)
+      if goToWaypointVisualState != context.coordinator.lastGoToWaypointVisualState {
+        MapStyleController.updateGoToWaypoint(state: goToWaypointVisualState, in: style, theme: marineTheme)
         context.coordinator.lastGoToWaypointVisualState = goToWaypointVisualState
       }
-
-      context.coordinator.lastCalloutTargetWaypointID = targetWaypointID
       
       // Bearing Line feature update
       if bearingLineVisualState != context.coordinator.lastBearingLineVisualState {
@@ -323,11 +318,12 @@ struct MapLibreView: UIViewRepresentable {
         )
         let newCenterCoordinate = context.coordinator.centerCoordinateToPosition(target, at: targetScreenPoint, in: uiView)
         uiView.setCenter(newCenterCoordinate, animated: false)
-        let targetCoord = uiView.convert(targetScreenPoint, toCoordinateFrom: uiView)
+        let targetWaypointID = viewModel.calloutViewModel.targetWaypointID
+        let resolvedCoord = targetWaypointID != nil ? target : uiView.convert(targetScreenPoint, toCoordinateFrom: uiView)
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-          viewModel.calloutViewModel.interruptCentering(at: targetCoord)
+          viewModel.calloutViewModel.interruptCentering(at: resolvedCoord, waypointID: targetWaypointID)
         }
         context.coordinator.lastAimingCoordinate = nil
         MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style, theme: marineTheme)
@@ -460,6 +456,11 @@ struct MapLibreView: UIViewRepresentable {
     weak var pinPanGesture: UIPanGestureRecognizer?
     private var activeDraggedPin: ActiveMeasurePin?
     private var isLongPressActive: Bool = false
+    private var hasDraggedDuringLongPress: Bool = false
+    private var longPressBeganPoint: CGPoint?
+    private static let longPressDragThreshold: CGFloat = 6.0
+    private var isMagneticRecentering: Bool = false
+    private let snapFeedbackGenerator = UISelectionFeedbackGenerator()
     private var measurePinDragOffset: CGPoint = .zero
     private var isUserActivelyInteractingWithPins: Bool {
       isLongPressActive || activeDraggedPin != nil || parent.viewModel.measureToolViewModel.isDraggingPin || activeDraggedSelectionCorner != nil
@@ -487,7 +488,6 @@ struct MapLibreView: UIViewRepresentable {
     var lastActiveTrackTimestamp: Date?
     var lastDataStale: Bool?
     var lastTrackingMode: ChartTrackingMode = .free
-    var lastCalloutTargetWaypointID: String?
     
     /// Technical Design Choice: Vessel Centering Gesture Tolerance Margin
     /// Tracks the initial anchor coordinate and screen point at the start of a manual drag gesture,
@@ -790,7 +790,11 @@ struct MapLibreView: UIViewRepresentable {
       switch sender.state {
       case .began:
         isLongPressActive = true
+        hasDraggedDuringLongPress = false
+        longPressBeganPoint = touchPoint
+        isMagneticRecentering = false
         lastPanUpdateTime = CACurrentMediaTime()
+        snapFeedbackGenerator.prepare()
         // Disable active tracking mode during target inspection
         parent.viewModel.chartInteractedByUser()
 
@@ -798,21 +802,48 @@ struct MapLibreView: UIViewRepresentable {
         let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
         feedbackGenerator.impactOccurred()
 
-        let touchRect = CGRect(x: touchPoint.x - 22, y: touchPoint.y - 22, width: 44, height: 44)
+        // Respect Glove Mode touch target sizing (44pt standard, 66pt glove mode) for initial waypoint hit-testing
+        let hitSize = parent.marineTheme.minTouchTarget
+        let halfHitSize = hitSize / 2.0
+        let touchRect = CGRect(x: touchPoint.x - halfHitSize, y: touchPoint.y - halfHitSize, width: hitSize, height: hitSize)
         let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: [MapLayerIdentifier.goToWaypoint.rawValue, MapLayerIdentifier.visibleWaypoints.rawValue])
 
-        if let feature = features.first as? MLNPointFeature,
-           let id = feature.attributes[MapFeatureKey.id.rawValue] as? String {
-          if id == parent.viewModel.draftWaypointID {
-            // Interacting with the draft waypoint currently being created: ignore map callout presentation
-            break
+        let draftID = parent.viewModel.draftWaypointID
+        var containsDraftFeature = false
+        var closestWaypoint: (feature: MLNPointFeature, id: String, distance: CGFloat)? = nil
+
+        for case let feature as MLNPointFeature in features {
+          guard let id = feature.attributes[MapFeatureKey.id.rawValue] as? String else { continue }
+          if id == draftID {
+            containsDraftFeature = true
+            continue
           }
-          // Tapped on an existing waypoint: present callout immediately, defer camera adjustment until release (.ended)
+          let pt = mapView.convert(feature.coordinate, toPointTo: mapView)
+          let dist = hypot(pt.x - touchPoint.x, pt.y - touchPoint.y)
+          if let existing = closestWaypoint {
+            if dist < existing.distance {
+              closestWaypoint = (feature, id, dist)
+            }
+          } else {
+            closestWaypoint = (feature, id, dist)
+          }
+        }
+
+        if let hit = closestWaypoint {
+          // Unified reticle targeting: place the GPU crosshair directly on the waypoint coordinate
+          // so the user can drag off it or release to center it under the reticle.
           if let style = mapView.style {
-            lastAimingCoordinate = nil
-            MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style, theme: parent.marineTheme)
+            lastAimingCoordinate = hit.feature.coordinate
+            MapStyleController.updateTargetAimingCrosshair(
+              coordinate: hit.feature.coordinate,
+              in: style,
+              theme: parent.marineTheme
+            )
           }
-          parent.viewModel.calloutViewModel.presentWaypointCallout(coordinate: feature.coordinate, waypointID: id)
+          parent.viewModel.calloutViewModel.startAimingPreview(at: hit.feature.coordinate, waypointID: hit.id)
+        } else if containsDraftFeature {
+          // Interacting exclusively with the draft waypoint currently being created: ignore map callout presentation
+          break
         } else {
           // Long press on empty chart area:
           // 2. Display callout dialog immediately
@@ -828,19 +859,46 @@ struct MapLibreView: UIViewRepresentable {
             )
           }
 
-          parent.viewModel.calloutViewModel.startAimingPreview(at: targetCoordinate)
+          parent.viewModel.calloutViewModel.startAimingPreview(at: targetCoordinate, waypointID: nil)
         }
 
       case .changed:
-        // Update crosshair under finger as the user drags before releasing
-        guard parent.viewModel.calloutViewModel.targetWaypointID == nil,
-              parent.viewModel.calloutViewModel.aimingCoordinate != nil else { break }
+        // Update crosshair under finger as the user drags before releasing (with light waypoint magnetism)
+        guard parent.viewModel.calloutViewModel.aimingCoordinate != nil else { break }
         let now = CACurrentMediaTime()
         guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { break }
         lastPanUpdateTime = now
 
         let currentTouchPoint = sender.location(in: mapView)
-        let updatedCoordinate = mapView.convert(currentTouchPoint, toCoordinateFrom: mapView)
+        if !hasDraggedDuringLongPress {
+          if let beganPoint = longPressBeganPoint,
+             hypot(currentTouchPoint.x - beganPoint.x, currentTouchPoint.y - beganPoint.y) < Self.longPressDragThreshold {
+            // Ignore sub-threshold finger micro-tremors so Glove Mode waypoint locks (30–33pt) do not detach prematurely.
+            break
+          }
+          hasDraggedDuringLongPress = true
+        }
+
+        let previousWaypointID = parent.viewModel.calloutViewModel.targetWaypointID
+        let snap = evaluateWaypointSnap(
+          at: currentTouchPoint,
+          in: mapView,
+          currentlySnappedID: previousWaypointID
+        )
+
+        let updatedCoordinate: CLLocationCoordinate2D
+        let updatedWaypointID: String?
+        if let snap {
+          updatedCoordinate = snap.coordinate
+          updatedWaypointID = snap.waypointID
+          if snap.waypointID != previousWaypointID {
+            snapFeedbackGenerator.selectionChanged()
+          }
+        } else {
+          updatedCoordinate = mapView.convert(currentTouchPoint, toCoordinateFrom: mapView)
+          updatedWaypointID = nil
+        }
+
         if let style = mapView.style {
           lastAimingCoordinate = updatedCoordinate
           MapStyleController.updateTargetAimingCrosshair(
@@ -849,39 +907,59 @@ struct MapLibreView: UIViewRepresentable {
             theme: parent.marineTheme
           )
         }
-        parent.viewModel.calloutViewModel.updateAimingPreview(at: updatedCoordinate)
+        parent.viewModel.calloutViewModel.updateAimingPreview(at: updatedCoordinate, waypointID: updatedWaypointID)
 
       case .ended:
         isLongPressActive = false
-        if parent.viewModel.calloutViewModel.isCalloutVisible,
-           parent.viewModel.calloutViewModel.targetWaypointID != nil,
-           let targetCoord = parent.viewModel.calloutViewModel.targetCoordinate {
-          let currentPoint = mapView.convert(targetCoord, toPointTo: mapView)
-          ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: parent.viewModel.calloutViewModel.lastSheetHeight)
-        } else if parent.viewModel.calloutViewModel.aimingCoordinate != nil {
-          let targetCoordinate = mapView.convert(touchPoint, toCoordinateFrom: mapView)
+        longPressBeganPoint = nil
+        if let currentAimingCoordinate = parent.viewModel.calloutViewModel.aimingCoordinate {
+          let resolvedCoordinate: CLLocationCoordinate2D
+          let resolvedWaypointID: String?
+
+          // Preserve initial Glove Mode touch-target lock if the user released without dragging,
+          // since minTouchTarget/2 (33pt) intentionally exceeds the magnetic detach radius (30pt).
+          if !hasDraggedDuringLongPress, let lockedID = parent.viewModel.calloutViewModel.targetWaypointID {
+            resolvedCoordinate = currentAimingCoordinate
+            resolvedWaypointID = lockedID
+          } else if let snap = evaluateWaypointSnap(
+            at: touchPoint,
+            in: mapView,
+            currentlySnappedID: parent.viewModel.calloutViewModel.targetWaypointID
+          ) {
+            resolvedCoordinate = snap.coordinate
+            resolvedWaypointID = snap.waypointID
+          } else {
+            resolvedCoordinate = mapView.convert(touchPoint, toCoordinateFrom: mapView)
+            resolvedWaypointID = nil
+          }
+
           if let style = mapView.style {
-            lastAimingCoordinate = targetCoordinate
+            lastAimingCoordinate = resolvedCoordinate
             MapStyleController.updateTargetAimingCrosshair(
-              coordinate: targetCoordinate,
+              coordinate: resolvedCoordinate,
               in: style,
               theme: parent.marineTheme
             )
           }
+
           let targetScreenPoint = CGPoint(
             x: mapView.bounds.midX,
             y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
           )
-          let rawOffset = CGSize(
-            width: touchPoint.x - targetScreenPoint.x,
-            height: touchPoint.y - targetScreenPoint.y
-          )
-          let isNearCenter = hypot(rawOffset.width, rawOffset.height) < 1.0
+          let resolvedScreenPoint = mapView.convert(resolvedCoordinate, toPointTo: mapView)
+          let isNearCenter = hypot(
+            resolvedScreenPoint.x - targetScreenPoint.x,
+            resolvedScreenPoint.y - targetScreenPoint.y
+          ) < 1.0
 
           if !isNearCenter {
-            // 1. Center the map with the MapLibre crosshair so targetCoordinate lands at targetScreenPoint
-            parent.viewModel.calloutViewModel.beginAiming(at: targetCoordinate, needsCentering: true)
-            let newCenterCoordinate = centerCoordinateToPosition(targetCoordinate, at: targetScreenPoint, in: mapView)
+            // 1. Center the map with the MapLibre crosshair so resolvedCoordinate lands at targetScreenPoint
+            parent.viewModel.calloutViewModel.beginAiming(
+              at: resolvedCoordinate,
+              waypointID: resolvedWaypointID,
+              needsCentering: true
+            )
+            let newCenterCoordinate = centerCoordinateToPosition(resolvedCoordinate, at: targetScreenPoint, in: mapView)
             mapView.setCenter(newCenterCoordinate, animated: true)
           } else {
             // Already at target screen point:
@@ -890,13 +968,19 @@ struct MapLibreView: UIViewRepresentable {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-              parent.viewModel.calloutViewModel.beginAiming(at: targetCoordinate, needsCentering: false)
+              parent.viewModel.calloutViewModel.beginAiming(
+                at: resolvedCoordinate,
+                waypointID: resolvedWaypointID,
+                needsCentering: false
+              )
             }
           }
         }
 
       case .cancelled, .failed:
         isLongPressActive = false
+        hasDraggedDuringLongPress = false
+        longPressBeganPoint = nil
         if parent.viewModel.calloutViewModel.aimingCoordinate != nil {
           if let style = mapView.style {
             lastAimingCoordinate = nil
@@ -971,21 +1055,6 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
 
-    private func ensureTargetVisible(at point: CGPoint, in mapView: MLNMapView, sheetHeight: CGFloat = 220) {
-      let isWaypointTarget = parent.viewModel.calloutViewModel.targetWaypointID != nil
-      let targetBottomOffset: CGFloat = isWaypointTarget
-        ? (parent.marineTheme.isGloveMode ? 20.0 : 16.0)
-        : MarinePinGraphicsFactory.pinHeight
-      shiftCameraToFitVerticalRange(
-        minY: point.y,
-        maxY: point.y + targetBottomOffset,
-        fallbackPoint: point,
-        fallbackBottomOffset: targetBottomOffset,
-        in: mapView,
-        sheetHeight: sheetHeight
-      )
-    }
-
     private func ensureMeasurePinsVisible(in mapView: MLNMapView, sheetHeight: CGFloat = 220) {
       guard parent.viewModel.measureToolViewModel.isActive else { return }
       guard let startCoord = parent.viewModel.measureToolViewModel.startCoordinate,
@@ -1023,33 +1092,101 @@ struct MapLibreView: UIViewRepresentable {
       return mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
     }
 
-    /// Returns the geographic coordinate currently under the aiming crosshair (40% from top),
+    /// Returns the nominal screen position of the aiming crosshair (40% from top),
     /// or `nil` if the map view has not yet been laid out with non-zero bounds.
-    func reticleCoordinate(in mapView: MLNMapView) -> CLLocationCoordinate2D? {
+    func reticleScreenPoint(in mapView: MLNMapView) -> CGPoint? {
       guard mapView.bounds.width > 0, mapView.bounds.height > 0 else {
         return nil
       }
-      let aimingPoint = CGPoint(
+      return CGPoint(
         x: mapView.bounds.midX,
         y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
       )
+    }
+
+    /// Returns the geographic coordinate currently under the aiming crosshair (40% from top),
+    /// or `nil` if the map view has not yet been laid out with non-zero bounds.
+    func reticleCoordinate(in mapView: MLNMapView) -> CLLocationCoordinate2D? {
+      guard let aimingPoint = reticleScreenPoint(in: mapView) else {
+        return nil
+      }
       return mapView.convert(aimingPoint, toCoordinateFrom: mapView)
     }
 
-    func setupSubscription(for mapView: MLNMapView) {
-      // Connect ensureVisible callback from MapCalloutViewModel
-      parent.viewModel.calloutViewModel.onEnsureVisibleRequested = { [weak self, weak mapView] sheetHeight in
-        guard let self = self, let mapView = mapView else { return }
-        // Never move the camera while the user is actively touching or dragging on the map!
-        guard !self.isUserActivelyInteractingWithPins else { return }
-        // EnsureVisible is only applied to waypoints; crosshairs remain positioned at aimingCrosshairYFraction (40% from top)
-        guard self.parent.viewModel.calloutViewModel.isCalloutVisible,
-              self.parent.viewModel.calloutViewModel.targetWaypointID != nil,
-              let targetCoord = self.parent.viewModel.calloutViewModel.targetCoordinate else { return }
-        let currentPoint = mapView.convert(targetCoord, toPointTo: mapView)
-        self.ensureTargetVisible(at: currentPoint, in: mapView, sheetHeight: sheetHeight)
+    private func isCoordinateNearVisibleBounds(
+      _ coordinate: CLLocationCoordinate2D,
+      bounds: MLNCoordinateBounds
+    ) -> Bool {
+      let latSpan = max(bounds.ne.latitude - bounds.sw.latitude, 0.0)
+      let latMargin = latSpan * 0.1
+      guard coordinate.latitude >= bounds.sw.latitude - latMargin &&
+            coordinate.latitude <= bounds.ne.latitude + latMargin else {
+        return false
       }
 
+      if bounds.sw.longitude <= bounds.ne.longitude {
+        let lonSpan = bounds.ne.longitude - bounds.sw.longitude
+        let lonMargin = lonSpan * 0.1
+        return coordinate.longitude >= bounds.sw.longitude - lonMargin &&
+               coordinate.longitude <= bounds.ne.longitude + lonMargin
+      } else {
+        // Viewport crosses the antimeridian: accept either side
+        return coordinate.longitude >= bounds.sw.longitude ||
+               coordinate.longitude <= bounds.ne.longitude
+      }
+    }
+
+    private func waypointSnapCandidates(in mapView: MLNMapView) -> [WaypointSnapCandidate] {
+      let draftID = parent.viewModel.draftWaypointID
+      let visibleBounds = mapView.visibleCoordinateBounds
+      var candidates: [WaypointSnapCandidate] = []
+
+      for wp in parent.viewModel.visibleWaypointVisualStates where !wp.isDraft && wp.id != draftID {
+        guard isCoordinateNearVisibleBounds(wp.coordinate, bounds: visibleBounds) else { continue }
+        candidates.append(
+          WaypointSnapCandidate(
+            id: wp.id,
+            coordinate: wp.coordinate,
+            screenPoint: mapView.convert(wp.coordinate, toPointTo: mapView)
+          )
+        )
+      }
+
+      if let goTo = parent.viewModel.goToWaypointVisualState,
+         !goTo.isDraft,
+         goTo.id != draftID,
+         isCoordinateNearVisibleBounds(goTo.coordinate, bounds: visibleBounds),
+         !candidates.contains(where: { $0.id == goTo.id }) {
+        candidates.append(
+          WaypointSnapCandidate(
+            id: goTo.id,
+            coordinate: goTo.coordinate,
+            screenPoint: mapView.convert(goTo.coordinate, toPointTo: mapView)
+          )
+        )
+      }
+
+      return candidates
+    }
+
+    private func evaluateWaypointSnap(
+      at point: CGPoint,
+      in mapView: MLNMapView,
+      currentlySnappedID: String?
+    ) -> WaypointSnapResult? {
+      let attachRadius = parent.marineTheme.isGloveMode
+        ? AppConstants.Map.waypointMagneticSnapGloveRadius
+        : AppConstants.Map.waypointMagneticSnapRadius
+      return WaypointMagneticSnap.evaluate(
+        reticlePoint: point,
+        candidates: waypointSnapCandidates(in: mapView),
+        currentlySnappedID: currentlySnappedID,
+        attachRadius: attachRadius,
+        detachHysteresis: AppConstants.Map.waypointMagneticDetachHysteresis
+      )
+    }
+
+    func setupSubscription(for mapView: MLNMapView) {
       // Connect ensureVisible callback from MeasureToolViewModel
       parent.viewModel.measureToolViewModel.onEnsureVisibleRequested = { [weak self, weak mapView] sheetHeight in
         guard let self = self, let mapView = mapView else { return }
@@ -1102,17 +1239,56 @@ struct MapLibreView: UIViewRepresentable {
         bounds: mapView.bounds
       )
 
-      // Live update target coordinate under crosshair when user moves the map (throttled to ~30Hz)
+      // Live update reticle magnetic pull (120fps) and target coordinate (throttled ~30Hz on empty water)
       if parent.viewModel.calloutViewModel.isCalloutVisible &&
-         parent.viewModel.calloutViewModel.targetWaypointID == nil &&
          !parent.viewModel.measureToolViewModel.isActive &&
          !parent.viewModel.calloutViewModel.isCentering &&
-         parent.viewModel.calloutViewModel.aimingCoordinate == nil {
-        let now = CACurrentMediaTime()
-        if now - lastCalloutTargetUpdateTime >= 0.032,
-           let targetCoord = reticleCoordinate(in: mapView) {
-          lastCalloutTargetUpdateTime = now
-          parent.viewModel.calloutViewModel.updateTarget(coordinate: targetCoord)
+         parent.viewModel.calloutViewModel.aimingCoordinate == nil,
+         let reticlePoint = reticleScreenPoint(in: mapView) {
+        let calloutVM = parent.viewModel.calloutViewModel
+
+        // During programmatic magnetic recentering, track only the locked waypoint's shrinking visual offset
+        // so intermediate frames cannot jump to a neighboring waypoint or retrigger haptics.
+        if isMagneticRecentering,
+           calloutVM.targetWaypointID != nil,
+           let lockedCoord = calloutVM.targetCoordinate {
+          let lockedPoint = mapView.convert(lockedCoord, toPointTo: mapView)
+          let shrinkingOffset = CGSize(
+            width: lockedPoint.x - reticlePoint.x,
+            height: lockedPoint.y - reticlePoint.y
+          )
+          calloutVM.updateReticleVisualOffset(shrinkingOffset)
+        } else {
+          let previousWaypointID = calloutVM.targetWaypointID
+          let snap = evaluateWaypointSnap(
+            at: reticlePoint,
+            in: mapView,
+            currentlySnappedID: previousWaypointID
+          )
+
+          let now = CACurrentMediaTime()
+          if let snap {
+            if snap.waypointID != previousWaypointID {
+              snapFeedbackGenerator.selectionChanged()
+              lastCalloutTargetUpdateTime = now
+              calloutVM.updateTarget(
+                coordinate: snap.coordinate,
+                waypointID: snap.waypointID,
+                visualOffset: snap.visualOffset
+              )
+            } else {
+              calloutVM.updateReticleVisualOffset(snap.visualOffset)
+            }
+          } else if previousWaypointID != nil {
+            // Immediately transition sheet from waypoint back to empty water upon detaching
+            lastCalloutTargetUpdateTime = now
+            let targetCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
+            calloutVM.updateTarget(coordinate: targetCoord, waypointID: nil, visualOffset: .zero)
+          } else if now - lastCalloutTargetUpdateTime >= 0.032 {
+            lastCalloutTargetUpdateTime = now
+            let targetCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
+            calloutVM.updateTarget(coordinate: targetCoord, waypointID: nil, visualOffset: .zero)
+          }
         }
       }
       
@@ -1194,14 +1370,12 @@ struct MapLibreView: UIViewRepresentable {
       lastSavedTrackVisualState = savedState
 
       let visibleStates = parent.viewModel.visibleWaypointVisualStates
-      let targetID = parent.viewModel.calloutViewModel.targetWaypointID
-      MapStyleController.updateVisibleWaypoints(states: visibleStates, targetWaypointID: targetID, in: style, theme: parent.marineTheme)
+      MapStyleController.updateVisibleWaypoints(states: visibleStates, in: style, theme: parent.marineTheme)
       lastVisibleWaypointVisualStates = visibleStates
 
       let goToState = parent.viewModel.goToWaypointVisualState
-      MapStyleController.updateGoToWaypoint(state: goToState, targetWaypointID: targetID, in: style, theme: parent.marineTheme)
+      MapStyleController.updateGoToWaypoint(state: goToState, in: style, theme: parent.marineTheme)
       lastGoToWaypointVisualState = goToState
-      lastCalloutTargetWaypointID = targetID
 
       let bearingState = parent.viewModel.bearingLineVisualState
       MapStyleController.updateBearingLine(state: bearingState, in: style, theme: parent.marineTheme)
@@ -1294,17 +1468,28 @@ struct MapLibreView: UIViewRepresentable {
     func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       if !reason.contains(.programmatic) {
         self.parent.viewModel.isMapMoving = true
+        self.isMagneticRecentering = false
+        self.snapFeedbackGenerator.prepare()
         if self.parent.viewModel.calloutViewModel.isCalloutVisible &&
-           self.parent.viewModel.calloutViewModel.targetWaypointID == nil &&
            !self.parent.viewModel.measureToolViewModel.isActive {
           if self.parent.viewModel.calloutViewModel.isCentering,
-             let reticleCoord = reticleCoordinate(in: mapView) {
+             let reticlePoint = reticleScreenPoint(in: mapView) {
+            let snap = evaluateWaypointSnap(
+              at: reticlePoint,
+              in: mapView,
+              currentlySnappedID: self.parent.viewModel.calloutViewModel.targetWaypointID
+            )
+            let resolvedCoord = snap?.coordinate ?? mapView.convert(reticlePoint, toCoordinateFrom: mapView)
             // Trigger SwiftUI crosshair opacity = 1.0; MapLibreView.updateUIView will hide the MapLibre
             // crosshair layer in the exact same SwiftUI render transaction.
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-              self.parent.viewModel.calloutViewModel.interruptCentering(at: reticleCoord)
+              self.parent.viewModel.calloutViewModel.interruptCentering(
+                at: resolvedCoord,
+                waypointID: snap?.waypointID,
+                visualOffset: snap?.visualOffset ?? .zero
+              )
             }
           }
         }
@@ -1469,17 +1654,64 @@ struct MapLibreView: UIViewRepresentable {
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       self.parent.viewModel.isMapMoving = false
 
-      // Synchronously hand off from MapLibre crosshair to SwiftUI crosshair on the exact frame camera movement stops.
-      // MapLibreView.updateUIView will hide the MapLibre crosshair layer in the exact same SwiftUI render pass.
+      // Synchronously hand off from MapLibre crosshair to SwiftUI crosshair on the exact frame camera movement stops,
+      // or gently recenter onto a magnetically snapped waypoint once manual panning settles.
       if !self.isLongPressActive &&
          self.parent.viewModel.calloutViewModel.isCalloutVisible &&
-         self.parent.viewModel.calloutViewModel.targetWaypointID == nil &&
          !self.parent.viewModel.measureToolViewModel.isActive,
-         let aimingCoord = reticleCoordinate(in: mapView) {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-          self.parent.viewModel.calloutViewModel.completeCentering(at: aimingCoord)
+         let reticlePoint = reticleScreenPoint(in: mapView) {
+        let calloutVM = self.parent.viewModel.calloutViewModel
+
+        if calloutVM.isCentering {
+          let resolvedCoord: CLLocationCoordinate2D
+          let resolvedWaypointID: String?
+          if let lockedID = calloutVM.targetWaypointID, let lockedCoord = calloutVM.targetCoordinate {
+            resolvedCoord = lockedCoord
+            resolvedWaypointID = lockedID
+          } else if let snap = evaluateWaypointSnap(
+            at: reticlePoint,
+            in: mapView,
+            currentlySnappedID: calloutVM.targetWaypointID
+          ) {
+            resolvedCoord = snap.coordinate
+            resolvedWaypointID = snap.waypointID
+          } else {
+            resolvedCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
+            resolvedWaypointID = nil
+          }
+
+          var transaction = Transaction()
+          transaction.disablesAnimations = true
+          withTransaction(transaction) {
+            calloutVM.completeCentering(at: resolvedCoord, waypointID: resolvedWaypointID)
+          }
+        } else if let snap = evaluateWaypointSnap(
+          at: reticlePoint,
+          in: mapView,
+          currentlySnappedID: calloutVM.targetWaypointID
+        ) {
+          let offsetDistance = hypot(snap.visualOffset.width, snap.visualOffset.height)
+          if offsetDistance > 1.0 && !self.isMagneticRecentering {
+            self.isMagneticRecentering = true
+            calloutVM.updateTarget(
+              coordinate: snap.coordinate,
+              waypointID: snap.waypointID,
+              visualOffset: snap.visualOffset
+            )
+            let newCenterCoordinate = centerCoordinateToPosition(snap.coordinate, at: reticlePoint, in: mapView)
+            mapView.setCenter(newCenterCoordinate, animated: true)
+          } else {
+            self.isMagneticRecentering = false
+            calloutVM.updateTarget(
+              coordinate: snap.coordinate,
+              waypointID: snap.waypointID,
+              visualOffset: .zero
+            )
+          }
+        } else {
+          self.isMagneticRecentering = false
+          let aimingCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
+          calloutVM.updateTarget(coordinate: aimingCoord, waypointID: nil, visualOffset: .zero)
         }
       }
 

@@ -22,7 +22,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     
     let targetCoord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
     
-    viewModel.presentCallout(coordinate: targetCoord, waypointID: "wp-123")
+    viewModel.beginAiming(at: targetCoord, waypointID: "wp-123", needsCentering: false)
     
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, targetCoord.latitude)
@@ -40,7 +40,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isPointInfoPresented)
     
     let targetCoord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
-    viewModel.presentCallout(coordinate: targetCoord)
+    viewModel.beginAiming(at: targetCoord, needsCentering: false)
     XCTAssertFalse(viewModel.isPointInfoPresented)
     
     viewModel.presentPointInfo()
@@ -53,7 +53,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertTrue(viewModel.isPointInfoPresented)
 
     // Selecting a point or waypoint while point information is open keeps it presented
-    viewModel.presentCallout(coordinate: targetCoord, waypointID: "wp-preserve")
+    viewModel.beginAiming(at: targetCoord, waypointID: "wp-preserve", needsCentering: false)
     XCTAssertTrue(viewModel.isPointInfoPresented)
 
     viewModel.dismissPointInfo()
@@ -72,7 +72,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     let vesselCoord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621) // Nantes
     let targetCoord = CLLocationCoordinate2D(latitude: 48.856614, longitude: 2.352222)   // Paris
     
-    viewModel.presentCallout(coordinate: targetCoord)
+    viewModel.beginAiming(at: targetCoord, needsCentering: false)
     
     let bearing = viewModel.bearing(from: vesselCoord)
     let distance = viewModel.distance(from: vesselCoord)
@@ -95,7 +95,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     
     // Target ~100m North
     let targetNorth = CLLocationCoordinate2D(latitude: 47.0009, longitude: -3.0)
-    viewModel.presentCallout(coordinate: targetNorth)
+    viewModel.beginAiming(at: targetNorth, needsCentering: false)
     
     let bearingNorth = viewModel.bearing(from: vessel)
     let distanceNorth = viewModel.distance(from: vessel)
@@ -115,7 +115,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     
     // Target East
     let targetEast = CLLocationCoordinate2D(latitude: 47.0, longitude: -2.99)
-    viewModel.presentCallout(coordinate: targetEast)
+    viewModel.beginAiming(at: targetEast, needsCentering: false)
     if let brgEast = viewModel.bearing(from: vessel) {
       let degrees = brgEast.converted(to: .degrees).value
       XCTAssertGreaterThan(degrees, 80)
@@ -127,7 +127,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     let viewModel = MapCalloutViewModel()
     let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
     
-    viewModel.presentCallout(coordinate: coord)
+    viewModel.beginAiming(at: coord, needsCentering: false)
     
     let distance = viewModel.distance(from: coord)
     XCTAssertNotNil(distance)
@@ -144,39 +144,30 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.distance(from: CLLocationCoordinate2D(latitude: 47.0, longitude: -1.0)))
     
     // With target set but nil vessel coordinate
-    viewModel.presentCallout(coordinate: CLLocationCoordinate2D(latitude: 48.0, longitude: 2.0))
+    viewModel.beginAiming(at: CLLocationCoordinate2D(latitude: 48.0, longitude: 2.0), needsCentering: false)
     XCTAssertNil(viewModel.bearing(from: nil))
     XCTAssertNil(viewModel.distance(from: nil))
   }
   
-  func testTargetSelectionAndEnsureVisible() {
+  func testTargetSelectionSwitchesBetweenWaypointAndEmptyWater() {
     let viewModel = MapCalloutViewModel()
     let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
     
-    // 1. Selecting an existing waypoint
-    viewModel.presentCallout(coordinate: coord, waypointID: "existing-wp-1")
+    // 1. Selecting an existing waypoint via unified aiming flow
+    viewModel.beginAiming(at: coord, waypointID: "existing-wp-1", needsCentering: false)
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertEqual(viewModel.targetWaypointID, "existing-wp-1")
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, coord.latitude)
     
-    // 2. Testing ensureVisible callback
-    var reportedHeight: CGFloat = 0
-    viewModel.onEnsureVisibleRequested = { height in
-      reportedHeight = height
-    }
-    viewModel.ensureVisible(sheetHeight: 250.0)
-    XCTAssertEqual(reportedHeight, 250.0)
-    XCTAssertEqual(viewModel.lastSheetHeight, 250.0)
-    
-    // 3. Selecting empty map space
-    viewModel.presentCallout(coordinate: coord, waypointID: nil)
+    // 2. Selecting empty map space
+    viewModel.beginAiming(at: coord, waypointID: nil, needsCentering: false)
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertNil(viewModel.targetWaypointID)
   }
   
   func testDismissClearsCalloutState() {
     let viewModel = MapCalloutViewModel()
-    viewModel.presentCallout(coordinate: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0), waypointID: "target-1")
+    viewModel.beginAiming(at: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0), waypointID: "target-1", needsCentering: false)
     
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertEqual(viewModel.targetWaypointID, "target-1")
@@ -192,7 +183,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.formattedCoordinate)
     
     let coord = CLLocationCoordinate2D(latitude: 47.218371, longitude: -1.553621)
-    viewModel.presentCallout(coordinate: coord)
+    viewModel.beginAiming(at: coord, needsCentering: false)
     
     let formatted = viewModel.formattedCoordinate
     XCTAssertNotNil(formatted)
@@ -202,7 +193,7 @@ final class MapCalloutViewModelTests: XCTestCase {
   func testUpdateTarget() {
     let viewModel = MapCalloutViewModel()
     let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    viewModel.presentCallout(coordinate: initialCoord)
+    viewModel.beginAiming(at: initialCoord, needsCentering: false)
 
     let newCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
     viewModel.updateTarget(coordinate: newCoord)
@@ -212,16 +203,6 @@ final class MapCalloutViewModelTests: XCTestCase {
 
     viewModel.dismiss()
     XCTAssertFalse(viewModel.isCalloutVisible)
-  }
-
-  func testSheetHeightRetention() {
-    let viewModel = MapCalloutViewModel()
-    let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    viewModel.presentCallout(coordinate: initialCoord)
-
-    XCTAssertEqual(viewModel.lastSheetHeight, 220.0)
-    viewModel.ensureVisible(sheetHeight: 285.0)
-    XCTAssertEqual(viewModel.lastSheetHeight, 285.0)
   }
 
   func testBeginAimingWithNeedsCentering() {
@@ -277,32 +258,6 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.aimingCoordinate)
     XCTAssertEqual(viewModel.targetCoordinate?.latitude, panCenterCoord.latitude)
     XCTAssertEqual(viewModel.targetCoordinate?.longitude, panCenterCoord.longitude)
-  }
-
-  func testPresentWaypointCalloutDoesNotSetCenteringOrAiming() {
-    let viewModel = MapCalloutViewModel()
-    let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-
-    viewModel.presentWaypointCallout(coordinate: coord, waypointID: "wp-42")
-    XCTAssertTrue(viewModel.isCalloutVisible)
-    XCTAssertEqual(viewModel.targetWaypointID, "wp-42")
-    XCTAssertFalse(viewModel.isCentering)
-    XCTAssertNil(viewModel.aimingCoordinate)
-  }
-
-  func testEnsureVisibleInvokesCallbackWhenDialogArrives() {
-    let viewModel = MapCalloutViewModel()
-    let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    viewModel.presentCallout(coordinate: coord)
-    
-    var receivedSheetHeight: CGFloat? = nil
-    viewModel.onEnsureVisibleRequested = { height in
-      receivedSheetHeight = height
-    }
-    
-    viewModel.ensureVisible(sheetHeight: 300.0)
-    XCTAssertEqual(receivedSheetHeight, 300.0, "ensureVisible should trigger camera adjustment when the dialog arrives")
-    XCTAssertEqual(viewModel.lastSheetHeight, 300.0)
   }
 
   func testAimingPreviewLifecycle() {
@@ -400,7 +355,7 @@ final class MapCalloutViewModelTests: XCTestCase {
       return
     }
 
-    viewModel.presentCallout(coordinate: coord)
+    viewModel.beginAiming(at: coord, needsCentering: false)
     viewModel.presentPointInfo(for: fixedDate)
     XCTAssertTrue(viewModel.isPointInfoPresented)
 
@@ -427,7 +382,7 @@ final class MapCalloutViewModelTests: XCTestCase {
   func testUpdateTargetRefetchesPointInformationWhenPointInfoPresented() async {
     let viewModel = MapCalloutViewModel()
     let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    viewModel.presentCallout(coordinate: initialCoord)
+    viewModel.beginAiming(at: initialCoord, needsCentering: false)
     viewModel.presentPointInfo()
 
     var deadline = Date().addingTimeInterval(2.0)
@@ -452,7 +407,7 @@ final class MapCalloutViewModelTests: XCTestCase {
   func testDismissPointInfoClearsEphemerisAndDeclination() async {
     let viewModel = MapCalloutViewModel()
     let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    viewModel.presentCallout(coordinate: coord)
+    viewModel.beginAiming(at: coord, needsCentering: false)
     viewModel.presentPointInfo()
 
     let deadline = Date().addingTimeInterval(2.0)
@@ -472,7 +427,7 @@ final class MapCalloutViewModelTests: XCTestCase {
   func testDismissClearsPointInformationState() async {
     let viewModel = MapCalloutViewModel()
     let coord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
-    viewModel.presentCallout(coordinate: coord)
+    viewModel.beginAiming(at: coord, needsCentering: false)
     viewModel.presentPointInfo()
 
     let deadline = Date().addingTimeInterval(2.0)
@@ -494,7 +449,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
     let secondCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
 
-    viewModel.presentCallout(coordinate: initialCoord)
+    viewModel.beginAiming(at: initialCoord, needsCentering: false)
     viewModel.presentPointInfo()
     XCTAssertTrue(viewModel.isPointInfoPresented)
 
@@ -554,7 +509,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
     let waypointCoord = CLLocationCoordinate2D(latitude: 43.2965, longitude: 5.3698) // Marseille
 
-    viewModel.presentCallout(coordinate: initialCoord)
+    viewModel.beginAiming(at: initialCoord, needsCentering: false)
     viewModel.presentPointInfo()
     XCTAssertTrue(viewModel.isPointInfoPresented)
 
@@ -568,8 +523,8 @@ final class MapCalloutViewModelTests: XCTestCase {
     let initialDaylight = viewModel.sunEphemeris?.daylight
     let initialDeclination = viewModel.magneticDeclination?.converted(to: .degrees).value
 
-    // User long presses on an existing waypoint
-    viewModel.presentWaypointCallout(coordinate: waypointCoord, waypointID: "wp-99")
+    // User long presses on an existing waypoint via unified aiming flow
+    viewModel.beginAiming(at: waypointCoord, waypointID: "wp-99", needsCentering: false)
     XCTAssertTrue(viewModel.isCalloutVisible)
     XCTAssertTrue(viewModel.isPointInfoPresented, "Point info must remain open when user selects a waypoint")
     XCTAssertEqual(viewModel.targetWaypointID, "wp-99")
@@ -592,7 +547,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     let initialCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
     let secondCoord = CLLocationCoordinate2D(latitude: 47.05, longitude: -2.95)
 
-    viewModel.presentCallout(coordinate: initialCoord)
+    viewModel.beginAiming(at: initialCoord, needsCentering: false)
     XCTAssertFalse(viewModel.isPointInfoPresented)
 
     viewModel.startAimingPreview(at: secondCoord)
@@ -601,7 +556,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     viewModel.beginAiming(at: secondCoord, needsCentering: false)
     XCTAssertFalse(viewModel.isPointInfoPresented)
 
-    viewModel.presentWaypointCallout(coordinate: secondCoord, waypointID: "wp-100")
+    viewModel.beginAiming(at: secondCoord, waypointID: "wp-100", needsCentering: false)
     XCTAssertFalse(viewModel.isPointInfoPresented)
   }
 
@@ -636,5 +591,47 @@ final class MapCalloutViewModelTests: XCTestCase {
 
     viewModel.magneticDeclination = nil
     XCTAssertNil(viewModel.magneticDeclinationFooterText)
+  }
+
+  func testUnifiedReticleWaypointLifecycleAndDetach() {
+    let viewModel = MapCalloutViewModel()
+    let wpCoord = CLLocationCoordinate2D(latitude: 47.0, longitude: -3.0)
+    let openWaterCoord = CLLocationCoordinate2D(latitude: 47.02, longitude: -3.02)
+
+    // 1. Long-press on waypoint starts aiming preview with waypoint lock
+    viewModel.startAimingPreview(at: wpCoord, waypointID: "wp-7")
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertEqual(viewModel.targetWaypointID, "wp-7")
+    XCTAssertEqual(viewModel.aimingCoordinate?.latitude, wpCoord.latitude)
+    XCTAssertEqual(viewModel.reticleVisualOffset, .zero)
+
+    // 2. Release begins centering flight preserving waypoint lock
+    viewModel.beginAiming(at: wpCoord, waypointID: "wp-7", needsCentering: true)
+    XCTAssertTrue(viewModel.isCentering)
+    XCTAssertEqual(viewModel.targetWaypointID, "wp-7")
+
+    // 3. Centering completes onto the waypoint
+    viewModel.completeCentering(at: wpCoord, waypointID: "wp-7")
+    XCTAssertFalse(viewModel.isCentering)
+    XCTAssertNil(viewModel.aimingCoordinate)
+    XCTAssertEqual(viewModel.targetWaypointID, "wp-7")
+    XCTAssertEqual(viewModel.reticleVisualOffset, .zero)
+
+    // 4. Magnetic visual pull updates while locked on waypoint, then resets to .zero on detach
+    viewModel.updateReticleVisualOffset(CGSize(width: 12, height: -4))
+    XCTAssertEqual(viewModel.reticleVisualOffset, CGSize(width: 12, height: -4))
+
+    viewModel.updateTarget(coordinate: openWaterCoord, waypointID: nil, visualOffset: CGSize(width: 12, height: -4))
+    XCTAssertNil(viewModel.targetWaypointID)
+    XCTAssertEqual(viewModel.targetCoordinate?.latitude, openWaterCoord.latitude)
+    XCTAssertEqual(viewModel.reticleVisualOffset, .zero, "Detaching to empty water must force reticleVisualOffset back to .zero")
+
+    // Updating visual offset while no waypoint is targeted must stay .zero
+    viewModel.updateReticleVisualOffset(CGSize(width: 8, height: 8))
+    XCTAssertEqual(viewModel.reticleVisualOffset, .zero)
+
+    // 5. Dismiss resets visual offset
+    viewModel.dismiss()
+    XCTAssertEqual(viewModel.reticleVisualOffset, .zero)
   }
 }

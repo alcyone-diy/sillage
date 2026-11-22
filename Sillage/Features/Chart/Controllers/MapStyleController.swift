@@ -645,41 +645,39 @@ struct MapStyleController {
       measureLineLayer.lineDashPattern = NSExpression(forConstantValue: [4.0, 4.0])
       insertLayer(measureLineLayer, identifier: .measureLine, into: style)
 
+      // Align GeoJSON tile quantization with global overzoom ceiling (z22) so waypoint circles stay
+      // pixel-locked to the SwiftUI aiming crosshair at extreme zoom levels.
+      let waypointSourceOptions: [MLNShapeSourceOption: Any] = [
+        .maximumZoomLevel: NSNumber(value: AppConstants.Cartography.Zoom.globalMaximum)
+      ]
+
       // 4. Visible Waypoints
-      let visibleWaypointsSource = MLNShapeSource(identifier: MapSourceIdentifier.visibleWaypoints.rawValue, shape: nil, options: nil)
+      let visibleWaypointsSource = MLNShapeSource(
+        identifier: MapSourceIdentifier.visibleWaypoints.rawValue,
+        shape: nil,
+        options: waypointSourceOptions
+      )
       style.addSource(visibleWaypointsSource)
 
       let visibleWaypointsLayer = MLNCircleStyleLayer(identifier: MapLayerIdentifier.visibleWaypoints.rawValue, source: visibleWaypointsSource)
-      visibleWaypointsLayer.circleRadius = NSExpression(
-        forConditional: NSPredicate(format: "isCalloutTarget == true"),
-        trueExpression: NSExpression(forConstantValue: 12.0),
-        falseExpression: NSExpression(forConstantValue: 6.0)
-      )
+      visibleWaypointsLayer.circleRadius = NSExpression(forConstantValue: 6.0)
       visibleWaypointsLayer.circleColor = NSExpression(forKeyPath: "color")
-      visibleWaypointsLayer.circleStrokeWidth = NSExpression(
-        forConditional: NSPredicate(format: "isCalloutTarget == true"),
-        trueExpression: NSExpression(forConstantValue: 3.0),
-        falseExpression: NSExpression(forConstantValue: 1.5)
-      )
+      visibleWaypointsLayer.circleStrokeWidth = NSExpression(forConstantValue: 1.5)
       visibleWaypointsLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       insertLayer(visibleWaypointsLayer, identifier: .visibleWaypoints, into: style)
 
       // 5. Target GoTo Waypoint
-      let goToWaypointSource = MLNShapeSource(identifier: MapSourceIdentifier.goToWaypoint.rawValue, shape: nil, options: nil)
+      let goToWaypointSource = MLNShapeSource(
+        identifier: MapSourceIdentifier.goToWaypoint.rawValue,
+        shape: nil,
+        options: waypointSourceOptions
+      )
       style.addSource(goToWaypointSource)
 
       let goToWaypointLayer = MLNCircleStyleLayer(identifier: MapLayerIdentifier.goToWaypoint.rawValue, source: goToWaypointSource)
-      goToWaypointLayer.circleRadius = NSExpression(
-        forConditional: NSPredicate(format: "isCalloutTarget == true"),
-        trueExpression: NSExpression(forConstantValue: 14.0),
-        falseExpression: NSExpression(forConstantValue: 8.0)
-      )
+      goToWaypointLayer.circleRadius = NSExpression(forConstantValue: 8.0)
       goToWaypointLayer.circleColor = NSExpression(forKeyPath: "color")
-      goToWaypointLayer.circleStrokeWidth = NSExpression(
-        forConditional: NSPredicate(format: "isCalloutTarget == true"),
-        trueExpression: NSExpression(forConstantValue: 3.5),
-        falseExpression: NSExpression(forConstantValue: 2.0)
-      )
+      goToWaypointLayer.circleStrokeWidth = NSExpression(forConstantValue: 2.0)
       goToWaypointLayer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
       insertLayer(goToWaypointLayer, identifier: .goToWaypoint, into: style)
 
@@ -772,18 +770,18 @@ struct MapStyleController {
   }
 
   /// Updates visible waypoints on the MapLibre style.
-  static func updateVisibleWaypoints(states: [WaypointVisualState], targetWaypointID: String? = nil, in style: MLNStyle, theme: MarineTheme) {
+  static func updateVisibleWaypoints(states: [WaypointVisualState], in style: MLNStyle, theme: MarineTheme) {
     ensureNavigationLayersExist(in: style, theme: theme)
     if let source = style.source(withIdentifier: MapSourceIdentifier.visibleWaypoints.rawValue) as? MLNShapeSource {
-      source.shape = MapLibreFeatureFactory.createVisibleWaypointsFeature(from: states, targetWaypointID: targetWaypointID)
+      source.shape = MapLibreFeatureFactory.createVisibleWaypointsFeature(from: states)
     }
   }
 
   /// Updates target GoTo waypoint on the MapLibre style.
-  static func updateGoToWaypoint(state: WaypointVisualState?, targetWaypointID: String? = nil, in style: MLNStyle, theme: MarineTheme) {
+  static func updateGoToWaypoint(state: WaypointVisualState?, in style: MLNStyle, theme: MarineTheme) {
     ensureNavigationLayersExist(in: style, theme: theme)
     if let source = style.source(withIdentifier: MapSourceIdentifier.goToWaypoint.rawValue) as? MLNShapeSource {
-      source.shape = MapLibreFeatureFactory.createGoToWaypointFeature(from: state, targetWaypointID: targetWaypointID)
+      source.shape = MapLibreFeatureFactory.createGoToWaypointFeature(from: state)
     }
   }
 

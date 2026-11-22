@@ -76,6 +76,19 @@ public enum AppConstants {
     /// Vertical screen fraction for positioning the aiming crosshair and centering contextual targets,
     /// placing it comfortably 40% (2/5) from the top of the screen above the bottom sheet dialog.
     nonisolated public static let aimingCrosshairYFraction: CGFloat = 4.0 / 10.0
+
+    /// Vertical screen fraction for centered position picker HUDs (waypoint adjustment, anchor drop/adjust).
+    nonisolated public static let positionPickerCrosshairYFraction: CGFloat = 0.5
+
+    /// Screen-point snap radius for magnetic reticle attachment to a visible waypoint.
+    nonisolated public static let waypointMagneticSnapRadius: CGFloat = 16.0
+
+    /// Expanded magnetic snap radius in Glove Mode.
+    nonisolated public static let waypointMagneticSnapGloveRadius: CGFloat = 24.0
+
+    /// Extra screen-point margin beyond the snap radius required before detaching from
+    /// a magnetically locked waypoint, preventing jitter in rough seas.
+    nonisolated public static let waypointMagneticDetachHysteresis: CGFloat = 6.0
   }
 
   /// GeoGarage sign-in over OAuth2 authorization code + PKCE using HTTPS callback with Associated Domains.

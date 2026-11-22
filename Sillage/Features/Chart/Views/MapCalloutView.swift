@@ -57,7 +57,6 @@ struct MapCalloutView: View {
   
   private func notifySheetHeightChanged(_ height: CGFloat) {
     chartViewModel.measureToolViewModel.ensureVisible(sheetHeight: height)
-    calloutViewModel.ensureVisible(sheetHeight: height)
   }
 
   private func updateMeasuredHeight(_ newHeight: CGFloat) {
@@ -88,24 +87,12 @@ struct MapCalloutView: View {
           .allowsHitTesting(false)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-        // Aiming crosshair for contextual map target selection (visible once centering flight completes).
-        // Kept permanently mounted in the view hierarchy so its CALayer and shadow buffer are pre-warmed,
-        // guaranteeing a 0-frame opacity toggle in the exact same CATransaction as MapLibre layer hiding.
-        let isSwiftUICrosshairVisible =
-          calloutViewModel.isCalloutVisible &&
-          calloutViewModel.targetWaypointID == nil &&
-          !calloutViewModel.isCentering &&
-          calloutViewModel.aimingCoordinate == nil &&
-          !chartViewModel.measureToolViewModel.isActive
-
-        MarineCrosshairView.targetAiming(theme: marineTheme)
-          .position(
-            x: proxy.size.width / 2.0,
-            y: proxy.size.height * AppConstants.Map.aimingCrosshairYFraction
-          )
-          .opacity(isSwiftUICrosshairVisible ? 1.0 : 0.0)
-          .transaction { $0.disablesAnimations = true }
-          .allowsHitTesting(false)
+        // Isolated subview so 120Hz magnetic reticle offset updates never re-evaluate MapCalloutView.body.
+        CalloutReticleOverlayView(
+          calloutViewModel: calloutViewModel,
+          measureToolViewModel: chartViewModel.measureToolViewModel,
+          containerSize: proxy.size
+        )
       }
     }
     .sheet(isPresented: isSheetPresented) {
@@ -495,6 +482,37 @@ struct MapCalloutView: View {
   }
 }
 
+// MARK: - Isolated Reticle Overlay
+
+/// Lightweight overlay that exclusively observes `reticleVisualOffset` so 120Hz magnetic pull
+/// updates during chart panning do not invalidate `MapCalloutView.body` or its sheet hierarchy.
+private struct CalloutReticleOverlayView: View {
+  @Environment(\.marineTheme) private var marineTheme
+
+  let calloutViewModel: MapCalloutViewModel
+  let measureToolViewModel: MeasureToolViewModel
+  let containerSize: CGSize
+
+  var body: some View {
+    // Kept permanently mounted in the view hierarchy so its CALayer and shadow buffer are pre-warmed,
+    // guaranteeing a 0-frame opacity toggle in the exact same CATransaction as MapLibre layer hiding.
+    let isSwiftUICrosshairVisible =
+      calloutViewModel.isCalloutVisible &&
+      !calloutViewModel.isCentering &&
+      calloutViewModel.aimingCoordinate == nil &&
+      !measureToolViewModel.isActive
+
+    MarineCrosshairView.targetAiming(theme: marineTheme)
+      .position(
+        x: containerSize.width / 2.0 + calloutViewModel.reticleVisualOffset.width,
+        y: containerSize.height * AppConstants.Map.aimingCrosshairYFraction + calloutViewModel.reticleVisualOffset.height
+      )
+      .opacity(isSwiftUICrosshairVisible ? 1.0 : 0.0)
+      .transaction { $0.disablesAnimations = true }
+      .allowsHitTesting(false)
+  }
+}
+
 // MARK: - Point Information Destination
 
 struct PointInformationDestinationView: View {
@@ -523,12 +541,6 @@ struct PointInformationDestinationView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .scrollBounceBehavior(.basedOnSize)
-    .onGeometryChange(for: CGFloat.self) { proxy in
-      proxy.size.height + proxy.safeAreaInsets.top
-    } action: { newHeight in
-      guard newHeight > 0 else { return }
-      calloutViewModel.ensureVisible(sheetHeight: newHeight)
-    }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .background(marineTheme.colors.panelBackground)
     .navigationTitle("Point Information")

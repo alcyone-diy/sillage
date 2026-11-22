@@ -24,7 +24,9 @@ final class MapCalloutViewModel {
   var targetWaypointID: String? = nil
   var isCentering: Bool = false
   var aimingCoordinate: CLLocationCoordinate2D? = nil
-  private(set) var lastSheetHeight: CGFloat = 220
+  /// Screen-space magnetic pull offset applied to the SwiftUI reticle while panning near a waypoint.
+  /// Always `.zero` when no waypoint is targeted.
+  private(set) var reticleVisualOffset: CGSize = .zero
   
   // MARK: - Point Information (Ephemeris & Magnetism)
   
@@ -54,37 +56,25 @@ final class MapCalloutViewModel {
     magneticDeclination?.marineDeclinationConversionFooter
   }
   
-  /// Closure invoked when the UI requests ensuring the target point is not obscured by overlay sheets.
-  var onEnsureVisibleRequested: (@MainActor (CGFloat) -> Void)? = nil
-  
-  /// Presents the map callout overlay for an existing waypoint.
-  func presentWaypointCallout(coordinate: CLLocationCoordinate2D, waypointID: String) {
-    pointInfoFetchTask?.cancel()
-    pointInfoFetchTask = nil
-    self.targetCoordinate = coordinate
-    self.targetWaypointID = waypointID
-    self.aimingCoordinate = nil
-    self.isCentering = false
-    self.isCalloutVisible = true
-    syncPointInformationForNewTarget(immediate: true)
-  }
-
   /// Starts crosshair aiming under the user's finger during a long press gesture
   /// and immediately presents the callout dialog.
-  func startAimingPreview(at coordinate: CLLocationCoordinate2D) {
+  func startAimingPreview(at coordinate: CLLocationCoordinate2D, waypointID: String? = nil) {
     self.targetCoordinate = coordinate
-    self.targetWaypointID = nil
+    self.targetWaypointID = waypointID
     self.aimingCoordinate = coordinate
     self.isCentering = false
+    self.reticleVisualOffset = .zero
     self.isCalloutVisible = true
     syncPointInformationForNewTarget(immediate: true)
   }
 
   /// Updates preview aiming location as the user drags their finger before release.
   /// Preserves existing point info to prevent skeleton flashing while aiming settles.
-  func updateAimingPreview(at coordinate: CLLocationCoordinate2D) {
+  func updateAimingPreview(at coordinate: CLLocationCoordinate2D, waypointID: String? = nil) {
     self.targetCoordinate = coordinate
+    self.targetWaypointID = waypointID
     self.aimingCoordinate = coordinate
+    self.reticleVisualOffset = .zero
     syncPointInformationForNewTarget(immediate: false)
   }
 
@@ -94,68 +84,78 @@ final class MapCalloutViewModel {
     pointInfoFetchTask = nil
     self.aimingCoordinate = nil
     self.isCentering = false
+    self.reticleVisualOffset = .zero
     self.isPointInfoPresented = false
     self.isCalloutVisible = false
     self.targetCoordinate = nil
+    self.targetWaypointID = nil
     self.sunEphemeris = nil
     self.magneticDeclination = nil
     self.isPointInfoLoading = false
   }
 
-  /// Begins targeting an empty map location with crosshair aiming.
+  /// Begins targeting a map location (or snapped waypoint) with crosshair aiming.
   /// - Parameters:
-  ///   - coordinate: Geographic coordinate touch point.
+  ///   - coordinate: Geographic coordinate touch point (or exact waypoint coordinate if snapped).
+  ///   - waypointID: Optional snapped waypoint identifier.
   ///   - needsCentering: True if MapLibre must fly the camera to center this point.
-  func beginAiming(at coordinate: CLLocationCoordinate2D, needsCentering: Bool) {
+  func beginAiming(
+    at coordinate: CLLocationCoordinate2D,
+    waypointID: String? = nil,
+    needsCentering: Bool
+  ) {
     self.targetCoordinate = coordinate
-    self.targetWaypointID = nil
+    self.targetWaypointID = waypointID
     self.aimingCoordinate = needsCentering ? coordinate : nil
     self.isCentering = needsCentering
+    self.reticleVisualOffset = .zero
     self.isCalloutVisible = true
     syncPointInformationForNewTarget(immediate: !needsCentering)
   }
 
   /// Finalizes the centering flight once the camera has arrived at the screen center.
-  func completeCentering(at mapCenter: CLLocationCoordinate2D) {
+  func completeCentering(at mapCenter: CLLocationCoordinate2D, waypointID: String? = nil) {
     self.aimingCoordinate = nil
     self.isCentering = false
+    self.reticleVisualOffset = .zero
     self.targetCoordinate = mapCenter
+    self.targetWaypointID = waypointID
     syncPointInformationForNewTarget(immediate: true)
   }
 
   /// Interrupts the centering flight (e.g. user dragged the map mid-flight or window resized).
-  func interruptCentering(at mapCenter: CLLocationCoordinate2D) {
+  func interruptCentering(
+    at mapCenter: CLLocationCoordinate2D,
+    waypointID: String? = nil,
+    visualOffset: CGSize = .zero
+  ) {
     self.aimingCoordinate = nil
     self.isCentering = false
+    self.reticleVisualOffset = waypointID != nil ? visualOffset : .zero
     self.targetCoordinate = mapCenter
+    self.targetWaypointID = waypointID
     syncPointInformationForNewTarget(immediate: false)
   }
 
-  /// Presents the map callout overlay at the specified geographic coordinate.
-  func presentCallout(
+  /// Updates target coordinate, optional magnetically snapped waypoint, and reticle visual offset during chart panning.
+  /// Enforces that `reticleVisualOffset` resets to `.zero` whenever `waypointID == nil`.
+  func updateTarget(
     coordinate: CLLocationCoordinate2D,
     waypointID: String? = nil,
-    needsCentering: Bool = false
+    visualOffset: CGSize = .zero
   ) {
-    if let waypointID {
-      presentWaypointCallout(coordinate: coordinate, waypointID: waypointID)
-    } else {
-      beginAiming(at: coordinate, needsCentering: needsCentering)
-    }
-  }
-  
-  /// Updates target coordinate during chart panning.
-  func updateTarget(coordinate: CLLocationCoordinate2D) {
     self.targetCoordinate = coordinate
+    self.targetWaypointID = waypointID
+    self.reticleVisualOffset = waypointID != nil ? visualOffset : .zero
     syncPointInformationForNewTarget(immediate: false)
   }
-  
-  /// Requests the map view to pan upwards if the target point is obscured by the bottom sheet.
-  /// - Parameter sheetHeight: The rendered height of the bottom sheet.
-  func ensureVisible(sheetHeight: CGFloat) {
-    self.lastSheetHeight = sheetHeight
-    guard isCalloutVisible else { return }
-    onEnsureVisibleRequested?(sheetHeight)
+
+  /// Updates only the screen-space magnetic visual offset at display refresh rate without retriggering point info fetches.
+  func updateReticleVisualOffset(_ offset: CGSize) {
+    let resolvedOffset = targetWaypointID != nil ? offset : .zero
+    if self.reticleVisualOffset != resolvedOffset {
+      self.reticleVisualOffset = resolvedOffset
+    }
   }
   
   /// Presents the contextual point information dialog.
@@ -183,6 +183,7 @@ final class MapCalloutViewModel {
     self.targetWaypointID = nil
     self.aimingCoordinate = nil
     self.isCentering = false
+    self.reticleVisualOffset = .zero
     self.sunEphemeris = nil
     self.magneticDeclination = nil
     self.isPointInfoLoading = false

@@ -208,8 +208,7 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     )
 
     let collection = MapLibreFeatureFactory.createVisibleWaypointsFeature(
-      from: [standardWaypoint, draftWaypoint],
-      targetWaypointID: nil
+      from: [standardWaypoint, draftWaypoint]
     )
 
     XCTAssertNotNil(collection)
@@ -221,66 +220,27 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     let stdFeature = features[0]
     let draftFeature = features[1]
 
-    XCTAssertEqual(stdFeature.attributes["isCalloutTarget"] as? Bool, false)
-    XCTAssertEqual(draftFeature.attributes["isCalloutTarget"] as? Bool, true)
+    XCTAssertEqual(stdFeature.attributes[MapFeatureKey.id.rawValue] as? String, "std-1")
+    XCTAssertEqual(draftFeature.attributes[MapFeatureKey.id.rawValue] as? String, "draft-1")
+    XCTAssertNil(stdFeature.attributes["isCalloutTarget"])
+    XCTAssertNil(draftFeature.attributes["isCalloutTarget"])
   }
 
-  func testCreateVisibleWaypointsFeature_whenSelected_setsIsCalloutTargetTrue() {
-    let standardWaypoint = WaypointVisualState(
-      id: "std-1",
-      name: "Saved Point",
-      coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15),
-      colorHex: "#007AFF",
-      isDraft: false,
-      isSelected: false
-    )
-    let selectedWaypoint = WaypointVisualState(
-      id: "edit-1",
-      name: "Editing Point",
-      coordinate: CLLocationCoordinate2D(latitude: 46.20, longitude: -1.20),
-      colorHex: "#FF9500",
-      isDraft: false,
-      isSelected: true
-    )
-
-    let collection = MapLibreFeatureFactory.createVisibleWaypointsFeature(
-      from: [standardWaypoint, selectedWaypoint],
-      targetWaypointID: nil
-    )
-
-    XCTAssertNotNil(collection)
-    guard let features = collection?.shapes as? [MLNPointFeature], features.count == 2 else {
-      XCTFail("Expected 2 MLNPointFeature shapes")
-      return
-    }
-
-    XCTAssertEqual(features[0].attributes["isCalloutTarget"] as? Bool, false)
-    XCTAssertEqual(features[1].attributes["isCalloutTarget"] as? Bool, true)
-  }
-
-  func testCreateGoToWaypointFeature_whenSelected_setsIsCalloutTargetTrue() {
-    let unselectedGoTo = WaypointVisualState(
+  func testCreateGoToWaypointFeature_preservesStandardAttributesWithoutEnlargementFlag() {
+    let goTo = WaypointVisualState(
       id: "goto-1",
       name: "GoTo Normal",
       coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15),
       colorHex: "#007AFF",
-      isDraft: false,
-      isSelected: false
-    )
-    let selectedGoTo = WaypointVisualState(
-      id: "goto-2",
-      name: "GoTo Editing",
-      coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15),
-      colorHex: "#007AFF",
-      isDraft: false,
-      isSelected: true
+      isDraft: false
     )
 
-    let feature1 = MapLibreFeatureFactory.createGoToWaypointFeature(from: unselectedGoTo, targetWaypointID: nil)
-    let feature2 = MapLibreFeatureFactory.createGoToWaypointFeature(from: selectedGoTo, targetWaypointID: nil)
+    let feature = MapLibreFeatureFactory.createGoToWaypointFeature(from: goTo)
 
-    XCTAssertEqual(feature1?.attributes["isCalloutTarget"] as? Bool, false)
-    XCTAssertEqual(feature2?.attributes["isCalloutTarget"] as? Bool, true)
+    XCTAssertEqual(feature?.attributes[MapFeatureKey.id.rawValue] as? String, "goto-1")
+    XCTAssertEqual(feature?.attributes[MapFeatureKey.name.rawValue] as? String, "GoTo Normal")
+    XCTAssertEqual(feature?.attributes[MapFeatureKey.color.rawValue] as? String, "#007AFF")
+    XCTAssertNil(feature?.attributes["isCalloutTarget"])
   }
 
   // MARK: - Offline Selection Tests
