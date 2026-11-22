@@ -94,6 +94,16 @@ struct TrackControlView: View {
     .onChange(of: activeTrackViewModel.isRecording) { _, _ in
       optimisticRecordingState = nil
     }
+    .onChange(of: activeTrackViewModel.recordingError != nil) { _, hasError in
+      if hasError {
+        optimisticRecordingState = nil
+      }
+    }
+    .onChange(of: activeTrackViewModel.pendingPermissionGate) { _, gate in
+      if gate != nil {
+        optimisticRecordingState = nil
+      }
+    }
     .animation(.snappy, value: activeTrackViewModel.isRecording)
   }
   

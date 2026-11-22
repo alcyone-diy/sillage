@@ -396,7 +396,12 @@ struct ContentView: View {
     // to present the new `.alert`.
     // By attaching these modals directly to the content of the `.sheet` (`panelView`), the alert is presented
     // BY the sheet's UIViewController, safely layering over it without dismissing the panel.
-    .sheet(item: Bindable(activeTrackViewModel).pendingPermissionGate) { gateType in
+    .sheet(
+      item: Bindable(activeTrackViewModel).pendingPermissionGate,
+      onDismiss: {
+        activeTrackViewModel.cancelPendingLocationAction()
+      }
+    ) { gateType in
       PermissionGateView(type: gateType)
         .presentationDetents([.medium, .large])
     }

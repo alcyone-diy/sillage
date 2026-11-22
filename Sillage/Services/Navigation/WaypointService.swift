@@ -54,6 +54,8 @@ public final class WaypointService {
           guard !Task.isCancelled else { break }
           self?.currentWaypoints = waypoints
         }
+      } catch is CancellationError {
+        return
       } catch {
         Logger.database.error("Waypoint observation failed: \(error, privacy: .public)")
       }

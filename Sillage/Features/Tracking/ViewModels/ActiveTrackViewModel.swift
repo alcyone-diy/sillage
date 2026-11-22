@@ -82,6 +82,10 @@ public final class ActiveTrackViewModel {
     pendingAction?()
     pendingAction = nil
   }
+
+  func cancelPendingLocationAction() {
+    pendingAction = nil
+  }
   
   public var isSaving: Bool {
     trackRecordingService.state == .saving
@@ -104,6 +108,7 @@ public final class ActiveTrackViewModel {
   }
   
   public func toggleRecording() {
+    recordingError = nil
     Task { [weak self] in
       guard let self else { return }
       do {

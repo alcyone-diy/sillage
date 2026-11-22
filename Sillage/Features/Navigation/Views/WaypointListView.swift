@@ -179,6 +179,12 @@ struct WaypointDetailContainer: View {
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManager
   @State private var state: LoadState = .loading
+  @State private var reloadTrigger = 0
+
+  private struct LoadTaskTrigger: Equatable {
+    let waypointID: String
+    let reloadTrigger: Int
+  }
 
   init(waypointID: String, waypoint: Waypoint? = nil) {
     self.waypointID = waypointID
@@ -235,13 +241,14 @@ struct WaypointDetailContainer: View {
           
           Button("Retry") {
             state = .loading
+            reloadTrigger &+= 1
           }
           .buttonStyle(MarineButtonStyle(.primary))
         }
         .padding()
       }
     }
-    .task(id: waypointID) {
+    .task(id: LoadTaskTrigger(waypointID: waypointID, reloadTrigger: reloadTrigger)) {
       await loadData()
     }
   }
