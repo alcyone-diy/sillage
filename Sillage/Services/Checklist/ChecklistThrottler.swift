@@ -39,6 +39,11 @@ public actor ChecklistThrottler {
     return true
   }
 
+  /// Clears the throttling timestamp for a specific item (e.g., after a failed write).
+  public func reset(for itemId: UUID) {
+    lastActionTimestamps.removeValue(forKey: itemId)
+  }
+
   /// Removes timestamps that fall outside the active debouncing window.
   private func pruneExpired(clock: ContinuousClock) {
     let now = clock.now

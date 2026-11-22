@@ -18,18 +18,14 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   private var checklistService: ChecklistService?
   private var template: ChecklistTemplate?
   private var viewModel: ChecklistTemplateDetailViewModel?
-  private var isolatedDefaults: IsolatedUserDefaults?
 
   override func setUp() async throws {
     try await super.setUp()
-    let isolated = IsolatedUserDefaults(prefix: "ChecklistTemplateDetailViewModelTests")
-    self.isolatedDefaults = isolated
     let db = try DatabaseManager.inMemory()
     self.databaseManager = db
     let service = ChecklistService(
       databaseManager: db,
-      throttler: ChecklistThrottler(window: .zero),
-      userDefaults: isolated.defaults
+      throttler: ChecklistThrottler(window: .zero)
     )
     self.checklistService = service
 
@@ -55,8 +51,6 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     template = nil
     checklistService = nil
     databaseManager = nil
-    isolatedDefaults?.tearDown()
-    isolatedDefaults = nil
     try await super.tearDown()
   }
 

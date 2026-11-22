@@ -17,22 +17,17 @@ import GRDB
 final class ChecklistServiceTests: XCTestCase {
   private var databaseManager: DatabaseManager!
   private var checklistService: ChecklistService!
-  private var isolatedDefaults: IsolatedUserDefaults!
 
   override func setUp() async throws {
     try await super.setUp()
-    isolatedDefaults = IsolatedUserDefaults(prefix: "ChecklistServiceTests")
     databaseManager = try DatabaseManager.inMemory()
     checklistService = ChecklistService(
       databaseManager: databaseManager,
-      throttler: ChecklistThrottler(window: .zero),
-      userDefaults: isolatedDefaults.defaults
+      throttler: ChecklistThrottler(window: .zero)
     )
   }
 
   override func tearDown() async throws {
-    isolatedDefaults?.tearDown()
-    isolatedDefaults = nil
     checklistService = nil
     databaseManager = nil
     try await super.tearDown()
@@ -616,5 +611,138 @@ final class ChecklistServiceTests: XCTestCase {
     try await Task.sleep(for: .milliseconds(350))
     let third = await throttler.shouldProcessAction(for: itemId)
     XCTAssertTrue(third)
+  }
+
+  func testUpdateTemplateWithDuplicateTitleInsertedBeforeExistingPreservesStateWithoutCrash() async throws {
+    // 1. Create a template with a single item and start an active session
+    let template = try await checklistService.createCustomTemplate(
+      title: "Valve Checks",
+      description: nil,
+      categoryId: "engine_technical",
+      items: [
+        (title: "Check valve", detail: "Original seacock")
+      ]
+    )
+    let existingTemplateItem = try XCTUnwrap(template.items.first)
+    let session = try await checklistService.startSession(templateId: template.id)
+    let originalSessionItem = try XCTUnwrap(session.items.first)
+
+    // 2. Check the existing item with GPS coordinates
+    let coordinate = CLLocationCoordinate2D(latitude: 47.5123, longitude: -3.1456)
+    let checkedSession = try await checklistService.setItemChecked(
+      sessionId: session.id,
+      itemId: originalSessionItem.id,
+      isChecked: true,
+      coordinate: coordinate
+    )
+    let checkedOriginalItem = try XCTUnwrap(checkedSession.items.first)
+    XCTAssertTrue(checkedOriginalItem.isChecked)
+
+    // 3. Insert a NEW item with the exact same title BEFORE the existing item
+    _ = try await checklistService.updateTemplate(
+      id: template.id,
+      title: "Valve Checks",
+      description: nil,
+      categoryId: "engine_technical",
+      items: [
+        (id: nil, title: "Check valve", detail: "New duplicate"),
+        (id: existingTemplateItem.id, title: "Check valve", detail: "Original seacock")
+      ]
+    )
+
+    // 4. Verify active session has both items in order without PK crash or stolen state
+    let fetchedUpdatedSession = try await checklistService.fetchSession(id: session.id)
+    let updatedSession = try XCTUnwrap(fetchedUpdatedSession)
+    XCTAssertEqual(updatedSession.items.count, 2)
+
+    let firstItem = updatedSession.items[0]
+    let secondItem = updatedSession.items[1]
+
+    // New item at index 0 must NOT steal prior state or ID
+    XCTAssertNotEqual(firstItem.id, originalSessionItem.id)
+    XCTAssertEqual(firstItem.title, "Check valve")
+    XCTAssertEqual(firstItem.detail, "New duplicate")
+    XCTAssertFalse(firstItem.isChecked)
+    XCTAssertNil(firstItem.checkedAt)
+    XCTAssertNil(firstItem.coordinate)
+
+    // Existing item at index 1 must preserve its ID, checked state, and GPS coordinates
+    XCTAssertEqual(secondItem.id, originalSessionItem.id)
+    XCTAssertEqual(secondItem.sourceTemplateItemId, existingTemplateItem.id)
+    XCTAssertEqual(secondItem.title, "Check valve")
+    XCTAssertEqual(secondItem.detail, "Original seacock")
+    XCTAssertTrue(secondItem.isChecked)
+    XCTAssertNotNil(secondItem.checkedAt)
+    let preservedCoordinate = try XCTUnwrap(secondItem.coordinate)
+    XCTAssertEqual(preservedCoordinate.latitude, coordinate.latitude, accuracy: 0.0001)
+    XCTAssertEqual(preservedCoordinate.longitude, coordinate.longitude, accuracy: 0.0001)
+  }
+
+  func testSetItemCheckedRejectsItemFromAnotherSession() async throws {
+    let templateA = try await checklistService.createCustomTemplate(
+      title: "Template A",
+      items: [(title: "Item A", detail: nil)]
+    )
+    let templateB = try await checklistService.createCustomTemplate(
+      title: "Template B",
+      items: [(title: "Item B", detail: nil)]
+    )
+
+    let sessionA = try await checklistService.startSession(templateId: templateA.id)
+    let sessionB = try await checklistService.startSession(templateId: templateB.id)
+    let itemB = try XCTUnwrap(sessionB.items.first)
+
+    do {
+      _ = try await checklistService.setItemChecked(
+        sessionId: sessionA.id,
+        itemId: itemB.id,
+        isChecked: true
+      )
+      XCTFail("Expected itemNotFound when passing an itemId belonging to another session")
+    } catch let error as ChecklistSessionError {
+      XCTAssertEqual(error, .itemNotFound(itemB.id))
+    }
+
+    // Verify neither session was modified
+    let fetchedA = try await checklistService.fetchSession(id: sessionA.id)
+    let fetchedB = try await checklistService.fetchSession(id: sessionB.id)
+    let reloadedA = try XCTUnwrap(fetchedA)
+    let reloadedB = try XCTUnwrap(fetchedB)
+    XCTAssertFalse(try XCTUnwrap(reloadedA.items.first).isChecked)
+    XCTAssertFalse(try XCTUnwrap(reloadedB.items.first).isChecked)
+  }
+
+  func testThrottlerResetsOnWriteErrorAllowingImmediateRetry() async throws {
+    let strictService = ChecklistService(
+      databaseManager: databaseManager,
+      throttler: ChecklistThrottler(window: .seconds(10))
+    )
+
+    let template = try await strictService.createCustomTemplate(
+      title: "Throttler Reset Check",
+      items: [(title: "Bilge pump", detail: nil)]
+    )
+    let session = try await strictService.startSession(templateId: template.id)
+    let item = try XCTUnwrap(session.items.first)
+
+    // 1. Trigger an error using the item's ID with a nonexistent sessionId
+    do {
+      _ = try await strictService.setItemChecked(
+        sessionId: UUID(),
+        itemId: item.id,
+        isChecked: true
+      )
+      XCTFail("Expected sessionNotFound error")
+    } catch is ChecklistSessionError {
+      // Expected failure; throttler must have been reset for item.id
+    }
+
+    // 2. Immediate valid retry within the 10s window must NOT be debounced
+    let updated = try await strictService.setItemChecked(
+      sessionId: session.id,
+      itemId: item.id,
+      isChecked: true
+    )
+    XCTAssertTrue(try XCTUnwrap(updated.items.first).isChecked)
   }
 }

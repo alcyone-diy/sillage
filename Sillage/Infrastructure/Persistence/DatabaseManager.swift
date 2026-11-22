@@ -330,6 +330,20 @@ public final class DatabaseManager: Sendable {
       try db.create(index: "idx_geogarage_layer_brand_name", on: "geogarage_layer", columns: ["brand_name"])
     }
 
+    migrator.registerMigration("v2_checklist_seeding_state") { db in
+      try db.create(table: "checklist_seeding_state", ifNotExists: true) { t in
+        t.column("id", .text).primaryKey()
+        t.column("seeded_at", .datetime).notNull()
+      }
+
+      // v1 already seeds default categories for both new and existing databases.
+      // Record this state in SQLite so deleted default categories are never re-inserted.
+      try db.execute(
+        sql: "INSERT OR IGNORE INTO checklist_seeding_state (id, seeded_at) VALUES (?, ?)",
+        arguments: [ChecklistSeeder.defaultCategoriesSeedKey, Date()]
+      )
+    }
+
     return migrator
   }
 }

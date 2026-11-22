@@ -20,16 +20,13 @@ import CoreLocation
 public final class ChecklistService: ChecklistServiceProtocol {
   @ObservationIgnored private let databaseManager: DatabaseManager
   @ObservationIgnored private let throttler: ChecklistThrottler
-  @ObservationIgnored private let userDefaults: UserDefaults
 
   public init(
     databaseManager: DatabaseManager,
-    throttler: ChecklistThrottler = ChecklistThrottler(),
-    userDefaults: UserDefaults = .standard
+    throttler: ChecklistThrottler = ChecklistThrottler()
   ) {
     self.databaseManager = databaseManager
     self.throttler = throttler
-    self.userDefaults = userDefaults
   }
 
   // MARK: - Static Pure Mappings (Zero Self-Capture, Zero Dummy Values)
@@ -316,15 +313,39 @@ public final class ChecklistService: ChecklistServiceProtocol {
 
         let existingSessionItems = try ChecklistSessionItemRecord
           .filter(ChecklistSessionItemRecord.Columns.session_id == activeSession.id)
+          .order(ChecklistSessionItemRecord.Columns.sort_order.asc)
           .fetchAll(db)
 
         var existingBySourceId: [String: ChecklistSessionItemRecord] = [:]
-        var existingByTitle: [String: ChecklistSessionItemRecord] = [:]
         for item in existingSessionItems {
           if let src = item.source_template_item_id {
             existingBySourceId[src] = item
           }
-          existingByTitle[item.title] = item
+        }
+
+        // Pass 1: Match items by exact source_template_item_id and mark consumed priors
+        var matchedPriors: [ChecklistSessionItemRecord?] = Array(repeating: nil, count: domainItems.count)
+        var consumedPriorIds: Set<String> = []
+        for (index, domainItem) in domainItems.enumerated() {
+          let sourceId = domainItem.id.uuidString
+          if let prior = existingBySourceId.removeValue(forKey: sourceId) {
+            matchedPriors[index] = prior
+            consumedPriorIds.insert(prior.id)
+          }
+        }
+
+        // Pass 2: Build FIFO queues by title from remaining unconsumed priors and match remaining items
+        var unconsumedByTitle: [String: [ChecklistSessionItemRecord]] = [:]
+        for item in existingSessionItems where !consumedPriorIds.contains(item.id) {
+          unconsumedByTitle[item.title, default: []].append(item)
+        }
+
+        for (index, domainItem) in domainItems.enumerated() where matchedPriors[index] == nil {
+          if var queue = unconsumedByTitle[domainItem.title], !queue.isEmpty {
+            let prior = queue.removeFirst()
+            unconsumedByTitle[domainItem.title] = queue
+            matchedPriors[index] = prior
+          }
         }
 
         try ChecklistSessionItemRecord
@@ -333,7 +354,7 @@ public final class ChecklistService: ChecklistServiceProtocol {
 
         for (index, domainItem) in domainItems.enumerated() {
           let sourceId = domainItem.id.uuidString
-          let prior = existingBySourceId[sourceId] ?? existingByTitle[domainItem.title]
+          let prior = matchedPriors[index]
 
           let sessionItemRecord = ChecklistSessionItemRecord(
             id: prior?.id ?? UUID().uuidString,
@@ -648,7 +669,10 @@ public final class ChecklistService: ChecklistServiceProtocol {
         guard sessionRecord.status == ChecklistSessionStatus.inProgress.rawValue else {
           throw ChecklistSessionError.sessionAlreadyFinished(sessionId)
         }
-        guard var itemRecord = try ChecklistSessionItemRecord.fetchOne(db, key: itemId.uuidString) else {
+        guard var itemRecord = try ChecklistSessionItemRecord
+          .filter(ChecklistSessionItemRecord.Columns.id == itemId.uuidString)
+          .filter(ChecklistSessionItemRecord.Columns.session_id == sessionId.uuidString)
+          .fetchOne(db) else {
           throw ChecklistSessionError.itemNotFound(itemId)
         }
 
@@ -691,8 +715,10 @@ public final class ChecklistService: ChecklistServiceProtocol {
         return try Self.mapSession(record: updatedSessionRecord, itemRecords: allItems, categoryId: categoryId)
       }
     } catch let error as ChecklistSessionError {
+      await throttler.reset(for: itemId)
       throw error
     } catch {
+      await throttler.reset(for: itemId)
       throw ChecklistSessionError.databaseFailure(error.localizedDescription)
     }
   }
@@ -855,12 +881,8 @@ public final class ChecklistService: ChecklistServiceProtocol {
   }
 
   public func seedDefaultTemplatesIfNeeded() async throws {
-    let shouldSeedCategories = !userDefaults.bool(forKey: ChecklistSeeder.hasSeededInitialCategoriesKey)
     try await databaseManager.write { db in
-      try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db, shouldSeedCategories: shouldSeedCategories)
-    }
-    if shouldSeedCategories {
-      userDefaults.set(true, forKey: ChecklistSeeder.hasSeededInitialCategoriesKey)
+      try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db)
     }
   }
 

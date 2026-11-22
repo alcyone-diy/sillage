@@ -14,7 +14,8 @@ import OSLog
 
 /// Seeds essential built-in maritime checklist templates into the database.
 public struct ChecklistSeeder: Sendable {
-  nonisolated public static let hasSeededInitialCategoriesKey = "hasSeededInitialCategories"
+  nonisolated public static let defaultCategoriesSeedKey = "default_categories"
+  nonisolated public static let defaultTemplatesSeedKey = "default_templates"
 
   nonisolated public static var initialCategories: [(id: String, name: String, icon: String?, sortOrder: Int)] {
     [
@@ -26,16 +27,22 @@ public struct ChecklistSeeder: Sendable {
     ]
   }
 
-  nonisolated public static func seedDefaultCategoriesIfNeeded(
-    in db: Database,
-    userDefaults: UserDefaults = .standard
-  ) throws {
-    guard !userDefaults.bool(forKey: hasSeededInitialCategoriesKey) else {
+  nonisolated public static func seedDefaultCategoriesIfNeeded(in db: Database) throws {
+    let alreadySeeded = try Row.fetchOne(
+      db,
+      sql: "SELECT 1 FROM checklist_seeding_state WHERE id = ?",
+      arguments: [defaultCategoriesSeedKey]
+    ) != nil
+
+    guard !alreadySeeded else {
       return
     }
 
     try seedDefaultCategories(in: db)
-    userDefaults.set(true, forKey: hasSeededInitialCategoriesKey)
+    try db.execute(
+      sql: "INSERT OR IGNORE INTO checklist_seeding_state (id, seeded_at) VALUES (?, ?)",
+      arguments: [defaultCategoriesSeedKey, Date()]
+    )
   }
 
   nonisolated public static func seedDefaultCategories(in db: Database) throws {
@@ -51,34 +58,13 @@ public struct ChecklistSeeder: Sendable {
     }
   }
 
-  nonisolated public static func seedDefaultTemplatesIfNeeded(
-    in db: Database,
-    userDefaults: UserDefaults = .standard
-  ) throws {
-    let shouldSeedCategories = !userDefaults.bool(forKey: hasSeededInitialCategoriesKey)
-    try seedDefaultTemplatesIfNeeded(in: db, shouldSeedCategories: shouldSeedCategories)
-    if shouldSeedCategories {
-      userDefaults.set(true, forKey: hasSeededInitialCategoriesKey)
-    }
-  }
-
-  nonisolated public static func seedDefaultTemplatesIfNeeded(
-    in db: Database,
-    shouldSeedCategories: Bool
-  ) throws {
-    if shouldSeedCategories {
-      try seedDefaultCategories(in: db)
-    }
-
-    try db.create(table: "checklist_seeding_state", ifNotExists: true) { t in
-      t.column("id", .text).primaryKey()
-      t.column("seeded_at", .datetime).notNull()
-    }
+  nonisolated public static func seedDefaultTemplatesIfNeeded(in db: Database) throws {
+    try seedDefaultCategoriesIfNeeded(in: db)
 
     let alreadySeeded = try Row.fetchOne(
       db,
       sql: "SELECT 1 FROM checklist_seeding_state WHERE id = ?",
-      arguments: ["default_templates"]
+      arguments: [defaultTemplatesSeedKey]
     ) != nil
 
     guard !alreadySeeded else {
@@ -271,7 +257,7 @@ public struct ChecklistSeeder: Sendable {
 
     try db.execute(
       sql: "INSERT OR IGNORE INTO checklist_seeding_state (id, seeded_at) VALUES (?, ?)",
-      arguments: ["default_templates", now]
+      arguments: [defaultTemplatesSeedKey, now]
     )
 
     Logger.checklist.info("Seeding completed: 4 built-in maritime checklists created.")

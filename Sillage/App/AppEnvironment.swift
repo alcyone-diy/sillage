@@ -292,7 +292,7 @@ final class AppEnvironment {
 
       observeWaypointGoTo(waypointService: waypointService, preferencesService: preferencesService)
 
-      let checklistService = ChecklistService(databaseManager: databaseManager, userDefaults: self.userDefaults)
+      let checklistService = ChecklistService(databaseManager: databaseManager)
       try await checklistService.seedDefaultTemplatesIfNeeded()
 
       let geoGarageLayerRepository = GeoGarageLayerRepository(databaseManager: databaseManager)

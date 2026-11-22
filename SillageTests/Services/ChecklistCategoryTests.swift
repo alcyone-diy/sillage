@@ -16,22 +16,17 @@ import GRDB
 final class ChecklistCategoryTests: XCTestCase {
   private var databaseManager: DatabaseManager!
   private var checklistService: ChecklistService!
-  private var isolatedDefaults: IsolatedUserDefaults!
 
   override func setUp() async throws {
     try await super.setUp()
-    isolatedDefaults = IsolatedUserDefaults(prefix: "ChecklistCategoryTests")
     databaseManager = try DatabaseManager.inMemory()
     checklistService = ChecklistService(
       databaseManager: databaseManager,
-      throttler: ChecklistThrottler(window: .zero),
-      userDefaults: isolatedDefaults.defaults
+      throttler: ChecklistThrottler(window: .zero)
     )
   }
 
   override func tearDown() async throws {
-    isolatedDefaults?.tearDown()
-    isolatedDefaults = nil
     checklistService = nil
     databaseManager = nil
     try await super.tearDown()
@@ -55,21 +50,25 @@ final class ChecklistCategoryTests: XCTestCase {
   }
 
   func testSeederRunsOnlyOnceAndDoesNotRecreateDeletedCategories() async throws {
-    let suiteName = "ChecklistSeederTests_\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    defer { defaults.removePersistentDomain(forName: suiteName) }
-
-    // Clear categories in DB first
+    // Clear categories and seeding state in DB first
     try await databaseManager.write { db in
       try db.execute(sql: "DELETE FROM checklist_category")
+      try db.execute(sql: "DELETE FROM checklist_seeding_state")
     }
 
-    // 1. First seed populates categories and sets UserDefaults flag
+    // 1. First seed populates categories and records seeding state in SQLite
     try await databaseManager.write { db in
-      guard let suiteDefaults = UserDefaults(suiteName: suiteName) else { return }
-      try ChecklistSeeder.seedDefaultCategoriesIfNeeded(in: db, userDefaults: suiteDefaults)
+      try ChecklistSeeder.seedDefaultCategoriesIfNeeded(in: db)
     }
-    XCTAssertTrue(defaults.bool(forKey: ChecklistSeeder.hasSeededInitialCategoriesKey))
+
+    let isMarkedSeeded = try await databaseManager.reader.read { db in
+      try Row.fetchOne(
+        db,
+        sql: "SELECT 1 FROM checklist_seeding_state WHERE id = ?",
+        arguments: [ChecklistSeeder.defaultCategoriesSeedKey]
+      ) != nil
+    }
+    XCTAssertTrue(isMarkedSeeded)
 
     let categoriesAfterFirstSeed = try await checklistService.fetchCategories()
     XCTAssertEqual(categoriesAfterFirstSeed.count, 5)
@@ -83,8 +82,7 @@ final class ChecklistCategoryTests: XCTestCase {
 
     // 3. Second seed is a no-op and does NOT recreate the deleted category
     try await databaseManager.write { db in
-      guard let suiteDefaults = UserDefaults(suiteName: suiteName) else { return }
-      try ChecklistSeeder.seedDefaultCategoriesIfNeeded(in: db, userDefaults: suiteDefaults)
+      try ChecklistSeeder.seedDefaultCategoriesIfNeeded(in: db)
     }
     let afterSecondSeed = try await checklistService.fetchCategories()
     XCTAssertEqual(afterSecondSeed.count, 4)
@@ -92,17 +90,11 @@ final class ChecklistCategoryTests: XCTestCase {
   }
 
   func testSeedDefaultTemplatesFallsBackToFirstCategoryWhenPreferredDeleted() async throws {
-    let suiteName = "ChecklistSeederFallbackTests_\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    defer { defaults.removePersistentDomain(forName: suiteName) }
-
-    // Mark categories as already seeded, and delete "routine" from DB
-    defaults.set(true, forKey: ChecklistSeeder.hasSeededInitialCategoriesKey)
+    // Categories are already marked as seeded by migration; delete "routine" from DB
     try await checklistService.deleteCategory(id: "routine")
 
     try await databaseManager.write { db in
-      guard let suiteDefaults = UserDefaults(suiteName: suiteName) else { return }
-      try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db, userDefaults: suiteDefaults)
+      try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db)
     }
 
     let templates = try await checklistService.fetchTemplates()
@@ -113,20 +105,14 @@ final class ChecklistCategoryTests: XCTestCase {
   }
 
   func testSeedDefaultTemplatesSkipsWhenNoCategoriesExist() async throws {
-    let suiteName = "ChecklistSeederEmptyCategoriesTests_\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    defer { defaults.removePersistentDomain(forName: suiteName) }
-
-    // Mark categories as already seeded and wipe all categories from DB
-    defaults.set(true, forKey: ChecklistSeeder.hasSeededInitialCategoriesKey)
+    // Categories are already marked as seeded by migration; wipe all categories from DB
     try await databaseManager.write { db in
       try db.execute(sql: "DELETE FROM checklist_category")
     }
 
     // Should not throw or recreate categories
     try await databaseManager.write { db in
-      guard let suiteDefaults = UserDefaults(suiteName: suiteName) else { return }
-      try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db, userDefaults: suiteDefaults)
+      try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db)
     }
 
     let categories = try await checklistService.fetchCategories()
