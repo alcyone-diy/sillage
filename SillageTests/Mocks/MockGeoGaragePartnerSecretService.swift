@@ -13,6 +13,7 @@ import Foundation
 
 final class MockGeoGaragePartnerSecretService: GeoGaragePartnerSecretServiceProtocol, @unchecked Sendable {
   var errorToThrow: PartnerSecretError?
+  var rawErrorToThrow: (any Error)?
   var secrets = GeoGaragePartnerSecrets(clientID: "mock-client", customerID: "cus_mock123", packageSecret: "mock-secret", teaSecret: "")
   /// Responses served in call order (FIFO), e.g. "first call rejected, second accepted after the
   /// token refresh". When empty, the mock falls back to `errorToThrow` / `secrets`.
@@ -28,6 +29,9 @@ final class MockGeoGaragePartnerSecretService: GeoGaragePartnerSecretServiceProt
       case .failure(let error):
         throw error
       }
+    }
+    if let rawErrorToThrow {
+      throw rawErrorToThrow
     }
     if let errorToThrow {
       throw errorToThrow

@@ -75,13 +75,25 @@ final class GeoGarageLoginViewModel {
   }
 
   func refreshAuthenticationStatus() async {
+    guard !Task.isCancelled else {
+      Logger.network.debug("GeoGarage authentication status refresh cancelled.")
+      return
+    }
     authRefreshGeneration += 1
     let generation = authRefreshGeneration
     do {
       let token = try await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken)
+      try Task.checkCancellation()
       guard generation == authRefreshGeneration else { return }
       isAuthenticated = token != nil
+    } catch is CancellationError {
+      Logger.network.debug("GeoGarage authentication status refresh cancelled.")
+      return
     } catch {
+      guard !Task.isCancelled else {
+        Logger.network.debug("GeoGarage authentication status refresh cancelled.")
+        return
+      }
       Logger.network.error("Failed to read GeoGarage access token from Keychain: \(error.localizedDescription, privacy: .public)")
       guard generation == authRefreshGeneration else { return }
       isAuthenticated = false
@@ -233,6 +245,10 @@ final class GeoGarageLoginViewModel {
           // Sheet dismissed (or `loginTask` cancelled) during /partners/me/: not an unavailable
           // secret, exit silently.
           throw AuthError.cancelled
+        } catch is CancellationError {
+          // Cooperative task cancellation during /partners/me/: propagate silently without
+          // posting a misleading offline charts warning.
+          throw CancellationError()
         } catch {
           // Signed in but no secret: online charts work, offline does not. Warn without blocking
           // the sign-in.
@@ -267,6 +283,9 @@ final class GeoGarageLoginViewModel {
       } catch AuthError.cancelled {
         // The user closed the GeoGarage page: nothing to display.
         Logger.network.info("GeoGarage sign-in cancelled by the user.")
+        return false
+      } catch is CancellationError {
+        Logger.network.debug("GeoGarage sign-in task cancelled.")
         return false
       } catch let error as AuthError {
         self.errorMessage = error.localizedDescription

@@ -22,6 +22,7 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
   var createAccountURL: URL? { URL(string: "https://accounts.geogarage.com/") }
   var shouldFailAuthenticate = false
   var authErrorToThrow: AuthError?
+  var rawAuthenticateErrorToThrow: (any Error)?
   var shouldFailFetchAccountSettings = false
   var shouldFailWithNetworkError = false
   var refreshErrorToThrow: AuthError?
@@ -54,6 +55,9 @@ final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked S
       await withCheckedContinuation { continuation in
         authenticateWaiters.append(continuation)
       }
+    }
+    if let error = rawAuthenticateErrorToThrow {
+      throw error
     }
     if let error = authErrorToThrow {
       throw error

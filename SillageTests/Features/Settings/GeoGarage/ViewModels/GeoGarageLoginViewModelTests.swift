@@ -757,4 +757,171 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     XCTAssertTrue(viewModel.availableLayers.isEmpty)
     XCTAssertFalse(viewModel.isAuthorizationReady)
   }
+
+  // MARK: - Swift Concurrency CancellationError
+
+  func testAuthenticateCancellationErrorLeavesNoErrorAndResetsLoading() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.rawAuthenticateErrorToThrow = CancellationError()
+    let messageService = MessageService()
+    let viewModel = GeoGarageLoginViewModel(
+      offlineMapManager: MockOfflineMapManager(),
+      partnerSecretService: MockGeoGaragePartnerSecretService(),
+      downloadRepository: MockDownloadRepo()
+    )
+
+    let result = await viewModel.login(
+      authService: mockAuthService,
+      messageService: messageService,
+      presenter: MockGeoGarageAuthorizationPresenter()
+    )
+
+    XCTAssertFalse(result)
+    XCTAssertNil(viewModel.errorMessage, "CancellationError must not surface an Unknown error in the UI")
+    XCTAssertFalse(viewModel.isAuthorizationReady)
+    XCTAssertFalse(viewModel.isLoading, "isLoading must be reset via defer on cancellation")
+    XCTAssertTrue(messageService.messages.isEmpty)
+  }
+
+  func testSecretRefreshCancellationErrorLeavesNoErrorAndNoOfflineWarning() async {
+    let mockAuthService = MockGeoGarageAuthService()
+    let secretService = MockGeoGaragePartnerSecretService()
+    secretService.rawErrorToThrow = CancellationError()
+    let messageService = MessageService()
+    let viewModel = GeoGarageLoginViewModel(
+      offlineMapManager: MockOfflineMapManager(),
+      partnerSecretService: secretService,
+      downloadRepository: MockDownloadRepo()
+    )
+
+    let result = await viewModel.login(
+      authService: mockAuthService,
+      messageService: messageService,
+      presenter: MockGeoGarageAuthorizationPresenter()
+    )
+
+    XCTAssertFalse(result)
+    XCTAssertNil(viewModel.errorMessage, "CancellationError during secret refresh must exit silently")
+    XCTAssertFalse(viewModel.isAuthorizationReady)
+    XCTAssertFalse(viewModel.isLoading, "isLoading must be reset via defer on cancellation")
+    XCTAssertTrue(messageService.messages.isEmpty, "CancellationError during secret refresh must not post an offline charts warning")
+  }
+
+  private actor SuspendingKeychainManager: KeychainManaging {
+    private var token: String?
+    private var errorToThrow: KeychainError?
+    private var holdNextRetrieve = false
+    private var retrieveWaiter: CheckedContinuation<Void, Never>?
+    private var enteredWaiter: CheckedContinuation<Void, Never>?
+    private(set) var retrieveCallCount = 0
+
+    init(initialToken: String? = nil) {
+      self.token = initialToken
+    }
+
+    func configureNextRetrieve(hold: Bool, token: String? = nil, error: KeychainError? = nil) {
+      self.holdNextRetrieve = hold
+      self.token = token
+      self.errorToThrow = error
+    }
+
+    func waitUntilRetrieveEntered() async {
+      if retrieveWaiter != nil { return }
+      await withCheckedContinuation { continuation in
+        enteredWaiter = continuation
+      }
+    }
+
+    func resumeRetrieve() {
+      let waiter = retrieveWaiter
+      retrieveWaiter = nil
+      waiter?.resume()
+    }
+
+    func save(token: String, for account: String) async throws(KeychainError) {
+      self.token = token
+    }
+
+    func retrieveToken(for account: String) async throws(KeychainError) -> String? {
+      retrieveCallCount += 1
+      if holdNextRetrieve {
+        holdNextRetrieve = false
+        await withCheckedContinuation { continuation in
+          retrieveWaiter = continuation
+          let entered = enteredWaiter
+          enteredWaiter = nil
+          entered?.resume()
+        }
+      }
+      if let errorToThrow {
+        throw errorToThrow
+      }
+      return token
+    }
+
+    func deleteToken(for account: String) async throws(KeychainError) {
+      token = nil
+    }
+  }
+
+  func testRefreshAuthenticationStatusPreCancelledDoesNotQueryKeychainOrInvalidateInFlightRefresh() async {
+    let keychain = SuspendingKeychainManager(initialToken: "valid-token")
+    await keychain.configureNextRetrieve(hold: true, token: "valid-token")
+    let viewModel = GeoGarageLoginViewModel(
+      offlineMapManager: MockOfflineMapManager(),
+      partnerSecretService: MockGeoGaragePartnerSecretService(),
+      downloadRepository: MockDownloadRepo(),
+      keychainManager: keychain
+    )
+
+    // Start a legitimate refresh and wait until it is suspended inside Keychain.
+    let inFlightRefresh = Task { @MainActor in
+      await viewModel.refreshAuthenticationStatus()
+    }
+    await keychain.waitUntilRetrieveEntered()
+
+    // Launch a pre-cancelled refresh while the legitimate one is in flight.
+    let preCancelledTask = Task { @MainActor in
+      await viewModel.refreshAuthenticationStatus()
+    }
+    preCancelledTask.cancel()
+    await preCancelledTask.value
+
+    let callsDuringInFlight = await keychain.retrieveCallCount
+    XCTAssertEqual(callsDuringInFlight, 1, "A pre-cancelled refresh must return before reading Keychain")
+
+    // Completing the legitimate refresh must still update `isAuthenticated` (its generation must
+    // not have been invalidated by the pre-cancelled task).
+    await keychain.resumeRetrieve()
+    await inFlightRefresh.value
+
+    XCTAssertEqual(viewModel.isAuthenticated, true)
+  }
+
+  func testRefreshAuthenticationStatusInFlightCancellationPreservesIsAuthenticated() async {
+    let keychain = SuspendingKeychainManager(initialToken: "valid-token")
+    let viewModel = GeoGarageLoginViewModel(
+      offlineMapManager: MockOfflineMapManager(),
+      partnerSecretService: MockGeoGaragePartnerSecretService(),
+      downloadRepository: MockDownloadRepo(),
+      keychainManager: keychain
+    )
+
+    await viewModel.refreshAuthenticationStatus()
+    XCTAssertEqual(viewModel.isAuthenticated, true)
+
+    // Suspend the next Keychain read and make it fail with a KeychainError upon resumption.
+    await keychain.configureNextRetrieve(hold: true, error: .unexpectedStatus(errSecAuthFailed))
+    let inFlightTask = Task { @MainActor in
+      await viewModel.refreshAuthenticationStatus()
+    }
+    await keychain.waitUntilRetrieveEntered()
+
+    // Cancel while the Keychain call is in flight, then let it resume and throw.
+    inFlightTask.cancel()
+    await keychain.resumeRetrieve()
+    await inFlightTask.value
+
+    XCTAssertEqual(viewModel.isAuthenticated, true, "An in-flight cancelled refresh must not overwrite isAuthenticated")
+  }
 }
