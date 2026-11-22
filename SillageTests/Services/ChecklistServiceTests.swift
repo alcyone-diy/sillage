@@ -699,7 +699,7 @@ final class ChecklistServiceTests: XCTestCase {
         isChecked: true
       )
       XCTFail("Expected itemNotFound when passing an itemId belonging to another session")
-    } catch let error as ChecklistSessionError {
+    } catch {
       XCTAssertEqual(error, .itemNotFound(itemB.id))
     }
 
@@ -726,15 +726,17 @@ final class ChecklistServiceTests: XCTestCase {
     let item = try XCTUnwrap(session.items.first)
 
     // 1. Trigger an error using the item's ID with a nonexistent sessionId
+    let nonexistentSessionId = UUID()
     do {
       _ = try await strictService.setItemChecked(
-        sessionId: UUID(),
+        sessionId: nonexistentSessionId,
         itemId: item.id,
         isChecked: true
       )
       XCTFail("Expected sessionNotFound error")
-    } catch is ChecklistSessionError {
+    } catch {
       // Expected failure; throttler must have been reset for item.id
+      XCTAssertEqual(error, .sessionNotFound(nonexistentSessionId))
     }
 
     // 2. Immediate valid retry within the 10s window must NOT be debounced
