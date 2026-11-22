@@ -480,7 +480,7 @@
     "COMPLETED IN LAST %lldh" : {
 
     },
-    "Computed from the U.S. Naval Observatory Almanac for Computers algorithm anchored to the UTC calendar day and formatted in the device's time zone. Assumes an unobstructed sea-level horizon with standard refraction, without observer elevation or terrain relief corrections." : {
+    "Computed offline using the NOAA / Jean Meeus solar algorithm anchored to local solar noon for the calendar day in the display time zone. Assumes an unobstructed sea-level horizon with standard refraction, without observer elevation or terrain relief corrections." : {
 
     },
     "Configuration" : {
@@ -502,6 +502,9 @@
 
     },
     "Continue Checklist" : {
+
+    },
+    "Continuous Dark" : {
 
     },
     "Coordinates copied" : {
@@ -1246,6 +1249,9 @@
     "No data recorded for this time period" : {
 
     },
+    "No Nautical Night" : {
+
+    },
     "No Offline Charts" : {
 
     },
@@ -1268,6 +1274,9 @@
 
     },
     "NOAA / NCEI WMM-2025" : {
+
+    },
+    "NOAA Solar (Jean Meeus)" : {
 
     },
     "North-East Bound" : {
@@ -1376,6 +1385,12 @@
 
     },
     "Points" : {
+
+    },
+    "Polar Day" : {
+
+    },
+    "Polar Night" : {
 
     },
     "Pre-Departure Checklist" : {
@@ -1603,9 +1618,6 @@
 
     },
     "SOG" : {
-
-    },
-    "Solar (MIT License)" : {
 
     },
     "Solar Ephemeris" : {
@@ -1873,9 +1885,6 @@
     "User is not authenticated with GeoGarage. Please login first." : {
 
     },
-    "USNO Almanac (Solar MIT)" : {
-
-    },
     "Valid until %@" : {
 
     },
@@ -2000,7 +2009,7 @@
     "Your session has expired. Please log in again." : {
 
     },
-    "Zenith 90.83° (90° 50')" : {
+    "Zenith 90.83° (-0.833°)" : {
 
     },
     "Zenith 102° (-12°)" : {
