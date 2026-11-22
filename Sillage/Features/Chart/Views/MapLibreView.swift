@@ -462,6 +462,7 @@ struct MapLibreView: UIViewRepresentable {
     private var isMagneticRecentering: Bool = false
     private var isStartingMagneticRecenter: Bool = false
     private var isUserPanMoveActive: Bool = false
+    private var isZoomMoveActive: Bool = false
     private var panStartWaypointID: String?
     private let snapFeedbackGenerator = UISelectionFeedbackGenerator()
     private var measurePinDragOffset: CGPoint = .zero
@@ -1182,6 +1183,27 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
 
+    private var magneticDetachRadius: CGFloat {
+      let attachRadius = parent.marineTheme.isGloveMode
+        ? AppConstants.Map.waypointMagneticSnapGloveRadius
+        : AppConstants.Map.waypointMagneticSnapRadius
+      return attachRadius + AppConstants.Map.waypointMagneticDetachHysteresis
+    }
+
+    /// Evaluates whether an already-locked waypoint remains within its detach radius during a zoom
+    /// gesture without ever acquiring a new neighboring waypoint.
+    private func evaluateLockedWaypointRetention(
+      at reticlePoint: CGPoint,
+      in mapView: MLNMapView,
+      waypointID: String,
+      coordinate: CLLocationCoordinate2D
+    ) -> WaypointSnapResult? {
+      let wpPoint = mapView.convert(coordinate, toPointTo: mapView)
+      let offset = CGSize(width: wpPoint.x - reticlePoint.x, height: wpPoint.y - reticlePoint.y)
+      guard hypot(offset.width, offset.height) <= magneticDetachRadius else { return nil }
+      return WaypointSnapResult(waypointID: waypointID, coordinate: coordinate, visualOffset: offset)
+    }
+
     private func evaluateWaypointSnap(
       at point: CGPoint,
       in mapView: MLNMapView,
@@ -1271,6 +1293,28 @@ struct MapLibreView: UIViewRepresentable {
             height: lockedPoint.y - reticlePoint.y
           )
           calloutVM.updateReticleVisualOffset(shrinkingOffset)
+        } else if isZoomMoveActive {
+          // Never acquire a new waypoint during zoom (e.g. zooming out shrinking screen distance to a neighbor),
+          // while keeping open-water coordinates or an already-locked waypoint synchronized if the pinch pans/rotates.
+          let now = CACurrentMediaTime()
+          if let lockedID = calloutVM.targetWaypointID, let lockedCoord = calloutVM.targetCoordinate {
+            if let retained = evaluateLockedWaypointRetention(
+              at: reticlePoint,
+              in: mapView,
+              waypointID: lockedID,
+              coordinate: lockedCoord
+            ) {
+              calloutVM.updateReticleVisualOffset(retained.visualOffset)
+            } else {
+              lastCalloutTargetUpdateTime = now
+              let targetCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
+              calloutVM.updateTarget(coordinate: targetCoord, waypointID: nil, visualOffset: .zero)
+            }
+          } else if now - lastCalloutTargetUpdateTime >= 0.032 {
+            lastCalloutTargetUpdateTime = now
+            let targetCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
+            calloutVM.updateTarget(coordinate: targetCoord, waypointID: nil, visualOffset: .zero)
+          }
         } else {
           let previousWaypointID = calloutVM.targetWaypointID
           let snap = evaluateWaypointSnap(
@@ -1489,8 +1533,15 @@ struct MapLibreView: UIViewRepresentable {
       return nil
     }
     
+    private func isZoomReason(_ reason: MLNCameraChangeReason) -> Bool {
+      reason.contains(.gesturePinch) ||
+      reason.contains(.gestureZoomIn) ||
+      reason.contains(.gestureZoomOut) ||
+      reason.contains(.gestureOneFingerZoom)
+    }
+
     private func shouldBreakTracking(for reason: MLNCameraChangeReason) -> Bool {
-      let isZooming = reason.contains(.gesturePinch) || reason.contains(.gestureZoomIn) || reason.contains(.gestureZoomOut) || reason.contains(.gestureOneFingerZoom)
+      let isZooming = isZoomReason(reason)
       let isPanningOrRotating = reason.contains(.gesturePan) || reason.contains(.gestureRotate)
       
       // Break tracking ONLY if panning/rotating and NOT zooming
@@ -1501,7 +1552,9 @@ struct MapLibreView: UIViewRepresentable {
       if !reason.contains(.programmatic) {
         self.parent.viewModel.isMapMoving = true
         self.isMagneticRecentering = false
-        let isUserPan = reason.contains(.gesturePan)
+        let isZoom = isZoomReason(reason)
+        let isUserPan = reason.contains(.gesturePan) && !isZoom
+        self.isZoomMoveActive = isZoom
         self.isUserPanMoveActive = isUserPan
         self.panStartWaypointID = isUserPan ? self.parent.viewModel.calloutViewModel.targetWaypointID : nil
         self.snapFeedbackGenerator.prepare()
@@ -1546,6 +1599,7 @@ struct MapLibreView: UIViewRepresentable {
           }
         }
       } else {
+        self.isZoomMoveActive = false
         self.isUserPanMoveActive = false
         self.panStartWaypointID = nil
       }
@@ -1690,7 +1744,9 @@ struct MapLibreView: UIViewRepresentable {
     
     // Capture user's chart movements to sync the final camera state and evaluate tracking mode persistence.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+      let wasZoomMove = self.isZoomMoveActive || isZoomReason(reason)
       self.parent.viewModel.isMapMoving = false
+      self.isZoomMoveActive = false
       self.isUserPanMoveActive = false
       self.panStartWaypointID = nil
 
@@ -1727,33 +1783,52 @@ struct MapLibreView: UIViewRepresentable {
           withTransaction(transaction) {
             calloutVM.completeCentering(at: resolvedCoord, waypointID: resolvedWaypointID)
           }
-        } else if let snap = evaluateWaypointSnap(
-          at: reticlePoint,
-          in: mapView,
-          currentlySnappedID: calloutVM.targetWaypointID
-        ) {
-          let offsetDistance = hypot(snap.visualOffset.width, snap.visualOffset.height)
-          if offsetDistance > 1.0 && !self.isMagneticRecentering {
-            self.isMagneticRecentering = true
-            calloutVM.updateTarget(
-              coordinate: snap.coordinate,
-              waypointID: snap.waypointID,
-              visualOffset: snap.visualOffset
-            )
-            let newCenterCoordinate = centerCoordinateToPosition(snap.coordinate, at: reticlePoint, in: mapView)
-            mapView.setCenter(newCenterCoordinate, animated: true)
+        } else {
+          let snap: WaypointSnapResult?
+          if wasZoomMove {
+            // During zoom, never acquire a new waypoint; only retain an already-locked one if still within detach radius.
+            if let lockedID = calloutVM.targetWaypointID, let lockedCoord = calloutVM.targetCoordinate {
+              snap = evaluateLockedWaypointRetention(
+                at: reticlePoint,
+                in: mapView,
+                waypointID: lockedID,
+                coordinate: lockedCoord
+              )
+            } else {
+              snap = nil
+            }
           } else {
-            self.isMagneticRecentering = false
-            calloutVM.updateTarget(
-              coordinate: snap.coordinate,
-              waypointID: snap.waypointID,
-              visualOffset: .zero
+            snap = evaluateWaypointSnap(
+              at: reticlePoint,
+              in: mapView,
+              currentlySnappedID: calloutVM.targetWaypointID
             )
           }
-        } else {
-          self.isMagneticRecentering = false
-          let aimingCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
-          calloutVM.updateTarget(coordinate: aimingCoord, waypointID: nil, visualOffset: .zero)
+
+          if let snap {
+            let offsetDistance = hypot(snap.visualOffset.width, snap.visualOffset.height)
+            if offsetDistance > 1.0 && !self.isMagneticRecentering {
+              self.isMagneticRecentering = true
+              calloutVM.updateTarget(
+                coordinate: snap.coordinate,
+                waypointID: snap.waypointID,
+                visualOffset: snap.visualOffset
+              )
+              let newCenterCoordinate = centerCoordinateToPosition(snap.coordinate, at: reticlePoint, in: mapView)
+              mapView.setCenter(newCenterCoordinate, animated: true)
+            } else {
+              self.isMagneticRecentering = false
+              calloutVM.updateTarget(
+                coordinate: snap.coordinate,
+                waypointID: snap.waypointID,
+                visualOffset: .zero
+              )
+            }
+          } else {
+            self.isMagneticRecentering = false
+            let aimingCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
+            calloutVM.updateTarget(coordinate: aimingCoord, waypointID: nil, visualOffset: .zero)
+          }
         }
       }
 
