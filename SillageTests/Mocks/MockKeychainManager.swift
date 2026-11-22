@@ -25,32 +25,20 @@ final class MockKeychainManager: KeychainManaging, @unchecked Sendable {
   }
 
   func save(token: String, for account: String) async throws(KeychainError) {
-    try saveSync(token: token, for: account)
-  }
-
-  func retrieveToken(for account: String) async throws(KeychainError) -> String? {
-    try retrieveTokenSync(for: account)
-  }
-
-  func deleteToken(for account: String) async throws(KeychainError) {
-    try deleteTokenSync(for: account)
-  }
-
-  func saveSync(token: String, for account: String) throws(KeychainError) {
     if let error = errorLock.withLock({ $0 }) {
       throw error
     }
     storage.withLock { $0[account] = token }
   }
 
-  func retrieveTokenSync(for account: String) throws(KeychainError) -> String? {
+  func retrieveToken(for account: String) async throws(KeychainError) -> String? {
     if let error = errorLock.withLock({ $0 }) {
       throw error
     }
     return storage.withLock { $0[account] }
   }
 
-  func deleteTokenSync(for account: String) throws(KeychainError) {
+  func deleteToken(for account: String) async throws(KeychainError) {
     if let error = errorLock.withLock({ $0 }) {
       throw error
     }

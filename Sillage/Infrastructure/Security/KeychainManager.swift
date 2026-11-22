@@ -36,23 +36,11 @@ public protocol KeychainManaging: Sendable {
   func save(token: String, for account: String) async throws(KeychainError)
   func retrieveToken(for account: String) async throws(KeychainError) -> String?
   func deleteToken(for account: String) async throws(KeychainError)
-
-  func saveSync(token: String, for account: String) throws(KeychainError)
-  func retrieveTokenSync(for account: String) throws(KeychainError) -> String?
-  func deleteTokenSync(for account: String) throws(KeychainError)
 }
 
 extension KeychainManaging {
   public func retrieveValidToken(for account: String) async throws(KeychainError) -> String? {
     guard let token = try await retrieveToken(for: account)?.trimmingCharacters(in: .whitespacesAndNewlines),
-          !token.isEmpty else {
-      return nil
-    }
-    return token
-  }
-
-  public func retrieveValidTokenSync(for account: String) throws(KeychainError) -> String? {
-    guard let token = try retrieveTokenSync(for: account)?.trimmingCharacters(in: .whitespacesAndNewlines),
           !token.isEmpty else {
       return nil
     }
@@ -71,21 +59,6 @@ actor KeychainManager: KeychainManaging {
 
   /// Saves a token to the Keychain asynchronously.
   func save(token: String, for account: String) throws(KeychainError) {
-    try saveSync(token: token, for: account)
-  }
-
-  /// Retrieves a token from the Keychain asynchronously.
-  func retrieveToken(for account: String) throws(KeychainError) -> String? {
-    try retrieveTokenSync(for: account)
-  }
-
-  /// Deletes a token from the Keychain asynchronously.
-  func deleteToken(for account: String) throws(KeychainError) {
-    try deleteTokenSync(for: account)
-  }
-
-  /// Saves a token to the Keychain synchronously for non-async contexts.
-  nonisolated func saveSync(token: String, for account: String) throws(KeychainError) {
     guard let data = token.data(using: .utf8) else {
       Logger.system.error("Keychain save failed for account '\(account, privacy: .public)': UTF-8 encoding failed.")
       throw KeychainError.encodingFailed
@@ -138,8 +111,8 @@ actor KeychainManager: KeychainManaging {
     throw KeychainError.unexpectedStatus(addStatus)
   }
 
-  /// Retrieves a token from the Keychain synchronously for non-async contexts.
-  nonisolated func retrieveTokenSync(for account: String) throws(KeychainError) -> String? {
+  /// Retrieves a token from the Keychain asynchronously.
+  func retrieveToken(for account: String) throws(KeychainError) -> String? {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.service,
@@ -168,8 +141,8 @@ actor KeychainManager: KeychainManaging {
     return token
   }
 
-  /// Deletes a token from the Keychain synchronously for non-async contexts.
-  nonisolated func deleteTokenSync(for account: String) throws(KeychainError) {
+  /// Deletes a token from the Keychain asynchronously.
+  func deleteToken(for account: String) throws(KeychainError) {
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.service,

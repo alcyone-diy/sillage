@@ -204,18 +204,20 @@ final class PreferencesServiceTests: XCTestCase {
     XCTAssertNil(defaults.string(forKey: "geogarage_customer_id"), "CustomerID must not be mirrored in UserDefaults")
   }
 
-  func testCustomerIDSetterDoesNotWriteToUserDefaultsOrKeychain() throws {
+  func testCustomerIDSetterDoesNotWriteToUserDefaultsOrKeychain() async throws {
     let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
     let mockKeychain = MockKeychainManager()
     let service = PreferencesService(defaults: defaults, keychainManager: mockKeychain)
 
     service.geoGarageCustomerID = "cus_memory_only"
-    XCTAssertNil(try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID))
+    let initialCustomerID = try await mockKeychain.retrieveToken(for: GeoGarageKeychainKeys.customerID)
+    XCTAssertNil(initialCustomerID)
     XCTAssertNil(defaults.string(forKey: "geogarage_customer_id"))
 
-    try mockKeychain.saveSync(token: "cus_persisted_by_auth", for: GeoGarageKeychainKeys.customerID)
+    try await mockKeychain.save(token: "cus_persisted_by_auth", for: GeoGarageKeychainKeys.customerID)
     service.geoGarageCustomerID = nil
-    XCTAssertEqual(try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID), "cus_persisted_by_auth")
+    let persistedCustomerID = try await mockKeychain.retrieveToken(for: GeoGarageKeychainKeys.customerID)
+    XCTAssertEqual(persistedCustomerID, "cus_persisted_by_auth")
     XCTAssertNil(defaults.string(forKey: "geogarage_customer_id"))
   }
 

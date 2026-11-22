@@ -17,9 +17,9 @@ final class KeychainManagerTests: XCTestCase {
   private let manager = KeychainManager.shared
   private let testAccount = "com.alcyone-sillage.tests.\(UUID().uuidString)"
 
-  override func tearDown() {
-    try? manager.deleteTokenSync(for: testAccount)
-    super.tearDown()
+  override func tearDown() async throws {
+    try? await manager.deleteToken(for: testAccount)
+    try await super.tearDown()
   }
 
   func testSaveRetrieveAndDeleteAsync() async throws {
@@ -42,22 +42,20 @@ final class KeychainManagerTests: XCTestCase {
 
   func testDeleteIsIdempotentWhenItemDoesNotExist() async throws {
     try await manager.deleteToken(for: testAccount)
-    try manager.deleteTokenSync(for: testAccount)
+    try await manager.deleteToken(for: testAccount)
   }
 
   func testRetrieveValidTokenTrimsWhitespaceAndRejectsEmpty() async throws {
     try await manager.save(token: "  \n\t ", for: testAccount)
     let blankResult = try await manager.retrieveValidToken(for: testAccount)
     XCTAssertNil(blankResult)
-    XCTAssertNil(try manager.retrieveValidTokenSync(for: testAccount))
 
     try await manager.save(token: "  tok_123 \n", for: testAccount)
     let validResult = try await manager.retrieveValidToken(for: testAccount)
     XCTAssertEqual(validResult, "tok_123")
-    XCTAssertEqual(try manager.retrieveValidTokenSync(for: testAccount), "tok_123")
   }
 
-  func testServiceAttributeIsolatesFromItemsWithDifferentOrMissingService() throws {
+  func testServiceAttributeIsolatesFromItemsWithDifferentOrMissingService() async throws {
     let foreignQuery: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: "com.example.other-service",
@@ -81,12 +79,14 @@ final class KeychainManagerTests: XCTestCase {
     }
 
     // KeychainManager uses kSecAttrService = "com.alcyone-sillage.sillage", so it must not see either item
-    XCTAssertNil(try manager.retrieveTokenSync(for: testAccount))
+    let initial = try await manager.retrieveToken(for: testAccount)
+    XCTAssertNil(initial)
 
     // Saving & deleting via KeychainManager must not clobber either item
-    try manager.saveSync(token: "sillage-secret", for: testAccount)
-    XCTAssertEqual(try manager.retrieveTokenSync(for: testAccount), "sillage-secret")
-    try manager.deleteTokenSync(for: testAccount)
+    try await manager.save(token: "sillage-secret", for: testAccount)
+    let saved = try await manager.retrieveToken(for: testAccount)
+    XCTAssertEqual(saved, "sillage-secret")
+    try await manager.deleteToken(for: testAccount)
 
     var foreignItem: CFTypeRef?
     let foreignReadQuery: [String: Any] = [
@@ -117,7 +117,7 @@ final class KeychainManagerTests: XCTestCase {
     try await withThrowingTaskGroup(of: Void.self) { group in
       for index in 0..<20 {
         group.addTask {
-          try manager.saveSync(token: "token-\(index)", for: account)
+          try await manager.save(token: "token-\(index)", for: account)
         }
       }
       try await group.waitForAll()
