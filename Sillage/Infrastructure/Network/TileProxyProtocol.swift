@@ -148,7 +148,7 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
             "Cache-Control": cacheControl
           ]
           guard let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: headers) else {
-            Logger.network.error("Failed to create HTTPURLResponse for tile: \(url.absoluteString, privacy: .public)")
+            Logger.network.error("Failed to create HTTPURLResponse for tile: \(url.absoluteString, privacy: .private)")
             self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
           }
@@ -246,7 +246,7 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
   private static func parseTileURL(_ url: URL) -> TileURLComponents? {
     let tilePathRegex = #/^/([^/]+)/([^/]+)/(\d+)/(\d+)/(\d+)\.png$/#
     guard let match = url.path.firstMatch(of: tilePathRegex) else {
-      Logger.network.warning("Failed to match GeoGarage tile URL path format: \(url.path, privacy: .public)")
+      Logger.network.warning("Failed to match GeoGarage tile URL path format: \(url.path, privacy: .private)")
       return nil
     }
 
@@ -256,7 +256,7 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
           let x = Int(String(match.output.4)),
           let y = Int(String(match.output.5)),
           z >= 0, x >= 0, y >= 0 else {
-      Logger.network.warning("Invalid coordinate integers in GeoGarage tile URL: \(url.path, privacy: .public)")
+      Logger.network.warning("Invalid coordinate integers in GeoGarage tile URL: \(url.path, privacy: .private)")
       return nil
     }
 
