@@ -20,6 +20,7 @@ final class MockPreferencesService: PreferencesServiceProtocol {
   var savedGeoGarageLayerID: String?
   var geoGarageUsername: String?
   var geoGarageCustomerID: String?
+  func loadGeoGarageCustomerID() async {}
   var savedLatitude: Double?
   var savedLongitude: Double?
   var savedZoom: Double?

@@ -190,45 +190,91 @@ final class PreferencesServiceTests: XCTestCase {
     XCTAssertTrue(reloaded.pendingCAASDownloads.isEmpty)
   }
 
-  func testCustomerIDRestoredFromKeychainWhenUserDefaultsIsWiped() throws {
+  func testCustomerIDIsNotLoadedSynchronouslyInInitAndHydratesAsynchronously() async throws {
     let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
-    let mockKeychain = MockKeychainManager()
-    try mockKeychain.saveSync(token: "cus_reinstall", for: GeoGarageKeychainKeys.customerID)
+    let mockKeychain = MockKeychainManager(initialTokens: [
+      GeoGarageKeychainKeys.customerID: "cus_async_loaded"
+    ])
 
     let service = PreferencesService(defaults: defaults, keychainManager: mockKeychain)
+    XCTAssertNil(service.geoGarageCustomerID, "Init must not perform synchronous Keychain IPC")
 
-    XCTAssertEqual(service.geoGarageCustomerID, "cus_reinstall", "CustomerID should be restored from Keychain after reinstall")
-    XCTAssertEqual(defaults.string(forKey: "geogarage_customer_id"), "cus_reinstall", "CustomerID restored from Keychain should be resynced to defaults")
+    await service.loadGeoGarageCustomerID()
+    XCTAssertEqual(service.geoGarageCustomerID, "cus_async_loaded")
+    XCTAssertNil(defaults.string(forKey: "geogarage_customer_id"), "CustomerID must not be mirrored in UserDefaults")
   }
 
-  func testCustomerIDSettingSyncsToKeychainAndClearingDeletesFromKeychain() throws {
+  func testCustomerIDSetterDoesNotWriteToUserDefaultsOrKeychain() throws {
     let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
     let mockKeychain = MockKeychainManager()
     let service = PreferencesService(defaults: defaults, keychainManager: mockKeychain)
 
-    service.geoGarageCustomerID = "cus_sync_test"
-    XCTAssertEqual(try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID), "cus_sync_test")
-    XCTAssertEqual(defaults.string(forKey: "geogarage_customer_id"), "cus_sync_test")
-
-    service.geoGarageCustomerID = nil
+    service.geoGarageCustomerID = "cus_memory_only"
     XCTAssertNil(try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID))
+    XCTAssertNil(defaults.string(forKey: "geogarage_customer_id"))
+
+    try mockKeychain.saveSync(token: "cus_persisted_by_auth", for: GeoGarageKeychainKeys.customerID)
+    service.geoGarageCustomerID = nil
+    XCTAssertEqual(try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID), "cus_persisted_by_auth")
     XCTAssertNil(defaults.string(forKey: "geogarage_customer_id"))
   }
 
-  func testCustomerIDMigratedFromUserDefaultsToKeychainOnAppUpdate() throws {
+  func testLoadGeoGarageCustomerIDHandlesKeychainErrorGracefully() async throws {
     let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
     let mockKeychain = MockKeychainManager()
-    // User already had customerID in UserDefaults from previous version, Keychain empty
-    defaults.set("cus_existing_user", forKey: "geogarage_customer_id")
-    XCTAssertNil(try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID))
+    let service = PreferencesService(defaults: defaults, keychainManager: mockKeychain)
+    service.geoGarageCustomerID = "cus_existing"
+    mockKeychain.setStubbedError(.unexpectedStatus(-25308))
+
+    await service.loadGeoGarageCustomerID()
+    XCTAssertEqual(service.geoGarageCustomerID, "cus_existing", "Existing in-memory value should remain intact when Keychain read fails")
+  }
+
+  func testLoadGeoGarageCustomerIDMigratesLegacyUserDefaultsOneShot() async throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    defaults.set("cus_legacy_defaults", forKey: "geogarage_customer_id")
+    let mockKeychain = MockKeychainManager()
 
     let service = PreferencesService(defaults: defaults, keychainManager: mockKeychain)
+    XCTAssertNil(service.geoGarageCustomerID, "Init must not read legacy customerID synchronously")
 
-    XCTAssertEqual(service.geoGarageCustomerID, "cus_existing_user")
-    XCTAssertEqual(
-      try mockKeychain.retrieveTokenSync(for: GeoGarageKeychainKeys.customerID),
-      "cus_existing_user",
-      "CustomerID should be migrated to Keychain on first launch after update"
+    await service.loadGeoGarageCustomerID()
+
+    XCTAssertEqual(service.geoGarageCustomerID, "cus_legacy_defaults")
+    let migratedToken = try await mockKeychain.retrieveToken(for: GeoGarageKeychainKeys.customerID)
+    XCTAssertEqual(migratedToken, "cus_legacy_defaults")
+    XCTAssertNil(defaults.string(forKey: "geogarage_customer_id"), "Legacy UserDefaults key must be removed after migration")
+  }
+
+  func testPendingCAASDownloads_encodingFailurePreservesExistingUserDefaultsData() throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    enum StubEncodingError: Error { case failed }
+
+    let initialPending = PendingCAASDownload(
+      layerID: "shom",
+      layerName: "SHOM France",
+      boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
+      zoomMax: 14
     )
+    let seedService = PreferencesService(defaults: defaults)
+    seedService.pendingCAASDownloads = [initialPending]
+    let savedDataBeforeFailure = try XCTUnwrap(defaults.data(forKey: "pendingCAASDownloads"))
+
+    let failingService = PreferencesService(
+      defaults: defaults,
+      encodePendingCAASDownloads: { _ in throw StubEncodingError.failed }
+    )
+    failingService.pendingCAASDownloads.append(
+      PendingCAASDownload(
+        layerID: "ukho",
+        layerName: "UKHO Solent",
+        boundsWKT: "POLYGON((-2 50, 0 50, 0 51, -2 51, -2 50))",
+        zoomMax: 12
+      )
+    )
+
+    XCTAssertEqual(defaults.data(forKey: "pendingCAASDownloads"), savedDataBeforeFailure)
+    let reloadedService = PreferencesService(defaults: defaults)
+    XCTAssertEqual(reloadedService.pendingCAASDownloads, [initialPending])
   }
 }

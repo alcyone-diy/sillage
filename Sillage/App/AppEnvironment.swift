@@ -349,6 +349,9 @@ final class AppEnvironment {
         }
       )
 
+      // Hydrate GeoGarage customer ID asynchronously from Keychain before checking offline credentials.
+      await preferencesService.loadGeoGarageCustomerID()
+
       // Empty until the user signs in; skip tile loading until valid credentials (secret & customerID) are present.
       if let sharedSecret = try? await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
          let initialCustomerID = preferencesService.geoGarageCustomerID, !initialCustomerID.isEmpty {

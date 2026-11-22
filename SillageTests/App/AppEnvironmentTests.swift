@@ -236,7 +236,7 @@ final class AppEnvironmentTests: XCTestCase {
   func testBootstrapDoesNotFetchThePackageSecretWhenTheKeychainAlreadyHasOne() async throws {
     try await mockKeychain.save(token: "legacy_access_token", for: GeoGarageKeychainKeys.accessToken)
     try await mockKeychain.save(token: "already-here", for: GeoGaragePartnerSecretService.keychainAccount)
-    testPreferencesService.geoGarageCustomerID = "cus_already_here"
+    try await mockKeychain.save(token: "cus_already_here", for: GeoGarageKeychainKeys.customerID)
 
     await environment.bootstrap()
     await environment.packageSecretRestoreTask?.value
