@@ -10,6 +10,16 @@
     "'" : {
 
     },
+    "%@ (D-%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (D-%2$lld)"
+          }
+        }
+      }
+    },
     "%@ (MIT License)" : {
 
     },
@@ -151,6 +161,9 @@
     "2025.0 – 2030.0" : {
 
     },
+    "A rapid pressure drop has been detected. Prepare for worsening conditions." : {
+
+    },
     "A storage error occurred. Please try again." : {
 
     },
@@ -164,6 +177,9 @@
 
     },
     "Acquiring..." : {
+
+    },
+    "Active" : {
 
     },
     "Active Track" : {
@@ -232,6 +248,9 @@
     "Anchor:" : {
 
     },
+    "Anchoring Checklist" : {
+
+    },
     "App Information" : {
 
     },
@@ -272,6 +291,9 @@
 
     },
     "Associated Checklists" : {
+
+    },
+    "Attach chain snubber to take load off the windlass gypsy." : {
 
     },
     "Authentication Error" : {
@@ -317,13 +339,22 @@
     "Bearings & COG" : {
 
     },
+    "Begin Williamson Turn or Quick-Stop maneuver back to casualty." : {
+
+    },
     "BRG" : {
+
+    },
+    "Broadcast Distress Call" : {
 
     },
     "BTW" : {
 
     },
     "Build" : {
+
+    },
+    "Calculate swing radius including high/low water tidal variance." : {
 
     },
     "Calculating area..." : {
@@ -368,6 +399,15 @@
     "Chart Preferences" : {
 
     },
+    "Check Bilge & Pumping" : {
+
+    },
+    "Check engine oil, coolant levels, and alternator belt tension." : {
+
+    },
+    "Check house and engine start battery voltages (> 12.4V)." : {
+
+    },
     "Checked" : {
 
     },
@@ -386,6 +426,9 @@
     "Checklist Description (Optional)" : {
 
     },
+    "Checklist not found" : {
+
+    },
     "Checklist Title" : {
 
     },
@@ -402,6 +445,9 @@
 
     },
     "Close" : {
+
+    },
+    "Close and latch all foredeck hatches and companionway washboards." : {
 
     },
     "COG" : {
@@ -446,6 +492,12 @@
     "Confirm Anchor Drop" : {
 
     },
+    "Confirm galley gas isolation solenoid or valve is shut." : {
+
+    },
+    "Confirm holding ground nature (sand, mud) and charted hazards." : {
+
+    },
     "Continue" : {
 
     },
@@ -458,6 +510,9 @@
     "Copy coordinates" : {
 
     },
+    "Copy Coordinates" : {
+
+    },
     "Could not create the Charts directory." : {
 
     },
@@ -467,13 +522,31 @@
     "Create Checklist" : {
 
     },
+    "Create Waypoint…" : {
+
+    },
+    "Crew Harnesses & Jackstays" : {
+
+    },
+    "Crew wear PFDs, tether to deck jacklines; clip-on safety lines." : {
+
+    },
     "Critical alerts are disabled. Anchor alarms will not bypass silent mode." : {
+
+    },
+    "Critical emergency procedure for crew recovery at sea." : {
 
     },
     "Critical GPS accuracy (%@). Anchor alarm is temporarily unreliable." : {
 
     },
     "Critical GPS accuracy. Anchor alarm is temporarily unreliable." : {
+
+    },
+    "Customize telemetry instruments" : {
+
+    },
+    "Database is unavailable. Recording cannot start." : {
 
     },
     "Debug simulation anchor alarm triggered." : {
@@ -521,7 +594,16 @@
     "Delete Waypoint?" : {
 
     },
+    "Deploy Flotation Gear" : {
+
+    },
     "Description" : {
+
+    },
+    "Deselect" : {
+
+    },
+    "Deselect Target" : {
 
     },
     "Detail / instructions (Optional)" : {
@@ -555,6 +637,9 @@
 
     },
     "DISTANCE" : {
+
+    },
+    "Documents directory not found." : {
 
     },
     "Done" : {
@@ -620,6 +705,9 @@
     "Drop Anchor" : {
 
     },
+    "Drop Point & Anchor Alarm" : {
+
+    },
     "Duration" : {
 
     },
@@ -644,13 +732,22 @@
     "Edit Waypoint" : {
 
     },
+    "Electrical & Battery Banks" : {
+
+    },
     "Enable COG Vector" : {
 
     },
     "End Time" : {
 
     },
+    "Engine & Fluid Levels" : {
+
+    },
     "Engine & Technical" : {
+
+    },
+    "Engine Raw Water Intake" : {
 
     },
     "Error" : {
@@ -663,6 +760,9 @@
 
     },
     "Error loading document" : {
+
+    },
+    "Essential vessel and crew safety checks before leaving the berth or mooring." : {
 
     },
     "Export GPX" : {
@@ -678,6 +778,9 @@
 
     },
     "Failed to composite OpenSeaMap seamark overlay with base tile." : {
+
+    },
+    "Failed to copy the file: %@" : {
 
     },
     "Failed to delete some offline maps. Please check your storage." : {
@@ -708,6 +811,9 @@
 
     },
     "Failed to save changes. Please try again." : {
+
+    },
+    "Failed to schedule notification: %@" : {
 
     },
     "File integrity check failed. Expected %@, got %@." : {
@@ -802,6 +908,9 @@
     "Git Hash" : {
 
     },
+    "Global map" : {
+
+    },
     "Glove Mode" : {
 
     },
@@ -839,7 +948,13 @@
     "Harmonic Degree" : {
 
     },
+    "Hatches & Companionway" : {
+
+    },
     "Haversine Sphere (R = 6,371 km)" : {
+
+    },
+    "Heavy Weather & Reefing" : {
 
     },
     "Hemisphere" : {
@@ -857,6 +972,9 @@
     "hPa" : {
 
     },
+    "Hull & Seacocks" : {
+
+    },
     "I Accept" : {
 
     },
@@ -870,6 +988,12 @@
 
     },
     "Import succeeded, but failed to clean up the original file: %@" : {
+
+    },
+    "Imported map" : {
+
+    },
+    "Imported map - %@" : {
 
     },
     "In progress" : {
@@ -891,6 +1015,15 @@
 
     },
     "Initializing Systems…" : {
+
+    },
+    "Initiate Recovery Maneuver" : {
+
+    },
+    "Inspect bilge levels, verify through-hull valves and seacocks." : {
+
+    },
+    "Instruments" : {
 
     },
     "Insufficient GPS accuracy (%@, required <= %@)" : {
@@ -922,6 +1055,9 @@
 
     },
     "Invalid tile URL: %@" : {
+
+    },
+    "Lash down dinghy, stow loose gear, and secure galley equipment." : {
 
     },
     "Legal" : {
@@ -960,10 +1096,16 @@
     "Low" : {
       "comment" : "Low sensitivity"
     },
+    "LPG & Galley Gas Shutoff" : {
+
+    },
     "MAGNETIC DECLINATION" : {
 
     },
     "Magnetic declination is computed offline at sea level without relying on the device's hardware magnetometer (avoiding onboard magnetic interference) and does not account for local crustal magnetic anomalies." : {
+
+    },
+    "Man Overboard (MOB)" : {
 
     },
     "Manage" : {
@@ -976,6 +1118,9 @@
 
     },
     "Manual debug simulation" : {
+
+    },
+    "Map data © OpenSeaMap contributors" : {
 
     },
     "Map Sources" : {
@@ -1003,6 +1148,9 @@
 
     },
     "Measure Distance" : {
+
+    },
+    "Measure Distance…" : {
 
     },
     "Medium" : {
@@ -1048,6 +1196,9 @@
 
     },
     "Navigation & Maneuver" : {
+
+    },
+    "Navigation Lights & Electronics" : {
 
     },
     "Network error: %@" : {
@@ -1128,6 +1279,9 @@
     "Notifications are disabled. Anchor alarms will not appear." : {
 
     },
+    "Notifications are disabled. Please enable them in Settings." : {
+
+    },
     "Offline chart not found (id: %@)." : {
 
     },
@@ -1164,6 +1318,9 @@
     "OpenSeaMap" : {
 
     },
+    "OpenSeaMap (Free)" : {
+
+    },
     "OpenSeaMap (ODbL)" : {
 
     },
@@ -1183,6 +1340,9 @@
 
     },
     "Package request failed with HTTP status %lld." : {
+
+    },
+    "Pay out minimum 4:1 chain scope (5:1 in windy conditions)." : {
 
     },
     "Peak-to-Current Max Drop" : {
@@ -1218,13 +1378,22 @@
     "Points" : {
 
     },
+    "Pre-Departure Checklist" : {
+
+    },
     "Predictor Vector" : {
 
     },
     "Preparing GPX file…" : {
 
     },
+    "Press MOB Button" : {
+
+    },
     "Pressure" : {
+
+    },
+    "Propeller Safety & Engine" : {
 
     },
     "Queued" : {
@@ -1236,6 +1405,9 @@
     "Radius" : {
 
     },
+    "Raise Vocal Alarm" : {
+
+    },
     "Raw sensor: %@" : {
 
     },
@@ -1245,6 +1417,9 @@
     "RECIPROCAL" : {
 
     },
+    "Record anchor drop coordinate and activate Sillage anchor watch." : {
+
+    },
     "Record Track" : {
 
     },
@@ -1252,6 +1427,9 @@
 
     },
     "Recording Status" : {
+
+    },
+    "Reef Sail Plan" : {
 
     },
     "Reference Altitude" : {
@@ -1278,10 +1456,16 @@
     "Retry" : {
 
     },
+    "Review coastal forecast, gale warnings, and tidal stream times." : {
+
+    },
     "Rhumb Line (Loxodromic)" : {
 
     },
     "RNG" : {
+
+    },
+    "Rode Scope Determination" : {
 
     },
     "Routine" : {
@@ -1294,6 +1478,12 @@
 
     },
     "Safety & Emergency" : {
+
+    },
+    "Safety Equipment & Lifejackets" : {
+
+    },
+    "Safety measures and sail plan reduction for rising sea state and squalls." : {
 
     },
     "Safety radius exceeded (%@ / %@)" : {
@@ -1318,10 +1508,19 @@
     "Sea Level (0 m WGS-84)" : {
 
     },
+    "Seabed & Chart Survey" : {
+
+    },
+    "Secure Deck & Below" : {
+
+    },
     "Segment" : {
 
     },
     "Segments" : {
+
+    },
+    "Select" : {
 
     },
     "Select an area on the chart to download marine charts for offline navigation." : {
@@ -1339,7 +1538,13 @@
     "Settings" : {
 
     },
+    "Shout 'Man Overboard!' and appoint a dedicated visual spotter." : {
+
+    },
     "Show" : {
+
+    },
+    "Show Details" : {
 
     },
     "Show on Chart" : {
@@ -1394,6 +1599,9 @@
     "SLIDE TO WEIGH ANCHOR" : {
 
     },
+    "Snubber / Chain Hook" : {
+
+    },
     "SOG" : {
 
     },
@@ -1415,10 +1623,16 @@
     "Squall Imminent (High)" : {
 
     },
+    "Standard anchoring procedure and safety radius verification." : {
+
+    },
     "Start" : {
 
     },
     "Start Checklist" : {
+
+    },
+    "Start engine; confirm trailing lines are clear of propeller." : {
 
     },
     "Start Time" : {
@@ -1474,6 +1688,9 @@
     "swift-concurrency-extras" : {
 
     },
+    "Swinging Room & Depth" : {
+
+    },
     "Swipe to delete." : {
 
     },
@@ -1484,6 +1701,15 @@
 
     },
     "Tap Reorder to change category order." : {
+
+    },
+    "Test electric windlass controls and engage clutch securely." : {
+
+    },
+    "Test manual and electric bilge pumps for immediate readiness." : {
+
+    },
+    "Test masthead, steaming, and port/starboard navigation lights." : {
 
     },
     "The application has been closed by iOS. Active services (like tracking or anchor watch) have been stopped." : {
@@ -1531,6 +1757,9 @@
     "This will permanently delete this log entry." : {
 
     },
+    "Throw horseshoe buoy, Danbuoy, and strobe light immediately." : {
+
+    },
     "Time" : {
 
     },
@@ -1573,6 +1802,12 @@
     "Tracks" : {
 
     },
+    "Transmit VHF DSC Alert and Mayday call on Channel 16." : {
+
+    },
+    "Trigger MOB waypoint on GPS/plotter to record recovery datum." : {
+
+    },
     "Triggers on drops ≥ 1.5 hPa within 3h or ≥ 2.0 hPa within 1h. Ideal for squall detection." : {
       "comment" : "High sensitivity explanation"
     },
@@ -1605,6 +1840,9 @@
         }
       }
     },
+    "Tuck in reef 1 or 2 before boat becomes over-canvassed." : {
+
+    },
     "Unable to load category details. Please try again." : {
 
     },
@@ -1615,6 +1853,9 @@
 
     },
     "Unchecked" : {
+
+    },
+    "Unknown" : {
 
     },
     "Unknown Chart" : {
@@ -1635,10 +1876,19 @@
     "USNO Almanac (Solar MIT)" : {
 
     },
+    "Valid until %@" : {
+
+    },
     "Validity Period" : {
 
     },
     "Variation" : {
+
+    },
+    "Verify PFDs/harnesses, flares, and VHF channel 16 radio." : {
+
+    },
+    "Verify seawater cooling intake valve is open." : {
 
     },
     "Version" : {
@@ -1702,6 +1952,12 @@
     "Waypoints" : {
 
     },
+    "Weather & Tides" : {
+
+    },
+    "Weather Alarm: %@" : {
+
+    },
     "Weather Alarms" : {
 
     },
@@ -1718,6 +1974,9 @@
 
     },
     "WIND" : {
+
+    },
+    "Windlass Pre-check" : {
 
     },
     "Wintering & Maintenance" : {
