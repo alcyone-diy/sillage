@@ -66,7 +66,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertNil(vm.latestCompletionDate)
     XCTAssertNil(vm.activeSessionWithProgress)
     XCTAssertEqual(vm.usageStatus, .neverUsed)
-    XCTAssertFalse(vm.isLoading)
+    XCTAssertTrue(vm.isLoading)
     XCTAssertNil(vm.errorMessage)
     XCTAssertEqual(vm.title, "")
     XCTAssertNil(vm.description)
@@ -82,6 +82,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     let vm = try XCTUnwrap(viewModel)
     await vm.load()
 
+    XCTAssertFalse(vm.isLoading)
     XCTAssertNotNil(vm.template)
     XCTAssertEqual(vm.title, "Pre-Sail Brief")
     XCTAssertEqual(vm.description, "Safety walkaround")
@@ -484,6 +485,64 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     let reloaded = try await service.fetchTemplate(id: existing.id)
     XCTAssertEqual(reloaded?.title, "Updated Title")
     XCTAssertEqual(reloaded?.items.count, 3)
+  }
+
+  func testLoadDoesNotOverwriteUnsavedEditsWhenAlreadyHydratedAndEditable() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let tmpl = try XCTUnwrap(template)
+
+    let editingVM = ChecklistTemplateDetailViewModel(
+      template: tmpl,
+      checklistService: service,
+      startEditable: true
+    )
+
+    XCTAssertFalse(editingVM.isLoading)
+    XCTAssertTrue(editingVM.isEditable)
+
+    // User edits draft before or while `load()` completes
+    editingVM.title = "In-Progress Draft Title"
+    editingVM.descriptionText = "Unsaved description changes"
+    editingVM.categoryId = "routine"
+    guard !editingVM.items.isEmpty else {
+      XCTFail("Expected items to be populated from initial template")
+      return
+    }
+    editingVM.items[0].title = "Edited Step 1"
+    editingVM.addItem(title: "Brand New Step")
+
+    await editingVM.load()
+
+    XCTAssertFalse(editingVM.isLoading)
+    XCTAssertFalse(editingVM.availableCategories.isEmpty)
+    XCTAssertEqual(editingVM.title, "In-Progress Draft Title")
+    XCTAssertEqual(editingVM.descriptionText, "Unsaved description changes")
+    XCTAssertEqual(editingVM.categoryId, "routine")
+    XCTAssertEqual(editingVM.items.count, 3)
+    XCTAssertEqual(editingVM.items[0].title, "Edited Step 1")
+    XCTAssertEqual(editingVM.items[2].title, "Brand New Step")
+  }
+
+  func testLoadPopulatesDraftWhenOpenedByTemplateIdOnlyInEditMode() async throws {
+    let service = try XCTUnwrap(checklistService)
+    let tmpl = try XCTUnwrap(template)
+
+    let idOnlyVM = ChecklistTemplateDetailViewModel(
+      templateId: tmpl.id,
+      checklistService: service,
+      startEditable: true
+    )
+
+    XCTAssertTrue(idOnlyVM.isLoading)
+    XCTAssertNil(idOnlyVM.template)
+    XCTAssertTrue(idOnlyVM.isEditable)
+
+    await idOnlyVM.load()
+
+    XCTAssertFalse(idOnlyVM.isLoading)
+    XCTAssertNotNil(idOnlyVM.template)
+    XCTAssertEqual(idOnlyVM.title, "Pre-Sail Brief")
+    XCTAssertEqual(idOnlyVM.items.count, 2)
   }
 
   // MARK: - Category Support Tests

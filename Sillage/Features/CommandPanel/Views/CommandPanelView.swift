@@ -129,7 +129,7 @@ struct CommandPanelView: View {
             }
           }
         }
-        .buttonStyle(MarineButtonStyle())
+        .buttonStyle(MarineButtonStyle(.custom))
         .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius))
         .disabled(activeTrackViewModel.isSaving)
       }

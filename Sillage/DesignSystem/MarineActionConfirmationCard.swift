@@ -105,7 +105,7 @@ public struct MarineActionConfirmationCard<Content: View>: View {
             .foregroundColor(cancelForegroundColor ?? marineTheme.colors.textSecondary)
             .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
           }
-          .buttonStyle(MarineButtonStyle())
+          .buttonStyle(MarineButtonStyle(.custom))
         }
 
         Button(action: onConfirm) {
@@ -129,7 +129,7 @@ public struct MarineActionConfirmationCard<Content: View>: View {
           )
           .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
         }
-        .buttonStyle(MarineButtonStyle())
+        .buttonStyle(MarineButtonStyle(.custom))
         .disabled(isConfirmDisabled)
       }
     }

@@ -53,7 +53,7 @@ public struct ChecklistTemplateListView: View {
                 Text("Create Checklist")
               }
             }
-            .buttonStyle(MarineButtonStyle())
+            .buttonStyle(MarineButtonStyle(.primary))
           }
           .frame(maxWidth: .infinity)
           .padding(.vertical, MarineTheme.Spacing.medium)

@@ -236,7 +236,7 @@ public struct AnchorAlarmView: View {
           .foregroundColor(marineTheme.colors.onPrimary)
           .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
       }
-      .buttonStyle(MarineButtonStyle())
+      .buttonStyle(MarineButtonStyle(.custom))
     }
     .padding(MarineTheme.Spacing.small)
     .frame(maxWidth: .infinity)
@@ -303,7 +303,7 @@ public struct AnchorAlarmView: View {
                 .foregroundColor(marineTheme.colors.textSecondary)
                 .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
-            .buttonStyle(MarineButtonStyle())
+            .buttonStyle(MarineButtonStyle(.custom))
             .opacity(isArmed ? 0.3 : 1.0)
             .disabled(isArmed)
             
@@ -320,7 +320,7 @@ public struct AnchorAlarmView: View {
                 .foregroundColor(marineTheme.colors.textSecondary)
                 .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
-            .buttonStyle(MarineButtonStyle())
+            .buttonStyle(MarineButtonStyle(.custom))
             .opacity(isArmed ? 0.3 : 1.0)
             .disabled(isArmed)
           }
@@ -349,7 +349,7 @@ public struct AnchorAlarmView: View {
             .foregroundColor(marineTheme.colors.onPrimary)
             .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
         }
-        .buttonStyle(MarineButtonStyle())
+        .buttonStyle(MarineButtonStyle(.custom))
         
       case .droppedPendingPosition:
         Button(action: {
@@ -363,7 +363,7 @@ public struct AnchorAlarmView: View {
             .foregroundColor(marineTheme.colors.onPrimary)
             .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
         }
-        .buttonStyle(MarineButtonStyle())
+        .buttonStyle(MarineButtonStyle(.custom))
         .disabled(viewModel.anchorCoordinate == nil)
         .opacity(viewModel.anchorCoordinate == nil ? 0.5 : 1.0)
         
@@ -390,7 +390,7 @@ public struct AnchorAlarmView: View {
             .foregroundColor(marineTheme.colors.onPrimary)
             .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
         }
-        .buttonStyle(MarineButtonStyle())
+        .buttonStyle(MarineButtonStyle(.custom))
         
         adjustPositionButton
         
@@ -442,7 +442,7 @@ public struct AnchorAlarmView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous))
     }
-    .buttonStyle(MarineButtonStyle())
+    .buttonStyle(MarineButtonStyle(.custom))
   }
 }
 

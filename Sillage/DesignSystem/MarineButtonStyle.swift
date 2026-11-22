@@ -19,12 +19,12 @@ struct MarineButtonStyle: ButtonStyle {
     case cancel
   }
 
-  var variant: Variant = .custom
+  var variant: Variant
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.marineTheme) private var marineTheme
   @ScaledMetric(relativeTo: .body) private var scaleFactor: CGFloat = 1.0
 
-  init(_ variant: Variant = .custom) {
+  init(_ variant: Variant) {
     self.variant = variant
   }
 

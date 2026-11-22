@@ -59,7 +59,8 @@ struct SplashView: View {
             Button(action: retryAction) {
               Text("Retry")
             }
-            .buttonStyle(MarineButtonStyle())
+            .buttonStyle(MarineButtonStyle(.primary))
+            .padding(.horizontal, MarineTheme.Spacing.large)
           }
           
         case .ready:

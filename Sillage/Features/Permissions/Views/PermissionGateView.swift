@@ -219,7 +219,7 @@ struct PrePermissionView: View {
                     .foregroundColor(marineTheme.colors.onPrimary)
                     .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
-            .buttonStyle(MarineButtonStyle())
+            .buttonStyle(MarineButtonStyle(.custom))
             .padding(.horizontal, 40)
             
             Text("You can change this at any time in the Settings app.")

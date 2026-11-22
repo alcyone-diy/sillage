@@ -165,6 +165,7 @@ public final class ChecklistTemplateDetailViewModel {
     self.templateId = templateId ?? template?.id
     self.checklistService = checklistService
     self.isEditable = (templateId == nil && template == nil) ? true : startEditable
+    self.isLoading = (self.templateId != nil && template == nil)
 
     if let template {
       self.template = template
@@ -179,12 +180,24 @@ public final class ChecklistTemplateDetailViewModel {
 
   /// Loads the checklist template, available categories, and any currently active session.
   public func load() async {
+    if templateId != nil {
+      isLoading = true
+    }
+    defer {
+      if !Task.isCancelled {
+        isLoading = false
+      }
+    }
+
     do {
-      self.availableCategories = try await checklistService.fetchCategories()
+      let categories = try await checklistService.fetchCategories()
+      guard !Task.isCancelled else { return }
+      self.availableCategories = categories
       if categoryId.isEmpty, let firstCategory = availableCategories.first {
         self.categoryId = firstCategory.id
       }
     } catch {
+      if error is CancellationError || Task.isCancelled { return }
       Logger.checklist.error("Failed to load checklist categories: \(String(reflecting: error), privacy: .public)")
     }
 
@@ -195,19 +208,26 @@ public final class ChecklistTemplateDetailViewModel {
       return
     }
 
-    isLoading = true
-    defer { isLoading = false }
     errorMessage = nil
 
     do {
       let fetchedTemplate = try await checklistService.fetchTemplate(id: templateId)
+      guard !Task.isCancelled else { return }
+      let hadTemplate = self.template != nil
       self.template = fetchedTemplate
-      if let fetchedTemplate {
+      if let fetchedTemplate, !hadTemplate || !isEditable {
         populate(from: fetchedTemplate)
       }
-      self.activeSession = try await checklistService.fetchActiveSession(for: templateId)
-      self.latestCompletionDate = try await checklistService.fetchLatestCompletionDate(for: templateId)
+
+      let activeSession = try await checklistService.fetchActiveSession(for: templateId)
+      guard !Task.isCancelled else { return }
+      self.activeSession = activeSession
+
+      let latestCompletionDate = try await checklistService.fetchLatestCompletionDate(for: templateId)
+      guard !Task.isCancelled else { return }
+      self.latestCompletionDate = latestCompletionDate
     } catch {
+      if error is CancellationError || Task.isCancelled { return }
       Logger.checklist.error("Failed to load checklist template \(templateId.uuidString, privacy: .public): \(String(reflecting: error), privacy: .public)")
       errorMessage = ChecklistSessionError.userMessage(for: error)
     }

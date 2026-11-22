@@ -85,6 +85,8 @@ public struct ChecklistTemplateDetailView: View {
         Form {
           if viewModel.isLoading && viewModel.template == nil {
             loadingSection
+          } else if !viewModel.isNew && viewModel.template == nil {
+            unavailableSection
           } else if viewModel.isEditable {
             generalEditSection
             stepsEditSection(proxy: proxy)
@@ -160,7 +162,11 @@ public struct ChecklistTemplateDetailView: View {
               .padding(8)
               .contentShape(Rectangle())
           }
-          .disabled(viewModel.isSaving || viewModel.categoryId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          .disabled(
+            viewModel.isSaving
+              || (!viewModel.isNew && viewModel.template == nil)
+              || viewModel.categoryId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+          )
           .accessibilityLabel(String(localized: "Save"))
         }
       } else {
@@ -223,6 +229,25 @@ public struct ChecklistTemplateDetailView: View {
           .tint(marineTheme.colors.accent)
         Spacer()
       }
+      .marineListCell()
+    }
+  }
+
+  @ViewBuilder
+  private var unavailableSection: some View {
+    Section {
+      VStack(spacing: MarineTheme.Spacing.medium) {
+        Image(marineIcon: .warningFill)
+          .font(.title2)
+          .foregroundStyle(marineTheme.colors.warning)
+
+        Text(viewModel.errorMessage ?? String(localized: "Checklist not found"))
+          .marineFont(.body)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+          .multilineTextAlignment(.center)
+      }
+      .frame(maxWidth: .infinity)
+      .padding(.vertical, MarineTheme.Spacing.medium)
       .marineListCell()
     }
   }

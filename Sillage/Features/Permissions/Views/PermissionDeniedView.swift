@@ -44,7 +44,7 @@ struct PermissionDeniedView: View {
                     .foregroundColor(marineTheme.colors.onPrimary)
                     .cornerRadius(MarineTheme.Metrics.cornerRadius)
             }
-            .buttonStyle(MarineButtonStyle())
+            .buttonStyle(MarineButtonStyle(.custom))
             .padding(.horizontal, 40)
             .padding(.top, 10)
         }
