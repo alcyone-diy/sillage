@@ -12,7 +12,6 @@
 		0238E18A3032657B001F3B1F /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA152FAFE4000077046A /* SQLCipher */; };
 		0265CA132FAFE3FF0077046A /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA122FAFE3FF0077046A /* GRDB */; };
 		0265CA162FAFE4000077046A /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 0265CA152FAFE4000077046A /* SQLCipher */; };
-		02A501A32FC4000100101B1B /* Solar in Frameworks */ = {isa = PBXBuildFile; productRef = 02A501A22FC4000100101B1B /* Solar */; };
 		02E3D3AA304CCA980074950E /* Clocks in Frameworks */ = {isa = PBXBuildFile; productRef = 020D22012FC3BBF900101B1B /* Clocks */; };
 /* End PBXBuildFile section */
 
@@ -67,7 +66,6 @@
 				020ACF672F6E43C1002C5C1B /* MapLibre in Frameworks */,
 				0265CA132FAFE3FF0077046A /* GRDB in Frameworks */,
 				0265CA162FAFE4000077046A /* SQLCipher in Frameworks */,
-				02A501A32FC4000100101B1B /* Solar in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -137,7 +135,6 @@
 				020ACF662F6E43C1002C5C1B /* MapLibre */,
 				0265CA122FAFE3FF0077046A /* GRDB */,
 				0265CA152FAFE4000077046A /* SQLCipher */,
-				02A501A22FC4000100101B1B /* Solar */,
 			);
 			productName = Sillage;
 			productReference = 020ACF262F6C9E66002C5C1B /* Alcyone Sillage.app */;
@@ -201,7 +198,6 @@
 				0265CA0A2FAFDFC10077046A /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				020D22002FC3BBF900101B1B /* XCRemoteSwiftPackageReference "swift-clocks" */,
 				0265CA142FAFE4000077046A /* XCRemoteSwiftPackageReference "SQLCipher.swift" */,
-				02A501A12FC4000100101B1B /* XCRemoteSwiftPackageReference "Solar" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 020ACF272F6C9E66002C5C1B /* Products */;
@@ -673,14 +669,6 @@
 				version = 4.19.0;
 			};
 		};
-		02A501A12FC4000100101B1B /* XCRemoteSwiftPackageReference "Solar" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ceeK/Solar";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 4.0.1;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -703,11 +691,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0265CA142FAFE4000077046A /* XCRemoteSwiftPackageReference "SQLCipher.swift" */;
 			productName = SQLCipher;
-		};
-		02A501A22FC4000100101B1B /* Solar */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 02A501A12FC4000100101B1B /* XCRemoteSwiftPackageReference "Solar" */;
-			productName = Solar;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

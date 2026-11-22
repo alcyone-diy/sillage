@@ -437,7 +437,11 @@ public final class WaypointDetailViewModel {
     let astroService = self.astronomicalService
     let magService = self.magneticDeclinationService
 
-    async let ephemeris = astroService.calculateEphemeris(for: coordinate, date: date)
+    async let ephemeris = astroService.calculateEphemeris(
+      for: coordinate,
+      date: date,
+      timeZone: .current
+    )
     async let declination = magService.calculateDeclination(for: coordinate, date: date)
 
     let (ephemResult, declResult) = await (ephemeris, declination)

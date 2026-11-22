@@ -64,11 +64,6 @@ class SettingsViewModel {
         filename: "License_xctest-dynamic-overlay",
         fileExtension: "txt"
       ),
-      LegalDocument(
-        title: "Solar (MIT License)",
-        filename: "License_Solar",
-        fileExtension: "txt"
-      ),
     ]
     let sortedLicenses = thirdPartyLicenses.sorted {
       let title1 = String(localized: $0.title)

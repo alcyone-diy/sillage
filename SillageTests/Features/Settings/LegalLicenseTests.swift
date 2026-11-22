@@ -14,29 +14,13 @@ import XCTest
 final class LegalLicenseTests: XCTestCase {
 
   @MainActor
-  func testSettingsViewModelIncludesSolarLicense() {
+  func testSettingsViewModelDoesNotIncludeRemovedSolarLicense() {
     let viewModel = SettingsViewModel()
 
     let solarDoc = viewModel.thirdPartyLicenseDocuments.first {
-      String(localized: $0.title).contains("Solar")
+      $0.filename == "License_Solar"
     }
 
-    XCTAssertNotNil(solarDoc, "Solar license document should be present in thirdPartyLicenseDocuments")
-    XCTAssertEqual(solarDoc?.filename, "License_Solar")
-    XCTAssertEqual(solarDoc?.fileExtension, "txt")
-  }
-
-  func testSolarLicenseFileExistsInBundle() {
-    let bundle = Bundle(for: type(of: self))
-    // Check main or module/test bundle for the resource
-    let url = Bundle.main.url(forResource: "License_Solar", withExtension: "txt") ??
-              bundle.url(forResource: "License_Solar", withExtension: "txt")
-    
-    // In test environment, if Bundle.main points to the app host bundle
-    if let url {
-      let content = try? String(contentsOf: url, encoding: .utf8)
-      XCTAssertNotNil(content)
-      XCTAssertTrue(content?.contains("Chris Howell") == true)
-    }
+    XCTAssertNil(solarDoc, "Removed Solar SPM dependency license should not be present")
   }
 }

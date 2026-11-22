@@ -192,29 +192,14 @@ struct WaypointDetailView: View {
           }
 
           Section {
-            ephemerisRow(
-              title: "Nautical Dawn",
-              icon: "sun.horizon",
-              date: viewModel.sunEphemeris?.nauticalTwilightStart
-            )
-            ephemerisRow(
-              title: "Sunrise",
-              icon: "sunrise",
-              date: viewModel.sunEphemeris?.sunrise
-            )
-            ephemerisRow(
-              title: "Sunset",
-              icon: "sunset",
-              date: viewModel.sunEphemeris?.sunset
-            )
-            ephemerisRow(
-              title: "Nautical Dusk",
-              icon: "moon.stars",
-              date: viewModel.sunEphemeris?.nauticalTwilightEnd
-            )
+            ForEach(SunEphemerisDisplayRow.rows(for: viewModel.sunEphemeris)) { row in
+              ephemerisRow(row)
+            }
           } header: {
-            let referenceDate = viewModel.pointInfoDate ?? Date()
-            let dateString = referenceDate.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)).uppercased()
+            let referenceDate = viewModel.sunEphemeris?.referenceDate ?? viewModel.pointInfoDate ?? Date()
+            let displayTimeZone = viewModel.sunEphemeris?.timeZone ?? .current
+            let headerFormat = Date.FormatStyle(timeZone: displayTimeZone).weekday(.abbreviated).day().month(.abbreviated)
+            let dateString = referenceDate.formatted(headerFormat).uppercased()
             Text("SOLAR EPHEMERIS - \(dateString)")
               .marineSectionHeader()
           }
@@ -366,18 +351,14 @@ struct WaypointDetailView: View {
   }
 
   @ViewBuilder
-  private func ephemerisRow(
-    title: LocalizedStringKey,
-    icon: String,
-    date: Date?
-  ) -> some View {
+  private func ephemerisRow(_ row: SunEphemerisDisplayRow) -> some View {
     HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
-      Image(systemName: icon)
+      Image(systemName: row.icon)
         .marineFont(.body)
         .foregroundColor(marineTheme.colors.textSecondary)
         .frame(width: MarineTheme.Spacing.large)
 
-      Text(title)
+      Text(row.title)
         .marineFont(.body)
         .foregroundColor(marineTheme.colors.textSecondary)
         .lineLimit(1)
@@ -385,32 +366,42 @@ struct WaypointDetailView: View {
 
       Spacer(minLength: MarineTheme.Spacing.small)
 
-      ephemerisTimeView(date)
+      ephemerisValueView(row.value)
     }
     .marineListCell()
   }
 
   @ViewBuilder
-  private func ephemerisTimeView(_ date: Date?) -> some View {
-    if let date {
-      Text(verbatim: date.marineTimeWithTimeZoneFormatted())
+  private func ephemerisValueView(_ value: SunEphemerisRowValue) -> some View {
+    switch value {
+    case let .time(date, referenceDate, timeZone):
+      Text(verbatim: date.marineEphemerisTimeFormatted(relativeTo: referenceDate, timeZone: timeZone))
         .monospacedDigit()
         .marineFont(.body)
         .foregroundColor(marineTheme.colors.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
         .transaction { $0.animation = nil }
-    } else if viewModel.isPointInfoLoading {
-      let tzAbbr = TimeZone.current.abbreviation() ?? "UTC"
-      Text(verbatim: "06:00 \(tzAbbr)")
-        .monospacedDigit()
+    case let .status(label):
+      Text(label)
         .marineFont(.body)
-        .redacted(reason: .placeholder)
-    } else {
-      Text(verbatim: "---")
-        .monospacedDigit()
-        .marineFont(.body)
-        .foregroundColor(marineTheme.colors.textSecondary)
+        .foregroundColor(marineTheme.colors.textPrimary)
+        .lineLimit(1)
+        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+        .transaction { $0.animation = nil }
+    case .missing:
+      if viewModel.isPointInfoLoading {
+        let tzAbbr = TimeZone.current.abbreviation() ?? "UTC"
+        Text(verbatim: "06:00 \(tzAbbr)")
+          .monospacedDigit()
+          .marineFont(.body)
+          .redacted(reason: .placeholder)
+      } else {
+        Text(verbatim: "---")
+          .monospacedDigit()
+          .marineFont(.body)
+          .foregroundColor(marineTheme.colors.textSecondary)
+      }
     }
   }
 }

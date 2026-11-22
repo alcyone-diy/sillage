@@ -689,7 +689,11 @@ private struct PointInfoEphemerisSection: View {
   let isLoading: Bool
 
   var body: some View {
-    let dateString = Date().formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)).uppercased()
+    let referenceDate = ephemeris?.referenceDate ?? Date()
+    let displayTimeZone = ephemeris?.timeZone ?? .current
+    let headerFormat = Date.FormatStyle(timeZone: displayTimeZone).weekday(.abbreviated).day().month(.abbreviated)
+    let dateString = referenceDate.formatted(headerFormat).uppercased()
+    let displayRows = SunEphemerisDisplayRow.rows(for: ephemeris)
 
     VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
       Text("SOLAR EPHEMERIS - \(dateString)")
@@ -697,38 +701,14 @@ private struct PointInfoEphemerisSection: View {
         .padding(.leading, MarineTheme.Spacing.small)
 
       VStack(spacing: 0) {
-        ephemerisRow(
-          title: "Nautical Dawn",
-          icon: "sun.horizon",
-          date: ephemeris?.nauticalTwilightStart
-        )
+        ForEach(Array(displayRows.enumerated()), id: \.element.id) { index, row in
+          if index > 0 {
+            Divider()
+              .padding(.leading, separatorLeadingInset)
+          }
 
-        Divider()
-          .padding(.leading, separatorLeadingInset)
-
-        ephemerisRow(
-          title: "Sunrise",
-          icon: "sunrise",
-          date: ephemeris?.sunrise
-        )
-
-        Divider()
-          .padding(.leading, separatorLeadingInset)
-
-        ephemerisRow(
-          title: "Sunset",
-          icon: "sunset",
-          date: ephemeris?.sunset
-        )
-
-        Divider()
-          .padding(.leading, separatorLeadingInset)
-
-        ephemerisRow(
-          title: "Nautical Dusk",
-          icon: "moon.stars",
-          date: ephemeris?.nauticalTwilightEnd
-        )
+          ephemerisRow(row)
+        }
       }
       .background(
         marineTheme.colors.surfaceBackground,
@@ -743,18 +723,14 @@ private struct PointInfoEphemerisSection: View {
   }
 
   @ViewBuilder
-  private func ephemerisRow(
-    title: LocalizedStringKey,
-    icon: String,
-    date: Date?
-  ) -> some View {
+  private func ephemerisRow(_ row: SunEphemerisDisplayRow) -> some View {
     HStack(alignment: .center, spacing: MarineTheme.Spacing.small) {
-      Image(systemName: icon)
+      Image(systemName: row.icon)
         .marineFont(.body)
         .foregroundColor(marineTheme.colors.textSecondary)
         .frame(width: MarineTheme.Spacing.large)
 
-      Text(title)
+      Text(row.title)
         .marineFont(.body)
         .foregroundColor(marineTheme.colors.textSecondary)
         .lineLimit(1)
@@ -762,33 +738,43 @@ private struct PointInfoEphemerisSection: View {
 
       Spacer(minLength: MarineTheme.Spacing.small)
 
-      ephemerisTimeView(date)
+      ephemerisValueView(row.value)
     }
     .padding(.horizontal, MarineTheme.Spacing.small)
     .padding(.vertical, MarineTheme.Spacing.medium)
   }
 
   @ViewBuilder
-  private func ephemerisTimeView(_ date: Date?) -> some View {
-    if let date {
-      Text(verbatim: date.marineTimeWithTimeZoneFormatted())
+  private func ephemerisValueView(_ value: SunEphemerisRowValue) -> some View {
+    switch value {
+    case let .time(date, referenceDate, timeZone):
+      Text(verbatim: date.marineEphemerisTimeFormatted(relativeTo: referenceDate, timeZone: timeZone))
         .monospacedDigit()
         .marineFont(.body)
         .foregroundColor(marineTheme.colors.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
         .transaction { $0.animation = nil }
-    } else if isLoading {
-      let tzAbbr = TimeZone.current.abbreviation() ?? "UTC"
-      Text(verbatim: "06:00 \(tzAbbr)")
-        .monospacedDigit()
+    case let .status(label):
+      Text(label)
         .marineFont(.body)
-        .redacted(reason: .placeholder)
-    } else {
-      Text(verbatim: "---")
-        .monospacedDigit()
-        .marineFont(.body)
-        .foregroundColor(marineTheme.colors.textSecondary)
+        .foregroundColor(marineTheme.colors.textPrimary)
+        .lineLimit(1)
+        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+        .transaction { $0.animation = nil }
+    case .missing:
+      if isLoading {
+        let tzAbbr = TimeZone.current.abbreviation() ?? "UTC"
+        Text(verbatim: "06:00 \(tzAbbr)")
+          .monospacedDigit()
+          .marineFont(.body)
+          .redacted(reason: .placeholder)
+      } else {
+        Text(verbatim: "---")
+          .monospacedDigit()
+          .marineFont(.body)
+          .foregroundColor(marineTheme.colors.textSecondary)
+      }
     }
   }
 }

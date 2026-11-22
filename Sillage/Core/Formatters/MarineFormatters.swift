@@ -229,6 +229,27 @@ extension Date {
       return timeStr
     }
   }
+
+  /// Formats an ephemeris event time with timezone and optional calendar day offset suffix ("+1d" / "-1d")
+  /// relative to `referenceDate` in `timeZone`.
+  public func marineEphemerisTimeFormatted(
+    relativeTo referenceDate: Date,
+    timeZone: TimeZone = .current,
+    locale: Locale = .current
+  ) -> String {
+    let base = self.marineTimeWithTimeZoneFormatted(timeZone: timeZone, locale: locale)
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    let refDay = calendar.startOfDay(for: referenceDate)
+    let eventDay = calendar.startOfDay(for: self)
+    let dayDiff = calendar.dateComponents([.day], from: refDay, to: eventDay).day ?? 0
+    if dayDiff > 0 {
+      return "\(base) +\(dayDiff)d"
+    } else if dayDiff < 0 {
+      return "\(base) \(dayDiff)d"
+    }
+    return base
+  }
 }
 
 extension Measurement where UnitType == UnitArea {

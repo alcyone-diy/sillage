@@ -20,15 +20,6 @@
       }
     },
     {
-      "identity" : "solar",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ceeK/Solar",
-      "state" : {
-        "revision" : "c31adf999dfd1d3fdc66052e95cc73dd0edbd5ec",
-        "version" : "4.0.1"
-      }
-    },
-    {
       "identity" : "sqlcipher.swift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sqlcipher/SQLCipher.swift.git",

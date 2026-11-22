@@ -30,14 +30,14 @@ struct ModelsInfoView: View {
 
       // MARK: - Solar Ephemeris
       Section {
-        infoRow(title: "Algorithm", value: "USNO Almanac (Solar MIT)")
-        infoRow(title: "Sunrise / Sunset", value: "Zenith 90.83° (90° 50')")
+        infoRow(title: "Algorithm", value: "NOAA Solar (Jean Meeus)")
+        infoRow(title: "Sunrise / Sunset", value: "Zenith 90.83° (-0.833°)")
         infoRow(title: "Nautical Twilight", value: "Zenith 102° (-12°)")
         infoRow(title: "Display Time Zone", value: "Device System Time Zone")
       } header: {
         Text("Solar Ephemeris").marineSectionHeader()
       } footer: {
-        Text("Computed from the U.S. Naval Observatory Almanac for Computers algorithm anchored to the UTC calendar day and formatted in the device's time zone. Assumes an unobstructed sea-level horizon with standard refraction, without observer elevation or terrain relief corrections.")
+        Text("Computed offline using the NOAA / Jean Meeus solar algorithm anchored to local solar noon for the calendar day in the display time zone. Assumes an unobstructed sea-level horizon with standard refraction, without observer elevation or terrain relief corrections.")
           .marineFont(.footnote)
       }
 

@@ -882,10 +882,16 @@ final class WaypointTests: XCTestCase {
     XCTAssertFalse(vm.isPointInfoLoading)
     XCTAssertEqual(vm.pointInfoDate, fixedDate)
     XCTAssertNotNil(vm.sunEphemeris)
-    XCTAssertNotNil(vm.sunEphemeris?.nauticalTwilightStart)
-    XCTAssertNotNil(vm.sunEphemeris?.sunrise)
-    XCTAssertNotNil(vm.sunEphemeris?.sunset)
-    XCTAssertNotNil(vm.sunEphemeris?.nauticalTwilightEnd)
+    if case let .cycle(sunrise, sunset) = vm.sunEphemeris?.daylight {
+      XCTAssertLessThan(sunrise, sunset)
+    } else {
+      XCTFail("Expected .cycle daylight for waypoint, got \(String(describing: vm.sunEphemeris?.daylight))")
+    }
+    if case let .cycle(dawn, dusk) = vm.sunEphemeris?.nauticalTwilight {
+      XCTAssertLessThan(dawn, dusk)
+    } else {
+      XCTFail("Expected .cycle nautical twilight for waypoint, got \(String(describing: vm.sunEphemeris?.nauticalTwilight))")
+    }
     XCTAssertNotNil(vm.magneticDeclination)
     if let decl = vm.magneticDeclination {
       XCTAssertEqual(decl.converted(to: .degrees).value, 0.91, accuracy: 0.05)

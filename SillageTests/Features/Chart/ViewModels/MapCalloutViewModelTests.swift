@@ -411,8 +411,11 @@ final class MapCalloutViewModelTests: XCTestCase {
 
     XCTAssertFalse(viewModel.isPointInfoLoading)
     XCTAssertNotNil(viewModel.sunEphemeris)
-    XCTAssertNotNil(viewModel.sunEphemeris?.sunrise)
-    XCTAssertNotNil(viewModel.sunEphemeris?.sunset)
+    if case let .cycle(sunrise, sunset) = viewModel.sunEphemeris?.daylight {
+      XCTAssertLessThan(sunrise, sunset)
+    } else {
+      XCTFail("Expected .cycle daylight for Nantes, got \(String(describing: viewModel.sunEphemeris?.daylight))")
+    }
     XCTAssertNotNil(viewModel.magneticDeclination)
     if let decl = viewModel.magneticDeclination {
       // Nantes (47.218° N, -1.554° W) in NOAA WMM-2025 at epoch 2026.0 has declination ~ +0.91° E.
@@ -433,17 +436,17 @@ final class MapCalloutViewModelTests: XCTestCase {
     }
     XCTAssertNotNil(viewModel.sunEphemeris)
 
-    let initialSunrise = viewModel.sunEphemeris?.sunrise
+    let initialDaylight = viewModel.sunEphemeris?.daylight
     let newCoord = CLLocationCoordinate2D(latitude: 12.0, longitude: 45.0)
     viewModel.updateTarget(coordinate: newCoord)
 
     deadline = Date().addingTimeInterval(2.0)
-    while viewModel.sunEphemeris?.sunrise == initialSunrise && Date() < deadline {
+    while viewModel.sunEphemeris?.daylight == initialDaylight && Date() < deadline {
       try? await Task.sleep(for: .milliseconds(20))
     }
     XCTAssertNotNil(viewModel.sunEphemeris)
     XCTAssertNotNil(viewModel.magneticDeclination)
-    XCTAssertNotEqual(viewModel.sunEphemeris?.sunrise, initialSunrise)
+    XCTAssertNotEqual(viewModel.sunEphemeris?.daylight, initialDaylight)
   }
 
   func testDismissPointInfoClearsEphemerisAndDeclination() async {
@@ -502,7 +505,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     }
     XCTAssertNotNil(viewModel.sunEphemeris)
     XCTAssertNotNil(viewModel.magneticDeclination)
-    let initialSunrise = viewModel.sunEphemeris?.sunrise
+    let initialDaylight = viewModel.sunEphemeris?.daylight
     let initialDeclination = viewModel.magneticDeclination?.converted(to: .degrees).value
 
     // User long presses elsewhere on the map: finger touch-down preserves existing point info to prevent skeleton flashing
@@ -536,13 +539,13 @@ final class MapCalloutViewModelTests: XCTestCase {
 
     // Point information for the new coordinate must be recalculated and populated
     deadline = Date().addingTimeInterval(2.0)
-    while viewModel.sunEphemeris?.sunrise == initialSunrise && Date() < deadline {
+    while viewModel.sunEphemeris?.daylight == initialDaylight && Date() < deadline {
       try? await Task.sleep(for: .milliseconds(20))
     }
     XCTAssertFalse(viewModel.isPointInfoLoading)
     XCTAssertNotNil(viewModel.sunEphemeris, "Ephemeris must be populated for new coordinate")
     XCTAssertNotNil(viewModel.magneticDeclination, "Magnetic declination must be populated for new coordinate")
-    XCTAssertNotEqual(viewModel.sunEphemeris?.sunrise, initialSunrise, "Ephemeris must reflect the new coordinate")
+    XCTAssertNotEqual(viewModel.sunEphemeris?.daylight, initialDaylight, "Ephemeris must reflect the new coordinate")
     XCTAssertNotEqual(viewModel.magneticDeclination?.converted(to: .degrees).value, initialDeclination, "Declination must reflect the new coordinate")
   }
 
@@ -562,7 +565,7 @@ final class MapCalloutViewModelTests: XCTestCase {
     }
     XCTAssertNotNil(viewModel.sunEphemeris)
     XCTAssertNotNil(viewModel.magneticDeclination)
-    let initialSunrise = viewModel.sunEphemeris?.sunrise
+    let initialDaylight = viewModel.sunEphemeris?.daylight
     let initialDeclination = viewModel.magneticDeclination?.converted(to: .degrees).value
 
     // User long presses on an existing waypoint
@@ -574,13 +577,13 @@ final class MapCalloutViewModelTests: XCTestCase {
 
     // Point information for the waypoint must be recalculated and populated
     deadline = Date().addingTimeInterval(2.0)
-    while viewModel.sunEphemeris?.sunrise == initialSunrise && Date() < deadline {
+    while viewModel.sunEphemeris?.daylight == initialDaylight && Date() < deadline {
       try? await Task.sleep(for: .milliseconds(20))
     }
     XCTAssertFalse(viewModel.isPointInfoLoading)
     XCTAssertNotNil(viewModel.sunEphemeris, "Ephemeris must be populated for waypoint")
     XCTAssertNotNil(viewModel.magneticDeclination, "Declination must be populated for waypoint")
-    XCTAssertNotEqual(viewModel.sunEphemeris?.sunrise, initialSunrise, "Ephemeris must reflect the waypoint's location")
+    XCTAssertNotEqual(viewModel.sunEphemeris?.daylight, initialDaylight, "Ephemeris must reflect the waypoint's location")
     XCTAssertNotEqual(viewModel.magneticDeclination?.converted(to: .degrees).value, initialDeclination, "Declination must reflect the waypoint's location")
   }
 

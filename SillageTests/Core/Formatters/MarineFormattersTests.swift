@@ -275,6 +275,28 @@ final class MarineFormattersTests: XCTestCase {
     XCTAssertTrue(formattedUTC.contains(expectedAbbr), "Expected \(expectedAbbr) in \(formattedUTC)")
   }
 
+  func testEphemerisTimeDayOffsetSuffix() throws {
+    let utc = TimeZone.gmt
+    let locale = Locale(identifier: "en_GB")
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = utc
+
+    let refDate = try XCTUnwrap(calendar.date(from: DateComponents(timeZone: utc, year: 2026, month: 6, day: 21, hour: 12, minute: 0)))
+    let sameDay = try XCTUnwrap(calendar.date(from: DateComponents(timeZone: utc, year: 2026, month: 6, day: 21, hour: 6, minute: 15)))
+    let nextDay = try XCTUnwrap(calendar.date(from: DateComponents(timeZone: utc, year: 2026, month: 6, day: 22, hour: 0, minute: 3)))
+    let prevDay = try XCTUnwrap(calendar.date(from: DateComponents(timeZone: utc, year: 2026, month: 6, day: 20, hour: 23, minute: 45)))
+
+    let sameFormatted = sameDay.marineEphemerisTimeFormatted(relativeTo: refDate, timeZone: utc, locale: locale)
+    XCTAssertFalse(sameFormatted.contains("+1d"))
+    XCTAssertFalse(sameFormatted.contains("-1d"))
+
+    let nextFormatted = nextDay.marineEphemerisTimeFormatted(relativeTo: refDate, timeZone: utc, locale: locale)
+    XCTAssertTrue(nextFormatted.hasSuffix(" +1d"), "Expected ' +1d' suffix in \(nextFormatted)")
+
+    let prevFormatted = prevDay.marineEphemerisTimeFormatted(relativeTo: refDate, timeZone: utc, locale: locale)
+    XCTAssertTrue(prevFormatted.hasSuffix(" -1d"), "Expected ' -1d' suffix in \(prevFormatted)")
+  }
+
   func testFileSizeFormattingEdgeCasesDoNotCrash() {
     let enUS = Locale(identifier: "en_US")
     let zeroFormatted = Int64(0).marineFormatted(locale: enUS)
