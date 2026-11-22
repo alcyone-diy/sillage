@@ -222,7 +222,10 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     }
 
     // 4. Fallback to remote network fetch via TileProxyManager
-    let networkManager = Self.tileProxyManager ?? TileProxyManager.shared
+    guard let networkManager = Self.tileProxyManager else {
+      Logger.network.warning("TileProxyProtocol invoked without a configured TileProxyManager; failing closed for \(url.path, privacy: .private)")
+      return nil
+    }
     if let data = try await networkManager.fetchTile(url: url) {
       return (data, .network)
     }

@@ -25,8 +25,6 @@ protocol TileProxyManagerProtocol: Sendable {
 }
 
 actor TileProxyManager: TileProxyManagerProtocol {
-  static let shared = TileProxyManager()
-
   private let session: URLSession
   private let keychainManager: any KeychainManaging
 

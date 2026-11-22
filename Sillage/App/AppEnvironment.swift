@@ -71,7 +71,7 @@ final class AppEnvironment {
   /// Injectable so unit tests never reach the real GeoGarage portal.
   private let authSession: URLSession
   let keychainManager: any KeychainManaging
-  private let tileProxyManager: TileProxyManager
+  private let tileProxyManager: any TileProxyManagerProtocol
   private let preferencesServiceOverride: PreferencesService?
   private let userDefaults: UserDefaults
   private let databaseManagerOverride: DatabaseManager?
@@ -85,6 +85,7 @@ final class AppEnvironment {
     partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil,
     authSession: URLSession = .shared,
     keychainManager: any KeychainManaging = KeychainManager.shared,
+    tileProxyManager: (any TileProxyManagerProtocol)? = nil,
     preferencesService: PreferencesService? = nil,
     userDefaults: UserDefaults = .standard,
     databaseManager: DatabaseManager? = nil,
@@ -95,7 +96,7 @@ final class AppEnvironment {
     Self.setupMapLibreProtocol()
     self.offlineMapManager = OfflineMapManager()
     self.keychainManager = keychainManager
-    self.tileProxyManager = TileProxyManager(keychainManager: keychainManager)
+    self.tileProxyManager = tileProxyManager ?? TileProxyManager(keychainManager: keychainManager)
     self.geoGaragePartnerSecretService = partnerSecretService ?? GeoGaragePartnerSecretService(keychainManager: keychainManager)
     self.authSession = authSession
     self.preferencesServiceOverride = preferencesService

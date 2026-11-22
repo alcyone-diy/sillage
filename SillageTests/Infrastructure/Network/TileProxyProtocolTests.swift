@@ -219,6 +219,37 @@ final class TileProxyProtocolTests: XCTestCase {
     XCTAssertEqual(mockNetworkManager.lastRequestedURL, tileURL, "Network manager must have received the tile URL")
   }
 
+  func testTileProxyProtocol_failsClosedWhenTileProxyManagerNotConfigured() async {
+    guard let mockOfflineProvider, let mockKeychain, let customSession else {
+      XCTFail("Missing test fixtures")
+      return
+    }
+
+    TileProxyProtocol.resetForTesting()
+    TileProxyProtocol.configure(
+      offlineTileProvider: mockOfflineProvider,
+      tileProxyManager: nil,
+      keychainManager: mockKeychain
+    )
+    XCTAssertNil(TileProxyProtocol.tileProxyManager, "TileProxyManager must be nil after reset and nil configure")
+
+    guard let tileURL = URL(string: "https://tiles.geogarage.com/cus_999/ukho/10/512/340.png") else {
+      XCTFail("Failed to create tile URL")
+      return
+    }
+
+    do {
+      _ = try await customSession.data(from: tileURL)
+      XCTFail("Expected tile request to fail closed when TileProxyManager is not configured")
+    } catch {
+      guard let urlError = error as? URLError else {
+        XCTFail("Expected URLError, got \(error)")
+        return
+      }
+      XCTAssertEqual(urlError.code, .fileDoesNotExist)
+    }
+  }
+
   // MARK: - Defensive Parsing Tests
 
   func testTileProxyProtocol_handlesMalformedURLDefensively() async {
