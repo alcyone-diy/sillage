@@ -89,6 +89,7 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 
 ## 11. Agent Behavior
 - **Responses:** Do not generate long blocks of code unnecessarily. Focus on architectural decisions, logical diagrams, and clear, concise specifications.
+- **Intentional "Why" Comments:** When implementing a non-obvious UX, domain, or safety decision, add a short, simple comment in English directly where the behavior lives. State *why* the constraint exists so future agents or developers do not inadvertently revert it and introduce regressions. Keep comments brief and factual—never narrate obvious code.
 
 ## 12. Sensor Data & UI Awareness
 - **No Silent Filtering:** Services (like Location, NMEA) must never silently drop degraded data (e.g., GPS points with poor accuracy). Emit all raw/degraded states to the domain. The ViewModel is responsible for interpreting this degradation and updating the UI to warn the user explicitly (e.g., "Fix Lost", "Poor Accuracy polygon").
