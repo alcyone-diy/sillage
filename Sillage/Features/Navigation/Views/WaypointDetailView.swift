@@ -191,6 +191,7 @@ struct WaypointDetailView: View {
             }
           }
 
+          // Always render all 4 ephemeris rows (using "---" when unavailable) to keep layout and scanning predictable.
           Section {
             ForEach(SunEphemerisDisplayRow.rows(for: viewModel.sunEphemeris)) { row in
               ephemerisRow(row)
@@ -202,6 +203,12 @@ struct WaypointDetailView: View {
             let dateString = referenceDate.formatted(headerFormat).uppercased()
             Text("SOLAR EPHEMERIS - \(dateString)")
               .marineSectionHeader()
+          } footer: {
+            if let footerText = SunEphemerisDisplayRow.footerText(for: viewModel.sunEphemeris) {
+              Text(verbatim: footerText)
+                .marineFont(.footnote)
+                .foregroundStyle(marineTheme.colors.textSecondary)
+            }
           }
         }
       }
@@ -382,12 +389,10 @@ struct WaypointDetailView: View {
         .lineLimit(1)
         .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
         .transaction { $0.animation = nil }
-    case let .status(label):
-      Text(label)
+    case .unavailable:
+      Text(verbatim: "---")
         .marineFont(.body)
-        .foregroundColor(marineTheme.colors.textPrimary)
-        .lineLimit(1)
-        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+        .foregroundStyle(marineTheme.colors.textSecondary)
         .transaction { $0.animation = nil }
     case .missing:
       if viewModel.isPointInfoLoading {

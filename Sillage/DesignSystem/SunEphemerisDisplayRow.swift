@@ -11,9 +11,9 @@
 import SwiftUI
 
 /// Presentation value for a single solar ephemeris row.
-enum SunEphemerisRowValue {
+enum SunEphemerisRowValue: Equatable {
   case time(Date, referenceDate: Date, timeZone: TimeZone)
-  case status(LocalizedStringKey)
+  case unavailable
   case missing
 }
 
@@ -24,7 +24,8 @@ struct SunEphemerisDisplayRow: Identifiable {
   let icon: String
   let value: SunEphemerisRowValue
 
-  /// Builds the ordered list of display rows for `ephemeris`, fusing continuous polar/twilight bands into single status rows.
+  /// Builds the fixed 4-row solar ephemeris list, showing `.unavailable` when an event does not occur on that day.
+  /// Always keep all 4 rows in chronological order for UX stability and predictable scannability.
   static func rows(for ephemeris: SunEphemeris?) -> [SunEphemerisDisplayRow] {
     guard let ephemeris else {
       return [
@@ -38,58 +39,59 @@ struct SunEphemerisDisplayRow: Identifiable {
     let ref = ephemeris.referenceDate
     let tz = ephemeris.timeZone
 
+    let dawnValue: SunEphemerisRowValue
+    let duskValue: SunEphemerisRowValue
+    switch ephemeris.nauticalTwilight {
+    case let .cycle(dawn, dusk):
+      dawnValue = .time(dawn, referenceDate: ref, timeZone: tz)
+      duskValue = .time(dusk, referenceDate: ref, timeZone: tz)
+    case .continuousTwilight, .continuousDark:
+      dawnValue = .unavailable
+      duskValue = .unavailable
+    }
+
+    let sunriseValue: SunEphemerisRowValue
+    let sunsetValue: SunEphemerisRowValue
+    switch ephemeris.daylight {
+    case let .cycle(sunrise, sunset):
+      sunriseValue = .time(sunrise, referenceDate: ref, timeZone: tz)
+      sunsetValue = .time(sunset, referenceDate: ref, timeZone: tz)
+    case .polarDay, .polarNight:
+      sunriseValue = .unavailable
+      sunsetValue = .unavailable
+    }
+
+    return [
+      SunEphemerisDisplayRow(id: "dawn", title: "Nautical Dawn", icon: "sun.horizon", value: dawnValue),
+      SunEphemerisDisplayRow(id: "sunrise", title: "Sunrise", icon: "sunrise", value: sunriseValue),
+      SunEphemerisDisplayRow(id: "sunset", title: "Sunset", icon: "sunset", value: sunsetValue),
+      SunEphemerisDisplayRow(id: "dusk", title: "Nautical Dusk", icon: "moon.stars", value: duskValue)
+    ]
+  }
+
+  /// Returns an explanatory footer for polar daylight or continuous twilight conditions, or `nil` for a standard cycle.
+  static func footerText(for ephemeris: SunEphemeris?) -> String? {
+    guard let ephemeris else {
+      return nil
+    }
+
     switch (ephemeris.daylight, ephemeris.nauticalTwilight) {
-    case let (.cycle(sunrise, sunset), .cycle(dawn, dusk)):
-      return [
-        SunEphemerisDisplayRow(id: "dawn", title: "Nautical Dawn", icon: "sun.horizon", value: .time(dawn, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "sunrise", title: "Sunrise", icon: "sunrise", value: .time(sunrise, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "sunset", title: "Sunset", icon: "sunset", value: .time(sunset, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "dusk", title: "Nautical Dusk", icon: "moon.stars", value: .time(dusk, referenceDate: ref, timeZone: tz))
-      ]
-    case let (.cycle(sunrise, sunset), .continuousTwilight):
-      return [
-        SunEphemerisDisplayRow(id: "sunrise", title: "Sunrise", icon: "sunrise", value: .time(sunrise, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "sunset", title: "Sunset", icon: "sunset", value: .time(sunset, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "twilight", title: "Nautical Twilight", icon: "sun.horizon", value: .status("No Nautical Night"))
-      ]
-    case let (.cycle(sunrise, sunset), .continuousDark):
-      return [
-        SunEphemerisDisplayRow(id: "sunrise", title: "Sunrise", icon: "sunrise", value: .time(sunrise, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "sunset", title: "Sunset", icon: "sunset", value: .time(sunset, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "twilight", title: "Nautical Twilight", icon: "moon.stars", value: .status("Continuous Dark"))
-      ]
-    case let (.polarDay, .cycle(dawn, dusk)):
-      return [
-        SunEphemerisDisplayRow(id: "dawn", title: "Nautical Dawn", icon: "sun.horizon", value: .time(dawn, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "dusk", title: "Nautical Dusk", icon: "moon.stars", value: .time(dusk, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "daylight", title: "Daylight", icon: "sun.max", value: .status("Polar Day"))
-      ]
-    case let (.polarNight, .cycle(dawn, dusk)):
-      return [
-        SunEphemerisDisplayRow(id: "dawn", title: "Nautical Dawn", icon: "sun.horizon", value: .time(dawn, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "dusk", title: "Nautical Dusk", icon: "moon.stars", value: .time(dusk, referenceDate: ref, timeZone: tz)),
-        SunEphemerisDisplayRow(id: "daylight", title: "Daylight", icon: "moon", value: .status("Polar Night"))
-      ]
-    case (.polarDay, .continuousTwilight):
-      return [
-        SunEphemerisDisplayRow(id: "daylight", title: "Daylight", icon: "sun.max", value: .status("Polar Day")),
-        SunEphemerisDisplayRow(id: "twilight", title: "Nautical Twilight", icon: "sun.horizon", value: .status("No Nautical Night"))
-      ]
+    case (.cycle, .cycle):
+      return nil
+    case (.cycle, .continuousTwilight):
+      return String(localized: "No Nautical Night")
+    case (.cycle, .continuousDark):
+      return String(localized: "Continuous Dark")
+    case (.polarDay, .cycle), (.polarDay, .continuousTwilight):
+      return String(localized: "Polar Day")
     case (.polarDay, .continuousDark):
-      return [
-        SunEphemerisDisplayRow(id: "daylight", title: "Daylight", icon: "sun.max", value: .status("Polar Day")),
-        SunEphemerisDisplayRow(id: "twilight", title: "Nautical Twilight", icon: "moon.stars", value: .status("Continuous Dark"))
-      ]
+      return "\(String(localized: "Polar Day")) • \(String(localized: "Continuous Dark"))"
+    case (.polarNight, .cycle):
+      return String(localized: "Polar Night")
     case (.polarNight, .continuousTwilight):
-      return [
-        SunEphemerisDisplayRow(id: "daylight", title: "Daylight", icon: "moon", value: .status("Polar Night")),
-        SunEphemerisDisplayRow(id: "twilight", title: "Nautical Twilight", icon: "sun.horizon", value: .status("No Nautical Night"))
-      ]
+      return "\(String(localized: "Polar Night")) • \(String(localized: "No Nautical Night"))"
     case (.polarNight, .continuousDark):
-      return [
-        SunEphemerisDisplayRow(id: "daylight", title: "Daylight", icon: "moon", value: .status("Polar Night")),
-        SunEphemerisDisplayRow(id: "twilight", title: "Nautical Twilight", icon: "moon.stars", value: .status("Continuous Dark"))
-      ]
+      return "\(String(localized: "Polar Night")) • \(String(localized: "Continuous Dark"))"
     }
   }
 }

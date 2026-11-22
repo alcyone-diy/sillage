@@ -675,7 +675,7 @@ private struct PointInfoMagneticDeclinationSection: View {
       if let footerText {
         Text(verbatim: footerText)
           .marineFont(.footnote)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(marineTheme.colors.textSecondary)
           .padding(.horizontal, MarineTheme.Spacing.small)
       }
     }
@@ -694,12 +694,14 @@ private struct PointInfoEphemerisSection: View {
     let headerFormat = Date.FormatStyle(timeZone: displayTimeZone).weekday(.abbreviated).day().month(.abbreviated)
     let dateString = referenceDate.formatted(headerFormat).uppercased()
     let displayRows = SunEphemerisDisplayRow.rows(for: ephemeris)
+    let footerText = SunEphemerisDisplayRow.footerText(for: ephemeris)
 
     VStack(alignment: .leading, spacing: MarineTheme.Spacing.tiny) {
       Text("SOLAR EPHEMERIS - \(dateString)")
         .marineSectionHeader()
         .padding(.leading, MarineTheme.Spacing.small)
 
+      // Always render all 4 ephemeris rows (using "---" when unavailable) to keep layout and scanning predictable.
       VStack(spacing: 0) {
         ForEach(Array(displayRows.enumerated()), id: \.element.id) { index, row in
           if index > 0 {
@@ -714,6 +716,13 @@ private struct PointInfoEphemerisSection: View {
         marineTheme.colors.surfaceBackground,
         in: RoundedRectangle(cornerRadius: MarineTheme.Metrics.cornerRadius, style: .continuous)
       )
+
+      if let footerText {
+        Text(verbatim: footerText)
+          .marineFont(.footnote)
+          .foregroundStyle(marineTheme.colors.textSecondary)
+          .padding(.horizontal, MarineTheme.Spacing.small)
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
@@ -755,12 +764,10 @@ private struct PointInfoEphemerisSection: View {
         .lineLimit(1)
         .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
         .transaction { $0.animation = nil }
-    case let .status(label):
-      Text(label)
+    case .unavailable:
+      Text(verbatim: "---")
         .marineFont(.body)
-        .foregroundColor(marineTheme.colors.textPrimary)
-        .lineLimit(1)
-        .minimumScaleFactor(MarineTheme.Metrics.compactTextScaleFactor)
+        .foregroundStyle(marineTheme.colors.textSecondary)
         .transaction { $0.animation = nil }
     case .missing:
       if isLoading {

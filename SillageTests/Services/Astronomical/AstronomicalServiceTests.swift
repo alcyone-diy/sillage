@@ -378,4 +378,102 @@ final class AstronomicalServiceTests: XCTestCase {
 
     XCTAssertEqual(ephemeris, sendableCopy)
   }
+
+  @MainActor
+  func testDisplayRowsAlwaysKeepFourFixedRowsAndFooterForPolarStates() throws {
+    let ref = try makeDate(year: 2026, month: 6, day: 21, hour: 12, timeZone: .gmt)
+    let dawn = try makeDate(year: 2026, month: 6, day: 21, hour: 4, timeZone: .gmt)
+    let sunrise = try makeDate(year: 2026, month: 6, day: 21, hour: 6, timeZone: .gmt)
+    let sunset = try makeDate(year: 2026, month: 6, day: 21, hour: 20, timeZone: .gmt)
+    let dusk = try makeDate(year: 2026, month: 6, day: 21, hour: 22, timeZone: .gmt)
+    let noonElevation = Measurement(value: 45, unit: UnitAngle.degrees)
+
+    // nil ephemeris -> 4 missing rows, no footer
+    let nilRows = SunEphemerisDisplayRow.rows(for: nil)
+    XCTAssertEqual(nilRows.map(\.id), ["dawn", "sunrise", "sunset", "dusk"])
+    XCTAssertTrue(nilRows.allSatisfy { $0.value == .missing })
+    XCTAssertNil(SunEphemerisDisplayRow.footerText(for: nil))
+
+    // Standard cycle -> 4 time rows, no footer
+    let standard = SunEphemeris(
+      daylight: .cycle(sunrise: sunrise, sunset: sunset),
+      nauticalTwilight: .cycle(dawn: dawn, dusk: dusk),
+      solarNoon: ref,
+      solarNoonElevation: noonElevation,
+      referenceDate: ref,
+      timeZone: .gmt
+    )
+    let standardRows = SunEphemerisDisplayRow.rows(for: standard)
+    XCTAssertEqual(standardRows.map(\.id), ["dawn", "sunrise", "sunset", "dusk"])
+    XCTAssertEqual(standardRows[0].value, .time(dawn, referenceDate: ref, timeZone: .gmt))
+    XCTAssertEqual(standardRows[1].value, .time(sunrise, referenceDate: ref, timeZone: .gmt))
+    XCTAssertEqual(standardRows[2].value, .time(sunset, referenceDate: ref, timeZone: .gmt))
+    XCTAssertEqual(standardRows[3].value, .time(dusk, referenceDate: ref, timeZone: .gmt))
+    XCTAssertNil(SunEphemerisDisplayRow.footerText(for: standard))
+
+    // Polar night with nautical twilight cycle -> sunrise/sunset unavailable, dawn/dusk times, Polar Night footer
+    let polarNightWithTwilight = SunEphemeris(
+      daylight: .polarNight,
+      nauticalTwilight: .cycle(dawn: dawn, dusk: dusk),
+      solarNoon: ref,
+      solarNoonElevation: noonElevation,
+      referenceDate: ref,
+      timeZone: .gmt
+    )
+    let polarNightRows = SunEphemerisDisplayRow.rows(for: polarNightWithTwilight)
+    XCTAssertEqual(polarNightRows.map(\.id), ["dawn", "sunrise", "sunset", "dusk"])
+    XCTAssertEqual(polarNightRows[0].value, .time(dawn, referenceDate: ref, timeZone: .gmt))
+    XCTAssertEqual(polarNightRows[1].value, .unavailable)
+    XCTAssertEqual(polarNightRows[2].value, .unavailable)
+    XCTAssertEqual(polarNightRows[3].value, .time(dusk, referenceDate: ref, timeZone: .gmt))
+    XCTAssertEqual(SunEphemerisDisplayRow.footerText(for: polarNightWithTwilight), String(localized: "Polar Night"))
+
+    // Standard daylight with continuous twilight -> dawn/dusk unavailable, sunrise/sunset times, No Nautical Night footer
+    let whiteNight = SunEphemeris(
+      daylight: .cycle(sunrise: sunrise, sunset: sunset),
+      nauticalTwilight: .continuousTwilight,
+      solarNoon: ref,
+      solarNoonElevation: noonElevation,
+      referenceDate: ref,
+      timeZone: .gmt
+    )
+    let whiteNightRows = SunEphemerisDisplayRow.rows(for: whiteNight)
+    XCTAssertEqual(whiteNightRows.map(\.id), ["dawn", "sunrise", "sunset", "dusk"])
+    XCTAssertEqual(whiteNightRows[0].value, .unavailable)
+    XCTAssertEqual(whiteNightRows[1].value, .time(sunrise, referenceDate: ref, timeZone: .gmt))
+    XCTAssertEqual(whiteNightRows[2].value, .time(sunset, referenceDate: ref, timeZone: .gmt))
+    XCTAssertEqual(whiteNightRows[3].value, .unavailable)
+    XCTAssertEqual(SunEphemerisDisplayRow.footerText(for: whiteNight), String(localized: "No Nautical Night"))
+
+    // Polar day + continuous twilight -> all 4 unavailable, concise Polar Day footer
+    let polarDay = SunEphemeris(
+      daylight: .polarDay,
+      nauticalTwilight: .continuousTwilight,
+      solarNoon: ref,
+      solarNoonElevation: noonElevation,
+      referenceDate: ref,
+      timeZone: .gmt
+    )
+    let polarDayRows = SunEphemerisDisplayRow.rows(for: polarDay)
+    XCTAssertEqual(polarDayRows.map(\.id), ["dawn", "sunrise", "sunset", "dusk"])
+    XCTAssertTrue(polarDayRows.allSatisfy { $0.value == .unavailable })
+    XCTAssertEqual(SunEphemerisDisplayRow.footerText(for: polarDay), String(localized: "Polar Day"))
+
+    // Polar night + continuous dark -> all 4 unavailable, combined footer
+    let polarNightDark = SunEphemeris(
+      daylight: .polarNight,
+      nauticalTwilight: .continuousDark,
+      solarNoon: ref,
+      solarNoonElevation: noonElevation,
+      referenceDate: ref,
+      timeZone: .gmt
+    )
+    let polarNightDarkRows = SunEphemerisDisplayRow.rows(for: polarNightDark)
+    XCTAssertEqual(polarNightDarkRows.map(\.id), ["dawn", "sunrise", "sunset", "dusk"])
+    XCTAssertTrue(polarNightDarkRows.allSatisfy { $0.value == .unavailable })
+    XCTAssertEqual(
+      SunEphemerisDisplayRow.footerText(for: polarNightDark),
+      "\(String(localized: "Polar Night")) • \(String(localized: "Continuous Dark"))"
+    )
+  }
 }
