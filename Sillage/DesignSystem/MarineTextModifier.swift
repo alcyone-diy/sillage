@@ -10,58 +10,42 @@
 
 import SwiftUI
 
+/// Applies a semantic `MarineTextStyle` to a view.
+/// Typography relies exclusively on iOS Dynamic Type and is intentionally invariant to `isGloveMode`,
+/// which governs motor ergonomics (touch targets, hit radii, gesture thresholds) rather than font sizing.
+/// Passing `nil` returns `content` untouched (strict no-op) so inherited environment fonts are preserved.
 struct MarineTextModifier: ViewModifier {
-  let style: MarineTextStyle
-  @Environment(\.marineTheme) private var marineTheme
+  let style: MarineTextStyle?
 
   @ViewBuilder
   func body(content: Content) -> some View {
-    let settings = marineTheme.fontSettings(for: style)
-    let isInstrumentStyle = style == .instrumentData || style == .instrumentLabel
-    let effectiveStyle = isInstrumentStyle ? settings.size : calculateEffectiveStyle(base: settings.size)
+    if let style {
+      let settings = MarineTheme.fontSettings(for: style)
 
-    if style == .instrumentData {
-      content
-        .font(.system(effectiveStyle))
-        .fontWeight(settings.weight)
-        .monospacedDigit()
-        .dynamicTypeSize(.large)
-    } else if style == .instrumentLabel {
-      content
-        .font(.system(effectiveStyle))
-        .fontWeight(settings.weight)
-        .dynamicTypeSize(.large)
+      if style == .instrumentData {
+        content
+          .font(.system(settings.size))
+          .fontWeight(settings.weight)
+          .monospacedDigit()
+          .dynamicTypeSize(.large)
+      } else if style == .instrumentLabel {
+        content
+          .font(.system(settings.size))
+          .fontWeight(settings.weight)
+          .dynamicTypeSize(.large)
+      } else {
+        content
+          .font(.system(settings.size))
+          .fontWeight(settings.weight)
+      }
     } else {
       content
-        .font(.system(effectiveStyle))
-        .fontWeight(settings.weight)
-    }
-  }
-
-  private func calculateEffectiveStyle(base: Font.TextStyle) -> Font.TextStyle {
-    guard marineTheme.isGloveMode else { return base }
-
-    switch base {
-    case .caption, .caption2:
-      return .subheadline
-    case .subheadline, .footnote:
-      return .body
-    case .body, .callout:
-      return .title3
-    case .title3:
-      return .title2
-    case .title2:
-      return .title
-    case .title:
-      return .largeTitle
-    default:
-      return base
     }
   }
 }
 
 extension View {
-  func marineFont(_ style: MarineTextStyle) -> some View {
+  func marineFont(_ style: MarineTextStyle?) -> some View {
     self.modifier(MarineTextModifier(style: style))
   }
 

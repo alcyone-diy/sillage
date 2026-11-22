@@ -46,7 +46,7 @@ This is not a standard land-based app. The UI must be usable in rough seas, with
 - **Typography:** Use the custom `.marineFont(_ style: MarineTextStyle)` modifier.
 - **Lists:** Every `List` or `Form` row must apply `.marineListCell()`.
 - **Buttons:** Use `MarineButtonStyle()` or `MarineFABStyle()`.
-- **Scaling:** Ensure all elements respect `marineTheme.isGloveMode` (min target 66pt).
+- **Scaling:** Ensure all actionable elements respect `marineTheme.isGloveMode` (min target 66pt, hit radii, gesture thresholds). Glove Mode governs motor ergonomics only and must never scale typography (readability is handled exclusively by iOS Dynamic Type).
 
 ## 6. MapLibre & GIS Rules
 - **Thread Safety:** All map updates (Layers/Sources) must occur on the `@MainActor`.

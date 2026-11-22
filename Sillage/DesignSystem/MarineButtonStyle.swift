@@ -32,8 +32,7 @@ struct MarineButtonStyle: ButtonStyle {
     let targetMinHeight = marineTheme.minTouchTarget * scaleFactor
 
     configuration.label
-      .font(variant == .custom ? nil : .headline)
-      .fontWeight(variant == .custom ? nil : .semibold)
+      .marineFont(variant == .custom ? nil : .headline)
       .foregroundStyle(foregroundColor(for: variant))
       .padding(.horizontal, variant == .custom ? 0 : MarineTheme.Spacing.medium)
       .frame(

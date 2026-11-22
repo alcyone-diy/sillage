@@ -11,8 +11,9 @@
 import SwiftUI
 
 /// Defines the global interaction mode of the application.
-/// `gloveMode` increases touch target sizes (minimum 66pt)
-/// and scales standard typography for use in degraded conditions (cold, moisture, wearing gloves).
+/// `gloveMode` focuses strictly on motor ergonomics (minimum 66pt touch targets, larger hit radii,
+/// and gesture thresholds) for use in degraded conditions (cold, moisture, wearing gloves).
+/// Text readability is handled exclusively by iOS Dynamic Type, never by Glove Mode.
 enum MarineUIStyle {
   case standard
   case gloveMode
@@ -20,10 +21,10 @@ enum MarineUIStyle {
 
 /// The Single Source of Truth for "Sillage" typography.
 /// Views must NEVER use `Font.system()` directly; they must always route through the `.marineFont()` modifier.
-enum MarineTextStyle {
+enum MarineTextStyle: CaseIterable {
   // MARK: - Standard Semantic Styles (Apple)
-  // These styles react dynamically to `MarineUIStyle` (Glove Mode)
-  // and the iPad's accessibility settings (Dynamic Type).
+  // These styles react dynamically to iOS accessibility settings (Dynamic Type)
+  // and remain invariant to Glove Mode.
   case largeTitle
   case title
   case title2
@@ -37,7 +38,7 @@ enum MarineTextStyle {
   case caption2
 
   // MARK: - Marine Domain Specific Styles (HUD)
-  // These styles are STRICTLY LOCKED and immune to "Glove Mode" or Dynamic Type scaling
+  // These styles are STRICTLY LOCKED and immune to Dynamic Type scaling
   // to ensure the structural integrity of the navigation grid (Head-Up Display).
 
   /// Used for dynamic sensor values (e.g., "12.4 kts", "345°").

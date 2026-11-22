@@ -207,7 +207,10 @@ struct MarineTheme {
   static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false, colors: dayColors)
   static let gloveMode = MarineTheme(minTouchTarget: 66, isGloveMode: true, colors: dayColors)
 
-  func fontSettings(for style: MarineTextStyle) -> (size: Font.TextStyle, weight: Font.Weight?) {
+  /// Resolves the semantic `Font.TextStyle` and optional explicit weight for a `MarineTextStyle`.
+  /// Declared `static` so typography is guaranteed at compile time to remain invariant to `isGloveMode`;
+  /// readability scaling is delegated exclusively to iOS Dynamic Type.
+  static func fontSettings(for style: MarineTextStyle) -> (size: Font.TextStyle, weight: Font.Weight?) {
     switch style {
     case .largeTitle: return (.largeTitle, nil)
     case .title: return (.title, nil)
