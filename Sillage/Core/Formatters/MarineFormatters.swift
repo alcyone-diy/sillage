@@ -172,22 +172,29 @@ extension Measurement where UnitType == UnitAngle {
 
   /// Formats compass bearings and course angles as a 3-digit normalized degree string (e.g. "045°" or "180°").
   public var marineBearingFormatted: String {
-    let normalized = Int(normalizedDegrees.rounded())
-    return String(format: "%03d°", normalized % 360)
+    let normalized = normalizedDegrees
+    guard normalized.isFinite else {
+      return "---"
+    }
+    let rounded = Int(normalized.rounded()) % 360
+    return String(format: "%03d°", rounded)
   }
 
   /// Formats magnetic declination with degree symbol and cardinal direction (e.g. "1.5° W", "2.3° E", "0.0°").
   public var marineDeclinationFormatted: String {
     let degrees = self.converted(to: .degrees).value
-    let absVal = abs(degrees)
-    let formattedNum = String(format: "%.1f°", absVal)
-    if degrees > 0.0001 {
-      return "\(formattedNum) E"
-    } else if degrees < -0.0001 {
-      return "\(formattedNum) W"
-    } else {
+    guard degrees.isFinite else {
+      return "---"
+    }
+    let roundedTenths = (abs(degrees) * 10.0).rounded()
+    guard roundedTenths.isFinite else {
+      return "---"
+    }
+    if roundedTenths == 0 {
       return "0.0°"
     }
+    let formattedNum = String(format: "%.1f°", roundedTenths / 10.0)
+    return degrees > 0 ? "\(formattedNum) E" : "\(formattedNum) W"
   }
 
   /// Formats a concise conversion instruction between True and Magnetic bearings for UI section footers.
@@ -246,7 +253,10 @@ extension FormatStyle where Self == Measurement<UnitLength>.FormatStyle {
 extension BinaryInteger {
   /// Formats a byte count into a human-readable file size string (e.g. "500 bytes", "25 kB", "15.4 MB", "3.2 GB").
   public func marineFormatted(locale: Locale = .autoupdatingCurrent) -> String {
-    let bytes = max(0, Int64(self))
+    guard self >= 0 else {
+      return "---"
+    }
+    let bytes = Int64(clamping: self)
     return bytes.formatted(.byteCount(style: .file).locale(locale))
   }
 
@@ -258,8 +268,12 @@ extension BinaryInteger {
 extension Measurement where UnitType == UnitInformationStorage {
   /// Formats an information storage measurement into a human-readable file size string (e.g. "500 bytes", "25 kB", "15.4 MB", "3.2 GB").
   public func marineFormatted(locale: Locale = .autoupdatingCurrent) -> String {
-    let bytes = max(0, Int64(self.converted(to: .bytes).value.rounded()))
-    return bytes.marineFormatted(locale: locale)
+    let rawBytes = self.converted(to: .bytes).value.rounded()
+    guard rawBytes.isFinite, rawBytes >= 0 else {
+      return "---"
+    }
+    let clampedBytes: Int64 = rawBytes >= Double(Int64.max) ? Int64.max : Int64(rawBytes)
+    return clampedBytes.marineFormatted(locale: locale)
   }
 
   public var marineFormatted: String {

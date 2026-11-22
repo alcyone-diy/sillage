@@ -8,6 +8,7 @@
 //  See LICENSE file in the project root for full license information.
 //
 
+import CoreLocation
 import XCTest
 @testable import Sillage
 
@@ -118,6 +119,15 @@ final class MarineFormattersTests: XCTestCase {
     let angle365 = Measurement<UnitAngle>(value: 365.0, unit: .degrees)
     XCTAssertEqual(angle365.normalizedDegrees, 5.0, accuracy: 0.001)
     XCTAssertEqual(angle365.marineBearingFormatted, "005°")
+
+    let angleWrap = Measurement<UnitAngle>(value: 359.6, unit: .degrees)
+    XCTAssertEqual(angleWrap.marineBearingFormatted, "000°")
+
+    let angleNaN = Measurement<UnitAngle>(value: .nan, unit: .degrees)
+    XCTAssertEqual(angleNaN.marineBearingFormatted, "---")
+
+    let angleInf = Measurement<UnitAngle>(value: .infinity, unit: .degrees)
+    XCTAssertEqual(angleInf.marineBearingFormatted, "---")
   }
 
   func testSpeedMarineFormatting() {
@@ -190,6 +200,24 @@ final class MarineFormattersTests: XCTestCase {
 
     let zeroDecl = Measurement<UnitAngle>(value: 0.0, unit: .degrees)
     XCTAssertEqual(zeroDecl.marineDeclinationFormatted, "0.0°")
+
+    let nearZeroEast = Measurement<UnitAngle>(value: 0.01, unit: .degrees)
+    XCTAssertEqual(nearZeroEast.marineDeclinationFormatted, "0.0°")
+
+    let nearZeroWest = Measurement<UnitAngle>(value: -0.04, unit: .degrees)
+    XCTAssertEqual(nearZeroWest.marineDeclinationFormatted, "0.0°")
+
+    let boundaryEast = Measurement<UnitAngle>(value: 0.05, unit: .degrees)
+    XCTAssertEqual(boundaryEast.marineDeclinationFormatted, "0.1° E")
+
+    let boundaryWest = Measurement<UnitAngle>(value: -0.05, unit: .degrees)
+    XCTAssertEqual(boundaryWest.marineDeclinationFormatted, "0.1° W")
+
+    let nanDecl = Measurement<UnitAngle>(value: .nan, unit: .degrees)
+    XCTAssertEqual(nanDecl.marineDeclinationFormatted, "---")
+
+    let overflowDecl = Measurement<UnitAngle>(value: .greatestFiniteMagnitude, unit: .degrees)
+    XCTAssertEqual(overflowDecl.marineDeclinationFormatted, "---")
   }
 
   func testMarineDeclinationConversionFooter() {
@@ -245,6 +273,82 @@ final class MarineFormattersTests: XCTestCase {
     let formattedUTC = date.marineTimeWithTimeZoneFormatted(timeZone: utc)
     let expectedAbbr = utc.abbreviation(for: date) ?? "UTC"
     XCTAssertTrue(formattedUTC.contains(expectedAbbr), "Expected \(expectedAbbr) in \(formattedUTC)")
+  }
+
+  func testFileSizeFormattingEdgeCasesDoNotCrash() {
+    let enUS = Locale(identifier: "en_US")
+    let zeroFormatted = Int64(0).marineFormatted(locale: enUS)
+    let maxFormatted = Int64.max.marineFormatted(locale: enUS)
+
+    // Valid zero stays formatted as 0 bytes (not "---")
+    XCTAssertNotEqual(zeroFormatted, "---")
+    XCTAssertEqual(
+      Measurement<UnitInformationStorage>(value: 0, unit: .bytes).marineFormatted(locale: enUS),
+      zeroFormatted
+    )
+
+    // BinaryInteger overflow clamps to Int64.max; negative values return "---"
+    XCTAssertEqual(UInt64.max.marineFormatted(locale: enUS), maxFormatted)
+    XCTAssertEqual(Int64.min.marineFormatted(locale: enUS), "---")
+    XCTAssertEqual((-42).marineFormatted(locale: enUS), "---")
+
+    // UnitInformationStorage non-finite and negative values return "---"
+    let nanBytes = Measurement<UnitInformationStorage>(value: .nan, unit: .bytes)
+    XCTAssertEqual(nanBytes.marineFormatted(locale: enUS), "---")
+
+    let infBytes = Measurement<UnitInformationStorage>(value: .infinity, unit: .bytes)
+    XCTAssertEqual(infBytes.marineFormatted(locale: enUS), "---")
+
+    let negInfBytes = Measurement<UnitInformationStorage>(value: -.infinity, unit: .bytes)
+    XCTAssertEqual(negInfBytes.marineFormatted(locale: enUS), "---")
+
+    let negBytes = Measurement<UnitInformationStorage>(value: -1024, unit: .bytes)
+    XCTAssertEqual(negBytes.marineFormatted(locale: enUS), "---")
+
+    // Finite values >= Double(Int64.max) clamp to Int64.max
+    let doubleInt64MaxBytes = Measurement<UnitInformationStorage>(value: Double(Int64.max), unit: .bytes)
+    XCTAssertEqual(doubleInt64MaxBytes.marineFormatted(locale: enUS), maxFormatted)
+
+    let hugeBytes = Measurement<UnitInformationStorage>(value: 1e30, unit: .bytes)
+    XCTAssertEqual(hugeBytes.marineFormatted(locale: enUS), maxFormatted)
+  }
+
+  func testCoordinateFormatStyleStandardAndLongitudePadding() {
+    let north = String(localized: "N", comment: "North cardinal point")
+    let south = String(localized: "S", comment: "South cardinal point")
+    let east = String(localized: "E", comment: "East cardinal point")
+    let west = String(localized: "W", comment: "West cardinal point")
+
+    let nwCoord = CLLocationCoordinate2D(latitude: 47.5, longitude: -(3.0 + 5.12 / 60.0))
+    XCTAssertEqual(nwCoord.formatted(.marineCoordinate), "47° 30.000' \(north) / 003° 05.120' \(west)")
+
+    let seCoord = CLLocationCoordinate2D(latitude: -(12.0 + 34.567 / 60.0), longitude: 123.0 + 27.407 / 60.0)
+    XCTAssertEqual(seCoord.formatted(.marineCoordinate), "12° 34.567' \(south) / 123° 27.407' \(east)")
+
+    let originCoord = CLLocationCoordinate2D(latitude: 0.0, longitude: 0.0)
+    XCTAssertEqual(originCoord.formatted(.marineCoordinate), "00° 00.000' \(north) / 000° 00.000' \(east)")
+  }
+
+  func testCoordinateFormatStyleRoundingCarriesMinutesToDegrees() {
+    let north = String(localized: "N", comment: "North cardinal point")
+    let west = String(localized: "W", comment: "West cardinal point")
+
+    let nearNextDegreeLat = 47.0 + 59.9996 / 60.0
+    let nearNextDegreeLon = -(2.0 + 59.9999 / 60.0)
+    let coord = CLLocationCoordinate2D(latitude: nearNextDegreeLat, longitude: nearNextDegreeLon)
+    let formatted = coord.formatted(.marineCoordinate)
+
+    XCTAssertFalse(formatted.contains("60.000'"), "Minutes must carry over to degrees instead of displaying 60.000': \(formatted)")
+    XCTAssertEqual(formatted, "48° 00.000' \(north) / 003° 00.000' \(west)")
+  }
+
+  func testCoordinateFormatStyleInvalidAndOutOfBoundsValuesReturnPlaceholder() {
+    let placeholder = "--° --.---' / ---° --.---'"
+
+    XCTAssertEqual(kCLLocationCoordinate2DInvalid.formatted(.marineCoordinate), placeholder)
+    XCTAssertEqual(CLLocationCoordinate2D(latitude: 90.1, longitude: 0.0).formatted(.marineCoordinate), placeholder)
+    XCTAssertEqual(CLLocationCoordinate2D(latitude: 0.0, longitude: -180.1).formatted(.marineCoordinate), placeholder)
+    XCTAssertEqual(CLLocationCoordinate2D(latitude: .nan, longitude: .infinity).formatted(.marineCoordinate), placeholder)
   }
 }
 

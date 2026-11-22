@@ -18,21 +18,34 @@ public struct CoordinateFormatStyle: FormatStyle {
   public init() {}
 
   public func format(_ value: CLLocationCoordinate2D) -> String {
+    guard CLLocationCoordinate2DIsValid(value) else {
+      return "--° --.---' / ---° --.---'"
+    }
     let lat = formatComponent(value.latitude, isLatitude: true)
     let lon = formatComponent(value.longitude, isLatitude: false)
     return "\(lat) / \(lon)"
   }
 
   private func formatComponent(_ degrees: CLLocationDegrees, isLatitude: Bool) -> String {
+    let maxDegrees = isLatitude ? 90.0 : 180.0
+    guard degrees.isFinite, abs(degrees) <= maxDegrees else {
+      return isLatitude ? "--° --.---'" : "---° --.---'"
+    }
+
     let direction = isLatitude ?
       (degrees >= 0 ? String(localized: "N", comment: "North cardinal point") : String(localized: "S", comment: "South cardinal point")) :
       (degrees >= 0 ? String(localized: "E", comment: "East cardinal point") : String(localized: "W", comment: "West cardinal point"))
 
     let absDegrees = abs(degrees)
-    let intDegrees = Int(absDegrees)
-    let minutes = (absDegrees - Double(intDegrees)) * 60.0
+    // Round to thousandths of an arcminute before splitting so 59.9996' carries into +1° 00.000'.
+    let totalThousandthsOfMinute = Int((absDegrees * 60_000.0).rounded())
+    let intDegrees = totalThousandthsOfMinute / 60_000
+    let thousandthsOfMinute = totalThousandthsOfMinute % 60_000
+    let intMinutes = thousandthsOfMinute / 1_000
+    let fracMinutes = thousandthsOfMinute % 1_000
 
-    return String(format: "%02d° %06.3f' %@", intDegrees, minutes, direction)
+    let formatString = isLatitude ? "%02d° %02d.%03d' %@" : "%03d° %02d.%03d' %@"
+    return String(format: formatString, intDegrees, intMinutes, fracMinutes, direction)
   }
 }
 
