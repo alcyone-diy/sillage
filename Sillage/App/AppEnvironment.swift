@@ -19,7 +19,7 @@ import MapLibre
 final class AppEnvironment {
   private(set) var state: AppState = .uninitialized
 
-  public let metadata: AppMetadata
+  public private(set) var metadata: AppMetadata?
   public let bootDate: Date
   public let offlineMapManager: OfflineMapManager
   /// Fetches the package decryption secret from `/partners/me/` after sign-in, so nothing secret
@@ -72,6 +72,7 @@ final class AppEnvironment {
   private let authSession: URLSession
   let keychainManager: any KeychainManaging
   private let tileProxyManager: any TileProxyManagerProtocol
+  private let metadataOverride: AppMetadata?
   private let preferencesServiceOverride: PreferencesService?
   private let userDefaults: UserDefaults
   private let databaseManagerOverride: DatabaseManager?
@@ -91,7 +92,8 @@ final class AppEnvironment {
     databaseManager: DatabaseManager? = nil,
     anchorStateStore: (any AnchorStateStoreProtocol)? = nil
   ) {
-    self.metadata = metadata ?? AppMetadataProvider.resolve()
+    self.metadataOverride = metadata
+    self.metadata = metadata
     self.bootDate = Date.now
     Self.setupMapLibreProtocol()
     self.offlineMapManager = OfflineMapManager()
@@ -134,7 +136,11 @@ final class AppEnvironment {
     state = .bootstrapping
     Logger.system.info("🚀 Starting AppEnvironment bootstrap sequence. Boot time: \(self.bootDate, privacy: .public)")
     do {
-      // a. File system preparation
+      // a. File system preparation & app metadata resolution (off main thread)
+      async let resolvedMetadata: AppMetadata? = self.metadataOverride == nil
+        ? AppMetadataProvider.resolve()
+        : nil
+
       try await Task.detached {
         try self.setupFileSystem()
       }.value
@@ -511,6 +517,10 @@ final class AppEnvironment {
       .withDeveloperSettings(developerSettingsService)
       #endif
       
+      if let resolved = await resolvedMetadata {
+        self.metadata = resolved
+      }
+
       Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
       state = .ready(container)
 

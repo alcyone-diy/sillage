@@ -20,7 +20,7 @@ struct VersionInfoView: View {
           Text("Version")
             .marineFont(.body)
           Spacer()
-          Text(environment.metadata.version ?? String(localized: "Unknown"))
+          Text(environment.metadata?.version ?? String(localized: "Unknown"))
             .marineFont(.body)
             .foregroundStyle(.secondary)
         }
@@ -30,7 +30,7 @@ struct VersionInfoView: View {
           Text("Build")
             .marineFont(.body)
           Spacer()
-          Text(environment.metadata.build ?? String(localized: "Unknown"))
+          Text(environment.metadata?.build ?? String(localized: "Unknown"))
             .marineFont(.body)
             .foregroundStyle(.secondary)
         }
@@ -40,13 +40,13 @@ struct VersionInfoView: View {
           Text("Git Hash")
             .marineFont(.body)
           Spacer()
-          Text(environment.metadata.gitHash ?? String(localized: "Unknown"))
+          Text(environment.metadata?.gitHash ?? String(localized: "Unknown"))
             .marineFont(.body)
             .foregroundStyle(.secondary)
         }
         .marineListCell()
         
-        if let date = environment.metadata.compilationDate {
+        if let date = environment.metadata?.compilationDate {
           HStack {
             Text("Compiled")
               .marineFont(.body)
