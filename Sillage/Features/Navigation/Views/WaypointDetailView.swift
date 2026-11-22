@@ -68,17 +68,16 @@ struct WaypointDetailView: View {
             .marineListCell()
             .disabled(!viewModel.isEditable)
             
-          Toggle("Show", isOn: $viewModel.isVisible)
+          Toggle(
+            "Show",
+            isOn: Binding(
+              get: { viewModel.isVisible },
+              set: { viewModel.setVisible($0) }
+            )
+          )
             .marineFont(.body)
             .marineListCell()
             .tint(marineTheme.colors.primary)
-            .onChange(of: viewModel.isVisible) { _, _ in
-              if !viewModel.isEditable {
-                Task {
-                  _ = await viewModel.save()
-                }
-              }
-            }
         } header: {
           Text("Display").marineSectionHeader()
         }

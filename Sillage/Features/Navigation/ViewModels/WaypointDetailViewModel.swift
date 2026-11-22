@@ -90,6 +90,11 @@ public final class WaypointDetailViewModel {
   public var isEditable: Bool {
     didSet {
       guard isEditable != oldValue else { return }
+      if isEditable {
+        visibilitySaveGeneration &+= 1
+        visibilitySaveTask?.cancel()
+        visibilitySaveTask = nil
+      }
       guard !isSuppressingDraftUpdates else { return }
       onStateChanged?()
     }
@@ -116,6 +121,8 @@ public final class WaypointDetailViewModel {
   private let astronomicalService: AstronomicalService
   private let magneticDeclinationService: MagneticDeclinationService
   private var pointInfoLoadGeneration: UInt64 = 0
+  private var visibilitySaveGeneration: UInt64 = 0
+  private var visibilitySaveTask: Task<Void, Never>?
   public let editingWaypointID: String?
   private var originalWaypoint: Waypoint?
   private let draftID: String?
@@ -126,6 +133,9 @@ public final class WaypointDetailViewModel {
   
   @ObservationIgnored
   public var onStateChanged: (@MainActor () -> Void)?
+
+  @ObservationIgnored
+  internal var persistWaypointHandler: (@MainActor (Waypoint) async throws -> Void)?
   
   public init(
     waypointService: WaypointService,
@@ -181,6 +191,9 @@ public final class WaypointDetailViewModel {
   
   public func revert() {
     guard let original = originalWaypoint else { return }
+    visibilitySaveGeneration &+= 1
+    visibilitySaveTask?.cancel()
+    visibilitySaveTask = nil
     let wasSuppressing = isSuppressingDraftUpdates
     isSuppressingDraftUpdates = true
     defer {
@@ -195,6 +208,53 @@ public final class WaypointDetailViewModel {
     self.isVisible = original.isVisible
     setCoordinate(original.coordinate)
     self.isEditable = false
+  }
+
+  public func setVisible(_ newValue: Bool) {
+    guard isVisible != newValue else { return }
+    isVisible = newValue
+
+    guard !isEditable, let original = originalWaypoint else { return }
+
+    visibilitySaveGeneration &+= 1
+    let currentGeneration = visibilitySaveGeneration
+    let previousTask = visibilitySaveTask
+    previousTask?.cancel()
+
+    let updatedWaypoint = Waypoint(
+      id: original.id,
+      name: original.name,
+      description: original.description,
+      symbol: original.symbol,
+      colorHex: original.colorHex,
+      isVisible: newValue,
+      coordinate: original.coordinate,
+      timestamp: original.timestamp
+    )
+
+    visibilitySaveTask = Task { [weak self] in
+      await previousTask?.value
+      guard let self, !Task.isCancelled, self.visibilitySaveGeneration == currentGeneration else { return }
+      do {
+        if let handler = self.persistWaypointHandler {
+          try await handler(updatedWaypoint)
+        } else {
+          try await self.waypointService.saveWaypoint(updatedWaypoint)
+        }
+        guard !Task.isCancelled, self.visibilitySaveGeneration == currentGeneration else { return }
+        self.originalWaypoint = updatedWaypoint
+      } catch is CancellationError {
+        return
+      } catch {
+        guard !Task.isCancelled, self.visibilitySaveGeneration == currentGeneration else { return }
+        self.isVisible = self.originalWaypoint?.isVisible ?? original.isVisible
+        self.activeError = error
+      }
+    }
+  }
+
+  internal func waitForPendingVisibilitySave() async {
+    await visibilitySaveTask?.value
   }
   
   private func extractDegreesAndMinutes(from value: Double, roundMinutes: Bool) -> (degrees: Int, minutes: Double) {
@@ -214,7 +274,9 @@ public final class WaypointDetailViewModel {
   public var currentCoordinate: CLLocationCoordinate2D? {
     guard let lat = exactLatitude ?? parsedLatitude,
           let lon = exactLongitude ?? parsedLongitude else { return nil }
-    return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    let coordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    guard CLLocationCoordinate2DIsValid(coordinate) else { return nil }
+    return coordinate
   }
 
   public func updateCoordinate(_ coordinate: CLLocationCoordinate2D) {
@@ -246,24 +308,30 @@ public final class WaypointDetailViewModel {
   
   public var isValid: Bool {
     guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
-    guard let lat = parsedLatitude, lat >= -90, lat <= 90 else { return false }
-    guard let lon = parsedLongitude, lon >= -180, lon <= 180 else { return false }
-    return true
+    guard let lat = parsedLatitude,
+          let lon = parsedLongitude else { return false }
+    return CLLocationCoordinate2DIsValid(CLLocationCoordinate2D(latitude: lat, longitude: lon))
   }
   
   public var parsedLatitude: Double? {
-    parseCoordinate(degrees: latDegrees, minutes: latMinutes, hemisphere: latHemisphere)
+    parseCoordinate(degrees: latDegrees, minutes: latMinutes, hemisphere: latHemisphere, maxDegrees: 90)
   }
   
   public var parsedLongitude: Double? {
-    parseCoordinate(degrees: lonDegrees, minutes: lonMinutes, hemisphere: lonHemisphere)
+    parseCoordinate(degrees: lonDegrees, minutes: lonMinutes, hemisphere: lonHemisphere, maxDegrees: 180)
   }
   
-  private func parseCoordinate(degrees: Int?, minutes: Double?, hemisphere: Hemisphere) -> Double? {
+  private func parseCoordinate(
+    degrees: Int?,
+    minutes: Double?,
+    hemisphere: Hemisphere,
+    maxDegrees: Double
+  ) -> Double? {
     guard let d = degrees, let m = minutes else { return nil }
-    guard d >= 0, m >= 0, m < 60 else { return nil }
+    guard d >= 0, m.isFinite, m >= 0, m < 60 else { return nil }
     
     var decimal = Double(d) + (m / 60.0)
+    guard decimal.isFinite, decimal <= maxDegrees else { return nil }
     if hemisphere == .south || hemisphere == .west {
       decimal *= -1
     }
@@ -274,8 +342,7 @@ public final class WaypointDetailViewModel {
     guard !isSuppressingDraftUpdates else { return }
     
     if editingWaypointID == nil, let draftID {
-      guard let lat = exactLatitude ?? parsedLatitude,
-            let lon = exactLongitude ?? parsedLongitude else {
+      guard let coordinate = currentCoordinate else {
         waypointService.setDraftWaypoint(nil)
         onStateChanged?()
         return
@@ -288,7 +355,7 @@ public final class WaypointDetailViewModel {
         symbol: nil,
         colorHex: color.hexString,
         isVisible: isVisible,
-        coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        coordinate: coordinate
       )
       waypointService.setDraftWaypoint(draft)
     }
@@ -303,8 +370,7 @@ public final class WaypointDetailViewModel {
   
   public func save() async -> Bool {
     guard isValid,
-          let lat = exactLatitude ?? parsedLatitude,
-          let lon = exactLongitude ?? parsedLongitude else { return false }
+          let coordinate = currentCoordinate else { return false }
     
     isSaving = true
     defer { isSaving = false }
@@ -317,7 +383,7 @@ public final class WaypointDetailViewModel {
       symbol: nil,
       colorHex: color.hexString,
       isVisible: isVisible,
-      coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)
+      coordinate: coordinate
     )
     
     do {

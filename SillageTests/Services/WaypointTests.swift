@@ -945,5 +945,266 @@ final class WaypointTests: XCTestCase {
     vm.magneticDeclination = nil
     XCTAssertNil(vm.magneticDeclinationFooterText)
   }
+
+  func testWaypointDetailViewModelParseCoordinateBoundsAndValidation() throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      defaultName: "Bounds Test",
+      initialCoordinate: CLLocationCoordinate2D(latitude: 46.0, longitude: -1.0)
+    )
+
+    // Valid latitude bounds: 90° 00' N and S
+    vm.latHemisphere = .north
+    vm.latDegrees = 90
+    vm.latMinutes = 0
+    XCTAssertEqual(vm.parsedLatitude, 90.0)
+    XCTAssertNotNil(vm.currentCoordinate)
+    XCTAssertNotNil(service.draftWaypoint)
+
+    vm.latHemisphere = .south
+    XCTAssertEqual(vm.parsedLatitude, -90.0)
+
+    // Out-of-bounds latitude: 90° 0.1' and 95° 00'
+    vm.latHemisphere = .north
+    vm.latDegrees = 90
+    vm.latMinutes = 0.1
+    XCTAssertNil(vm.parsedLatitude)
+    XCTAssertNil(vm.currentCoordinate)
+    XCTAssertNil(service.draftWaypoint)
+    XCTAssertFalse(vm.isValid)
+
+    vm.latDegrees = 95
+    vm.latMinutes = 0
+    XCTAssertNil(vm.parsedLatitude)
+    XCTAssertNil(vm.currentCoordinate)
+    XCTAssertFalse(vm.isValid)
+
+    // Restore valid latitude
+    vm.latDegrees = 46
+    vm.latMinutes = 0
+
+    // Valid longitude bounds: 180° 00' E and W
+    vm.lonHemisphere = .east
+    vm.lonDegrees = 180
+    vm.lonMinutes = 0
+    XCTAssertEqual(vm.parsedLongitude, 180.0)
+    XCTAssertNotNil(vm.currentCoordinate)
+
+    vm.lonHemisphere = .west
+    XCTAssertEqual(vm.parsedLongitude, -180.0)
+
+    // Out-of-bounds longitude: 180° 0.1' and 185° 00'
+    vm.lonHemisphere = .east
+    vm.lonDegrees = 180
+    vm.lonMinutes = 0.1
+    XCTAssertNil(vm.parsedLongitude)
+    XCTAssertNil(vm.currentCoordinate)
+    XCTAssertNil(service.draftWaypoint)
+    XCTAssertFalse(vm.isValid)
+
+    vm.lonDegrees = 185
+    vm.lonMinutes = 0
+    XCTAssertNil(vm.parsedLongitude)
+    XCTAssertFalse(vm.isValid)
+
+    // Invalid minutes & negative values & non-finite values
+    vm.lonDegrees = 10
+    vm.lonMinutes = 60
+    XCTAssertNil(vm.parsedLongitude)
+
+    vm.lonMinutes = -1
+    XCTAssertNil(vm.parsedLongitude)
+
+    vm.lonMinutes = .nan
+    XCTAssertNil(vm.parsedLongitude)
+
+    vm.lonMinutes = .infinity
+    XCTAssertNil(vm.parsedLongitude)
+
+    vm.lonDegrees = -10
+    vm.lonMinutes = 0
+    XCTAssertNil(vm.parsedLongitude)
+
+    // Defense in depth: invalid exact coordinate via updateCoordinate
+    vm.updateCoordinate(CLLocationCoordinate2D(latitude: 95.0, longitude: 0.0))
+    XCTAssertNil(vm.currentCoordinate)
+    XCTAssertNil(service.draftWaypoint)
+    XCTAssertFalse(vm.isValid)
+  }
+
+  func testSetVisibleInEditModeDoesNotPersistAndRevertRestoresWithoutSaving() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    let waypoint = Waypoint(
+      id: UUID().uuidString,
+      name: "Edit Toggle Test",
+      isVisible: true,
+      coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    )
+    try await service.saveWaypoint(waypoint)
+
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      editingWaypoint: waypoint,
+      startEditable: true
+    )
+
+    var persistCallCount = 0
+    vm.persistWaypointHandler = { _ in
+      persistCallCount += 1
+    }
+
+    vm.setVisible(false)
+    await vm.waitForPendingVisibilitySave()
+
+    XCTAssertFalse(vm.isVisible)
+    XCTAssertEqual(persistCallCount, 0)
+
+    vm.revert()
+    await vm.waitForPendingVisibilitySave()
+
+    XCTAssertTrue(vm.isVisible)
+    XCTAssertFalse(vm.isEditable)
+    XCTAssertEqual(persistCallCount, 0)
+
+    let persisted = try await service.fetchWaypoint(id: waypoint.id)
+    XCTAssertEqual(persisted?.isVisible, true)
+  }
+
+  func testSetVisibleInReadOnlyModePersistsAndUpdatesOriginalWaypoint() async throws {
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    let waypoint = Waypoint(
+      id: UUID().uuidString,
+      name: "Read-Only Toggle Test",
+      isVisible: true,
+      coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    )
+    try await service.saveWaypoint(waypoint)
+
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      editingWaypoint: waypoint,
+      startEditable: false
+    )
+
+    vm.setVisible(false)
+    await vm.waitForPendingVisibilitySave()
+
+    XCTAssertFalse(vm.isVisible)
+    XCTAssertNil(vm.activeError)
+
+    let persisted = try await service.fetchWaypoint(id: waypoint.id)
+    XCTAssertEqual(persisted?.isVisible, false)
+
+    // Verify originalWaypoint was updated: edit -> toggle -> revert must restore `false`
+    vm.isEditable = true
+    vm.setVisible(true)
+    XCTAssertTrue(vm.isVisible)
+    vm.revert()
+    XCTAssertFalse(vm.isVisible)
+    XCTAssertFalse(vm.isEditable)
+  }
+
+  func testSetVisibleInReadOnlyModeRollsBackOnPersistenceFailure() async throws {
+    enum StubPersistenceError: Error {
+      case writeFailed
+    }
+
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    let waypoint = Waypoint(
+      id: UUID().uuidString,
+      name: "Rollback Test",
+      isVisible: true,
+      coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    )
+
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      editingWaypoint: waypoint,
+      startEditable: false
+    )
+    vm.persistWaypointHandler = { _ in
+      throw StubPersistenceError.writeFailed
+    }
+
+    vm.setVisible(false)
+    await vm.waitForPendingVisibilitySave()
+
+    XCTAssertTrue(vm.isVisible)
+    XCTAssertNotNil(vm.activeError)
+  }
+
+  func testSetVisibleRapidDoubleTapCancelsStaleWriteAndConverges() async throws {
+    enum StubPersistenceError: Error {
+      case staleFailure
+    }
+
+    let dbManager = try DatabaseManager.inMemory()
+    let service = WaypointService(databaseManager: dbManager)
+    let waypoint = Waypoint(
+      id: UUID().uuidString,
+      name: "Double Tap Test",
+      isVisible: true,
+      coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
+    )
+
+    let vm = WaypointDetailViewModel(
+      waypointService: service,
+      editingWaypoint: waypoint,
+      startEditable: false
+    )
+
+    var firstCallContinuation: CheckedContinuation<Void, Never>?
+    var firstCallFinished = false
+    var secondCallStartedAfterFirstFinished = false
+    var recordedVisibilities: [Bool] = []
+    var callIndex = 0
+
+    vm.persistWaypointHandler = { updated in
+      callIndex += 1
+      let currentCall = callIndex
+      recordedVisibilities.append(updated.isVisible)
+      if currentCall == 1 {
+        await withCheckedContinuation { continuation in
+          firstCallContinuation = continuation
+        }
+        firstCallFinished = true
+        // Even if the superseded first write fails after resuming, it must not roll back or set activeError
+        throw StubPersistenceError.staleFailure
+      } else if currentCall == 2 {
+        secondCallStartedAfterFirstFinished = firstCallFinished
+      }
+    }
+
+    // Rapid double-tap: true -> false -> true -> false
+    vm.setVisible(false)
+    await Task.yield()
+    vm.setVisible(true)
+    vm.setVisible(false)
+
+    // While the first write is still suspended, no subsequent write should have started
+    await Task.yield()
+    XCTAssertEqual(recordedVisibilities, [false])
+
+    // Resume the stale first call
+    firstCallContinuation?.resume()
+    await vm.waitForPendingVisibilitySave()
+
+    XCTAssertFalse(vm.isVisible)
+    XCTAssertNil(vm.activeError)
+    // Intermediate cancelled `true` write must be skipped, and final `false` write must run strictly after the first finishes
+    XCTAssertEqual(recordedVisibilities, [false, false])
+    XCTAssertTrue(secondCallStartedAfterFirstFinished)
+
+    // Confirm originalWaypoint converged to false
+    vm.isEditable = true
+    vm.setVisible(true)
+    vm.revert()
+    XCTAssertFalse(vm.isVisible)
+  }
 }
 
