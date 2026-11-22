@@ -455,6 +455,7 @@ struct MapLibreView: UIViewRepresentable {
     var lastMeasureActivePin: ActiveMeasurePin?
     weak var pinPanGesture: UIPanGestureRecognizer?
     private var activeDraggedPin: ActiveMeasurePin?
+    private var snappedMeasurePinWaypointID: String?
     private var isLongPressActive: Bool = false
     private var hasDraggedDuringLongPress: Bool = false
     private var longPressBeganPoint: CGPoint?
@@ -636,6 +637,7 @@ struct MapLibreView: UIViewRepresentable {
         parent.viewModel.measureToolViewModel.activePin = pin
         parent.viewModel.measureToolViewModel.isDraggingPin = true
         parent.viewModel.chartInteractedByUser()
+        snapFeedbackGenerator.prepare()
 
         let currentCoord = (pin == .start)
           ? parent.viewModel.measureToolViewModel.startCoordinate
@@ -646,8 +648,18 @@ struct MapLibreView: UIViewRepresentable {
             x: touchPoint.x - tipPoint.x,
             y: touchPoint.y - tipPoint.y
           )
+          // Seed hysteresis only if the pin is actually resting on a waypoint (<= 1pt),
+          // so zooming out near an open-water pin never causes a false lock on grab.
+          snappedMeasurePinWaypointID = WaypointMagneticSnap.evaluate(
+            reticlePoint: tipPoint,
+            candidates: waypointSnapCandidates(in: mapView),
+            currentlySnappedID: nil,
+            attachRadius: 1.0,
+            detachHysteresis: 0
+          )?.waypointID
         } else {
           measurePinDragOffset = .zero
+          snappedMeasurePinWaypointID = nil
         }
         lastPanUpdateTime = CACurrentMediaTime()
 
@@ -655,6 +667,7 @@ struct MapLibreView: UIViewRepresentable {
         guard let pin = activeDraggedPin else { return }
         guard parent.viewModel.measureToolViewModel.isActive else {
           activeDraggedPin = nil
+          snappedMeasurePinWaypointID = nil
           measurePinDragOffset = .zero
           parent.viewModel.measureToolViewModel.isDraggingPin = false
           return
@@ -669,7 +682,7 @@ struct MapLibreView: UIViewRepresentable {
           y: touchPoint.y - measurePinDragOffset.y
         )
         let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
-        let coord = mapView.convert(clampedTip, toCoordinateFrom: mapView)
+        let coord = resolveMeasurePinCoordinate(for: clampedTip, in: mapView)
         switch pin {
         case .start:
           parent.viewModel.measureToolViewModel.updateStart(to: coord)
@@ -684,7 +697,7 @@ struct MapLibreView: UIViewRepresentable {
             y: touchPoint.y - measurePinDragOffset.y
           )
           let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
-          let coord = mapView.convert(clampedTip, toCoordinateFrom: mapView)
+          let coord = resolveMeasurePinCoordinate(for: clampedTip, in: mapView)
           switch pin {
           case .start:
             parent.viewModel.measureToolViewModel.updateStart(to: coord)
@@ -693,18 +706,42 @@ struct MapLibreView: UIViewRepresentable {
           }
         }
         activeDraggedPin = nil
+        snappedMeasurePinWaypointID = nil
         measurePinDragOffset = .zero
         parent.viewModel.measureToolViewModel.isDraggingPin = false
         ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
 
       case .cancelled, .failed:
         activeDraggedPin = nil
+        snappedMeasurePinWaypointID = nil
         measurePinDragOffset = .zero
         parent.viewModel.measureToolViewModel.isDraggingPin = false
         ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
 
       default:
         break
+      }
+    }
+
+    /// Resolves a measure pin tip screen position with the same waypoint magnetism and hysteresis
+    /// used by the chart aiming reticle, firing selection haptic feedback upon attaching to a waypoint.
+    private func resolveMeasurePinCoordinate(
+      for tipPoint: CGPoint,
+      in mapView: MLNMapView
+    ) -> CLLocationCoordinate2D {
+      if let snap = evaluateWaypointSnap(
+        at: tipPoint,
+        in: mapView,
+        currentlySnappedID: snappedMeasurePinWaypointID
+      ) {
+        if snap.waypointID != snappedMeasurePinWaypointID {
+          snapFeedbackGenerator.selectionChanged()
+        }
+        snappedMeasurePinWaypointID = snap.waypointID
+        return snap.coordinate
+      } else {
+        snappedMeasurePinWaypointID = nil
+        return mapView.convert(tipPoint, toCoordinateFrom: mapView)
       }
     }
 
@@ -747,13 +784,15 @@ struct MapLibreView: UIViewRepresentable {
           y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
         )
         let clampedTip = clampPointToMapBounds(tipPoint, in: mapView)
-        let coord = mapView.convert(clampedTip, toCoordinateFrom: mapView)
 
         switch sender.state {
         case .began:
           parent.viewModel.measureToolViewModel.isDraggingPin = true
           isLongPressActive = true
+          snappedMeasurePinWaypointID = nil
+          snapFeedbackGenerator.prepare()
           parent.viewModel.chartInteractedByUser()
+          let coord = resolveMeasurePinCoordinate(for: clampedTip, in: mapView)
           parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
           lastPanUpdateTime = CACurrentMediaTime()
 
@@ -763,16 +802,20 @@ struct MapLibreView: UIViewRepresentable {
           lastPanUpdateTime = now
 
           parent.viewModel.chartInteractedByUser()
+          let coord = resolveMeasurePinCoordinate(for: clampedTip, in: mapView)
           parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
 
         case .ended:
           parent.viewModel.chartInteractedByUser()
+          let coord = resolveMeasurePinCoordinate(for: clampedTip, in: mapView)
           parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
+          snappedMeasurePinWaypointID = nil
           parent.viewModel.measureToolViewModel.isDraggingPin = false
           isLongPressActive = false
           ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
 
         case .cancelled, .failed:
+          snappedMeasurePinWaypointID = nil
           parent.viewModel.measureToolViewModel.isDraggingPin = false
           isLongPressActive = false
           ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
