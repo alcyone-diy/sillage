@@ -471,10 +471,15 @@ final class DatabaseManagerTests: Sendable {
     // 2. Migrate with current migrator
     try DatabaseManager.migrator.migrate(queue)
 
-    // 3. Verify merged identifiers v2..v13 were pruned from grdb_migrations, keeping only v1
+    // 3. Verify merged identifiers v2..v13 were pruned from grdb_migrations, leaving v1 and current migrations
     try await queue.read { db in
       let applied = try String.fetchAll(db, sql: "SELECT identifier FROM grdb_migrations ORDER BY identifier")
-      #expect(applied == ["v1"])
+      #expect(applied.contains("v1"))
+      let mergedLegacyIdentifiers = (2...13).map { "v\($0)" }
+      for legacyID in mergedLegacyIdentifiers {
+        #expect(!applied.contains(legacyID), "Merged migration \(legacyID) should have been pruned")
+      }
+      #expect(applied == DatabaseManager.migrator.migrations.sorted())
 
       // Verify existing data is preserved
       let customExists = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM checklist_category WHERE id = 'custom'")

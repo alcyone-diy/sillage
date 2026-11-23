@@ -37,14 +37,16 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     let call: @Sendable () -> Void
   }
 
+  private struct Dependencies: Sendable {
+    var offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)?
+    var tileProxyManager: (any TileProxyManagerProtocol)?
+    var keychainManager: (any KeychainManaging)?
+    var authFailureHandler: AuthFailureHandler?
+  }
+
   private let taskLock = OSAllocatedUnfairLock<(task: Task<Void, Never>?, isStopped: Bool)>(initialState: (task: nil, isStopped: false))
 
-  private static let dependenciesLock = OSAllocatedUnfairLock<(
-    offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)?,
-    tileProxyManager: (any TileProxyManagerProtocol)?,
-    keychainManager: (any KeychainManaging)?,
-    authFailureHandler: AuthFailureHandler?
-  )>(initialState: (offlineTileProvider: nil, tileProxyManager: nil, keychainManager: nil, authFailureHandler: nil))
+  private static let dependenciesLock = OSAllocatedUnfairLock<Dependencies>(initialState: Dependencies())
 
   static var offlineTileProvider: (any GeoGarageOfflineTileProviderProtocol)? {
     dependenciesLock.withLock { $0.offlineTileProvider }
@@ -83,15 +85,14 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     }
   }
 
-  /// Resets all injected dependencies (for testing).
+  #if DEBUG
+  /// Resets all injected dependencies atomically (for testing).
   static func resetForTesting() {
     dependenciesLock.withLock { state in
-      state.offlineTileProvider = nil
-      state.tileProxyManager = nil
-      state.keychainManager = nil
-      state.authFailureHandler = nil
+      state = Dependencies()
     }
   }
+  #endif
 
   // MARK: - URLProtocol Lifecycle
 
@@ -113,6 +114,10 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
       return
     }
 
+    // Snapshot dependencies when the request starts so an in-flight or cancelling request
+    // uses a consistent configuration and never leaks into a newly configured session.
+    let dependencies = Self.dependenciesLock.withLock { $0 }
+
     // URLProtocol bridging to Swift Concurrency:
     // We encapsulate the async work inside a standard Task and store it in taskLock.
     // When MapLibre calls stopLoading(), we explicitly cancel this Task.
@@ -121,10 +126,13 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
       guard !lockState.isStopped else { return }
       lockState.task = Task.detached { @Sendable [weak self] in
         guard let self = self else { return }
+        defer {
+          self.taskLock.withLock { $0.task = nil }
+        }
 
         do {
           try Task.checkCancellation()
-          guard let (data, source) = try await Self.fetchTileData(for: url) else {
+          guard let (data, source) = try await Self.fetchTileData(for: url, dependencies: dependencies) else {
             try Task.checkCancellation()
             self.client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
             return
@@ -172,7 +180,7 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
         } catch let proxyError as TileProxyError {
           guard !Task.isCancelled else { return }
           if case .authenticationRequired = proxyError {
-            Self.onAuthenticationFailure?()
+            dependencies.authFailureHandler?.call()
           }
           self.client?.urlProtocol(self, didFailWithError: proxyError)
         } catch {
@@ -196,13 +204,18 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
   // MARK: - Tile Resolution (Hybrid Offline/Online Pipeline)
 
   @concurrent
-  private static func fetchTileData(for url: URL, depth: Int = 0) async throws -> (Data, TilePayloadSource)? {
+  private static func fetchTileData(
+    for url: URL,
+    depth: Int = 0,
+    dependencies: Dependencies
+  ) async throws -> (Data, TilePayloadSource)? {
+    try Task.checkCancellation()
     guard let host = url.host, host == "tiles.geogarage.com" else { return nil }
 
     // 1. Safe parsing of XYZ tile coordinates
     if let components = Self.parseTileURL(url) {
       // 2. Query offline MBTiles packages first (offline priority)
-      if let offlineProvider = Self.offlineTileProvider {
+      if let offlineProvider = dependencies.offlineTileProvider {
         if let offlineData = await offlineProvider.tile(
           layerID: components.layerID,
           z: components.z,
@@ -214,21 +227,27 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
       }
     }
 
+    try Task.checkCancellation()
+
     // 3. Intercept & Verify: Local Authorization Firewall for remote network calls
-    let keychain = Self.keychainManager ?? KeychainManager.shared
+    let keychain = dependencies.keychainManager ?? KeychainManager.shared
     guard try await keychain.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) != nil else {
       // Rule 2: Fail-Closed for remote network streaming if unauthenticated
       return nil
     }
 
+    try Task.checkCancellation()
+
     // 4. Fallback to remote network fetch via TileProxyManager
-    guard let networkManager = Self.tileProxyManager else {
+    guard let networkManager = dependencies.tileProxyManager else {
       Logger.network.warning("TileProxyProtocol invoked without a configured TileProxyManager; failing closed for \(url.path, privacy: .private)")
       return nil
     }
     if let data = try await networkManager.fetchTile(url: url) {
       return (data, .network)
     }
+
+    try Task.checkCancellation()
 
     // 5. Overzoom / 404 fallback logic (parent tile upscaling or transparent tile)
     if depth >= 2 {
@@ -238,7 +257,7 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
       return nil
     }
 
-    return try await Self.generateFallbackTile(for: url, depth: depth)
+    return try await Self.generateFallbackTile(for: url, depth: depth, dependencies: dependencies)
   }
 
   // MARK: - URL Parsing
@@ -265,7 +284,12 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
   // MARK: - Fallback & Overzooming
 
-  private static func generateFallbackTile(for url: URL, depth: Int) async throws -> (Data, TilePayloadSource)? {
+  private static func generateFallbackTile(
+    for url: URL,
+    depth: Int,
+    dependencies: Dependencies
+  ) async throws -> (Data, TilePayloadSource)? {
+    try Task.checkCancellation()
     guard let components = Self.parseTileURL(url) else { return nil }
 
     let parentZ = components.z - 1
@@ -277,7 +301,7 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     guard let host = url.host, let parentURL = URL(string: "https://\(host)/\(components.clientID)/\(components.layerID)/\(parentZ)/\(parentX)/\(parentY).png") else { return nil }
 
     // Recursively fetch parent tile
-    guard let (parentData, _) = try await Self.fetchTileData(for: parentURL, depth: depth + 1),
+    guard let (parentData, _) = try await Self.fetchTileData(for: parentURL, depth: depth + 1, dependencies: dependencies),
           let source = CGImageSourceCreateWithData(parentData as CFData, nil),
           let parentImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
       return nil

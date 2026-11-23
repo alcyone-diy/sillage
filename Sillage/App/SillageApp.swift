@@ -18,62 +18,76 @@ struct SillageApp: App {
   @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
   @Environment(\.scenePhase) private var scenePhase
   @State private var environment = AppEnvironment()
-  
+
+  private var isRunningUnitTests: Bool {
+    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+  }
+
   var body: some Scene {
     WindowGroup {
-      Group {
-        switch environment.state {
-        case .uninitialized, .bootstrapping, .error:
-          SplashView(state: environment.state) {
-            Task {
-              await environment.bootstrap()
-            }
-          }
-        case .ready(let container):
-          MainAppView()
-            .onAppear { 
-              appDelegate.appViewModel = container.appViewModel
-              appDelegate.chartDownloader = container.geoGarageChartDownloader
-              container.appViewModel.isReady = true
-              container.appViewModel.processDeferredIntent()
-            }
-
-            .environment(container.appViewModel)
-            .environment(container.chartViewModel)
-            .environment(container.activeTrackViewModel)
-            .environment(container.barometerViewModel)
-            .environment(container.anchorViewModel)
-            .environment(container.trackRecordingService)
-            .environment(container.waypointService)
-            .environment(container.checklistService)
-            .environment(container.preferencesService)
-            .environment(container.permissionService)
-            .environment(container.offlineSelectionViewModel)
-            .environment(container.messageService)
-            .environment(container.geoGarageAuthService)
-            .environment(container.secondaryTelemetryViewModel)
-            .defaultAppStorage(container.userDefaults)
-        }
-      }
-      .environment(environment)
-      .onAppear {
-        // CRITICAL MARINE SAFETY: The screen must NEVER automatically go to sleep while Sillage is open.
-        // No other service or ViewModel is allowed to reset `isIdleTimerDisabled` to `false`.
-        UIApplication.shared.isIdleTimerDisabled = true
-      }
-      .task {
-        if case .uninitialized = environment.state {
-          await environment.bootstrap()
-        }
-      }
-      .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-        performTerminationWarning()
+      if isRunningUnitTests {
+        // Prevent the host app from booting MapLibre and live services during unit tests
+        // so background tile, database, or sensor activity cannot race with isolated tests.
+        EmptyView()
+      } else {
+        appContent
       }
     }
     .onChange(of: scenePhase) { oldPhase, newPhase in
+      guard !isRunningUnitTests else { return }
       if newPhase == .background {
         performEmergencySave()
       }
+    }
+  }
+
+  private var appContent: some View {
+    Group {
+      switch environment.state {
+      case .uninitialized, .bootstrapping, .error:
+        SplashView(state: environment.state) {
+          Task {
+            await environment.bootstrap()
+          }
+        }
+      case .ready(let container):
+        MainAppView()
+          .onAppear {
+            appDelegate.appViewModel = container.appViewModel
+            appDelegate.chartDownloader = container.geoGarageChartDownloader
+            container.appViewModel.isReady = true
+            container.appViewModel.processDeferredIntent()
+          }
+          .environment(container.appViewModel)
+          .environment(container.chartViewModel)
+          .environment(container.activeTrackViewModel)
+          .environment(container.barometerViewModel)
+          .environment(container.anchorViewModel)
+          .environment(container.trackRecordingService)
+          .environment(container.waypointService)
+          .environment(container.checklistService)
+          .environment(container.preferencesService)
+          .environment(container.permissionService)
+          .environment(container.offlineSelectionViewModel)
+          .environment(container.messageService)
+          .environment(container.geoGarageAuthService)
+          .environment(container.secondaryTelemetryViewModel)
+          .defaultAppStorage(container.userDefaults)
+      }
+    }
+    .environment(environment)
+    .onAppear {
+      // CRITICAL MARINE SAFETY: The screen must NEVER automatically go to sleep while Sillage is open.
+      // No other service or ViewModel is allowed to reset `isIdleTimerDisabled` to `false`.
+      UIApplication.shared.isIdleTimerDisabled = true
+    }
+    .task {
+      if case .uninitialized = environment.state {
+        await environment.bootstrap()
+      }
+    }
+    .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+      performTerminationWarning()
     }
   }
   
