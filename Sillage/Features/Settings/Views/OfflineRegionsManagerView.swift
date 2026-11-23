@@ -391,7 +391,7 @@ private struct OfflineDownloadRowView: View {
             .foregroundColor(.secondary)
 
           if let size = download.fileSize {
-            Text("•")
+            Text(verbatim: "•")
               .marineFont(.caption)
               .foregroundColor(.secondary)
             Text(size.marineFormatted)
@@ -515,7 +515,7 @@ private struct OfflineInProgressRowView: View {
       Text(message)
     case .downloading(let received, let total):
       if total > 0 {
-        Text("\(Int64(received).formatted(.byteCount(style: .file))) / \(Int64(total).formatted(.byteCount(style: .file)))")
+        Text(verbatim: "\(Int64(received).formatted(.byteCount(style: .file))) / \(Int64(total).formatted(.byteCount(style: .file)))")
       } else {
         Text("Downloading…")
       }

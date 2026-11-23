@@ -56,7 +56,7 @@ struct CoordinateInputView: View {
           .multilineTextAlignment(.trailing)
           .marineFont(.body)
           .frame(maxWidth: 80)
-        Text("°")
+        Text(verbatim: "°")
           .marineFont(.body)
         
         // Minutes Input
@@ -65,7 +65,7 @@ struct CoordinateInputView: View {
           .multilineTextAlignment(.trailing)
           .marineFont(.body)
           .frame(maxWidth: 100)
-        Text("'")
+        Text(verbatim: "'")
           .marineFont(.body)
         
         Spacer(minLength: 0)

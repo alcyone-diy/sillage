@@ -33,7 +33,7 @@ struct TrackControlView: View {
             activeTrackViewModel.requestRecordingState(newValue)
           }
         )
-        Toggle("", isOn: interceptingBinding)
+        Toggle("Recording Status", isOn: interceptingBinding)
           .labelsHidden()
           .disabled(activeTrackViewModel.isSaving)
       }
@@ -124,7 +124,7 @@ struct TrackControlView: View {
           .monospacedDigit()
           .foregroundStyle(.secondary)
       } else {
-        Text("--:--:--")
+        Text(verbatim: "--:--:--")
           .monospacedDigit()
           .foregroundStyle(.secondary)
       }

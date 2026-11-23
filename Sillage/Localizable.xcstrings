@@ -1,15 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-
-    },
-    "--:--:--" : {
-
-    },
-    "'" : {
-
-    },
     "%@ (D-%lld)" : {
       "localizations" : {
         "en" : {
@@ -22,16 +13,6 @@
     },
     "%@ (MIT License)" : {
 
-    },
-    "%@ / %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ / %2$@"
-          }
-        }
-      }
     },
     "%@ needs 'Motion & Fitness' access to read your device's internal altimeter, enabling the weather alarm feature." : {
 
@@ -66,16 +47,6 @@
     "%@ requires permission to send notifications to warn you of severe weather changes." : {
 
     },
-    "%@, %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@, %2$@"
-          }
-        }
-      }
-    },
     "%@/3h" : {
       "comment" : "Format for 3-hour barometric trend suffix"
     },
@@ -107,13 +78,7 @@
     "%lldm out of zone" : {
 
     },
-    "•" : {
-
-    },
     "^[%lld checklist](inflect: true)" : {
-
-    },
-    "°" : {
 
     },
     "⚓️ DRAGGING ANCHOR!" : {
@@ -132,9 +97,6 @@
 
     },
     "🔇 Silence" : {
-
-    },
-    "00:00" : {
 
     },
     "1 hr" : {
@@ -156,9 +118,6 @@
 
     },
     "30 min" : {
-
-    },
-    "2025.0 – 2030.0" : {
 
     },
     "A rapid pressure drop has been detected. Prepare for worsening conditions." : {
@@ -1273,12 +1232,6 @@
     "No visible map viewport found. Pan or zoom the chart first." : {
 
     },
-    "NOAA / NCEI WMM-2025" : {
-
-    },
-    "NOAA Solar (Jean Meeus)" : {
-
-    },
     "North-East Bound" : {
 
     },
@@ -1974,9 +1927,6 @@
 
     },
     "Website" : {
-
-    },
-    "WGS-84" : {
 
     },
     "WGS-84 Ellipsoid" : {

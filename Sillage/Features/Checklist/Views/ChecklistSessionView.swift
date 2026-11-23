@@ -330,7 +330,7 @@ private struct ChecklistSessionItemRowView: View {
         Spacer()
 
         ZStack(alignment: .trailing) {
-          Text("00:00")
+          Text(verbatim: "00:00")
             .marineFont(.caption)
             .hidden()
             .accessibilityHidden(true)
@@ -351,6 +351,7 @@ private struct ChecklistSessionItemRowView: View {
       guard !isCompletedSession else { return nil }
       return isChecked ? .impact(weight: .medium) : .impact(weight: .light)
     }
-    .accessibilityLabel("\(item.title), \(item.isChecked ? String(localized: "Checked") : String(localized: "Unchecked"))")
+    .accessibilityLabel(Text(verbatim: item.title))
+    .accessibilityValue(item.isChecked ? Text("Checked") : Text("Unchecked"))
   }
 }

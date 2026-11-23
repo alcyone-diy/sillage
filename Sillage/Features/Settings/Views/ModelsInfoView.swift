@@ -17,8 +17,8 @@ struct ModelsInfoView: View {
     Form {
       // MARK: - Geomagnetism
       Section {
-        infoRow(title: "Model", value: "NOAA / NCEI WMM-2025")
-        infoRow(title: "Validity Period", value: "2025.0 – 2030.0")
+        infoRow(title: "Model", verbatimValue: "NOAA / NCEI WMM-2025")
+        infoRow(title: "Validity Period", verbatimValue: "2025.0 – 2030.0")
         infoRow(title: "Harmonic Degree", value: "n = 12 (Spherical)")
         infoRow(title: "Reference Altitude", value: "Sea Level (0 m WGS-84)")
       } header: {
@@ -30,7 +30,7 @@ struct ModelsInfoView: View {
 
       // MARK: - Solar Ephemeris
       Section {
-        infoRow(title: "Algorithm", value: "NOAA Solar (Jean Meeus)")
+        infoRow(title: "Algorithm", verbatimValue: "NOAA Solar (Jean Meeus)")
         infoRow(title: "Sunrise / Sunset", value: "Zenith 90.83° (-0.833°)")
         infoRow(title: "Nautical Twilight", value: "Zenith 102° (-12°)")
         infoRow(title: "Display Time Zone", value: "Device System Time Zone")
@@ -43,7 +43,7 @@ struct ModelsInfoView: View {
 
       // MARK: - Geodesy & Kinematics
       Section {
-        infoRow(title: "Geodetic Datum", value: "WGS-84")
+        infoRow(title: "Geodetic Datum", verbatimValue: "WGS-84")
         infoRow(title: "Bearings & COG", value: "True North (°T)")
         infoRow(title: "Navigation & Anchor", value: "Haversine Sphere (R = 6,371 km)")
         infoRow(title: "Track Log Distance", value: "WGS-84 Ellipsoid")
@@ -78,13 +78,20 @@ struct ModelsInfoView: View {
     .navigationBarTitleDisplayMode(.inline)
   }
 
-  @ViewBuilder
   private func infoRow(title: LocalizedStringKey, value: LocalizedStringKey) -> some View {
+    infoRow(title: title, valueView: Text(value))
+  }
+
+  private func infoRow(title: LocalizedStringKey, verbatimValue: String) -> some View {
+    infoRow(title: title, valueView: Text(verbatim: verbatimValue))
+  }
+
+  private func infoRow(title: LocalizedStringKey, valueView: Text) -> some View {
     HStack {
       Text(title)
         .marineFont(.body)
       Spacer(minLength: MarineTheme.Spacing.small)
-      Text(value)
+      valueView
         .marineFont(.body)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.trailing)
