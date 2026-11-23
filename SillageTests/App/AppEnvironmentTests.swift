@@ -58,7 +58,8 @@ final class AppEnvironmentTests: XCTestCase {
       keychainManager: mockKeychain,
       preferencesService: testPreferencesService,
       userDefaults: isolatedDefaults.defaults,
-      databaseManager: testDatabaseManager
+      databaseManager: testDatabaseManager,
+      positioningService: MockPositioningService()
     )
   }
 
@@ -383,6 +384,8 @@ final class AppEnvironmentTests: XCTestCase {
     let mockStore = MockAppEnvironmentAnchorStateStore(
       initialSession: AnchorSessionData(activeWatch: watch, status: .armed, triggerReason: nil)
     )
+    // Inject a mock PositioningService so simulated CoreLocation fixes far from (47.2, -1.5)
+    // do not immediately transition the restored watch from `.armed` to `.dragging`.
     let restoredEnv = AppEnvironment(
       partnerSecretService: partnerSecretService,
       authSession: authSession,
@@ -390,7 +393,8 @@ final class AppEnvironmentTests: XCTestCase {
       preferencesService: testPreferencesService,
       userDefaults: isolatedDefaults.defaults,
       databaseManager: testDatabaseManager,
-      anchorStateStore: mockStore
+      anchorStateStore: mockStore,
+      positioningService: MockPositioningService()
     )
 
     await restoredEnv.bootstrap()

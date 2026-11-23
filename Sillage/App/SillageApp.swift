@@ -10,8 +10,6 @@
 
 import SwiftUI
 import MapLibre
-import OSLog
-import UserNotifications
 
 @main
 struct SillageApp: App {
@@ -53,6 +51,7 @@ struct SillageApp: App {
       case .ready(let container):
         MainAppView()
           .onAppear {
+            appDelegate.environment = environment
             appDelegate.appViewModel = container.appViewModel
             appDelegate.chartDownloader = container.geoGarageChartDownloader
             container.appViewModel.isReady = true
@@ -86,9 +85,6 @@ struct SillageApp: App {
         await environment.bootstrap()
       }
     }
-    .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-      performTerminationWarning()
-    }
   }
   
   @MainActor
@@ -102,48 +98,6 @@ struct SillageApp: App {
       }
     case .idle, .saving:
       return
-    }
-  }
-  
-  @MainActor
-  private func performTerminationWarning() {
-    Logger.system.info("performTerminationWarning called.")
-    guard case .ready(let container) = environment.state else { return }
-    let trackService = container.trackRecordingService
-    let isTracking: Bool = {
-      switch trackService.state {
-      case .recording, .paused, .waitingForFix: return true
-      case .idle, .saving: return false
-      }
-    }()
-    
-    let isAnchoring = container.anchorViewModel.status != .inactive
-    
-    if isTracking || isAnchoring {
-      let permissionService = container.permissionService
-      let isCriticalAuthorized = permissionService.criticalAlertStatus == .enabled
-      // Require explicit `.enabled` so `.unknown` during early app termination never sends an unauthorized `.timeSensitive` alert.
-      let isTimeSensitiveAuthorized = permissionService.timeSensitiveStatus == .enabled
-      let content = LocalNotificationService.makeNotificationContent(
-        title: String(localized: "Sillage Terminated"),
-        body: String(localized: "The application has been closed by iOS. Active services (like tracking or anchor watch) have been stopped."),
-        identifier: NotificationIntent.appTerminated.rawValue,
-        isCritical: true,
-        isCriticalAuthorized: isCriticalAuthorized,
-        isTimeSensitiveAuthorized: isTimeSensitiveAuthorized
-      )
-
-      // Note: This XPC call to UNUserNotificationCenter suffers from a race condition
-      // during a crash or OOM kill (willTerminate is not even called for OOM).
-      // This is a "Best Effort" for explicit user force-quits.
-      let request = UNNotificationRequest(identifier: NotificationIntent.appTerminated.rawValue, content: content, trigger: nil)
-      UNUserNotificationCenter.current().add(request) { error in
-        if let error = error {
-          Logger.system.error("Failed to send termination warning: \(error.localizedDescription, privacy: .public)")
-        } else {
-          Logger.system.info("Termination warning notification sent.")
-        }
-      }
     }
   }
 }

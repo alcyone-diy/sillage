@@ -77,6 +77,7 @@ final class AppEnvironment {
   private let userDefaults: UserDefaults
   private let databaseManagerOverride: DatabaseManager?
   private let anchorStateStoreOverride: (any AnchorStateStoreProtocol)?
+  private let positioningServiceOverride: (any PositioningService)?
   #if DEBUG
   private var screenshotScenarioOverride: ScreenshotScenario?
   #endif
@@ -90,7 +91,8 @@ final class AppEnvironment {
     preferencesService: PreferencesService? = nil,
     userDefaults: UserDefaults = .standard,
     databaseManager: DatabaseManager? = nil,
-    anchorStateStore: (any AnchorStateStoreProtocol)? = nil
+    anchorStateStore: (any AnchorStateStoreProtocol)? = nil,
+    positioningService: (any PositioningService)? = nil
   ) {
     self.metadataOverride = metadata
     self.metadata = metadata
@@ -105,6 +107,7 @@ final class AppEnvironment {
     self.userDefaults = userDefaults
     self.databaseManagerOverride = databaseManager
     self.anchorStateStoreOverride = anchorStateStore
+    self.positioningServiceOverride = positioningService
     setupMapLibreProgressObservation()
   }
 
@@ -203,7 +206,7 @@ final class AppEnvironment {
       let simulatedPositioning: (any PositioningService)? = nil
       let initialPausesAutomatically = false
       #endif
-      let positioningService: any PositioningService = simulatedPositioning ?? CoreLocationPositioningService(
+      let positioningService: any PositioningService = self.positioningServiceOverride ?? simulatedPositioning ?? CoreLocationPositioningService(
         initialAccuracyMode: preferencesService.gpsAccuracyMode,
         initialPausesLocationUpdatesAutomatically: initialPausesAutomatically
       )
