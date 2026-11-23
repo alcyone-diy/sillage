@@ -11,24 +11,20 @@
 import SwiftUI
 
 struct LegalListView: View {
-  let navigationWarningDocument: LegalDocument
-  let sillageLicenseDocument: LegalDocument
-  let thirdPartyLicenseDocuments: [LegalDocument]
-  
-  // 1. Theme injection for Glove Mode
   @Environment(\.marineTheme) private var marineTheme
-  
+  @State private var viewModel = LegalListViewModel()
+
   var body: some View {
     List {
       Section {
-        documentRow(for: navigationWarningDocument)
-        documentRow(for: sillageLicenseDocument)
+        documentRow(for: viewModel.navigationWarningDocument)
+        documentRow(for: viewModel.sillageLicenseDocument)
       } header: {
         Text(AppConstants.appName)
           .marineSectionHeader()
       }
       Section {
-        ForEach(thirdPartyLicenseDocuments) { document in
+        ForEach(viewModel.thirdPartyLicenseDocuments) { document in
           documentRow(for: document)
         }
       } header: {
@@ -41,10 +37,10 @@ struct LegalListView: View {
     .navigationTitle("Legal & Licenses")
     .navigationBarTitleDisplayMode(.inline)
   }
-  
+
   @ViewBuilder
   private func documentRow(for document: LegalDocument) -> some View {
-    NavigationLink(destination: LegalDetailView(document: document)) {
+    NavigationLink(value: PanelManagerViewModel.CommandDestination.legalDetail(document.id)) {
       Text(document.title)
         .marineFont(.body)
         .foregroundColor(.primary)

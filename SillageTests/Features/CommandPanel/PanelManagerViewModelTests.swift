@@ -144,7 +144,7 @@ final class PanelManagerViewModelTests: XCTestCase {
   // MARK: - CommandDestination Enum Hashing & Uniqueness
 
   func testCommandDestinationsUniqueness() {
-    let destinations: [PanelManagerViewModel.CommandDestination] = [
+    var destinations: [PanelManagerViewModel.CommandDestination] = [
       .settings,
       .tracks,
       .waypoints,
@@ -156,6 +156,10 @@ final class PanelManagerViewModelTests: XCTestCase {
       .offlineCharts,
       .offlineChartDetail(id: UUID()),
       .chartPreferences,
+      .cogPreferences,
+      .legalList,
+      .legalDetail(.navigationWarning),
+      .versionInfo,
       .modelsInfo,
       .checklists,
       .checklistCategories,
@@ -163,10 +167,16 @@ final class PanelManagerViewModelTests: XCTestCase {
       .checklistTemplateDetail(ChecklistTemplateDetailPayload(templateId: UUID(), template: nil, startEditable: false)),
       .activeSession(ChecklistSessionPayload(id: UUID()))
     ]
+#if DEBUG
+    destinations.append(.debugMenu)
+    let expectedCount = 22
+#else
+    let expectedCount = 21
+#endif
 
     let set = Set(destinations)
     XCTAssertEqual(set.count, destinations.count, "Each CommandDestination case must be uniquely hashable")
-    XCTAssertEqual(destinations.count, 17, "All 17 CommandDestination enum cases must be tested for uniqueness")
+    XCTAssertEqual(destinations.count, expectedCount, "All CommandDestination enum cases must be tested for uniqueness")
   }
 
   func testChecklistCategoryDetailEqualityIgnoresCategoryObject() {

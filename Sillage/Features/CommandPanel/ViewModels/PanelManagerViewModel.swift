@@ -41,7 +41,14 @@ public final class PanelManagerViewModel {
     case offlineCharts
     case offlineChartDetail(id: UUID)
     case chartPreferences
+    case cogPreferences
+    case legalList
+    case legalDetail(LegalDocumentID)
+    case versionInfo
     case modelsInfo
+#if DEBUG
+    case debugMenu
+#endif
     case checklists
     case checklistCategories
     case checklistCategoryDetail(ChecklistCategoryDetailPayload)

@@ -12,32 +12,15 @@ import SwiftUI
 
 @MainActor
 struct LegalDetailView: View {
-  let document: LegalDocument
-  @State private var viewModel: LegalDetailViewModel?
+  @State private var viewModel: LegalDetailViewModel
+
+  init(documentID: LegalDocumentID) {
+    self.init(document: LegalDocument.document(for: documentID))
+  }
 
   init(document: LegalDocument) {
-    self.document = document
+    _viewModel = State(wrappedValue: LegalDetailViewModel(document: document))
   }
-
-  var body: some View {
-    Group {
-      if let viewModel {
-        LegalDetailContentView(viewModel: viewModel)
-      } else {
-        Color.clear
-      }
-    }
-    .onAppear {
-      if viewModel == nil {
-        viewModel = LegalDetailViewModel(document: document)
-      }
-    }
-  }
-}
-
-@MainActor
-struct LegalDetailContentView: View {
-  @Bindable var viewModel: LegalDetailViewModel
 
   var body: some View {
     Group {
@@ -72,6 +55,6 @@ struct LegalDetailContentView: View {
 
 #Preview {
   NavigationStack {
-    LegalDetailView(document: LegalDocument(title: "Sample Warning", content: "This is a sample warning text. It should have good contrast and a readable font size."))
+    LegalDetailView(documentID: .navigationWarning)
   }
 }

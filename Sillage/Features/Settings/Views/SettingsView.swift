@@ -15,7 +15,6 @@ struct SettingsView: View {
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(AppEnvironment.self) private var environment
   @Environment(\.marineTheme) private var marineTheme
-  @State private var viewModel = SettingsViewModel()
   
   var body: some View {
     Form {
@@ -36,7 +35,7 @@ struct SettingsView: View {
       }
       
       Section {
-        NavigationLink(destination: COGPreferencesView()) {
+        NavigationLink(value: PanelManagerViewModel.CommandDestination.cogPreferences) {
           Label("Predictor Vector", systemImage: "location.north.line.fill")
             .marineFont(.body)
         }
@@ -56,13 +55,7 @@ struct SettingsView: View {
       }
       
       Section {
-        NavigationLink(
-          destination: LegalListView(
-            navigationWarningDocument: viewModel.navigationWarningDocument,
-            sillageLicenseDocument: viewModel.sillageLicenseDocument,
-            thirdPartyLicenseDocuments: viewModel.thirdPartyLicenseDocuments
-          )
-        ) {
+        NavigationLink(value: PanelManagerViewModel.CommandDestination.legalList) {
           Label("Legal & Licenses", systemImage: "doc.text")
             .marineFont(.body)
         }
@@ -72,7 +65,7 @@ struct SettingsView: View {
       }
       
       Section {
-        NavigationLink(destination: VersionInfoView()) {
+        NavigationLink(value: PanelManagerViewModel.CommandDestination.versionInfo) {
           HStack {
             Label("Version", systemImage: "info.circle")
               .marineFont(.body)
@@ -108,7 +101,7 @@ struct SettingsView: View {
       
 #if DEBUG
       Section {
-        NavigationLink(destination: DebugView()) {
+        NavigationLink(value: PanelManagerViewModel.CommandDestination.debugMenu) {
           Label("Debug Menu", systemImage: "ladybug")
             .marineFont(.body)
         }

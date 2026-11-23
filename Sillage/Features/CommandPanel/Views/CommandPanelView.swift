@@ -303,8 +303,20 @@ struct CommandPanelView: View {
       )
     case .chartPreferences:
       ChartPreferencesView()
+    case .cogPreferences:
+      COGPreferencesView()
+    case .legalList:
+      LegalListView()
+    case .legalDetail(let documentID):
+      LegalDetailView(documentID: documentID)
+    case .versionInfo:
+      VersionInfoView()
     case .modelsInfo:
       ModelsInfoView()
+#if DEBUG
+    case .debugMenu:
+      DebugView()
+#endif
     case .checklists:
       ChecklistTemplateListView(checklistService: checklistService)
     case .checklistCategories:
