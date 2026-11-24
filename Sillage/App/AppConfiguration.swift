@@ -8,32 +8,40 @@
 //  See LICENSE file in the project root for full license information.
 //
 
-
 import Foundation
+import OSLog
 
-struct AppConfiguration {
-  static let shared = AppConfiguration()
+/// Runtime configuration for external integrations, resolved from the app bundle or injected in tests.
+public struct AppConfiguration: Sendable, Equatable {
+  public let geoGarageClientID: String?
 
-  let geoGarageClientID: String
+  /// Indicates whether GeoGarage OAuth and remote chart streaming are configured in this build.
+  public var isGeoGarageConfigured: Bool {
+    geoGarageClientID != nil
+  }
 
-  private init() {
-    let isTesting = NSClassFromString("XCTestCase") != nil
-
-    let rawClientID = (Bundle.main.object(forInfoDictionaryKey: "GEOGARAGE_CLIENT_ID") as? String)?
+  public init(geoGarageClientID: String?) {
+    // Strip quotes before trimming whitespace so values like "\"   \"" also normalize to nil,
+    // and treat unexpanded Xcode Info.plist placeholders (e.g. "$(GEOGARAGE_CLIENT_ID)") as nil.
+    let normalized = geoGarageClientID?
+      .replacingOccurrences(of: "\"", with: "")
       .trimmingCharacters(in: .whitespacesAndNewlines)
-      .replacingOccurrences(of: "\"", with: "") ?? ""
-    if rawClientID.isEmpty && !isTesting {
-      fatalError("""
-        ❌ MISSING CONFIGURATION: GEOGARAGE_CLIENT_ID is not set!
-
-        To fix this:
-        1. Duplicate 'Secrets.sample.xcconfig' at the project root.
-        2. Rename the duplicate to 'Secrets.xcconfig'.
-        3. Fill in your actual client_id for GEOGARAGE_CLIENT_ID in 'Secrets.xcconfig'.
-
-        Secrets.xcconfig is ignored by git and will safely hold your local credentials.
-        """)
+    if let normalized, !normalized.isEmpty, !normalized.hasPrefix("$(") {
+      self.geoGarageClientID = normalized
+    } else {
+      self.geoGarageClientID = nil
     }
-    self.geoGarageClientID = rawClientID.isEmpty ? "test_client_id" : rawClientID
+  }
+
+  /// Loads configuration from `Info.plist` without failing if optional third-party keys are missing.
+  /// Open-source builds without `Secrets.xcconfig` must remain fully usable for GPS, offline charts,
+  /// anchor watch, and track recording.
+  public static func fromBundle(_ bundle: Bundle = .main) -> AppConfiguration {
+    let rawClientID = bundle.object(forInfoDictionaryKey: "GEOGARAGE_CLIENT_ID") as? String
+    let configuration = AppConfiguration(geoGarageClientID: rawClientID)
+    if configuration.geoGarageClientID == nil {
+      Logger.system.warning("GEOGARAGE_CLIENT_ID is not configured in Info.plist. GeoGarage sign-in and remote charts are disabled.")
+    }
+    return configuration
   }
 }

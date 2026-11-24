@@ -48,7 +48,8 @@ final class GeoGarageAuthServiceTests: XCTestCase {
       preferencesService: preferencesService,
       layerRepository: layerRepository,
       keychainManager: mockKeychain,
-      session: session
+      session: session,
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id")
     )
     presenter = MockGeoGarageAuthorizationPresenter()
   }
@@ -149,7 +150,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     XCTAssertEqual(body["grant_type"], "authorization_code")
     XCTAssertEqual(body["code"], "code-123")
     XCTAssertEqual(body["redirect_uri"], "https://alcyone-sillage.com/oauth2/callback")
-    XCTAssertEqual(body["client_id"], AppConfiguration.shared.geoGarageClientID)
+    XCTAssertEqual(body["client_id"], "test_client_id")
     let verifier = try XCTUnwrap(body["code_verifier"])
     XCTAssertEqual(GeoGaragePKCE.codeChallenge(for: verifier), authorizeQuery["code_challenge"], "the code_verifier sent must match the authorization code_challenge")
 
@@ -260,7 +261,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     let body = Self.formBody(of: tokenRequest)
     XCTAssertEqual(body["grant_type"], "refresh_token")
     XCTAssertEqual(body["refresh_token"], "old-refresh")
-    XCTAssertEqual(body["client_id"], AppConfiguration.shared.geoGarageClientID)
+    XCTAssertEqual(body["client_id"], "test_client_id")
     XCTAssertNil(body["client_secret"], "public client: never a secret")
     let storedAccess = try await mockKeychain.retrieveToken(for: GeoGarageKeychainKeys.accessToken)
     let storedRefresh = try await mockKeychain.retrieveToken(for: GeoGarageKeychainKeys.refreshToken)
@@ -631,6 +632,67 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     }
 
     XCTAssertFalse(service.isGeoGarageAuthenticated)
+  }
+
+  func testAuthenticate_whenClientIDMissing_throwsNotConfiguredWithoutOpeningBrowser() async {
+    let unconfiguredService = GeoGarageAuthService(
+      preferencesService: preferencesService,
+      layerRepository: layerRepository,
+      keychainManager: mockKeychain,
+      session: session,
+      configuration: AppConfiguration(geoGarageClientID: nil)
+    )
+    XCTAssertFalse(unconfiguredService.isGeoGarageConfigured)
+
+    do {
+      _ = try await unconfiguredService.authenticate(presenter: presenter)
+      XCTFail("Expected AuthError.notConfigured")
+    } catch let error as AuthError {
+      guard case .notConfigured = error else {
+        return XCTFail("Expected AuthError.notConfigured, got \(error)")
+      }
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+    XCTAssertNil(presenter.lastAuthorizeURL)
+  }
+
+  func testRefreshTokens_whenClientIDMissing_throwsNotConfigured() async throws {
+    try await mockKeychain.save(token: "old-refresh", for: GeoGarageKeychainKeys.refreshToken)
+    let unconfiguredService = GeoGarageAuthService(
+      preferencesService: preferencesService,
+      layerRepository: layerRepository,
+      keychainManager: mockKeychain,
+      session: session,
+      configuration: AppConfiguration(geoGarageClientID: nil)
+    )
+
+    do {
+      _ = try await unconfiguredService.refreshTokens()
+      XCTFail("Expected AuthError.notConfigured")
+    } catch let error as AuthError {
+      guard case .notConfigured = error else {
+        return XCTFail("Expected AuthError.notConfigured, got \(error)")
+      }
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+  }
+
+  func testBootstrap_whenClientIDMissing_remainsUnauthenticatedEvenWithStoredToken() async throws {
+    try await mockKeychain.save(token: "stored-access", for: GeoGarageKeychainKeys.accessToken)
+    let unconfiguredService = GeoGarageAuthService(
+      preferencesService: preferencesService,
+      layerRepository: layerRepository,
+      keychainManager: mockKeychain,
+      session: session,
+      configuration: AppConfiguration(geoGarageClientID: nil)
+    )
+
+    await unconfiguredService.bootstrap()
+
+    XCTAssertFalse(unconfiguredService.isGeoGarageConfigured)
+    XCTAssertFalse(unconfiguredService.isGeoGarageAuthenticated)
   }
 }
 

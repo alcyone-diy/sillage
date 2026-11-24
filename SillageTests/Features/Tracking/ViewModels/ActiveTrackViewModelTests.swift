@@ -154,7 +154,8 @@ struct ActiveTrackViewModelTests {
       trackService: trackService,
       trackRecordingService: trackRecordingService,
       waypointService: waypointService,
-      messageService: messageService
+      messageService: messageService,
+      configuration: AppConfiguration(geoGarageClientID: nil)
     )
 
     let activeTrackViewModel = ActiveTrackViewModel(

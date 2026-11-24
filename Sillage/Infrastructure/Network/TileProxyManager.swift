@@ -16,6 +16,7 @@ import OSLog
 enum TileProxyError: Error, Sendable, Equatable {
   case authenticationRequired(statusCode: Int)
   case httpError(statusCode: Int)
+  case notConfigured
 }
 
 /// Protocol for network tile downloading with authentication headers.
@@ -27,12 +28,15 @@ protocol TileProxyManagerProtocol: Sendable {
 actor TileProxyManager: TileProxyManagerProtocol {
   private let session: URLSession
   private let keychainManager: any KeychainManaging
+  private let configuration: AppConfiguration
 
   init(
     session: URLSession? = nil,
-    keychainManager: any KeychainManaging = KeychainManager.shared
+    keychainManager: any KeychainManaging = KeychainManager.shared,
+    configuration: AppConfiguration
   ) {
     self.keychainManager = keychainManager
+    self.configuration = configuration
     if let session {
       self.session = session
     } else {
@@ -47,7 +51,10 @@ actor TileProxyManager: TileProxyManagerProtocol {
   }
 
   func fetchTile(z: Int, x: Int, y: Int, layerID: String) async throws -> Data? {
-    let clientID = AppConfiguration.shared.geoGarageClientID
+    guard let clientID = configuration.geoGarageClientID else {
+      Logger.network.warning("GeoGarage tile request skipped: GEOGARAGE_CLIENT_ID is not configured.")
+      throw TileProxyError.notConfigured
+    }
     // Construct the GeoGarage URL. Note that GeoGarage tile APIs usually require the layer ID.
     guard let url = URL(string: "https://tiles.geogarage.com/\(clientID)/\(layerID)/\(z)/\(x)/\(y).png") else {
       throw URLError(.badURL)

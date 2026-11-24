@@ -14,6 +14,7 @@ import Observation
 
 @Observable
 final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked Sendable {
+  var isGeoGarageConfigured: Bool = true
   var isGeoGarageAuthenticated: Bool = false
   var availableLayers: [GeoGarageLayer] = []
   var authError: Error?

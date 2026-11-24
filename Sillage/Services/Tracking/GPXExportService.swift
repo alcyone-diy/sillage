@@ -52,7 +52,7 @@ public struct GPXExportService: Sendable {
       let safeName = (sessionName ?? sessionID).xmlEscaped
       let header = """
       <?xml version="1.0" encoding="UTF-8"?>
-      <gpx version="1.1" creator="\(AppConstants.appName)" xmlns="http://www.topografix.com/GPX/1/1" xmlns:sillage="\(AppConstants.appURL.absoluteString)/gpx">
+      <gpx version="1.1" creator="\(AppConstants.appName)" xmlns="http://www.topografix.com/GPX/1/1" xmlns:sillage="\(AppConstants.appURLString)/gpx">
         <trk>
           <name>\(safeName)</name>
           <desc>Session ID: \(safeSessionID)</desc>

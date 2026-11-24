@@ -253,11 +253,20 @@ struct GeoGarageLoginContentView: View {
   // MARK: - Components
 
   private func signInButton() -> some View {
-    Button(action: startSignIn) {
-      Text("Sign in with GeoGarage")
+    VStack(spacing: MarineTheme.Spacing.small) {
+      Button(action: startSignIn) {
+        Text("Sign in with GeoGarage")
+      }
+      .buttonStyle(MarinePrimaryButtonStyle(isDestructive: false, minHeight: marineTheme.minTouchTarget * scaleFactor))
+      .disabled(viewModel.isLoading || !authService.isGeoGarageConfigured)
+
+      if !authService.isGeoGarageConfigured {
+        Text("GeoGarage is not configured in this build.")
+          .marineFont(.caption)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+      }
     }
-    .buttonStyle(MarinePrimaryButtonStyle(isDestructive: false, minHeight: marineTheme.minTouchTarget * scaleFactor))
-    .disabled(viewModel.isLoading)
   }
 
   private func accountInfoView() -> some View {

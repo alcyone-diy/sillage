@@ -44,6 +44,8 @@ enum AuthError: Error, LocalizedError {
   case accessDenied
   /// The code exchange failed (code expired after 60 s, already consumed, unexpected portal response).
   case authorizationFailed(description: String)
+  /// `GEOGARAGE_CLIENT_ID` is not configured in this build (e.g. open-source build without `Secrets.xcconfig`).
+  case notConfigured
   case unknown
 
   var errorDescription: String? {
@@ -67,6 +69,8 @@ enum AuthError: Error, LocalizedError {
       return String(localized: "GeoGarage sign-in was refused. Please try again and allow Sillage to access your account.")
     case .authorizationFailed(let description):
       return String(localized: "GeoGarage sign-in failed (\(description)). Please try again.")
+    case .notConfigured:
+      return String(localized: "GeoGarage is not configured in this build.")
     case .unknown:
       return fallback
     }

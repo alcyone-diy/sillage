@@ -12,6 +12,7 @@ import SwiftUI
 import OSLog
 @MainActor
 struct OfflineRegionsManagerView: View {
+  @Environment(AppEnvironment.self) private var appEnvironment
   @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManagerViewModel
@@ -39,7 +40,8 @@ struct OfflineRegionsManagerView: View {
         emptyStateView
       } else {
         List {
-          if let warningReason = chartViewModel.offlineAreaWarningReason {
+          if appEnvironment.configuration.isGeoGarageConfigured,
+             let warningReason = chartViewModel.offlineAreaWarningReason {
             Section {
               OfflineAreaWarningBannerView(reason: warningReason)
             }
@@ -182,62 +184,81 @@ struct OfflineRegionsManagerView: View {
 
   @ViewBuilder
   private var emptyStateView: some View {
-    switch chartViewModel.offlineAreaWarningReason {
-    case .unauthenticated:
+    if !appEnvironment.configuration.isGeoGarageConfigured {
       ContentUnavailableView {
         Label {
-          Text("GeoGarage Sign-In Required")
-        } icon: {
-          Image(systemName: "person.crop.circle.badge.plus")
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(marineTheme.colors.primary)
-        }
-      } description: {
-        Text("Sign in to your GeoGarage account to download and access certified marine charts offline.")
-      } actions: {
-        NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin(context: .initialSetup)) {
-          Text("Sign in to GeoGarage")
-        }
-        .buttonStyle(MarineButtonStyle(.primary))
-      }
-
-    case .nonGeoGarageChartActive:
-      ContentUnavailableView {
-        Label {
-          Text("GeoGarage Required")
+          Text("Offline Charts Unavailable")
         } icon: {
           Image(systemName: "map")
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(marineTheme.colors.primary)
         }
       } description: {
-        Text("Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences to download offline charts.")
+        Text("GeoGarage is not configured in this build. You can still import local .mbtiles charts in Chart Preferences.")
       } actions: {
         NavigationLink(value: PanelManagerViewModel.CommandDestination.chartPreferences) {
           Text("Chart Preferences")
         }
         .buttonStyle(MarineButtonStyle(.primary))
       }
+    } else {
+      switch chartViewModel.offlineAreaWarningReason {
+      case .unauthenticated:
+        ContentUnavailableView {
+          Label {
+            Text("GeoGarage Sign-In Required")
+          } icon: {
+            Image(systemName: "person.crop.circle.badge.plus")
+              .symbolRenderingMode(.hierarchical)
+              .foregroundStyle(marineTheme.colors.primary)
+          }
+        } description: {
+          Text("Sign in to your GeoGarage account to download and access certified marine charts offline.")
+        } actions: {
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin(context: .initialSetup)) {
+            Text("Sign in to GeoGarage")
+          }
+          .buttonStyle(MarineButtonStyle(.primary))
+        }
 
-    case .none:
-      ContentUnavailableView {
-        Label {
-          Text("No Offline Charts")
-        } icon: {
-          Image(systemName: "arrow.down.circle")
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(marineTheme.colors.primary)
+      case .nonGeoGarageChartActive:
+        ContentUnavailableView {
+          Label {
+            Text("GeoGarage Required")
+          } icon: {
+            Image(systemName: "map")
+              .symbolRenderingMode(.hierarchical)
+              .foregroundStyle(marineTheme.colors.primary)
+          }
+        } description: {
+          Text("Offline maps work only with GeoGarage charts. Switch to GeoGarage in Chart Preferences to download offline charts.")
+        } actions: {
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.chartPreferences) {
+            Text("Chart Preferences")
+          }
+          .buttonStyle(MarineButtonStyle(.primary))
         }
-      } description: {
-        Text("Select an area on the chart to download marine charts for offline navigation.")
-      } actions: {
-        Button {
-          offlineSelectionViewModel.startNewSelection()
-          panelManagerViewModel.closePanel()
-        } label: {
-          Text("Download a Chart")
+
+      case .none:
+        ContentUnavailableView {
+          Label {
+            Text("No Offline Charts")
+          } icon: {
+            Image(systemName: "arrow.down.circle")
+              .symbolRenderingMode(.hierarchical)
+              .foregroundStyle(marineTheme.colors.primary)
+          }
+        } description: {
+          Text("Select an area on the chart to download marine charts for offline navigation.")
+        } actions: {
+          Button {
+            offlineSelectionViewModel.startNewSelection()
+            panelManagerViewModel.closePanel()
+          } label: {
+            Text("Download a Chart")
+          }
+          .buttonStyle(MarineButtonStyle(.primary))
         }
-        .buttonStyle(MarineButtonStyle(.primary))
       }
     }
   }

@@ -1265,7 +1265,8 @@ final class ChartViewModelTests: XCTestCase {
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,
-      anchorViewModel: anchorViewModel
+      anchorViewModel: anchorViewModel,
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id")
     )
 
     viewModel.currentChartSource = .openSeaMap
@@ -1278,7 +1279,7 @@ final class ChartViewModelTests: XCTestCase {
     viewModel.handleGeoGarageLoginSuccess(context: .initialSetup, availableLayers: layers)
 
     // Assert
-    let expected = ChartSource.remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: "ukho")
+    let expected = ChartSource.remoteGeoGarage(clientID: "test_client_id", layerID: "ukho")
     XCTAssertEqual(viewModel.currentChartSource, expected, "Initial login with passive OpenSeaMap should switch to the first available layer")
   }
 
@@ -1615,7 +1616,8 @@ final class ChartViewModelTests: XCTestCase {
       trackService: trackService,
       trackRecordingService: trackRecordingService,
       waypointService: waypointService,
-      messageService: messageService
+      messageService: messageService,
+      configuration: AppConfiguration(geoGarageClientID: nil)
     )
 
     let sessionID = "session-to-delete-and-clear"
@@ -1690,7 +1692,8 @@ final class ChartViewModelTests: XCTestCase {
       trackService: trackService,
       trackRecordingService: trackRecordingService,
       waypointService: waypointService,
-      messageService: messageService
+      messageService: messageService,
+      configuration: AppConfiguration(geoGarageClientID: nil)
     )
 
     let session1ID = "session-1"
@@ -1956,7 +1959,43 @@ final class ChartViewModelTests: XCTestCase {
       authService: mockAuthService
     )
 
-    XCTAssertEqual(viewModel.currentChartSource, .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: "shom"), "Saved GeoGarage chart source must be restored so offline packages can be displayed even when unauthenticated")
+    XCTAssertEqual(viewModel.currentChartSource, .remoteGeoGarage(clientID: "test_client_id", layerID: "shom"), "Saved GeoGarage chart source must be restored so offline packages can be displayed even when unauthenticated")
+  }
+
+  @MainActor
+  func testLoadSavedChartSource_whenGeoGarageUnconfigured_fallsBackToOpenSeaMap() {
+    let preferencesService = MockPreferencesService()
+    preferencesService.clearAll()
+    preferencesService.savedChartSource = "remoteGeoGarage"
+    preferencesService.savedGeoGarageLayerID = "shom"
+
+    let mockAuthService = MockGeoGarageAuthService()
+    mockAuthService.isGeoGarageConfigured = false
+    let positioningService = MockPositioningService()
+    let permissionService = PermissionService(positioningService: positioningService, notificationService: LocalNotificationService())
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(positioningService: positioningService)
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: LocalNotificationService(),
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService,
+      stateStore: MockAnchorStateStore()
+    )
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+    let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+
+    let viewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: mockAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      configuration: AppConfiguration(geoGarageClientID: nil)
+    )
+
+    XCTAssertEqual(viewModel.currentChartSource, .openSeaMap, "When GEOGARAGE_CLIENT_ID is missing, saved GeoGarage source must fall back cleanly to OpenSeaMap")
   }
 
   @MainActor

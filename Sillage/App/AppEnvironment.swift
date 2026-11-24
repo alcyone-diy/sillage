@@ -21,6 +21,7 @@ final class AppEnvironment {
 
   public private(set) var metadata: AppMetadata?
   public let bootDate: Date
+  public let configuration: AppConfiguration
   public let offlineMapManager: OfflineMapManager
   /// Fetches the package decryption secret from `/partners/me/` after sign-in, so nothing secret
   /// ships in the binary; the secret lives in the Keychain.
@@ -84,6 +85,7 @@ final class AppEnvironment {
 
   public init(
     metadata: AppMetadata? = nil,
+    configuration: AppConfiguration = .fromBundle(),
     partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil,
     authSession: URLSession = .shared,
     keychainManager: any KeychainManaging = KeychainManager.shared,
@@ -97,10 +99,14 @@ final class AppEnvironment {
     self.metadataOverride = metadata
     self.metadata = metadata
     self.bootDate = Date.now
+    self.configuration = configuration
     Self.setupMapLibreProtocol()
     self.offlineMapManager = OfflineMapManager()
     self.keychainManager = keychainManager
-    self.tileProxyManager = tileProxyManager ?? TileProxyManager(keychainManager: keychainManager)
+    self.tileProxyManager = tileProxyManager ?? TileProxyManager(
+      keychainManager: keychainManager,
+      configuration: configuration
+    )
     self.geoGaragePartnerSecretService = partnerSecretService ?? GeoGaragePartnerSecretService(keychainManager: keychainManager)
     self.authSession = authSession
     self.preferencesServiceOverride = preferencesService
@@ -310,7 +316,8 @@ final class AppEnvironment {
         preferencesService: preferencesService,
         layerRepository: geoGarageLayerRepository,
         keychainManager: keychainManager,
-        session: authSession
+        session: authSession,
+        configuration: configuration
       )
       await geoGarageAuthService.bootstrap()
 
@@ -430,7 +437,8 @@ final class AppEnvironment {
         trackRecordingService: trackRecordingService,
         waypointService: waypointService,
         messageService: messageService,
-        keychainManager: keychainManager
+        keychainManager: keychainManager,
+        configuration: configuration
       )
       let activeTrackViewModel = ActiveTrackViewModel(
         trackRecordingService: trackRecordingService,

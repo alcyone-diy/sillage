@@ -198,6 +198,7 @@ final class ChartViewModel {
   let measureToolViewModel = MeasureToolViewModel()
   private let messageService: MessageService
   private let keychainManager: any KeychainManaging
+  private let configuration: AppConfiguration
   private var lastPositionedDraftID: String?
   private var lastPositionedDraftCoordinate: CLLocationCoordinate2D?
   
@@ -407,7 +408,8 @@ final class ChartViewModel {
     trackRecordingService: TrackRecordingService,
     waypointService: WaypointService,
     messageService: MessageService,
-    keychainManager: any KeychainManaging = KeychainManager.shared
+    keychainManager: any KeychainManaging = KeychainManager.shared,
+    configuration: AppConfiguration
   ) {
     self.positioningService = positioningService
     self.instrumentDampingService = instrumentDampingService
@@ -420,6 +422,7 @@ final class ChartViewModel {
     self.trackRecordingService = trackRecordingService
     self.messageService = messageService
     self.keychainManager = keychainManager
+    self.configuration = configuration
     self.isOpenSeaMapOverlayEnabled = self.preferencesService.isOpenSeaMapOverlayEnabled
     self.trackingMode = self.preferencesService.lastMapTrackingMode ?? .free
     
@@ -741,9 +744,9 @@ final class ChartViewModel {
     case .remoteGeoGarage:
       Logger.network.info("GeoGarage initial setup: GeoGarage chart already active, preserving current chart.")
     case .openSeaMap, .none:
-      if let firstLayer = availableLayers.first {
+      if let firstLayer = availableLayers.first, let clientID = configuration.geoGarageClientID {
         Logger.network.info("GeoGarage initial setup: switching to default layer \(firstLayer.layer, privacy: .public).")
-        switchChartSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: firstLayer.layer))
+        switchChartSource(to: .remoteGeoGarage(clientID: clientID, layerID: firstLayer.layer))
       }
     }
   }
@@ -759,6 +762,7 @@ final class ChartViewModel {
   /// Authenticates with GeoGarage in the background using stored credentials to populate available layers.
   private func silentlyFetchGeoGarageLayers() {
     silentFetchTask?.cancel()
+    guard configuration.isGeoGarageConfigured else { return }
     silentFetchTask = TaskCancellable(Task { [weak self] in
       guard let self else { return }
       let resolvedAccessToken: String?
@@ -1574,7 +1578,14 @@ final class ChartViewModel {
     let savedSource = preferencesService.savedChartSource
     
     if savedSource == "remoteGeoGarage", let savedLayerID = preferencesService.savedGeoGarageLayerID {
-      switchChartSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: savedLayerID))
+      if let clientID = configuration.geoGarageClientID {
+        switchChartSource(to: .remoteGeoGarage(clientID: clientID, layerID: savedLayerID))
+      } else {
+        // Open-source or misconfigured build without GEOGARAGE_CLIENT_ID: never crash or leave
+        // the map without a basemap; fall back cleanly to OpenSeaMap.
+        Logger.chart.warning("Saved GeoGarage chart source cannot be restored because GEOGARAGE_CLIENT_ID is not configured. Falling back to OpenSeaMap.")
+        switchChartSource(to: .openSeaMap)
+      }
       
     } else if let savedFileName = savedSource, savedFileName != "localCaasChart" {
       let fileManager = FileManager.default

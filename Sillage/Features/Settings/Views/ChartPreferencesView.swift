@@ -97,8 +97,9 @@ struct ChartPreferencesView: View {
           .buttonStyle(.plain)
         }
         
-        // List all authorized GeoGarage layers fetched from the API or cache
-        if !chartViewModel.availableGeoGarageLayers.isEmpty {
+        // List all authorized GeoGarage layers fetched from the API or cache (only when configured)
+        if let clientID = appEnvironment.configuration.geoGarageClientID,
+           !chartViewModel.availableGeoGarageLayers.isEmpty {
           ForEach(chartViewModel.availableGeoGarageLayers) { layer in
             let isSelected = currentSelection == .remote && {
               if case .remoteGeoGarage(_, let currentLayerID) = chartViewModel.currentChartSource {
@@ -108,7 +109,7 @@ struct ChartPreferencesView: View {
             }()
 
             Button(action: {
-              chartViewModel.switchChartSource(to: .remoteGeoGarage(clientID: AppConfiguration.shared.geoGarageClientID, layerID: layer.layer))
+              chartViewModel.switchChartSource(to: .remoteGeoGarage(clientID: clientID, layerID: layer.layer))
             }) {
               ChartSourceRowView(
                 title: layer.brandName,
@@ -128,13 +129,15 @@ struct ChartPreferencesView: View {
       // Note: Value-based navigation in the Command Panel stack must use `CommandDestination` cases
       // resolved at the root level in `CommandPanelView.swift` (do not define local navigation enums or child .navigationDestination).
       Section {
-        NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin(
-          context: chartViewModel.isGeoGarageAuthenticated ? .reauthentication : .initialSetup
-        )) {
-          Text(chartViewModel.isGeoGarageAuthenticated ? "Manage GeoGarage Account" : "Login to GeoGarage")
-            .marineFont(.body)
+        if appEnvironment.configuration.isGeoGarageConfigured {
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.geoGarageLogin(
+            context: chartViewModel.isGeoGarageAuthenticated ? .reauthentication : .initialSetup
+          )) {
+            Text(chartViewModel.isGeoGarageAuthenticated ? "Manage GeoGarage Account" : "Login to GeoGarage")
+              .marineFont(.body)
+          }
+          .marineListCell()
         }
-        .marineListCell()
 
         // Button triggering the iOS native file picker
         Button("Import Offline Map (.mbtiles)…") {

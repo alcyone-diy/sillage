@@ -14,6 +14,7 @@ import OSLog
 
 @MainActor
 protocol GeoGarageAuthServiceProtocol: AnyObject {
+  var isGeoGarageConfigured: Bool { get }
   var isGeoGarageAuthenticated: Bool { get }
   var availableLayers: [GeoGarageLayer] { get }
   var authError: Error? { get set }
@@ -42,6 +43,11 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   private var preferencesService: PreferencesServiceProtocol
   private let layerRepository: GeoGarageLayerRepositoryProtocol
   private let keychainManager: any KeychainManaging
+  private let configuration: AppConfiguration
+
+  var isGeoGarageConfigured: Bool {
+    configuration.isGeoGarageConfigured
+  }
 
   var discoverURL: URL? {
     URL(string: "https://geogarage.com/")
@@ -72,27 +78,35 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     preferencesService: PreferencesServiceProtocol,
     layerRepository: GeoGarageLayerRepositoryProtocol,
     keychainManager: any KeychainManaging = KeychainManager.shared,
-    session: URLSession = .shared
+    session: URLSession = .shared,
+    configuration: AppConfiguration
   ) {
     self.preferencesService = preferencesService
     self.layerRepository = layerRepository
     self.keychainManager = keychainManager
     self.session = session
+    self.configuration = configuration
   }
 
   init(
     preferencesService: PreferencesServiceProtocol,
     databaseManager: DatabaseManager,
     keychainManager: any KeychainManaging = KeychainManager.shared,
-    session: URLSession = .shared
+    session: URLSession = .shared,
+    configuration: AppConfiguration
   ) {
     self.preferencesService = preferencesService
     self.layerRepository = GeoGarageLayerRepository(databaseManager: databaseManager)
     self.keychainManager = keychainManager
     self.session = session
+    self.configuration = configuration
   }
 
   func bootstrap() async {
+    guard isGeoGarageConfigured else {
+      self.isGeoGarageAuthenticated = false
+      return
+    }
     let hasToken = (try? await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken)) != nil
     self.isGeoGarageAuthenticated = hasToken
     _ = await layerRepository.loadCachedLayers()
@@ -124,6 +138,12 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   // MARK: - Authorization code + PKCE
 
   func authenticate(presenter: any GeoGarageAuthorizationPresenting) async throws -> AuthSuccessResponse {
+    guard let clientID = configuration.geoGarageClientID else {
+      Logger.network.warning("GeoGarage sign-in aborted: GEOGARAGE_CLIENT_ID is not configured.")
+      let failure = AuthError.notConfigured
+      self.authError = failure
+      throw failure
+    }
     guard let authorizeEndpoint else {
       throw AuthError.invalidResponse
     }
@@ -131,7 +151,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     let state = GeoGaragePKCE.makeState()
     let authorization = GeoGarageAuthorizationRequest(
       authorizeEndpoint: authorizeEndpoint,
-      clientID: AppConfiguration.shared.geoGarageClientID,
+      clientID: clientID,
       redirectURI: AppConstants.GeoGarage.oauthRedirectURI,
       scope: AppConstants.GeoGarage.oauthScope,
       state: state,
@@ -194,7 +214,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
           "grant_type": "authorization_code",
           "code": code,
           "redirect_uri": AppConstants.GeoGarage.oauthRedirectURI,
-          "client_id": AppConfiguration.shared.geoGarageClientID,
+          "client_id": clientID,
           "code_verifier": verifier,
         ],
         onInvalidGrant: .authorizationFailed(description: "invalid_grant")
@@ -230,6 +250,12 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   }
 
   private func performRefresh() async throws -> AuthSuccessResponse {
+    guard let clientID = configuration.geoGarageClientID else {
+      Logger.network.warning("GeoGarage token refresh aborted: GEOGARAGE_CLIENT_ID is not configured.")
+      let failure = AuthError.notConfigured
+      self.authError = failure
+      throw failure
+    }
     let generation = authGeneration
     guard let refreshToken = try await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.refreshToken) else {
       guard generation == authGeneration else { throw AuthError.cancelled }
@@ -242,7 +268,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
         [
           "grant_type": "refresh_token",
           "refresh_token": refreshToken,
-          "client_id": AppConfiguration.shared.geoGarageClientID,
+          "client_id": clientID,
         ],
         onInvalidGrant: .tokenExpired
       )

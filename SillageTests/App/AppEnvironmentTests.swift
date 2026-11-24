@@ -53,6 +53,7 @@ final class AppEnvironmentTests: XCTestCase {
     testPreferencesService.clearAll()
     testDatabaseManager = try DatabaseManager.inMemory()
     environment = AppEnvironment(
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
       partnerSecretService: partnerSecretService,
       authSession: authSession,
       keychainManager: mockKeychain,
@@ -411,6 +412,21 @@ final class AppEnvironmentTests: XCTestCase {
     // Clean up background GPS task started on armed restoration
     container.anchorService.clear()
     XCTAssertEqual(mockStore.loadSession().status, .inactive)
+  }
+
+  func testAppConfiguration_normalizesEmptyQuotesAndPlaceholdersToNil() {
+    XCTAssertNil(AppConfiguration(geoGarageClientID: nil).geoGarageClientID)
+    XCTAssertFalse(AppConfiguration(geoGarageClientID: nil).isGeoGarageConfigured)
+
+    XCTAssertNil(AppConfiguration(geoGarageClientID: "").geoGarageClientID)
+    XCTAssertNil(AppConfiguration(geoGarageClientID: "   \n  ").geoGarageClientID)
+    XCTAssertNil(AppConfiguration(geoGarageClientID: " \"\" ").geoGarageClientID)
+    XCTAssertNil(AppConfiguration(geoGarageClientID: "\"   \"").geoGarageClientID)
+    XCTAssertNil(AppConfiguration(geoGarageClientID: "$(GEOGARAGE_CLIENT_ID)").geoGarageClientID)
+
+    let valid = AppConfiguration(geoGarageClientID: " \"my-client-id\" ")
+    XCTAssertEqual(valid.geoGarageClientID, "my-client-id")
+    XCTAssertTrue(valid.isGeoGarageConfigured)
   }
 }
 
