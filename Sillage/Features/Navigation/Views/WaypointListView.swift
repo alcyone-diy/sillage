@@ -134,6 +134,7 @@ struct WaypointListView: View {
       let defaultName = await waypointService.generateDefaultName()
       guard !Task.isCancelled, let chartViewModel, let panelManager else { return }
       let item = CoordinateWrapper(coordinate: chartViewModel.centerCoordinate, defaultName: defaultName)
+      chartViewModel.prepareWaypointDraftViewModel(for: item, waypointService: waypointService)
       panelManager.commandPath.append(.waypointDraft(item))
     }
   }

@@ -10,6 +10,7 @@
 
 import SwiftUI
 import CoreLocation
+import OSLog
 
 struct ContentView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -342,41 +343,37 @@ struct ContentView: View {
   @ViewBuilder
   private func waypointDraftSheet(for item: CoordinateWrapper) -> some View {
     NavigationStack {
-      WaypointDraftContainerView(
-        item: item,
-        waypointService: waypointService,
-        onGoToRequested: { waypointID in
-          appViewModel.waypointDraft = nil
-          chartViewModel.activeWaypointDetailViewModel = nil
-          waypointService.setDestination(waypointID: waypointID)
-          panelManagerViewModel.closePanel()
-        },
-        onCancelNavigationRequested: {
-          appViewModel.waypointDraft = nil
-          chartViewModel.activeWaypointDetailViewModel = nil
-          waypointService.setDestination(waypointID: nil)
-        },
-        onModifyPositionRequested: { viewModel in
-          appViewModel.waypointDraft = nil
-          chartViewModel.startWaypointPositionAdjustment(
-            viewModel: viewModel,
-            onCancel: {
-              let restoreCoord = viewModel.currentCoordinate ?? item.coordinate
-              appViewModel.waypointDraft = CoordinateWrapper(
-                coordinate: restoreCoord,
-                defaultName: viewModel.name
-              )
-            },
-            onConfirm: { newCoord in
-              viewModel.updateCoordinate(newCoord)
-              appViewModel.waypointDraft = CoordinateWrapper(
-                coordinate: newCoord,
-                defaultName: viewModel.name
-              )
-            }
-          )
+      if let draftViewModel = chartViewModel.activeWaypointDetailViewModel {
+        WaypointDetailView(
+          viewModel: draftViewModel,
+          onModifyPositionRequested: {
+            appViewModel.waypointDraft = nil
+            chartViewModel.startWaypointPositionAdjustment(
+              viewModel: draftViewModel,
+              onCancel: { [weak draftViewModel] in
+                guard let draftViewModel else { return }
+                let restoreCoord = draftViewModel.currentCoordinate ?? item.coordinate
+                appViewModel.waypointDraft = CoordinateWrapper(
+                  coordinate: restoreCoord,
+                  defaultName: draftViewModel.name
+                )
+              },
+              onConfirm: { [weak draftViewModel] newCoord in
+                guard let draftViewModel else { return }
+                draftViewModel.updateCoordinate(newCoord)
+                appViewModel.waypointDraft = CoordinateWrapper(
+                  coordinate: newCoord,
+                  defaultName: draftViewModel.name
+                )
+              }
+            )
+          }
+        )
+      } else {
+        Color.clear.onAppear {
+          Logger.navigation.error("Waypoint draft sheet appeared without an active draft ViewModel.")
         }
-      )
+      }
     }
     .presentationDetents([.medium, .large])
     .presentationDragIndicator(.visible)

@@ -435,11 +435,16 @@ struct MapCalloutView: View {
       // 1. Primary Action Button (Prominent)
       Button {
         guard let targetCoord = calloutViewModel.targetCoordinate else { return }
-        Task { @MainActor [weak waypointService = waypointService, weak appViewModel = appViewModel, weak calloutViewModel = calloutViewModel] in
-          guard let waypointService, let appViewModel, let calloutViewModel else { return }
+        let waypointService = self.waypointService
+        let chartViewModel = self.chartViewModel
+        let appViewModel = self.appViewModel
+        let calloutViewModel = self.calloutViewModel
+        Task { @MainActor [weak waypointService, weak chartViewModel, weak appViewModel, weak calloutViewModel] in
+          guard let waypointService, let chartViewModel, let appViewModel, let calloutViewModel else { return }
           let defaultName = await waypointService.generateDefaultName()
           Logger.navigation.info("Initiating waypoint creation draft from map target")
           let draftCoord = CoordinateWrapper(coordinate: targetCoord, defaultName: defaultName)
+          chartViewModel.prepareWaypointDraftViewModel(for: draftCoord, waypointService: waypointService)
           calloutViewModel.dismiss()
           appViewModel.waypointDraft = draftCoord
         }

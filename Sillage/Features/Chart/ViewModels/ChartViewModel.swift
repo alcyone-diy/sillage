@@ -1340,6 +1340,23 @@ final class ChartViewModel {
 
   // MARK: - Waypoint Position Adjustment Actions
 
+  /// Prepares and owns a fresh `WaypointDetailViewModel` for a new waypoint draft session.
+  /// ChartViewModel owns this lifecycle so the draft survives map position adjustment without
+  /// duplicating state inside a lazy SwiftUI container.
+  @discardableResult
+  public func prepareWaypointDraftViewModel(
+    for item: CoordinateWrapper,
+    waypointService: WaypointService
+  ) -> WaypointDetailViewModel {
+    let newVM = WaypointDetailViewModel(
+      waypointService: waypointService,
+      defaultName: item.defaultName,
+      initialCoordinate: item.coordinate
+    )
+    self.activeWaypointDetailViewModel = newVM
+    return newVM
+  }
+
   public func startWaypointPositionAdjustment(
     viewModel: WaypointDetailViewModel,
     onCancel: @MainActor @escaping () -> Void,

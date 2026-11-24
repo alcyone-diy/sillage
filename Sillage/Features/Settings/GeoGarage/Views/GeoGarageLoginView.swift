@@ -13,49 +13,7 @@ import AuthenticationServices
 
 @MainActor
 struct GeoGarageLoginView: View {
-  let offlineMapManager: OfflineMapManager
-  let partnerSecretService: GeoGaragePartnerSecretServiceProtocol
-  let downloadRepository: (any GeoGarageDownloadRepositoryProtocol)?
-  let context: GeoGarageLoginContext
-
-  @State private var viewModel: GeoGarageLoginViewModel?
-
-  init(
-    offlineMapManager: OfflineMapManager,
-    partnerSecretService: GeoGaragePartnerSecretServiceProtocol,
-    downloadRepository: (any GeoGarageDownloadRepositoryProtocol)? = nil,
-    context: GeoGarageLoginContext = .initialSetup
-  ) {
-    self.offlineMapManager = offlineMapManager
-    self.partnerSecretService = partnerSecretService
-    self.downloadRepository = downloadRepository
-    self.context = context
-  }
-
-  var body: some View {
-    Group {
-      if let viewModel {
-        GeoGarageLoginContentView(viewModel: viewModel)
-      } else {
-        Color.clear
-      }
-    }
-    .onAppear {
-      if viewModel == nil {
-        viewModel = GeoGarageLoginViewModel(
-          offlineMapManager: offlineMapManager,
-          partnerSecretService: partnerSecretService,
-          downloadRepository: downloadRepository,
-          context: context
-        )
-      }
-    }
-  }
-}
-
-@MainActor
-struct GeoGarageLoginContentView: View {
-  @Bindable var viewModel: GeoGarageLoginViewModel
+  @State private var viewModel: GeoGarageLoginViewModel
 
   @Environment(\.marineTheme) private var marineTheme
   @Environment(ChartViewModel.self) private var chartViewModel
@@ -67,6 +25,22 @@ struct GeoGarageLoginContentView: View {
   @Environment(\.webAuthenticationSession) private var webAuthenticationSession
 
   @State private var showLogoutConfirmation = false
+
+  init(
+    offlineMapManager: OfflineMapManager,
+    partnerSecretService: GeoGaragePartnerSecretServiceProtocol,
+    downloadRepository: (any GeoGarageDownloadRepositoryProtocol)? = nil,
+    context: GeoGarageLoginContext = .initialSetup
+  ) {
+    _viewModel = State(
+      wrappedValue: GeoGarageLoginViewModel(
+        offlineMapManager: offlineMapManager,
+        partnerSecretService: partnerSecretService,
+        downloadRepository: downloadRepository,
+        context: context
+      )
+    )
+  }
 
   var body: some View {
     ScrollView {

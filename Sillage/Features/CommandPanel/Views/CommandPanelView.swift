@@ -250,38 +250,34 @@ struct CommandPanelView: View {
         waypointID: id,
         waypoint: waypoint
       )
-    case .waypointDraft(let item):
-      WaypointDraftContainerView(
-        item: item,
-        waypointService: waypointService,
-        onGoToRequested: { waypointID in
-          chartViewModel.activeWaypointDetailViewModel = nil
-          waypointService.setDestination(waypointID: waypointID)
-          viewModel.closePanel()
-        },
-        onCancelNavigationRequested: {
-          chartViewModel.activeWaypointDetailViewModel = nil
-          waypointService.setDestination(waypointID: nil)
-        },
-        onModifyPositionRequested: { draftViewModel in
-          chartViewModel.startWaypointPositionAdjustment(
-            viewModel: draftViewModel,
-            onCancel: {
-              viewModel.resumePanel()
-            },
-            onConfirm: { newCoord in
-              draftViewModel.updateCoordinate(newCoord)
-              if let last = viewModel.commandPath.last, case .waypointDraft(let oldItem) = last {
-                viewModel.commandPath[viewModel.commandPath.count - 1] = .waypointDraft(
-                  CoordinateWrapper(id: oldItem.id, coordinate: newCoord, defaultName: oldItem.defaultName)
-                )
+    case .waypointDraft:
+      if let draftViewModel = chartViewModel.activeWaypointDetailViewModel {
+        WaypointDetailView(
+          viewModel: draftViewModel,
+          onModifyPositionRequested: {
+            chartViewModel.startWaypointPositionAdjustment(
+              viewModel: draftViewModel,
+              onCancel: {
+                viewModel.resumePanel()
+              },
+              onConfirm: { [weak draftViewModel] newCoord in
+                draftViewModel?.updateCoordinate(newCoord)
+                if let last = viewModel.commandPath.last, case .waypointDraft(let oldItem) = last {
+                  viewModel.commandPath[viewModel.commandPath.count - 1] = .waypointDraft(
+                    CoordinateWrapper(id: oldItem.id, coordinate: newCoord, defaultName: oldItem.defaultName)
+                  )
+                }
+                viewModel.resumePanel()
               }
-              viewModel.resumePanel()
-            }
-          )
-          viewModel.suspendPanel()
+            )
+            viewModel.suspendPanel()
+          }
+        )
+      } else {
+        Color.clear.onAppear {
+          Logger.navigation.error("Waypoint draft destination appeared without an active draft ViewModel.")
         }
-      )
+      }
     case .baroAlarm:
       BarometerAlarmView(viewModel: barometerViewModel)
     case .anchorAlarm:
