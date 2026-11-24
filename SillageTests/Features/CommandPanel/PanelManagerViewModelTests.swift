@@ -148,7 +148,7 @@ final class PanelManagerViewModelTests: XCTestCase {
       .settings,
       .tracks,
       .waypoints,
-      .sessionDetail(sessionID: "session_123"),
+      .trackSessionDetail(sessionID: "session_123"),
       .waypointDetail("wp_1"),
       .baroAlarm,
       .anchorAlarm,
@@ -165,7 +165,7 @@ final class PanelManagerViewModelTests: XCTestCase {
       .checklistCategories,
       .checklistCategoryDetail(ChecklistCategoryDetailPayload(categoryId: "safety_emergency")),
       .checklistTemplateDetail(ChecklistTemplateDetailPayload(templateId: UUID(), template: nil, startEditable: false)),
-      .activeSession(ChecklistSessionPayload(id: UUID()))
+      .checklistSession(ChecklistSessionPayload(id: UUID()))
     ]
 #if DEBUG
     destinations.append(.debugMenu)

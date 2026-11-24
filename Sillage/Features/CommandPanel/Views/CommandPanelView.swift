@@ -234,7 +234,7 @@ struct CommandPanelView: View {
       TracksManagerView()
     case .waypoints:
       WaypointListContainer(waypointService: waypointService)
-    case .sessionDetail(let sessionID, let session):
+    case .trackSessionDetail(let sessionID, let session):
       TrackDetailView(
         sessionID: sessionID,
         session: session,
@@ -327,10 +327,10 @@ struct CommandPanelView: View {
         payload: payload,
         checklistService: checklistService
       )
-    case .activeSession(let route):
+    case .checklistSession(let payload):
       let environment = appEnvironment
       ChecklistSessionView(
-        payload: route,
+        payload: payload,
         checklistService: checklistService,
         locationProvider: { [weak environment] in
           environment?.lastKnownLocation

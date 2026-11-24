@@ -82,7 +82,7 @@ public struct ChecklistTemplateListView: View {
                 Button {
                   Task {
                     if let session = await viewModel.startOrResumeSession(for: template.id) {
-                      panelManager?.commandPath.append(.activeSession(ChecklistSessionPayload(id: session.id, snapshot: session)))
+                      panelManager?.commandPath.append(.checklistSession(ChecklistSessionPayload(id: session.id, snapshot: session)))
                     }
                   }
                 } label: {

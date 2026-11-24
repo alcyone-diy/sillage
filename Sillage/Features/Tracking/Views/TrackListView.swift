@@ -34,7 +34,7 @@ struct TrackListView: View {
       } else {
         ForEach(viewModel.sessions) { session in
           let isVisible = chartViewModel.displayedTrackSessionID == session.id
-          NavigationLink(value: PanelManagerViewModel.CommandDestination.sessionDetail(sessionID: session.id, session: session)) {
+          NavigationLink(value: PanelManagerViewModel.CommandDestination.trackSessionDetail(sessionID: session.id, session: session)) {
             TrackRowView(
               session: session,
               subtitle: viewModel.subtitle(for: session),

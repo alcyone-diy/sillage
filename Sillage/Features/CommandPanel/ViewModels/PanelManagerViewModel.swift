@@ -32,7 +32,7 @@ public final class PanelManagerViewModel {
     case settings
     case tracks
     case waypoints
-    case sessionDetail(sessionID: TrackSession.ID, session: TrackSession? = nil)
+    case trackSessionDetail(sessionID: TrackSession.ID, session: TrackSession? = nil)
     case waypointDetail(String, waypoint: Waypoint? = nil)
     case waypointDraft(CoordinateWrapper)
     case baroAlarm
@@ -54,7 +54,7 @@ public final class PanelManagerViewModel {
     case checklistCategoryDetail(ChecklistCategoryDetailPayload)
     case checklistTemplateDetail(ChecklistTemplateDetailPayload)
     /// Active checklist session execution view.
-    case activeSession(ChecklistSessionPayload)
+    case checklistSession(ChecklistSessionPayload)
   }
 
   /// The currently active panel visible to the user.
@@ -80,7 +80,7 @@ public final class PanelManagerViewModel {
     }
   }
 
-  /// Opens the command panel specifically routed to the Anchor Alarm sub-view.
+  /// Opens the command panel specifically directed to the Anchor Alarm sub-view.
   public func openAnchorAlarmPanel() {
     if commandPath.last != .anchorAlarm {
       commandPath.append(.anchorAlarm)
@@ -88,7 +88,7 @@ public final class PanelManagerViewModel {
     openPanel(.command)
   }
 
-  /// Opens the command panel specifically routed to the Offline Charts sub-view.
+  /// Opens the command panel specifically directed to the Offline Charts sub-view.
   public func openOfflineChartsPanel() {
     if commandPath.last != .offlineCharts {
       commandPath.append(.offlineCharts)
@@ -147,7 +147,7 @@ public final class PanelManagerViewModel {
     commandPath.removeAll()
   }
 
-  // MARK: - Intent Routing
+  // MARK: - Intent Dispatch
   
   public func handle(intent: AppMessageIntent) {
     switch intent {
@@ -162,7 +162,7 @@ public final class PanelManagerViewModel {
     }
   }
 
-  // MARK: - Permission & Action Routing
+  // MARK: - Permission & Action Handling
 
   /// The pending action waiting for a permission grant.
   private var pendingAction: (@MainActor () -> Void)? = nil

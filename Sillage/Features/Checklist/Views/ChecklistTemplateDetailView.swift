@@ -327,7 +327,7 @@ public struct ChecklistTemplateDetailView: View {
       Button {
         Task {
           if let sessionId = await viewModel.startOrResumeSession() {
-            panelManager?.commandPath.append(.activeSession(ChecklistSessionPayload(id: sessionId, snapshot: viewModel.activeSession)))
+            panelManager?.commandPath.append(.checklistSession(ChecklistSessionPayload(id: sessionId, snapshot: viewModel.activeSession)))
           }
         }
       } label: {
