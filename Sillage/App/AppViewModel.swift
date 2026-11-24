@@ -98,6 +98,12 @@ final class AppViewModel {
   @MainActor
   func handleNotification(identifier: String) {
     guard let intent = NotificationIntent(rawValue: identifier) else { return }
+    // CRITICAL MARINE SAFETY: Lock-screen / background silence actions must cut the anchor siren
+    // immediately as soon as services are ready, even when no UI scene has mounted (`isReady == false`).
+    if intent == .anchorActionSilence {
+      executeIntent(intent)
+      return
+    }
     if isReady {
       executeIntent(intent)
     } else {

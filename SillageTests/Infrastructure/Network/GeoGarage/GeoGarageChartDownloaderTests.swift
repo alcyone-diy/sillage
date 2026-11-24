@@ -369,4 +369,34 @@ final class GeoGarageChartDownloaderTests: XCTestCase {
       XCTAssertEqual(error, .requestFailed(statusCode: 500))
     }
   }
+
+  func testInit_withInitialBackgroundCompletionHandler_invokesOnceOnFinishEvents() async throws {
+    let mockPackageService = MockPackageService()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+
+    let invoked = expectation(description: "Initial background completion handler invoked on MainActor")
+    var callCount = 0
+
+    let downloader = GeoGarageChartDownloader(
+      packageService: mockPackageService,
+      downloadRepository: repository,
+      sessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      chartsDirectoryURL: tempDirURL,
+      initialBackgroundCompletionHandler: {
+        XCTAssertTrue(Thread.isMainThread)
+        callCount += 1
+        invoked.fulfill()
+      }
+    )
+
+    downloader.urlSessionDidFinishEvents(forBackgroundURLSession: session)
+    await fulfillment(of: [invoked], timeout: 2.0)
+    XCTAssertEqual(callCount, 1)
+
+    // Consumed handler must not fire again if finishEvents is called a second time
+    downloader.urlSessionDidFinishEvents(forBackgroundURLSession: session)
+    try? await Task.sleep(for: .milliseconds(50))
+    XCTAssertEqual(callCount, 1)
+  }
 }

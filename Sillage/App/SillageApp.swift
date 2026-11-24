@@ -15,15 +15,10 @@ import MapLibre
 struct SillageApp: App {
   @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
   @Environment(\.scenePhase) private var scenePhase
-  @State private var environment = AppEnvironment()
-
-  private var isRunningUnitTests: Bool {
-    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-  }
 
   var body: some Scene {
     WindowGroup {
-      if isRunningUnitTests {
+      if AppDelegate.isRunningUnitTests {
         // Prevent the host app from booting MapLibre and live services during unit tests
         // so background tile, database, or sensor activity cannot race with isolated tests.
         EmptyView()
@@ -32,7 +27,7 @@ struct SillageApp: App {
       }
     }
     .onChange(of: scenePhase) { oldPhase, newPhase in
-      guard !isRunningUnitTests else { return }
+      guard !AppDelegate.isRunningUnitTests else { return }
       if newPhase == .background {
         performEmergencySave()
       }
@@ -40,20 +35,16 @@ struct SillageApp: App {
   }
 
   private var appContent: some View {
-    Group {
+    let environment = appDelegate.environment
+    return Group {
       switch environment.state {
       case .uninitialized, .bootstrapping, .error:
         SplashView(state: environment.state) {
-          Task {
-            await environment.bootstrap()
-          }
+          appDelegate.startOrRetryBootstrap()
         }
       case .ready(let container):
         MainAppView()
           .onAppear {
-            appDelegate.environment = environment
-            appDelegate.appViewModel = container.appViewModel
-            appDelegate.chartDownloader = container.geoGarageChartDownloader
             container.appViewModel.isReady = true
             container.appViewModel.processDeferredIntent()
           }
@@ -80,16 +71,11 @@ struct SillageApp: App {
       // No other service or ViewModel is allowed to reset `isIdleTimerDisabled` to `false`.
       UIApplication.shared.isIdleTimerDisabled = true
     }
-    .task {
-      if case .uninitialized = environment.state {
-        await environment.bootstrap()
-      }
-    }
   }
   
   @MainActor
   private func performEmergencySave() {
-    guard case .ready(let container) = environment.state else { return }
+    guard case .ready(let container) = appDelegate.environment.state else { return }
     let trackService = container.trackRecordingService
     switch trackService.state {
     case .recording, .paused, .waitingForFix:

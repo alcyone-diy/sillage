@@ -16,31 +16,49 @@ import OSLog
 @MainActor
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
+  static var isRunningUnitTests: Bool {
+    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+  }
+
   private var pendingNotificationID: String?
+  private var backingEnvironment: AppEnvironment?
 
-  weak var environment: AppEnvironment?
+  /// Single source of truth for `AppEnvironment`, owned by `AppDelegate` so headless background
+  /// wake-ups (e.g. `handleEventsForBackgroundURLSession`, notification actions, CoreLocation)
+  /// always have a live environment without relying on SwiftUI view mounting.
+  /// Allocated lazily so unit test host launches never instantiate `AppEnvironment` unless accessed.
+  var environment: AppEnvironment {
+    if let backingEnvironment {
+      return backingEnvironment
+    }
+    let created = AppEnvironment()
+    backingEnvironment = created
+    return created
+  }
 
-  weak var appViewModel: AppViewModel? {
-    didSet {
-      if let pendingID = pendingNotificationID {
-        Task { @MainActor [weak self] in
-          self?.appViewModel?.handleNotification(identifier: pendingID)
-        }
-        self.pendingNotificationID = nil
-      }
+  override init() {
+    super.init()
+  }
+
+  init(environment: AppEnvironment) {
+    self.backingEnvironment = environment
+    super.init()
+  }
+
+  func startOrRetryBootstrap() {
+    Task { @MainActor [weak self] in
+      await self?.bootstrapEnvironmentAndDrainNotifications()
     }
   }
 
-  weak var chartDownloader: GeoGarageChartDownloader? {
-    didSet {
-      if let pending = pendingBackgroundCompletion {
-        chartDownloader?.setBackgroundCompletionHandler(pending)
-        pendingBackgroundCompletion = nil
-      }
+  func bootstrapEnvironmentAndDrainNotifications() async {
+    await environment.bootstrap()
+    if case .ready(let container) = environment.state,
+       let pendingID = pendingNotificationID {
+      pendingNotificationID = nil
+      container.appViewModel.handleNotification(identifier: pendingID)
     }
   }
-
-  private var pendingBackgroundCompletion: (@MainActor () -> Void)?
 
   func application(
     _ application: UIApplication,
@@ -55,10 +73,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     // Critical: The delegate must be assigned before the app finishes launching
     // so that iOS knows how to route foreground notifications.
     UNUserNotificationCenter.current().delegate = self
+
+    if !Self.isRunningUnitTests {
+      startOrRetryBootstrap()
+    }
     return true
   }
 
   func applicationWillTerminate(_ application: UIApplication) {
+    guard !Self.isRunningUnitTests else { return }
     // Handle termination synchronously on MainActor: iOS kills the process immediately once
     // willTerminate returns, so async notification sequences would be cut off before executing.
     performTerminationWarning()
@@ -66,7 +89,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 
   private func performTerminationWarning() {
     Logger.system.info("performTerminationWarning called.")
-    guard let environment, case .ready(let container) = environment.state else { return }
+    guard let backingEnvironment, case .ready(let container) = backingEnvironment.state else { return }
     let trackService = container.trackRecordingService
     let isTracking: Bool = {
       switch trackService.state {
@@ -113,17 +136,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     completionHandler: @escaping () -> Void
   ) {
     Logger.caas.info("AppDelegate: handleEventsForBackgroundURLSession for \(identifier, privacy: .public)")
-    if identifier == GeoGarageChartDownloader.backgroundSessionIdentifier {
-      let mainActorCompletion: @MainActor () -> Void = {
-        completionHandler()
-      }
-      if let chartDownloader {
-        chartDownloader.setBackgroundCompletionHandler(mainActorCompletion)
-      } else {
-        pendingBackgroundCompletion = mainActorCompletion
-      }
-    } else {
+    let mainActorCompletion: @MainActor () -> Void = {
       completionHandler()
+    }
+    if identifier == GeoGarageChartDownloader.backgroundSessionIdentifier {
+      environment.registerBackgroundURLSessionCompletionHandler(mainActorCompletion)
+    } else {
+      Logger.caas.warning("AppDelegate: Unrecognized background URLSession identifier \(identifier, privacy: .public); invoking completion handler immediately.")
+      mainActorCompletion()
     }
   }
 
@@ -133,6 +153,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     willPresent notification: UNNotification
   ) async -> UNNotificationPresentationOptions {
     [.banner, .list, .sound, .badge]
+  }
+
+  func routeNotificationIdentifier(_ targetIdentifier: String) {
+    if case .ready(let container) = environment.state {
+      container.appViewModel.handleNotification(identifier: targetIdentifier)
+    } else {
+      pendingNotificationID = targetIdentifier
+    }
   }
 
   // Handles the user tapping on a notification or pressing an action button
@@ -145,12 +173,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     let targetIdentifier = (actionIdentifier != UNNotificationDefaultActionIdentifier && actionIdentifier != UNNotificationDismissActionIdentifier) ? actionIdentifier : identifier
 
     await MainActor.run { [weak self] in
-      guard let self = self else { return }
-      if let appViewModel = self.appViewModel {
-        appViewModel.handleNotification(identifier: targetIdentifier)
-      } else {
-        self.pendingNotificationID = targetIdentifier
-      }
+      self?.routeNotificationIdentifier(targetIdentifier)
     }
   }
 }

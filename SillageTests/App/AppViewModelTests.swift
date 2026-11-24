@@ -58,6 +58,18 @@ final class AppViewModelTests: XCTestCase {
     XCTAssertNil(viewModel.pendingNotificationIntent)
   }
 
+  func testSilenceActionExecutesImmediatelyWithoutDeferringWhenNotReady() {
+    let viewModel = AppViewModel(preferencesService: MockPreferencesService())
+    viewModel.isReady = false
+
+    viewModel.handleNotification(identifier: NotificationIntent.anchorActionSilence.rawValue)
+    XCTAssertNil(viewModel.pendingNotificationIntent)
+
+    viewModel.isReady = true
+    viewModel.processDeferredIntent()
+    XCTAssertNil(viewModel.pendingNotificationIntent, "Silence action must execute immediately in background and never queue as a deferred UI intent")
+  }
+
   func testOtherNotificationSetsPendingIntent() {
     let viewModel = AppViewModel(preferencesService: MockPreferencesService())
     viewModel.isReady = true

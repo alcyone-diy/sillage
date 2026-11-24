@@ -54,13 +54,16 @@ final class AppEnvironmentTests: XCTestCase {
     testDatabaseManager = try DatabaseManager.inMemory()
     environment = AppEnvironment(
       configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
+      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
       partnerSecretService: partnerSecretService,
       authSession: authSession,
       keychainManager: mockKeychain,
       preferencesService: testPreferencesService,
       userDefaults: isolatedDefaults.defaults,
       databaseManager: testDatabaseManager,
-      positioningService: MockPositioningService()
+      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
+      positioningService: MockPositioningService(),
+      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration()
     )
   }
 
@@ -388,6 +391,7 @@ final class AppEnvironmentTests: XCTestCase {
     // Inject a mock PositioningService so simulated CoreLocation fixes far from (47.2, -1.5)
     // do not immediately transition the restored watch from `.armed` to `.dragging`.
     let restoredEnv = AppEnvironment(
+      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
       partnerSecretService: partnerSecretService,
       authSession: authSession,
       keychainManager: mockKeychain,
@@ -395,7 +399,8 @@ final class AppEnvironmentTests: XCTestCase {
       userDefaults: isolatedDefaults.defaults,
       databaseManager: testDatabaseManager,
       anchorStateStore: mockStore,
-      positioningService: MockPositioningService()
+      positioningService: MockPositioningService(),
+      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration()
     )
 
     await restoredEnv.bootstrap()
@@ -428,9 +433,179 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertEqual(valid.geoGarageClientID, "my-client-id")
     XCTAssertTrue(valid.isGeoGarageConfigured)
   }
+
+  // MARK: - OfflineMapManager Pure Init & Idempotent Start
+
+  func testOfflineMapManager_isNotStartedOnInit_andStartsIdempotentlyDuringBootstrap() async {
+    XCTAssertFalse(environment.offlineMapManager.isStarted, "OfflineMapManager must remain unstarted in pure AppEnvironment.init()")
+
+    await environment.bootstrap()
+    XCTAssertTrue(environment.offlineMapManager.isStarted, "OfflineMapManager must start during bootstrap()")
+
+    // Calling start() a second time must be a safe no-op
+    environment.offlineMapManager.start()
+    XCTAssertTrue(environment.offlineMapManager.isStarted)
+  }
+
+  // MARK: - Background URLSession Completion Routing Across Lifecycle Windows
+
+  func testBackgroundSessionCompletion_registeredBeforeBootstrap_isInjectedIntoDownloaderOnInit() async throws {
+    let invoked = expectation(description: "Background completion handler invoked via downloader init injection")
+    var callCount = 0
+
+    environment.registerBackgroundURLSessionCompletionHandler {
+      callCount += 1
+      invoked.fulfill()
+    }
+
+    await environment.bootstrap()
+    let downloader = try XCTUnwrap(environment.geoGarageChartDownloader)
+    downloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
+
+    await fulfillment(of: [invoked], timeout: 2.0)
+    XCTAssertEqual(callCount, 1)
+  }
+
+  func testBackgroundSessionCompletion_registeredBetweenDownloaderInitAndReady_isForwardedImmediately() async throws {
+    let (enteredWindowBStream, enteredWindowBContinuation) = AsyncStream<Void>.makeStream()
+    let (releaseBootstrapStream, releaseBootstrapContinuation) = AsyncStream<Void>.makeStream()
+
+    environment.anchorStateStoreLoaderOverride = {
+      enteredWindowBContinuation.yield()
+      enteredWindowBContinuation.finish()
+      var releaseIterator = releaseBootstrapStream.makeAsyncIterator()
+      _ = await releaseIterator.next()
+      return MockAppEnvironmentAnchorStateStore()
+    }
+
+    let bootstrapTask = Task { @MainActor in
+      await self.environment.bootstrap()
+    }
+    defer {
+      // Idempotent safety net: guarantees `anchorStateStoreLoaderOverride` is never left suspended
+      // even if an assertion or `XCTUnwrap` throws before the end of the test.
+      releaseBootstrapContinuation.finish()
+    }
+
+    var enteredIterator = enteredWindowBStream.makeAsyncIterator()
+    _ = await enteredIterator.next()
+
+    XCTAssertNotNil(environment.activeChartDownloader, "Downloader must be instantiated before registering Window B handler")
+    guard case .bootstrapping = environment.state else {
+      XCTFail("Expected environment to still be in .bootstrapping inside Window B")
+      releaseBootstrapContinuation.finish()
+      await bootstrapTask.value
+      return
+    }
+
+    let invoked = expectation(description: "Background completion handler invoked during bootstrapping window")
+    var callCount = 0
+    environment.registerBackgroundURLSessionCompletionHandler {
+      callCount += 1
+      invoked.fulfill()
+    }
+
+    releaseBootstrapContinuation.finish()
+    await bootstrapTask.value
+
+    let downloader = try XCTUnwrap(environment.geoGarageChartDownloader)
+    downloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
+
+    await fulfillment(of: [invoked], timeout: 2.0)
+    XCTAssertEqual(callCount, 1)
+  }
+
+  func testBackgroundSessionCompletion_registeredAfterReady_isForwardedDirectlyToDownloader() async throws {
+    await environment.bootstrap()
+    let downloader = try XCTUnwrap(environment.geoGarageChartDownloader)
+
+    let invoked = expectation(description: "Background completion handler invoked when registered in .ready state")
+    var callCount = 0
+    environment.registerBackgroundURLSessionCompletionHandler {
+      callCount += 1
+      invoked.fulfill()
+    }
+
+    downloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
+    await fulfillment(of: [invoked], timeout: 2.0)
+    XCTAssertEqual(callCount, 1)
+  }
+
+  func testBackgroundSessionCompletion_whenBootstrapFails_invokesAndDrainsPendingHandler() async {
+    struct SimulatedBootstrapFailure: LocalizedError {
+      var errorDescription: String? { "Simulated database failure" }
+    }
+
+    let failingEnv = AppEnvironment(
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
+      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
+      partnerSecretService: partnerSecretService,
+      authSession: authSession,
+      keychainManager: mockKeychain,
+      preferencesService: testPreferencesService,
+      userDefaults: isolatedDefaults.defaults,
+      databaseManager: nil,
+      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
+      positioningService: MockPositioningService(),
+      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration()
+    )
+    failingEnv.databaseManagerFactoryOverride = { throw SimulatedBootstrapFailure() }
+
+    var callCount = 0
+    failingEnv.registerBackgroundURLSessionCompletionHandler {
+      callCount += 1
+    }
+
+    await failingEnv.bootstrap()
+
+    guard case .error = failingEnv.state else {
+      XCTFail("Expected .error state when databaseManagerFactoryOverride throws")
+      return
+    }
+    XCTAssertFalse(failingEnv.offlineMapManager.isStarted, "OfflineMapManager must not start when Phase 1 fails")
+    XCTAssertEqual(callCount, 1, "Pending background completion handler must be invoked immediately when bootstrap fails")
+    XCTAssertNil(failingEnv.geoGarageChartDownloader, "No background chart downloader must be created when Phase 1 throws")
+
+    // Retrying and failing again must NOT re-invoke the already-drained handler
+    await failingEnv.bootstrap()
+    XCTAssertEqual(callCount, 1, "Drained background completion handler must not fire twice")
+  }
+
+  func testBackgroundSessionCompletion_registeredWhenAlreadyInErrorState_invokesImmediately() async {
+    struct SimulatedBootstrapFailure: Error {}
+
+    let failingEnv = AppEnvironment(
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
+      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
+      partnerSecretService: partnerSecretService,
+      authSession: authSession,
+      keychainManager: mockKeychain,
+      preferencesService: testPreferencesService,
+      userDefaults: isolatedDefaults.defaults,
+      databaseManager: nil,
+      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
+      positioningService: MockPositioningService(),
+      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration()
+    )
+    failingEnv.databaseManagerFactoryOverride = { throw SimulatedBootstrapFailure() }
+
+    await failingEnv.bootstrap()
+    guard case .error = failingEnv.state else {
+      XCTFail("Precondition failed: expected .error state")
+      return
+    }
+    XCTAssertFalse(failingEnv.offlineMapManager.isStarted, "OfflineMapManager must remain unstarted on Phase 1 error")
+
+    var callCount = 0
+    failingEnv.registerBackgroundURLSessionCompletionHandler {
+      callCount += 1
+    }
+
+    XCTAssertEqual(callCount, 1, "Handler registered while already in .error state must be invoked immediately instead of leaking")
+  }
 }
 
-private nonisolated final class MockAppEnvironmentAnchorStateStore: AnchorStateStoreProtocol, Sendable {
+nonisolated final class MockAppEnvironmentAnchorStateStore: AnchorStateStoreProtocol, Sendable {
   private let sessionLock: OSAllocatedUnfairLock<AnchorSessionData>
 
   init(initialSession: AnchorSessionData = AnchorSessionData()) {

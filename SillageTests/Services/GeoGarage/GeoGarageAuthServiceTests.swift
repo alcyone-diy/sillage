@@ -583,9 +583,13 @@ final class GeoGarageAuthServiceTests: XCTestCase {
 
     let tokenJSON = self.tokenJSON
     let requestStarted = expectation(description: "Token refresh request reached URLProtocol")
+    let responseGate = DispatchSemaphore(value: 0)
+    defer {
+      responseGate.signal()
+    }
     MockURLProtocol.setHandler { request in
       requestStarted.fulfill()
-      Thread.sleep(forTimeInterval: 0.15)
+      _ = responseGate.wait(timeout: .now() + 5.0)
       return (Self.response(request, status: 200), Data(tokenJSON.utf8))
     }
 
@@ -595,6 +599,7 @@ final class GeoGarageAuthServiceTests: XCTestCase {
 
     await fulfillment(of: [requestStarted], timeout: 2.0)
     await service.logout()
+    responseGate.signal()
 
     do {
       _ = try await refreshTask.value

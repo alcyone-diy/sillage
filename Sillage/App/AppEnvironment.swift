@@ -79,6 +79,18 @@ final class AppEnvironment {
   private let databaseManagerOverride: DatabaseManager?
   private let anchorStateStoreOverride: (any AnchorStateStoreProtocol)?
   private let positioningServiceOverride: (any PositioningService)?
+  private let chartDownloaderSessionConfiguration: URLSessionConfiguration?
+
+  @ObservationIgnored
+  var databaseManagerFactoryOverride: (@Sendable () throws -> DatabaseManager)?
+  @ObservationIgnored
+  var anchorStateStoreLoaderOverride: (@Sendable () async -> any AnchorStateStoreProtocol)?
+
+  @ObservationIgnored
+  private var pendingBackgroundSessionCompletion: (@MainActor () -> Void)?
+  @ObservationIgnored
+  private(set) weak var activeChartDownloader: GeoGarageChartDownloader?
+
   #if DEBUG
   private var screenshotScenarioOverride: ScreenshotScenario?
   #endif
@@ -86,6 +98,7 @@ final class AppEnvironment {
   public init(
     metadata: AppMetadata? = nil,
     configuration: AppConfiguration = .fromBundle(),
+    offlineMapManager: OfflineMapManager? = nil,
     partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil,
     authSession: URLSession = .shared,
     keychainManager: any KeychainManaging = KeychainManager.shared,
@@ -94,14 +107,14 @@ final class AppEnvironment {
     userDefaults: UserDefaults = .standard,
     databaseManager: DatabaseManager? = nil,
     anchorStateStore: (any AnchorStateStoreProtocol)? = nil,
-    positioningService: (any PositioningService)? = nil
+    positioningService: (any PositioningService)? = nil,
+    chartDownloaderSessionConfiguration: URLSessionConfiguration? = nil
   ) {
     self.metadataOverride = metadata
     self.metadata = metadata
     self.bootDate = Date.now
     self.configuration = configuration
-    Self.setupMapLibreProtocol()
-    self.offlineMapManager = OfflineMapManager()
+    self.offlineMapManager = offlineMapManager ?? OfflineMapManager()
     self.keychainManager = keychainManager
     self.tileProxyManager = tileProxyManager ?? TileProxyManager(
       keychainManager: keychainManager,
@@ -114,7 +127,14 @@ final class AppEnvironment {
     self.databaseManagerOverride = databaseManager
     self.anchorStateStoreOverride = anchorStateStore
     self.positioningServiceOverride = positioningService
-    setupMapLibreProgressObservation()
+    self.chartDownloaderSessionConfiguration = chartDownloaderSessionConfiguration
+
+    // Pure synchronous callback wiring (no I/O, no KVO, no unstructured Task in `init`).
+    self.offlineMapManager.onGlobalProgressChanged = { [weak self] progress in
+      guard let self else { return }
+      self.lastMapLibreProgress = progress
+      self.updateCompositeOfflineChartsProgress()
+    }
   }
 
   #if DEBUG
@@ -139,34 +159,62 @@ final class AppEnvironment {
   }
   #endif
   
+  /// Routes an iOS background `URLSession` completion handler across all `AppEnvironment` lifecycle windows:
+  /// - `.error`: invokes immediately on `@MainActor` so iOS never times out waiting for a failed boot.
+  /// - `activeChartDownloader != nil` (late `.bootstrapping` after downloader init, or `.ready`): forwards directly.
+  /// - `.uninitialized` / early `.bootstrapping` (before downloader init): buffers for injection into `GeoGarageChartDownloader.init`.
+  func registerBackgroundURLSessionCompletionHandler(_ handler: @escaping @MainActor () -> Void) {
+    if case .error = state {
+      Logger.caas.error("Received background URLSession completion handler while AppEnvironment is in .error state; invoking immediately.")
+      handler()
+      return
+    }
+    if let downloader = activeChartDownloader {
+      downloader.setBackgroundCompletionHandler(handler)
+    } else {
+      if let supersededHandler = pendingBackgroundSessionCompletion {
+        Logger.caas.warning("Replacing an unconsumed pending background URLSession completion handler; invoking previous handler first.")
+        supersededHandler()
+      }
+      pendingBackgroundSessionCompletion = handler
+    }
+  }
+
   func bootstrap() async {
     if case .bootstrapping = state { return }
     if case .ready = state { return }
     state = .bootstrapping
     Logger.system.info("🚀 Starting AppEnvironment bootstrap sequence. Boot time: \(self.bootDate, privacy: .public)")
-    do {
-      // a. File system preparation & app metadata resolution (off main thread)
-      async let resolvedMetadata: AppMetadata? = self.metadataOverride == nil
-        ? AppMetadataProvider.resolve()
-        : nil
 
+    // Phase 1: Strictly isolate ALL throwing bootstrap steps (`setupFileSystem`, `DatabaseManager`,
+    // debug database seeding, and default checklist seeding). Returning early in `catch` guarantees
+    // at compile time that Phase 2 cannot fail and that neither MapLibre nor a background `URLSession`
+    // is ever started if Phase 1 fails.
+    #if DEBUG
+    let activeScreenshotScenario = self.screenshotScenarioOverride ?? ScreenshotScenario.active
+    if let scenario = activeScreenshotScenario {
+      let gpsLabel = scenario.gpsPreset?.rawValue ?? "off"
+      let baroLabel = scenario.baroPreset?.rawValue ?? "off"
+      Logger.system.notice("📸 Sensor simulation active (gps=\(gpsLabel, privacy: .public), baro=\(baroLabel, privacy: .public), tracks=\(scenario.simulateTracksAndWaypoints, privacy: .public)). User preferences remain untouched.")
+    }
+    #endif
+
+    let databaseManager: DatabaseManager
+    let baroDatabaseManager: DatabaseManager
+    let checklistService: ChecklistService
+    let databaseFactory = self.databaseManagerFactoryOverride
+
+    do {
       try await Task.detached {
         try self.setupFileSystem()
       }.value
-      
-      // b. DatabaseManager async initialization
-      #if DEBUG
-      let activeScreenshotScenario = self.screenshotScenarioOverride ?? ScreenshotScenario.active
-      if let scenario = activeScreenshotScenario {
-        let gpsLabel = scenario.gpsPreset?.rawValue ?? "off"
-        let baroLabel = scenario.baroPreset?.rawValue ?? "off"
-        Logger.system.notice("📸 Sensor simulation active (gps=\(gpsLabel, privacy: .public), baro=\(baroLabel, privacy: .public), tracks=\(scenario.simulateTracksAndWaypoints, privacy: .public)). User preferences remain untouched.")
-      }
-      #endif
 
-      let databaseManager: DatabaseManager
       if let databaseManagerOverride {
         databaseManager = databaseManagerOverride
+      } else if let databaseFactory {
+        databaseManager = try await Task.detached {
+          try databaseFactory()
+        }.value
       } else {
         databaseManager = try await Task.detached {
           try DatabaseManager()
@@ -179,67 +227,7 @@ final class AppEnvironment {
       } else {
         try await ScreenshotBootstrapper.removeSeededTracksAndWaypoints(from: databaseManager)
       }
-      #endif
-      
-      // c. Other Services instantiation (injecting the ready DB)
-      let messageService = MessageService()
 
-      let preferencesService = self.preferencesServiceOverride ?? PreferencesService(
-        defaults: self.userDefaults,
-        keychainManager: self.keychainManager
-      )
-      #if DEBUG
-      let devSettingsDefaults: UserDefaults? = {
-        guard activeScreenshotScenario?.gpsPreset != nil else { return nil }
-        let suiteName = "com.alcyone.sillage.simulated.devsettings"
-        let ephemeralDefaults = UserDefaults(suiteName: suiteName)
-        ephemeralDefaults?.removePersistentDomain(forName: suiteName)
-        return ephemeralDefaults
-      }()
-      let developerSettingsService = DeveloperSettingsService(defaults: devSettingsDefaults ?? self.userDefaults)
-      if activeScreenshotScenario?.gpsPreset != nil {
-        developerSettingsService.cogSogCalculationSource = .iOS
-        developerSettingsService.cogDampingDuration = 0.0
-      }
-
-      let simulatedPositioning: (any PositioningService)? = if let scenario = activeScreenshotScenario, scenario.gpsPreset != nil {
-        SimulatedPositioningService(scenario: scenario)
-      } else {
-        nil
-      }
-      let initialPausesAutomatically = developerSettingsService.pausesLocationUpdatesAutomatically
-      #else
-      let simulatedPositioning: (any PositioningService)? = nil
-      let initialPausesAutomatically = false
-      #endif
-      let positioningService: any PositioningService = self.positioningServiceOverride ?? simulatedPositioning ?? CoreLocationPositioningService(
-        initialAccuracyMode: preferencesService.gpsAccuracyMode,
-        initialPausesLocationUpdatesAutomatically: initialPausesAutomatically
-      )
-      
-      let kinematicsService = VesselKinematicsService(
-        positioningService: positioningService
-      )
-      
-      let instrumentDampingService = InstrumentDampingService(
-        positioningService: kinematicsService
-      )
-
-      #if DEBUG
-      kinematicsService.calculationSource = developerSettingsService.cogSogCalculationSource
-      kinematicsService.noiseMultiplier = developerSettingsService.noiseMultiplier
-      kinematicsService.velocityWindowDuration = developerSettingsService.velocityWindowDuration
-      instrumentDampingService.cogDampingDuration = developerSettingsService.cogDampingDuration
-
-      observeDeveloperSettings(
-        developerSettingsService: developerSettingsService,
-        kinematicsService: kinematicsService,
-        instrumentDampingService: instrumentDampingService
-      )
-      #endif
-      
-      #if DEBUG
-      let baroDatabaseManager: DatabaseManager
       if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
         if let databaseManagerOverride {
           try await ScreenshotBootstrapper.seedBarometricHistory(scenario, into: databaseManagerOverride)
@@ -251,307 +239,382 @@ final class AppEnvironment {
         baroDatabaseManager = databaseManager
       }
       #else
-      let baroDatabaseManager = databaseManager
+      baroDatabaseManager = databaseManager
       #endif
-      let barometricHistoryStore = BarometricHistoryStore(databaseManager: baroDatabaseManager)
-      
-      let notificationService = LocalNotificationService()
-      
-      let permissionService = PermissionService(
-        positioningService: positioningService,
-        notificationService: notificationService
-      )
-      #if DEBUG
-      if let scenario = activeScreenshotScenario {
-        permissionService.forceAuthorizedForSimulatedSensors(
-          gps: scenario.gpsPreset != nil,
-          baro: scenario.baroPreset != nil
-        )
-      }
-      #endif
-      
-      #if DEBUG
-      let simulatedAltimeter: (any AltimeterProvider)? = if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
-        SimulatedAltimeterProvider(scenario: scenario)
-      } else {
-        nil
-      }
-      #else
-      let simulatedAltimeter: (any AltimeterProvider)? = nil
-      #endif
-      let altimeterProvider: AltimeterProvider = simulatedAltimeter ?? CMAltimeter()
 
-      let barometricService = BarometricService(
-        historyStore: barometricHistoryStore,
-        preferencesService: preferencesService,
-        notificationService: notificationService,
-        permissionService: permissionService,
-        altimeter: altimeterProvider
-      )
-      if permissionService.motionStatus == .authorized {
-          barometricService.startUpdates()
-      }
-      
-      let trackRecordingService = TrackRecordingService(
-        positioningService: kinematicsService,
-        databaseManager: databaseManager,
-        preferencesService: preferencesService,
-        messageService: messageService
-      )
-      
-      let trackService = TrackService(databaseManager: databaseManager)
-
-      let waypointService = WaypointService(
-        databaseManager: databaseManager,
-        initialGoToWaypointID: preferencesService.goToWaypointID
-      )
-
-      observeWaypointGoTo(waypointService: waypointService, preferencesService: preferencesService)
-
-      let checklistService = ChecklistService(databaseManager: databaseManager)
+      checklistService = ChecklistService(databaseManager: databaseManager)
       try await checklistService.seedDefaultTemplatesIfNeeded()
-
-      let geoGarageLayerRepository = GeoGarageLayerRepository(databaseManager: databaseManager)
-      let geoGarageAuthService = GeoGarageAuthService(
-        preferencesService: preferencesService,
-        layerRepository: geoGarageLayerRepository,
-        keychainManager: keychainManager,
-        session: authSession,
-        configuration: configuration
-      )
-      await geoGarageAuthService.bootstrap()
-
-
-      let geoGarageDownloadRepository = GeoGarageDownloadRepository(databaseManager: databaseManager)
-      await geoGarageDownloadRepository.load()
-
-      let geoGarageOfflineTileProvider = GeoGarageOfflineTileProvider(
-        onCompatibilityMismatch: { [weak geoGarageDownloadRepository] downloadID, correctedRequiresV3 in
-          guard let repo = geoGarageDownloadRepository else { return }
-          guard let download = await MainActor.run(body: {
-            repo.downloads.first(where: { $0.id == downloadID })
-          }) else { return }
-          let updated = download.updatingRequiresV3Compatibility(correctedRequiresV3)
-          do {
-            try await repo.save(updated)
-            Logger.caas.info("Reconciled requiresV3Compatibility=\(correctedRequiresV3, privacy: .public) for package \(downloadID.uuidString, privacy: .public) in database.")
-          } catch {
-            Logger.caas.error("Failed to reconcile requiresV3Compatibility for package \(downloadID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-          }
-        }
-      )
-      let lastAuthRefreshAttempt = OSAllocatedUnfairLock<ContinuousClock.Instant?>(initialState: nil)
-      TileProxyProtocol.configure(
-        offlineTileProvider: geoGarageOfflineTileProvider,
-        tileProxyManager: tileProxyManager,
-        keychainManager: keychainManager,
-        onAuthenticationFailure: { [weak geoGarageAuthService] in
-          let shouldAttempt = lastAuthRefreshAttempt.withLock { lastAttempt in
-            let now = ContinuousClock.now
-            if let lastAttempt, now - lastAttempt < .seconds(10) {
-              return false
-            }
-            lastAttempt = now
-            return true
-          }
-          guard shouldAttempt else { return }
-          Task { @MainActor in
-            guard let authService = geoGarageAuthService else { return }
-            do {
-              _ = try await authService.refreshTokens()
-            } catch {
-              Logger.network.warning("GeoGarage token refresh after tile 401/403 failed: \(error.localizedDescription, privacy: .public)")
-            }
-          }
-        }
-      )
-
-      // Hydrate GeoGarage customer ID asynchronously from Keychain before checking offline credentials.
-      await preferencesService.loadGeoGarageCustomerID()
-
-      // Empty until the user signs in; skip tile loading until valid credentials (secret & customerID) are present.
-      if let sharedSecret = try? await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
-         let initialCustomerID = preferencesService.geoGarageCustomerID, !initialCustomerID.isEmpty {
-        await geoGarageOfflineTileProvider.reloadDownloads(
-          geoGarageDownloadRepository.downloads,
-          sharedSecret: sharedSecret,
-          customerID: initialCustomerID
-        )
-      } else {
-        await geoGarageOfflineTileProvider.close()
-      }
-
-      observeGeoGarageDownloads(
-        downloadRepository: geoGarageDownloadRepository,
-        offlineTileProvider: geoGarageOfflineTileProvider,
-        preferencesService: preferencesService
-      )
-
-      let geoGaragePackageService = GeoGaragePackageService(session: authSession)
-      let geoGarageChartDownloader = GeoGarageChartDownloader(
-        packageService: geoGaragePackageService,
-        downloadRepository: geoGarageDownloadRepository
-      )
-      (UIApplication.shared.delegate as? AppDelegate)?.chartDownloader = geoGarageChartDownloader
-      
-      let backgroundMonitoringService = DefaultBackgroundMonitoringService(
-        positioningService: positioningService
-      )
-      
-      let alarmAudioService = AlarmAudioService()
-      let anchorStateStore: any AnchorStateStoreProtocol
-      if let anchorStateStoreOverride {
-        anchorStateStore = anchorStateStoreOverride
-      } else {
-        anchorStateStore = await AnchorStateStore.load()
-      }
-      
-      let anchorService = AnchorService(
-        positioningService: positioningService,
-        preferencesService: preferencesService,
-        notificationService: notificationService,
-        permissionService: permissionService,
-        backgroundMonitoringService: backgroundMonitoringService,
-        alarmAudioService: alarmAudioService,
-        stateStore: anchorStateStore
-      )
-      
-      let anchorViewModel = AnchorViewModel(anchorService: anchorService)
-      
-      // d. ViewModels instantiation (injecting the ready Services)
-      let appViewModel = AppViewModel(
-        preferencesService: preferencesService,
-        anchorService: anchorService
-      )
-
-      instrumentDampingService.start()
-
-      let chartViewModel = ChartViewModel(
-        positioningService: positioningService,
-        instrumentDampingService: instrumentDampingService,
-        preferencesService: preferencesService,
-        authService: geoGarageAuthService,
-        anchorService: anchorService,
-        anchorViewModel: anchorViewModel,
-        trackService: trackService,
-        trackRecordingService: trackRecordingService,
-        waypointService: waypointService,
-        messageService: messageService,
-        keychainManager: keychainManager,
-        configuration: configuration
-      )
-      let activeTrackViewModel = ActiveTrackViewModel(
-        trackRecordingService: trackRecordingService,
-        permissionService: permissionService
-      )
-      let barometerViewModel = BarometerViewModel(
-        service: barometricService,
-        preferencesService: preferencesService
-      )
-      
-      let networkMonitorService = NetworkMonitorService()
-      let diskSpaceProvider = SystemDiskSpaceProvider()
-      let geoGarageDownloadService = GeoGarageDownloadService(
-        packageService: geoGaragePackageService,
-        downloader: geoGarageChartDownloader,
-        downloadRepository: geoGarageDownloadRepository,
-        preferencesService: preferencesService,
-        networkMonitor: networkMonitorService,
-        diskSpaceProvider: diskSpaceProvider,
-        messageService: messageService,
-        keychainManager: keychainManager
-      )
-      
-      let offlineSelectionViewModel = OfflineSelectionViewModel(
-        downloadService: geoGarageDownloadService,
-        downloadRepository: geoGarageDownloadRepository,
-        preferencesService: preferencesService,
-        chartViewModel: chartViewModel,
-        offlineMapManager: self.offlineMapManager,
-        downloader: geoGarageChartDownloader,
-        keychainManager: keychainManager
-      )
-      #if DEBUG
-      let batteryService: (any DeviceBatteryServiceProtocol)? = activeScreenshotScenario.map { SimulatedBatteryService(scenario: $0) }
-      if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
-        await barometerViewModel.refreshFullHistory()
-      }
-      #else
-      let batteryService: (any DeviceBatteryServiceProtocol)? = nil
-      #endif
-      let secondaryTelemetryViewModel = SecondaryTelemetryViewModel(batteryService: batteryService)
-      await trackRecordingService.attemptRecoveryIfNeeded()
-      await geoGarageDownloadService.resumePendingDownloadIfNeeded()
-      
-      if let displayedTrackID = preferencesService.displayedTrackSessionID {
-        Task { @MainActor in
-          do {
-            try await chartViewModel.loadAndDisplaySavedTrack(sessionID: displayedTrackID, edgePadding: 50, centerOnTrack: false)
-          } catch {
-            Logger.system.error("❌ Failed to reload previous active track: \(error.localizedDescription, privacy: .public)")
-          }
-        }
-      }
-      
-      setupGeoGarageProgressObservation(geoGarageDownloadService: geoGarageDownloadService)
-
-      let container = AppContainer(
-        userDefaults: self.userDefaults,
-        messageService: messageService,
-        preferencesService: preferencesService,
-        positioningService: positioningService,
-        trackRecordingService: trackRecordingService,
-        trackService: trackService,
-        waypointService: waypointService,
-        geoGarageAuthService: geoGarageAuthService,
-        geoGarageLayerRepository: geoGarageLayerRepository,
-        geoGarageDownloadRepository: geoGarageDownloadRepository,
-        geoGaragePackageService: geoGaragePackageService,
-        geoGarageChartDownloader: geoGarageChartDownloader,
-        geoGarageDownloadService: geoGarageDownloadService,
-        geoGarageOfflineTileProvider: geoGarageOfflineTileProvider,
-        anchorService: anchorService,
-        kinematicsService: kinematicsService,
-        appViewModel: appViewModel,
-        chartViewModel: chartViewModel,
-        activeTrackViewModel: activeTrackViewModel,
-        barometerViewModel: barometerViewModel,
-        anchorViewModel: anchorViewModel,
-        permissionService: permissionService,
-        offlineSelectionViewModel: offlineSelectionViewModel,
-        networkMonitorService: networkMonitorService,
-        notificationService: notificationService,
-        secondaryTelemetryViewModel: secondaryTelemetryViewModel,
-        checklistService: checklistService
-      )
-      #if DEBUG
-      .withDeveloperSettings(developerSettingsService)
-      #endif
-      
-      if let resolved = await resolvedMetadata {
-        self.metadata = resolved
-      }
-
-      Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
-      state = .ready(container)
-
-      // The secret catch-up talks to the portal (up to three 15 s calls). Keep it off the launch
-      // critical path so a boat connected without WAN never waits on it.
-      packageSecretRestoreTask?.cancel()
-      packageSecretRestoreTask = Task { @MainActor [weak self] in
-        guard let self else { return }
-        await self.restorePackageSecretIfMissing(
-          authService: geoGarageAuthService,
-          messageService: messageService,
-          downloadRepository: geoGarageDownloadRepository,
-          offlineTileProvider: geoGarageOfflineTileProvider,
-          preferencesService: preferencesService
-        )
-      }
-
     } catch {
       Logger.system.error("❌ AppEnvironment bootstrap failed: \(error.localizedDescription, privacy: .public)")
       state = .error(error)
+      if let pendingHandler = self.pendingBackgroundSessionCompletion {
+        self.pendingBackgroundSessionCompletion = nil
+        Logger.caas.error("Bootstrap failed with a pending background URLSession completion handler; invoking immediately to prevent OS timeout.")
+        pendingHandler()
+      }
+      return
+    }
+
+    // Phase 2: Non-throwing service & ViewModel assembly (compiler-enforced: no `try` outside local closures).
+    Self.setupMapLibreProtocol()
+    self.offlineMapManager.start()
+
+    async let resolvedMetadata: AppMetadata? = self.metadataOverride == nil
+      ? AppMetadataProvider.resolve()
+      : nil
+
+    let messageService = MessageService()
+
+    let preferencesService = self.preferencesServiceOverride ?? PreferencesService(
+      defaults: self.userDefaults,
+      keychainManager: self.keychainManager
+    )
+    #if DEBUG
+    let devSettingsDefaults: UserDefaults? = {
+      guard activeScreenshotScenario?.gpsPreset != nil else { return nil }
+      let suiteName = "com.alcyone.sillage.simulated.devsettings"
+      let ephemeralDefaults = UserDefaults(suiteName: suiteName)
+      ephemeralDefaults?.removePersistentDomain(forName: suiteName)
+      return ephemeralDefaults
+    }()
+    let developerSettingsService = DeveloperSettingsService(defaults: devSettingsDefaults ?? self.userDefaults)
+    if activeScreenshotScenario?.gpsPreset != nil {
+      developerSettingsService.cogSogCalculationSource = .iOS
+      developerSettingsService.cogDampingDuration = 0.0
+    }
+
+    let simulatedPositioning: (any PositioningService)? = if let scenario = activeScreenshotScenario, scenario.gpsPreset != nil {
+      SimulatedPositioningService(scenario: scenario)
+    } else {
+      nil
+    }
+    let initialPausesAutomatically = developerSettingsService.pausesLocationUpdatesAutomatically
+    #else
+    let simulatedPositioning: (any PositioningService)? = nil
+    let initialPausesAutomatically = false
+    #endif
+    let positioningService: any PositioningService = self.positioningServiceOverride ?? simulatedPositioning ?? CoreLocationPositioningService(
+      initialAccuracyMode: preferencesService.gpsAccuracyMode,
+      initialPausesLocationUpdatesAutomatically: initialPausesAutomatically
+    )
+
+    let kinematicsService = VesselKinematicsService(
+      positioningService: positioningService
+    )
+
+    let instrumentDampingService = InstrumentDampingService(
+      positioningService: kinematicsService
+    )
+
+    #if DEBUG
+    kinematicsService.calculationSource = developerSettingsService.cogSogCalculationSource
+    kinematicsService.noiseMultiplier = developerSettingsService.noiseMultiplier
+    kinematicsService.velocityWindowDuration = developerSettingsService.velocityWindowDuration
+    instrumentDampingService.cogDampingDuration = developerSettingsService.cogDampingDuration
+
+    observeDeveloperSettings(
+      developerSettingsService: developerSettingsService,
+      kinematicsService: kinematicsService,
+      instrumentDampingService: instrumentDampingService
+    )
+    #endif
+
+    let barometricHistoryStore = BarometricHistoryStore(databaseManager: baroDatabaseManager)
+
+    let notificationService = LocalNotificationService()
+
+    let permissionService = PermissionService(
+      positioningService: positioningService,
+      notificationService: notificationService
+    )
+    #if DEBUG
+    if let scenario = activeScreenshotScenario {
+      permissionService.forceAuthorizedForSimulatedSensors(
+        gps: scenario.gpsPreset != nil,
+        baro: scenario.baroPreset != nil
+      )
+    }
+    #endif
+
+    #if DEBUG
+    let simulatedAltimeter: (any AltimeterProvider)? = if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
+      SimulatedAltimeterProvider(scenario: scenario)
+    } else {
+      nil
+    }
+    #else
+    let simulatedAltimeter: (any AltimeterProvider)? = nil
+    #endif
+    let altimeterProvider: AltimeterProvider = simulatedAltimeter ?? CMAltimeter()
+
+    let barometricService = BarometricService(
+      historyStore: barometricHistoryStore,
+      preferencesService: preferencesService,
+      notificationService: notificationService,
+      permissionService: permissionService,
+      altimeter: altimeterProvider
+    )
+    if permissionService.motionStatus == .authorized {
+      barometricService.startUpdates()
+    }
+
+    let trackRecordingService = TrackRecordingService(
+      positioningService: kinematicsService,
+      databaseManager: databaseManager,
+      preferencesService: preferencesService,
+      messageService: messageService
+    )
+
+    let trackService = TrackService(databaseManager: databaseManager)
+
+    let waypointService = WaypointService(
+      databaseManager: databaseManager,
+      initialGoToWaypointID: preferencesService.goToWaypointID
+    )
+
+    observeWaypointGoTo(waypointService: waypointService, preferencesService: preferencesService)
+
+    let geoGarageLayerRepository = GeoGarageLayerRepository(databaseManager: databaseManager)
+    let geoGarageAuthService = GeoGarageAuthService(
+      preferencesService: preferencesService,
+      layerRepository: geoGarageLayerRepository,
+      keychainManager: keychainManager,
+      session: authSession,
+      configuration: configuration
+    )
+    await geoGarageAuthService.bootstrap()
+
+    let geoGarageDownloadRepository = GeoGarageDownloadRepository(databaseManager: databaseManager)
+    await geoGarageDownloadRepository.load()
+
+    let geoGarageOfflineTileProvider = GeoGarageOfflineTileProvider(
+      onCompatibilityMismatch: { [weak geoGarageDownloadRepository] downloadID, correctedRequiresV3 in
+        guard let repo = geoGarageDownloadRepository else { return }
+        guard let download = await MainActor.run(body: {
+          repo.downloads.first(where: { $0.id == downloadID })
+        }) else { return }
+        let updated = download.updatingRequiresV3Compatibility(correctedRequiresV3)
+        do {
+          try await repo.save(updated)
+          Logger.caas.info("Reconciled requiresV3Compatibility=\(correctedRequiresV3, privacy: .public) for package \(downloadID.uuidString, privacy: .public) in database.")
+        } catch {
+          Logger.caas.error("Failed to reconcile requiresV3Compatibility for package \(downloadID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+      }
+    )
+    let lastAuthRefreshAttempt = OSAllocatedUnfairLock<ContinuousClock.Instant?>(initialState: nil)
+    TileProxyProtocol.configure(
+      offlineTileProvider: geoGarageOfflineTileProvider,
+      tileProxyManager: tileProxyManager,
+      keychainManager: keychainManager,
+      onAuthenticationFailure: { [weak geoGarageAuthService] in
+        let shouldAttempt = lastAuthRefreshAttempt.withLock { lastAttempt in
+          let now = ContinuousClock.now
+          if let lastAttempt, now - lastAttempt < .seconds(10) {
+            return false
+          }
+          lastAttempt = now
+          return true
+        }
+        guard shouldAttempt else { return }
+        Task { @MainActor in
+          guard let authService = geoGarageAuthService else { return }
+          do {
+            _ = try await authService.refreshTokens()
+          } catch {
+            Logger.network.warning("GeoGarage token refresh after tile 401/403 failed: \(error.localizedDescription, privacy: .public)")
+          }
+        }
+      }
+    )
+
+    // Hydrate GeoGarage customer ID asynchronously from Keychain before checking offline credentials.
+    await preferencesService.loadGeoGarageCustomerID()
+
+    // Empty until the user signs in; skip tile loading until valid credentials (secret & customerID) are present.
+    if let sharedSecret = try? await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
+       let initialCustomerID = preferencesService.geoGarageCustomerID, !initialCustomerID.isEmpty {
+      await geoGarageOfflineTileProvider.reloadDownloads(
+        geoGarageDownloadRepository.downloads,
+        sharedSecret: sharedSecret,
+        customerID: initialCustomerID
+      )
+    } else {
+      await geoGarageOfflineTileProvider.close()
+    }
+
+    observeGeoGarageDownloads(
+      downloadRepository: geoGarageDownloadRepository,
+      offlineTileProvider: geoGarageOfflineTileProvider,
+      preferencesService: preferencesService
+    )
+
+    let geoGaragePackageService = GeoGaragePackageService(session: authSession)
+    let initialBackgroundCompletion = self.pendingBackgroundSessionCompletion
+    self.pendingBackgroundSessionCompletion = nil
+    let geoGarageChartDownloader = GeoGarageChartDownloader(
+      packageService: geoGaragePackageService,
+      downloadRepository: geoGarageDownloadRepository,
+      sessionConfiguration: self.chartDownloaderSessionConfiguration,
+      initialBackgroundCompletionHandler: initialBackgroundCompletion
+    )
+    self.activeChartDownloader = geoGarageChartDownloader
+
+    let backgroundMonitoringService = DefaultBackgroundMonitoringService(
+      positioningService: positioningService
+    )
+
+    let alarmAudioService = AlarmAudioService()
+    let anchorStateStore: any AnchorStateStoreProtocol
+    if let loaderOverride = self.anchorStateStoreLoaderOverride {
+      anchorStateStore = await loaderOverride()
+    } else if let anchorStateStoreOverride {
+      anchorStateStore = anchorStateStoreOverride
+    } else {
+      anchorStateStore = await AnchorStateStore.load()
+    }
+
+    let anchorService = AnchorService(
+      positioningService: positioningService,
+      preferencesService: preferencesService,
+      notificationService: notificationService,
+      permissionService: permissionService,
+      backgroundMonitoringService: backgroundMonitoringService,
+      alarmAudioService: alarmAudioService,
+      stateStore: anchorStateStore
+    )
+
+    let anchorViewModel = AnchorViewModel(anchorService: anchorService)
+
+    // d. ViewModels instantiation (injecting the ready Services)
+    let appViewModel = AppViewModel(
+      preferencesService: preferencesService,
+      anchorService: anchorService
+    )
+
+    instrumentDampingService.start()
+
+    let chartViewModel = ChartViewModel(
+      positioningService: positioningService,
+      instrumentDampingService: instrumentDampingService,
+      preferencesService: preferencesService,
+      authService: geoGarageAuthService,
+      anchorService: anchorService,
+      anchorViewModel: anchorViewModel,
+      trackService: trackService,
+      trackRecordingService: trackRecordingService,
+      waypointService: waypointService,
+      messageService: messageService,
+      keychainManager: keychainManager,
+      configuration: configuration
+    )
+    let activeTrackViewModel = ActiveTrackViewModel(
+      trackRecordingService: trackRecordingService,
+      permissionService: permissionService
+    )
+    let barometerViewModel = BarometerViewModel(
+      service: barometricService,
+      preferencesService: preferencesService
+    )
+
+    let networkMonitorService = NetworkMonitorService()
+    let diskSpaceProvider = SystemDiskSpaceProvider()
+    let geoGarageDownloadService = GeoGarageDownloadService(
+      packageService: geoGaragePackageService,
+      downloader: geoGarageChartDownloader,
+      downloadRepository: geoGarageDownloadRepository,
+      preferencesService: preferencesService,
+      networkMonitor: networkMonitorService,
+      diskSpaceProvider: diskSpaceProvider,
+      messageService: messageService,
+      keychainManager: keychainManager
+    )
+
+    let offlineSelectionViewModel = OfflineSelectionViewModel(
+      downloadService: geoGarageDownloadService,
+      downloadRepository: geoGarageDownloadRepository,
+      preferencesService: preferencesService,
+      chartViewModel: chartViewModel,
+      offlineMapManager: self.offlineMapManager,
+      downloader: geoGarageChartDownloader,
+      keychainManager: keychainManager
+    )
+    #if DEBUG
+    let batteryService: (any DeviceBatteryServiceProtocol)? = activeScreenshotScenario.map { SimulatedBatteryService(scenario: $0) }
+    if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
+      await barometerViewModel.refreshFullHistory()
+    }
+    #else
+    let batteryService: (any DeviceBatteryServiceProtocol)? = nil
+    #endif
+    let secondaryTelemetryViewModel = SecondaryTelemetryViewModel(batteryService: batteryService)
+    await trackRecordingService.attemptRecoveryIfNeeded()
+    await geoGarageDownloadService.resumePendingDownloadIfNeeded()
+
+    if let displayedTrackID = preferencesService.displayedTrackSessionID {
+      Task { @MainActor in
+        do {
+          try await chartViewModel.loadAndDisplaySavedTrack(sessionID: displayedTrackID, edgePadding: 50, centerOnTrack: false)
+        } catch {
+          Logger.system.error("❌ Failed to reload previous active track: \(error.localizedDescription, privacy: .public)")
+        }
+      }
+    }
+
+    setupGeoGarageProgressObservation(geoGarageDownloadService: geoGarageDownloadService)
+
+    let container = AppContainer(
+      userDefaults: self.userDefaults,
+      messageService: messageService,
+      preferencesService: preferencesService,
+      positioningService: positioningService,
+      trackRecordingService: trackRecordingService,
+      trackService: trackService,
+      waypointService: waypointService,
+      geoGarageAuthService: geoGarageAuthService,
+      geoGarageLayerRepository: geoGarageLayerRepository,
+      geoGarageDownloadRepository: geoGarageDownloadRepository,
+      geoGaragePackageService: geoGaragePackageService,
+      geoGarageChartDownloader: geoGarageChartDownloader,
+      geoGarageDownloadService: geoGarageDownloadService,
+      geoGarageOfflineTileProvider: geoGarageOfflineTileProvider,
+      anchorService: anchorService,
+      kinematicsService: kinematicsService,
+      appViewModel: appViewModel,
+      chartViewModel: chartViewModel,
+      activeTrackViewModel: activeTrackViewModel,
+      barometerViewModel: barometerViewModel,
+      anchorViewModel: anchorViewModel,
+      permissionService: permissionService,
+      offlineSelectionViewModel: offlineSelectionViewModel,
+      networkMonitorService: networkMonitorService,
+      notificationService: notificationService,
+      secondaryTelemetryViewModel: secondaryTelemetryViewModel,
+      checklistService: checklistService
+    )
+    #if DEBUG
+    .withDeveloperSettings(developerSettingsService)
+    #endif
+
+    if let resolved = await resolvedMetadata {
+      self.metadata = resolved
+    }
+
+    Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
+    state = .ready(container)
+
+    // The secret catch-up talks to the portal (up to three 15 s calls). Keep it off the launch
+    // critical path so a boat connected without WAN never waits on it.
+    packageSecretRestoreTask?.cancel()
+    packageSecretRestoreTask = Task { @MainActor [weak self] in
+      guard let self else { return }
+      await self.restorePackageSecretIfMissing(
+        authService: geoGarageAuthService,
+        messageService: messageService,
+        downloadRepository: geoGarageDownloadRepository,
+        offlineTileProvider: geoGarageOfflineTileProvider,
+        preferencesService: preferencesService
+      )
     }
   }
 
@@ -808,7 +871,7 @@ final class AppEnvironment {
     )
   }
 
-  private fuxnc postPackageSecretWarning(on messageService: MessageService) {
+  private func postPackageSecretWarning(on messageService: MessageService) {
     let appMessage = AppMessage(
       title: LocalizedStringResource("Offline Charts Unavailable"),
       detail: .localized("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
@@ -886,9 +949,6 @@ final class AppEnvironment {
   private var geoGarageObservationTask: Task<Void, Never>?
 
   @ObservationIgnored
-  private var mapLibreObservationTask: Task<Void, Never>?
-
-  @ObservationIgnored
   private var lastGeoGarageProgress: Double?
 
   @ObservationIgnored
@@ -902,19 +962,6 @@ final class AppEnvironment {
   /// Normalized download progress value (0.0 to 1.0) when available, or nil for indeterminate state.
   /// Stored property driven reactively via Swift 6 AsyncStream observation to guarantee SwiftUI updates across protocol boundaries.
   var offlineChartsDownloadProgress: Double? = nil
-
-  @MainActor
-  private func setupMapLibreProgressObservation() {
-    mapLibreObservationTask?.cancel()
-    mapLibreObservationTask = Task { @MainActor [weak self] in
-      guard let self = self else { return }
-      for await progress in self.offlineMapManager.downloadProgressStream() {
-        guard !Task.isCancelled else { break }
-        self.lastMapLibreProgress = progress
-        self.updateCompositeOfflineChartsProgress()
-      }
-    }
-  }
 
   @MainActor
   private func setupGeoGarageProgressObservation(geoGarageDownloadService: GeoGarageDownloadServiceProtocol) {
@@ -1030,7 +1077,6 @@ final class AppEnvironment {
     geoGarageDownloadsObservationTask?.cancel()
     geoGarageCustomerIDObservationTask?.cancel()
     geoGarageSyncTask?.cancel()
-    mapLibreObservationTask?.cancel()
     packageSecretRestoreTask?.cancel()
   }
 

@@ -15,7 +15,7 @@ import OSLog
 /// A thread-safe, persistent service responsible for downloading generated MBTiles archives via
 /// iOS native background `URLSession` (`URLSessionDownloadTask`), performing chunk-based streaming MD5
 /// validation, guaranteed temporary file cleanup, remote CAAS server cleanup, and local filesystem persistence.
-final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol, URLSessionDownloadDelegate, @unchecked Sendable {
+final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol, @unchecked Sendable {
 
   static let backgroundSessionIdentifier = "com.alcyone.sillage.geogaragedownloads"
 
@@ -27,7 +27,8 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
   private let packageService: GeoGaragePackageServiceProtocol
   private let downloadRepository: GeoGarageDownloadRepositoryProtocol
   private let chartsDirectoryURL: URL?
-  private var session: URLSession!
+  private let delegateRelay: SessionDelegateRelay
+  private let session: URLSession
 
   private let tasksLock = OSAllocatedUnfairLock<[Int: ActiveTaskContext]>(initialState: [:])
   private let backgroundCompletionHandlerLock = OSAllocatedUnfairLock<(@MainActor () -> Void)?>(initialState: nil)
@@ -47,12 +48,20 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
     packageService: GeoGaragePackageServiceProtocol,
     downloadRepository: GeoGarageDownloadRepositoryProtocol,
     sessionConfiguration: URLSessionConfiguration? = nil,
-    chartsDirectoryURL: URL? = nil
+    chartsDirectoryURL: URL? = nil,
+    initialBackgroundCompletionHandler: (@MainActor () -> Void)? = nil
   ) {
     self.packageService = packageService
     self.downloadRepository = downloadRepository
     self.chartsDirectoryURL = chartsDirectoryURL
-    super.init()
+
+    // Register any pending system completion handler BEFORE creating the background URLSession
+    // so an immediate `nsurlsessiond` event replay cannot fire `urlSessionDidFinishEvents` ahead of it.
+    if let initialBackgroundCompletionHandler {
+      self.backgroundCompletionHandlerLock.withLock {
+        $0 = initialBackgroundCompletionHandler
+      }
+    }
 
     let config: URLSessionConfiguration
     if let sessionConfiguration {
@@ -67,7 +76,17 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
     let queue = OperationQueue()
     queue.name = "com.alcyone.sillage.geogaragedownloader.queue"
     queue.maxConcurrentOperationCount = 2
-    self.session = URLSession(configuration: config, delegate: self, delegateQueue: queue)
+    // Hold delegate delivery until `super.init()` completes and `relay` points to `self`.
+    queue.isSuspended = true
+
+    let relay = SessionDelegateRelay()
+    self.delegateRelay = relay
+    self.session = URLSession(configuration: config, delegate: relay, delegateQueue: queue)
+
+    super.init()
+
+    relay.setOwner(self)
+    queue.isSuspended = false
   }
 
   // MARK: - Background URLSession Completion Handling
@@ -402,5 +421,62 @@ final class GeoGarageChartDownloader: NSObject, GeoGarageChartDownloaderProtocol
         handler()
       }
     }
+  }
+}
+
+/// Forwards `URLSessionDownloadDelegate` events to `GeoGarageChartDownloader` weakly so `session`
+/// can be initialized as a non-optional `let` before `super.init()` without forced unwrapping (`!`)
+/// and without creating a strong retain cycle between `URLSession` and `GeoGarageChartDownloader`.
+private final class SessionDelegateRelay: NSObject, URLSessionDownloadDelegate, Sendable {
+  private struct WeakOwner {
+    weak var value: GeoGarageChartDownloader?
+  }
+
+  private let ownerLock = OSAllocatedUnfairLock<WeakOwner>(initialState: WeakOwner(value: nil))
+
+  func setOwner(_ owner: GeoGarageChartDownloader) {
+    ownerLock.withLock {
+      $0.value = owner
+    }
+  }
+
+  private var owner: GeoGarageChartDownloader? {
+    ownerLock.withLock { $0.value }
+  }
+
+  func urlSession(
+    _ session: URLSession,
+    downloadTask: URLSessionDownloadTask,
+    didWriteData bytesWritten: Int64,
+    totalBytesWritten: Int64,
+    totalBytesExpectedToWrite: Int64
+  ) {
+    owner?.urlSession(
+      session,
+      downloadTask: downloadTask,
+      didWriteData: bytesWritten,
+      totalBytesWritten: totalBytesWritten,
+      totalBytesExpectedToWrite: totalBytesExpectedToWrite
+    )
+  }
+
+  func urlSession(
+    _ session: URLSession,
+    downloadTask: URLSessionDownloadTask,
+    didFinishDownloadingTo location: URL
+  ) {
+    owner?.urlSession(session, downloadTask: downloadTask, didFinishDownloadingTo: location)
+  }
+
+  func urlSession(
+    _ session: URLSession,
+    task: URLSessionTask,
+    didCompleteWithError error: Error?
+  ) {
+    owner?.urlSession(session, task: task, didCompleteWithError: error)
+  }
+
+  func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+    owner?.urlSessionDidFinishEvents(forBackgroundURLSession: session)
   }
 }

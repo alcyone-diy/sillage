@@ -74,6 +74,9 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   @ObservationIgnored
   private let progressContinuationsLock = OSAllocatedUnfairLock<[UUID: AsyncStream<Double?>.Continuation]>(initialState: [:])
 
+  @ObservationIgnored
+  var onGlobalProgressChanged: ((Double?) -> Void)?
+
   var downloadedRegions: [OfflineRegionInfo] = [] {
     didSet {
       notifyProgressObservers()
@@ -119,6 +122,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
 
   private func notifyProgressObservers() {
     let currentProgress = globalDownloadProgress
+    onGlobalProgressChanged?(currentProgress)
     let continuations = progressContinuationsLock.withLock { Array($0.values) }
     for cont in continuations {
       cont.yield(currentProgress)
@@ -144,6 +148,12 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   private var activeWorker: MBTilesDownloadWorker?
   private var activeWorkerTask: Task<Void, Never>?
   private var packsObservation: NSKeyValueObservation?
+  private let bindsToMapLibreStorage: Bool
+  private(set) var isStarted: Bool = false
+
+  @ObservationIgnored
+  private let globalProgressNotificationTaskLock = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
+
   /// Held while a download is active so iOS does not suspend the process
   /// when the user backgrounds the app.
   private var backgroundTaskToken: BackgroundTaskToken?
@@ -152,7 +162,18 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
   /// JSON decoding (`loadExistingPacks`, `updateRegionSize`, `tryAutoResumeIfNeeded`).
   private let contextDecoder = JSONDecoder()
 
-  init() {
+  init(bindsToMapLibreStorage: Bool = true) {
+    self.bindsToMapLibreStorage = bindsToMapLibreStorage
+  }
+
+  /// Starts MapLibre offline storage configuration, KVO pack observation, and background progress notifications.
+  /// Deferred from `init()` so allocating `OfflineMapManager` (e.g. in `AppEnvironment.init()` or unit tests)
+  /// remains strictly pure without waking MapLibre's SQLite database or spawning background tasks prematurely.
+  func start() {
+    guard !isStarted else { return }
+    isStarted = true
+    guard bindsToMapLibreStorage else { return }
+
     MLNOfflineStorage.shared.setMaximumAllowedMapboxTiles(UInt64.max)
     MLNOfflineStorage.shared.setMaximumAmbientCacheSize(UInt(MapConstants.ambientCacheSize), withCompletionHandler: { error in
       if let error = error {
@@ -174,7 +195,7 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
     // Globally observe progress changes to update sizes of completed packs
     // when requestProgress() is called. High-frequency background notifications are throttled
     // to protect MainActor runloop, and auto-resume is only evaluated when no download is active.
-    Task { [weak self] in
+    let notificationTask = Task { [weak self] in
       var lastNotificationDate = Date.distantPast
 
       for await notification in NotificationCenter.default.notifications(named: NSNotification.Name.MLNOfflinePackProgressChanged) {
@@ -197,6 +218,24 @@ public final class OfflineMapManager: OfflineMapManagerProtocol, @unchecked Send
         }
       }
     }
+
+    let previousTask = globalProgressNotificationTaskLock.withLock {
+      let old = $0
+      $0 = notificationTask
+      return old
+    }
+    previousTask?.cancel()
+  }
+
+  deinit {
+    // NSKeyValueObservation (`packsObservation`) invalidates itself automatically on ARC deallocation.
+    // Extract the unstructured notification task outside the lock before cancelling in nonisolated deinit.
+    let task = globalProgressNotificationTaskLock.withLock {
+      let current = $0
+      $0 = nil
+      return current
+    }
+    task?.cancel()
   }
   
   @MainActor func loadExistingPacks() {
