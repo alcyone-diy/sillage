@@ -24,7 +24,7 @@ public struct PressureDropCalculator {
     let sortedReadings = readings.sorted { $0.timestamp < $1.timestamp }
     
     guard let currentReading = sortedReadings.last else { return nil }
-    guard let peakReading = sortedReadings.max(by: { $0.pressure.value < $1.pressure.value }) else { return nil }
+    guard let peakReading = sortedReadings.max(by: { $0.pressure < $1.pressure }) else { return nil }
     
     // The drop is the difference between the current (latest) reading and the peak reading
     // If current is lower than peak, this value will be negative.

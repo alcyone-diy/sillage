@@ -22,6 +22,8 @@ public struct HeadingVectorData: Equatable, Sendable {
 /// based on navigation telemetry (SOG/COG), decoupling the heavy math from the ViewModels.
 public struct HeadingVectorPredictor: Sendable {
   
+  private static let minimumPredictionSpeed = Measurement<UnitSpeed>(value: 0.5, unit: .knots)
+  
   /// Predicts the vessel's future path based on current speed and course.
   /// - Parameters:
   ///   - startCoordinate: The vessel's current position.
@@ -37,10 +39,8 @@ public struct HeadingVectorPredictor: Sendable {
     timeHorizonSeconds: Double,
     generateTicks: Bool
   ) -> HeadingVectorData? {
-    let sogKnots = sog.converted(to: .knots).value
-    
     // Cut-off below 0.5 knots to avoid erratic spinning vectors when nearly stationary
-    if sogKnots < 0.5 { return nil }
+    if sog < Self.minimumPredictionSpeed { return nil }
     
     let speedInMps = sog.converted(to: .metersPerSecond).value
     let totalDistanceMeters = speedInMps * timeHorizonSeconds

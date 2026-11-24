@@ -262,12 +262,14 @@ final class InstrumentDampingService<C: Clock & Sendable> where C.Duration == Du
     }
     
     if let newSOG = newState.smoothedSOG, let currentSOG = currentState.smoothedSOG {
-      if abs((newSOG - currentSOG).converted(to: .knots).value) >= speedUpdateThreshold.value { return true }
+      let speedDelta = newSOG >= currentSOG ? newSOG - currentSOG : currentSOG - newSOG
+      if speedDelta >= speedUpdateThreshold { return true }
     } else if newState.smoothedSOG != currentState.smoothedSOG { return true }
     
     if let newCOG = newState.smoothedCOG, let currentCOG = currentState.smoothedCOG {
-      let diffValue = abs((newCOG - currentCOG).converted(to: .degrees).value).truncatingRemainder(dividingBy: 360)
-      if (diffValue > 180 ? 360 - diffValue : diffValue) >= courseUpdateThreshold.value { return true }
+      let diffDegrees = abs((newCOG - currentCOG).converted(to: .degrees).value).truncatingRemainder(dividingBy: 360)
+      let shortestArc = Measurement<UnitAngle>(value: diffDegrees > 180 ? 360 - diffDegrees : diffDegrees, unit: .degrees)
+      if shortestArc >= courseUpdateThreshold { return true }
     } else if newState.smoothedCOG != currentState.smoothedCOG { return true }
     
     return false

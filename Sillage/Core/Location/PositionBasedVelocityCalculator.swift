@@ -48,6 +48,8 @@ public actor PositionBasedVelocityCalculator {
   }
 
   private static let earthRadiusMeters: Double = 6371000.0
+  private static let accurateFixTriggerThreshold = Measurement<UnitLength>(value: 15.0, unit: .meters)
+  private static let coarseFixRetentionThreshold = Measurement<UnitLength>(value: 20.0, unit: .meters)
 
   private var history: [FixEntry] = []
   private var wasMoving: Bool = false
@@ -101,10 +103,10 @@ public actor PositionBasedVelocityCalculator {
     history.append(currentEntry)
 
     // Drop coarse initial fixes (e.g. > 20m) only if we retain at least 2 accurate fixes
-    if currentEntry.accuracy.converted(to: .meters).value <= 15.0 {
-      let accurateCount = history.filter { $0.accuracy.converted(to: .meters).value <= 20.0 }.count
+    if currentEntry.accuracy <= Self.accurateFixTriggerThreshold {
+      let accurateCount = history.filter { $0.accuracy <= Self.coarseFixRetentionThreshold }.count
       if accurateCount >= 2 {
-        history.removeAll { $0.accuracy.converted(to: .meters).value > 20.0 }
+        history.removeAll { $0.accuracy > Self.coarseFixRetentionThreshold }
       }
     }
 

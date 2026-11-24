@@ -29,6 +29,8 @@ final class ChartViewModel {
   
   // MARK: - Core State
   
+  private static let anchorVisualVesselThrottleDistance = Measurement<UnitLength>(value: 3.0, unit: .meters)
+  
   var trackingMode: ChartTrackingMode = .free
   var currentChartSource: ChartSource?
   var chartBounds: MBTilesBounds?
@@ -905,9 +907,7 @@ final class ChartViewModel {
     let throttledVesselCoord: CLLocationCoordinate2D? = {
       guard let newCoord = currentVesselCoord else { return nil }
       if let oldCoord = anchorVisualState?.vesselCoordinate {
-        let oldLoc = CLLocation(latitude: oldCoord.latitude, longitude: oldCoord.longitude)
-        let newLoc = CLLocation(latitude: newCoord.latitude, longitude: newCoord.longitude)
-        if newLoc.distance(from: oldLoc) < 3.0 {
+        if newCoord.distance(to: oldCoord) < Self.anchorVisualVesselThrottleDistance {
           return oldCoord
         }
       }
