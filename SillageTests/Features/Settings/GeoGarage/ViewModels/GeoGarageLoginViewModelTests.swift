@@ -862,6 +862,12 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     func deleteToken(for account: String) async throws(KeychainError) {
       token = nil
     }
+
+    func migrateAccessibilityIfNeeded(for accounts: [String]) async throws(KeychainError) {
+      if let errorToThrow {
+        throw errorToThrow
+      }
+    }
   }
 
   func testRefreshAuthenticationStatusPreCancelledDoesNotQueryKeychainOrInvalidateInFlightRefresh() async {

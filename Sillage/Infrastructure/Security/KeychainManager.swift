@@ -17,6 +17,15 @@ public enum KeychainError: LocalizedError, Equatable, Sendable {
   case encodingFailed
   case decodingFailed
 
+  /// Indicates whether the Keychain rejected access because device data protection is currently locked
+  /// (e.g. Before First Unlock after reboot, or legacy `WhenUnlocked` item read while screen is locked).
+  public var isInteractionNotAllowed: Bool {
+    if case .unexpectedStatus(let status) = self {
+      return status == errSecInteractionNotAllowed
+    }
+    return false
+  }
+
   public var errorDescription: String? {
     switch self {
     case .unexpectedStatus(let status):
@@ -36,6 +45,7 @@ public protocol KeychainManaging: Sendable {
   func save(token: String, for account: String) async throws(KeychainError)
   func retrieveToken(for account: String) async throws(KeychainError) -> String?
   func deleteToken(for account: String) async throws(KeychainError)
+  func migrateAccessibilityIfNeeded(for accounts: [String]) async throws(KeychainError)
 }
 
 extension KeychainManaging {
@@ -64,6 +74,8 @@ actor KeychainManager: KeychainManaging {
       throw KeychainError.encodingFailed
     }
 
+    // IMPORTANT: Never include `kSecAttrAccessible` in `query` dictionaries for `SecItemCopyMatching`,
+    // `SecItemUpdate`, or `SecItemDelete` so existing items created under an older accessibility class remain visible.
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Self.service,
@@ -71,7 +83,16 @@ actor KeychainManager: KeychainManaging {
     ]
 
     let attributesToUpdate: [String: Any] = [
-      kSecValueData as String: data
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    ]
+
+    let newItem: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Self.service,
+      kSecAttrAccount as String: account,
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
     ]
 
     let updateStatus = SecItemUpdate(query as CFDictionary, attributesToUpdate as CFDictionary)
@@ -79,18 +100,24 @@ actor KeychainManager: KeychainManaging {
       return
     }
 
+    if updateStatus == errSecParam {
+      let deleteStatus = SecItemDelete(query as CFDictionary)
+      guard deleteStatus == errSecSuccess || deleteStatus == errSecItemNotFound else {
+        Logger.system.error("Keychain fallback delete failed for account '\(account, privacy: .public)' with OSStatus \(deleteStatus, privacy: .public).")
+        throw KeychainError.unexpectedStatus(deleteStatus)
+      }
+      let replaceStatus = SecItemAdd(newItem as CFDictionary, nil)
+      if replaceStatus == errSecSuccess {
+        return
+      }
+      Logger.system.error("Keychain fallback add failed for account '\(account, privacy: .public)' with OSStatus \(replaceStatus, privacy: .public).")
+      throw KeychainError.unexpectedStatus(replaceStatus)
+    }
+
     if updateStatus != errSecItemNotFound {
       Logger.system.error("Keychain update failed for account '\(account, privacy: .public)' with OSStatus \(updateStatus, privacy: .public).")
       throw KeychainError.unexpectedStatus(updateStatus)
     }
-
-    let newItem: [String: Any] = [
-      kSecClass as String: kSecClassGenericPassword,
-      kSecAttrService as String: Self.service,
-      kSecAttrAccount as String: account,
-      kSecValueData as String: data,
-      kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-    ]
 
     let addStatus = SecItemAdd(newItem as CFDictionary, nil)
     if addStatus == errSecSuccess {
@@ -156,5 +183,82 @@ actor KeychainManager: KeychainManaging {
 
     Logger.system.error("Keychain delete failed for account '\(account, privacy: .public)' with OSStatus \(status, privacy: .public).")
     throw KeychainError.unexpectedStatus(status)
+  }
+
+  /// Idempotently migrates existing Keychain items to `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`
+  /// so background chart downloads and tile decryption succeed while the device screen is locked.
+  func migrateAccessibilityIfNeeded(for accounts: [String]) throws(KeychainError) {
+    let targetAccessible = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
+
+    for account in accounts {
+      let readQuery: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: Self.service,
+        kSecAttrAccount as String: account,
+        kSecReturnAttributes as String: kCFBooleanTrue as Any,
+        kSecReturnData as String: kCFBooleanTrue as Any,
+        kSecMatchLimit as String: kSecMatchLimitOne
+      ]
+
+      var result: CFTypeRef?
+      let readStatus = SecItemCopyMatching(readQuery as CFDictionary, &result)
+      if readStatus == errSecItemNotFound {
+        continue
+      }
+
+      guard readStatus == errSecSuccess else {
+        Logger.system.warning("Keychain accessibility check failed for account '\(account, privacy: .public)' with OSStatus \(readStatus, privacy: .public).")
+        throw KeychainError.unexpectedStatus(readStatus)
+      }
+
+      guard let attributes = result as? [String: Any] else {
+        continue
+      }
+
+      let currentAccessible = attributes[kSecAttrAccessible as String] as? String
+      if currentAccessible == targetAccessible {
+        continue
+      }
+
+      let matchQuery: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: Self.service,
+        kSecAttrAccount as String: account
+      ]
+      let attributesToUpdate: [String: Any] = [
+        kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+      ]
+
+      let updateStatus = SecItemUpdate(matchQuery as CFDictionary, attributesToUpdate as CFDictionary)
+      if updateStatus == errSecSuccess {
+        Logger.system.info("Migrated Keychain accessibility to AfterFirstUnlockThisDeviceOnly for account '\(account, privacy: .public)'.")
+        continue
+      }
+
+      if updateStatus == errSecParam, let existingData = attributes[kSecValueData as String] as? Data {
+        let deleteStatus = SecItemDelete(matchQuery as CFDictionary)
+        guard deleteStatus == errSecSuccess || deleteStatus == errSecItemNotFound else {
+          Logger.system.error("Keychain migration fallback delete failed for account '\(account, privacy: .public)' with OSStatus \(deleteStatus, privacy: .public).")
+          throw KeychainError.unexpectedStatus(deleteStatus)
+        }
+        let replacementItem: [String: Any] = [
+          kSecClass as String: kSecClassGenericPassword,
+          kSecAttrService as String: Self.service,
+          kSecAttrAccount as String: account,
+          kSecValueData as String: existingData,
+          kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        let addStatus = SecItemAdd(replacementItem as CFDictionary, nil)
+        guard addStatus == errSecSuccess else {
+          Logger.system.error("Keychain migration fallback add failed for account '\(account, privacy: .public)' with OSStatus \(addStatus, privacy: .public).")
+          throw KeychainError.unexpectedStatus(addStatus)
+        }
+        Logger.system.info("Migrated Keychain accessibility via replace to AfterFirstUnlockThisDeviceOnly for account '\(account, privacy: .public)'.")
+        continue
+      }
+
+      Logger.system.error("Keychain accessibility migration failed for account '\(account, privacy: .public)' with OSStatus \(updateStatus, privacy: .public).")
+      throw KeychainError.unexpectedStatus(updateStatus)
+    }
   }
 }

@@ -16,4 +16,11 @@ public enum GeoGarageKeychainKeys {
   public static let refreshToken = "geogarage_refresh_token"
   public static let packageSecret = "geogarage_package_secret"
   public static let customerID = "geogarage_customer_id"
+
+  public static let allAccounts: [String] = [
+    accessToken,
+    refreshToken,
+    packageSecret,
+    customerID
+  ]
 }

@@ -20,7 +20,11 @@ final class MockPreferencesService: PreferencesServiceProtocol {
   var savedGeoGarageLayerID: String?
   var geoGarageUsername: String?
   var geoGarageCustomerID: String?
-  func loadGeoGarageCustomerID() async {}
+  var customerIDHydrationStatus: KeychainHydrationStatus = .hydrated
+  @discardableResult
+  func loadGeoGarageCustomerID() async -> KeychainHydrationStatus {
+    customerIDHydrationStatus
+  }
   var savedLatitude: Double?
   var savedLongitude: Double?
   var savedZoom: Double?

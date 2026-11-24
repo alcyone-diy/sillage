@@ -28,8 +28,15 @@ struct SillageApp: App {
     }
     .onChange(of: scenePhase) { oldPhase, newPhase in
       guard !AppDelegate.isRunningUnitTests else { return }
-      if newPhase == .background {
+      switch newPhase {
+      case .active:
+        appDelegate.handleProtectedDataAvailabilityChange()
+      case .background:
         performEmergencySave()
+      case .inactive:
+        break
+      @unknown default:
+        break
       }
     }
   }

@@ -16,6 +16,7 @@ import OSLog
 protocol GeoGarageAuthServiceProtocol: AnyObject {
   var isGeoGarageConfigured: Bool { get }
   var isGeoGarageAuthenticated: Bool { get }
+  var isDeferredForProtectedData: Bool { get }
   var availableLayers: [GeoGarageLayer] { get }
   var authError: Error? { get set }
   var discoverURL: URL? { get }
@@ -35,6 +36,7 @@ protocol GeoGarageAuthServiceProtocol: AnyObject {
 @MainActor
 final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   var isGeoGarageAuthenticated: Bool = false
+  private(set) var isDeferredForProtectedData: Bool = false
   var availableLayers: [GeoGarageLayer] {
     layerRepository.layers
   }
@@ -105,10 +107,25 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
   func bootstrap() async {
     guard isGeoGarageConfigured else {
       self.isGeoGarageAuthenticated = false
+      self.isDeferredForProtectedData = false
       return
     }
-    let hasToken = (try? await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken)) != nil
-    self.isGeoGarageAuthenticated = hasToken
+    do {
+      let hasToken = try await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) != nil
+      self.isGeoGarageAuthenticated = hasToken
+      self.isDeferredForProtectedData = false
+    } catch {
+      if error.isInteractionNotAllowed {
+        Logger.network.warning("GeoGarage auth bootstrap deferred: Keychain locked while protected data is unavailable.")
+        // Preserve any prior in-memory auth state while Keychain access is temporarily blocked (BFU);
+        // `AppEnvironment` re-hydrates once protected data unlocks.
+        self.isDeferredForProtectedData = true
+      } else {
+        Logger.network.error("GeoGarage auth bootstrap failed to read Keychain: \(error.localizedDescription, privacy: .public)")
+        self.isGeoGarageAuthenticated = false
+        self.isDeferredForProtectedData = false
+      }
+    }
     _ = await layerRepository.loadCachedLayers()
   }
 
@@ -132,6 +149,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
     preferencesService.geoGarageUsername = nil
     preferencesService.geoGarageCustomerID = nil
     self.isGeoGarageAuthenticated = false
+    self.isDeferredForProtectedData = false
     await layerRepository.clearCache()
   }
 
@@ -222,6 +240,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
       try await store(tokens)
       self.authError = nil
       self.isGeoGarageAuthenticated = true
+      self.isDeferredForProtectedData = false
       return tokens
     } catch AuthError.cancelled {
       // Cancelled during the code exchange: silent like the other cancellations, the Settings
@@ -286,6 +305,7 @@ final class GeoGarageAuthService: GeoGarageAuthServiceProtocol {
       }
       self.authError = nil
       self.isGeoGarageAuthenticated = true
+      self.isDeferredForProtectedData = false
       Logger.network.info("GeoGarage tokens refreshed.")
       return tokens
     } catch is CancellationError {

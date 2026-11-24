@@ -452,6 +452,7 @@ final class ChartViewModel {
     withObservationTracking {
       _ = authService.availableLayers
       _ = authService.isGeoGarageAuthenticated
+      _ = authService.isDeferredForProtectedData
     } onChange: { [weak self] in
       Task { @MainActor [weak self] in
         guard let self = self else { return }
@@ -762,6 +763,11 @@ final class ChartViewModel {
   }
   
   /// Authenticates with GeoGarage in the background using stored credentials to populate available layers.
+  func refreshGeoGarageLayersIfAuthenticated() {
+    guard isGeoGarageAuthenticated else { return }
+    silentlyFetchGeoGarageLayers()
+  }
+
   private func silentlyFetchGeoGarageLayers() {
     silentFetchTask?.cancel()
     guard configuration.isGeoGarageConfigured else { return }
@@ -820,7 +826,9 @@ final class ChartViewModel {
   /// If so, posts a warning message to guide the user to sign in or choose another chart source.
   /// When authenticated or when using another chart source, removes the warning.
   func updateUnauthenticatedGeoGarageWarning() {
-    if case .remoteGeoGarage = currentChartSource, !isGeoGarageAuthenticated {
+    if case .remoteGeoGarage = currentChartSource,
+       !isGeoGarageAuthenticated,
+       !authService.isDeferredForProtectedData {
       // Prevent redundant message re-posting and carousel churn if the warning is already displayed
       if messageService.messages.contains(where: { $0.id == Self.unauthenticatedGeoGarageChartMessageID }) {
         return

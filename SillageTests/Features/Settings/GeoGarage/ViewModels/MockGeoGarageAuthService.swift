@@ -16,6 +16,7 @@ import Observation
 final class MockGeoGarageAuthService: GeoGarageAuthServiceProtocol, @unchecked Sendable {
   var isGeoGarageConfigured: Bool = true
   var isGeoGarageAuthenticated: Bool = false
+  var isDeferredForProtectedData: Bool = false
   var availableLayers: [GeoGarageLayer] = []
   var authError: Error?
   var discoverURL: URL? { URL(string: "https://geogarage.com/") }

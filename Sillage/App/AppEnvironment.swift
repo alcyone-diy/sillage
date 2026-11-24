@@ -17,7 +17,15 @@ import MapLibre
 @Observable
 @MainActor
 final class AppEnvironment {
+  static let keychainAccessibilityMigratedDefaultsKey = "keychain_accessibility_migrated_v1"
+
   private(set) var state: AppState = .uninitialized
+  private(set) var needsProtectedDataHydration: Bool = false
+  private(set) var didFailWhileProtectedDataUnavailable: Bool = false
+
+  var canAccessProtectedData: Bool {
+    isProtectedDataAvailable()
+  }
 
   public private(set) var metadata: AppMetadata?
   public let bootDate: Date
@@ -80,6 +88,7 @@ final class AppEnvironment {
   private let anchorStateStoreOverride: (any AnchorStateStoreProtocol)?
   private let positioningServiceOverride: (any PositioningService)?
   private let chartDownloaderSessionConfiguration: URLSessionConfiguration?
+  private let isProtectedDataAvailable: @MainActor () -> Bool
 
   @ObservationIgnored
   var databaseManagerFactoryOverride: (@Sendable () throws -> DatabaseManager)?
@@ -90,6 +99,10 @@ final class AppEnvironment {
   private var pendingBackgroundSessionCompletion: (@MainActor () -> Void)?
   @ObservationIgnored
   private(set) weak var activeChartDownloader: GeoGarageChartDownloader?
+  @ObservationIgnored
+  private var isHydratingProtectedData: Bool = false
+  @ObservationIgnored
+  private var didBecomeProtectedDataAvailableDuringBootstrap: Bool = false
 
   #if DEBUG
   private var screenshotScenarioOverride: ScreenshotScenario?
@@ -108,7 +121,8 @@ final class AppEnvironment {
     databaseManager: DatabaseManager? = nil,
     anchorStateStore: (any AnchorStateStoreProtocol)? = nil,
     positioningService: (any PositioningService)? = nil,
-    chartDownloaderSessionConfiguration: URLSessionConfiguration? = nil
+    chartDownloaderSessionConfiguration: URLSessionConfiguration? = nil,
+    isProtectedDataAvailable: @escaping @MainActor () -> Bool = { UIApplication.shared.isProtectedDataAvailable }
   ) {
     self.metadataOverride = metadata
     self.metadata = metadata
@@ -128,6 +142,7 @@ final class AppEnvironment {
     self.anchorStateStoreOverride = anchorStateStore
     self.positioningServiceOverride = positioningService
     self.chartDownloaderSessionConfiguration = chartDownloaderSessionConfiguration
+    self.isProtectedDataAvailable = isProtectedDataAvailable
 
     // Pure synchronous callback wiring (no I/O, no KVO, no unstructured Task in `init`).
     self.offlineMapManager.onGlobalProgressChanged = { [weak self] progress in
@@ -184,6 +199,8 @@ final class AppEnvironment {
     if case .bootstrapping = state { return }
     if case .ready = state { return }
     state = .bootstrapping
+    didFailWhileProtectedDataUnavailable = false
+    didBecomeProtectedDataAvailableDuringBootstrap = false
     Logger.system.info("🚀 Starting AppEnvironment bootstrap sequence. Boot time: \(self.bootDate, privacy: .public)")
 
     // Phase 1: Strictly isolate ALL throwing bootstrap steps (`setupFileSystem`, `DatabaseManager`,
@@ -246,6 +263,7 @@ final class AppEnvironment {
       try await checklistService.seedDefaultTemplatesIfNeeded()
     } catch {
       Logger.system.error("❌ AppEnvironment bootstrap failed: \(error.localizedDescription, privacy: .public)")
+      didFailWhileProtectedDataUnavailable = !isProtectedDataAvailable()
       state = .error(error)
       if let pendingHandler = self.pendingBackgroundSessionCompletion {
         self.pendingBackgroundSessionCompletion = nil
@@ -374,6 +392,8 @@ final class AppEnvironment {
 
     observeWaypointGoTo(waypointService: waypointService, preferencesService: preferencesService)
 
+    let migrationStatus = await migrateKeychainIfProtectedDataAvailable()
+
     let geoGarageLayerRepository = GeoGarageLayerRepository(databaseManager: databaseManager)
     let geoGarageAuthService = GeoGarageAuthService(
       preferencesService: preferencesService,
@@ -429,19 +449,20 @@ final class AppEnvironment {
     )
 
     // Hydrate GeoGarage customer ID asynchronously from Keychain before checking offline credentials.
-    await preferencesService.loadGeoGarageCustomerID()
+    let customerIDStatus = await preferencesService.loadGeoGarageCustomerID()
 
     // Empty until the user signs in; skip tile loading until valid credentials (secret & customerID) are present.
-    if let sharedSecret = try? await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
-       let initialCustomerID = preferencesService.geoGarageCustomerID, !initialCustomerID.isEmpty {
-      await geoGarageOfflineTileProvider.reloadDownloads(
-        geoGarageDownloadRepository.downloads,
-        sharedSecret: sharedSecret,
-        customerID: initialCustomerID
-      )
-    } else {
-      await geoGarageOfflineTileProvider.close()
-    }
+    // On `errSecInteractionNotAllowed`, preserve open readers and defer hydration until protected data unlocks.
+    let secretStatus = await syncGeoGarageOfflineTileProvider(
+      downloadRepository: geoGarageDownloadRepository,
+      offlineTileProvider: geoGarageOfflineTileProvider,
+      preferencesService: preferencesService,
+      customerIDStatus: customerIDStatus
+    )
+    self.needsProtectedDataHydration = migrationStatus == .deferredForProtectedData
+      || geoGarageAuthService.isDeferredForProtectedData
+      || customerIDStatus == .deferredForProtectedData
+      || secretStatus == .deferredForProtectedData
 
     observeGeoGarageDownloads(
       downloadRepository: geoGarageDownloadRepository,
@@ -603,19 +624,114 @@ final class AppEnvironment {
     Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
     state = .ready(container)
 
-    // The secret catch-up talks to the portal (up to three 15 s calls). Keep it off the launch
-    // critical path so a boat connected without WAN never waits on it.
+    if !self.needsProtectedDataHydration {
+      // The secret catch-up talks to the portal (up to three 15 s calls). Keep it off the launch
+      // critical path so a boat connected without WAN never waits on it.
+      packageSecretRestoreTask?.cancel()
+      packageSecretRestoreTask = Task { @MainActor [weak self] in
+        guard let self else { return }
+        await self.restorePackageSecretIfMissing(
+          authService: geoGarageAuthService,
+          messageService: messageService,
+          downloadRepository: geoGarageDownloadRepository,
+          offlineTileProvider: geoGarageOfflineTileProvider,
+          preferencesService: preferencesService
+        )
+      }
+    }
+
+    if self.didBecomeProtectedDataAvailableDuringBootstrap {
+      self.didBecomeProtectedDataAvailableDuringBootstrap = false
+      await self.handleProtectedDataDidBecomeAvailable()
+    }
+  }
+
+  /// Migrates legacy `WhenUnlocked` Keychain entries to `AfterFirstUnlock` once protected data is unlocked.
+  /// Marks `UserDefaults` complete only if every account check/migration succeeds without error.
+  @discardableResult
+  private func migrateKeychainIfProtectedDataAvailable() async -> KeychainHydrationStatus {
+    guard isProtectedDataAvailable() else {
+      Logger.system.info("Protected data unavailable; deferring Keychain accessibility migration.")
+      return .hydrated
+    }
+    guard !userDefaults.bool(forKey: Self.keychainAccessibilityMigratedDefaultsKey) else {
+      return .hydrated
+    }
+    do {
+      try await keychainManager.migrateAccessibilityIfNeeded(for: GeoGarageKeychainKeys.allAccounts)
+      userDefaults.set(true, forKey: Self.keychainAccessibilityMigratedDefaultsKey)
+      return .hydrated
+    } catch {
+      if error.isInteractionNotAllowed {
+        Logger.system.warning("Keychain accessibility migration deferred: Keychain interaction not allowed.")
+        return .deferredForProtectedData
+      }
+      Logger.system.error("Keychain accessibility migration failed: \(error.localizedDescription, privacy: .public)")
+      return .hydrated
+    }
+  }
+
+  /// Re-hydrates Keychain-backed GeoGarage credentials after a Before-First-Unlock (BFU) or locked boot.
+  /// Triggered both from `AppDelegate.applicationProtectedDataDidBecomeAvailable(_:)` and foreground `scenePhase == .active`.
+  func handleProtectedDataDidBecomeAvailable() async {
+    guard isProtectedDataAvailable() else { return }
+
+    if case .bootstrapping = state {
+      didBecomeProtectedDataAvailableDuringBootstrap = true
+      return
+    }
+
+    guard case .ready(let container) = state else { return }
+    guard !isHydratingProtectedData else { return }
+
+    isHydratingProtectedData = true
+    defer { isHydratingProtectedData = false }
+
+    let migrationStatus = await migrateKeychainIfProtectedDataAvailable()
+
+    guard migrationStatus == .deferredForProtectedData
+      || needsProtectedDataHydration
+      || container.geoGarageAuthService.isDeferredForProtectedData else {
+      return
+    }
+
+    Logger.system.info("Protected data available; re-hydrating deferred GeoGarage Keychain credentials.")
+
+    await container.geoGarageAuthService.bootstrap()
+    let customerIDStatus = await container.preferencesService.loadGeoGarageCustomerID()
+    let secretStatus = await syncGeoGarageOfflineTileProvider(
+      downloadRepository: container.geoGarageDownloadRepository,
+      offlineTileProvider: container.geoGarageOfflineTileProvider,
+      preferencesService: container.preferencesService,
+      customerIDStatus: customerIDStatus
+    )
+
+    let stillDeferred = migrationStatus == .deferredForProtectedData
+      || container.geoGarageAuthService.isDeferredForProtectedData
+      || customerIDStatus == .deferredForProtectedData
+      || secretStatus == .deferredForProtectedData
+    self.needsProtectedDataHydration = stillDeferred
+
+    guard !stillDeferred else {
+      Logger.system.warning("Protected data re-hydration still blocked by Keychain; keeping needsProtectedDataHydration = true.")
+      return
+    }
+
+    container.chartViewModel.refreshGeoGarageLayersIfAuthenticated()
+
     packageSecretRestoreTask?.cancel()
     packageSecretRestoreTask = Task { @MainActor [weak self] in
       guard let self else { return }
       await self.restorePackageSecretIfMissing(
-        authService: geoGarageAuthService,
-        messageService: messageService,
-        downloadRepository: geoGarageDownloadRepository,
-        offlineTileProvider: geoGarageOfflineTileProvider,
-        preferencesService: preferencesService
+        authService: container.geoGarageAuthService,
+        messageService: container.messageService,
+        downloadRepository: container.geoGarageDownloadRepository,
+        offlineTileProvider: container.geoGarageOfflineTileProvider,
+        preferencesService: container.preferencesService
       )
     }
+
+    await container.geoGarageDownloadService.resumePendingDownloadIfNeeded()
   }
 
   #if DEBUG
@@ -724,32 +840,57 @@ final class AppEnvironment {
             let repo = downloadRepository,
             let provider = offlineTileProvider,
             let preferences = preferencesService else { return }
-      await self.syncGeoGarageOfflineTileProvider(
+      let status = await self.syncGeoGarageOfflineTileProvider(
         downloadRepository: repo,
         offlineTileProvider: provider,
         preferencesService: preferences
       )
+      if status == .deferredForProtectedData {
+        self.needsProtectedDataHydration = true
+      }
     }
   }
 
+  @discardableResult
   private func syncGeoGarageOfflineTileProvider(
     downloadRepository: GeoGarageDownloadRepository,
     offlineTileProvider: GeoGarageOfflineTileProvider,
-    preferencesService: PreferencesService
-  ) async {
-    guard let secret = try? await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount),
-          !Task.isCancelled,
-          let customerID = preferencesService.geoGarageCustomerID, !customerID.isEmpty else {
-      guard !Task.isCancelled else { return }
+    preferencesService: PreferencesService,
+    customerIDStatus: KeychainHydrationStatus = .hydrated
+  ) async -> KeychainHydrationStatus {
+    let secret: String?
+    do {
+      secret = try await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount)
+    } catch {
+      if error.isInteractionNotAllowed {
+        Logger.caas.warning("Deferred loading GeoGarage package secret: Keychain locked while protected data is unavailable.")
+        return .deferredForProtectedData
+      }
+      Logger.caas.error("Failed to read GeoGarage package secret from Keychain: \(error.localizedDescription, privacy: .public)")
+      guard !Task.isCancelled else { return .hydrated }
       await offlineTileProvider.close()
-      return
+      return .hydrated
     }
-    guard !Task.isCancelled else { return }
+
+    guard !Task.isCancelled else { return .hydrated }
+
+    if customerIDStatus == .deferredForProtectedData {
+      return .deferredForProtectedData
+    }
+
+    guard let secret,
+          let customerID = preferencesService.geoGarageCustomerID,
+          !customerID.isEmpty else {
+      await offlineTileProvider.close()
+      return .hydrated
+    }
+
     await offlineTileProvider.reloadDownloads(
       downloadRepository.downloads,
       sharedSecret: secret,
       customerID: customerID
     )
+    return .hydrated
   }
 
   // MARK: - GeoGarage Package Secret Recovery

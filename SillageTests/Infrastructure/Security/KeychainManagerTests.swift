@@ -133,4 +133,95 @@ final class KeychainManagerTests: XCTestCase {
     XCTAssertNotNil(KeychainError.decodingFailed.errorDescription)
     XCTAssertNotNil(KeychainError.unexpectedStatus(errSecInteractionNotAllowed).errorDescription)
   }
+
+  func testIsInteractionNotAllowedAndAllAccounts() {
+    XCTAssertTrue(KeychainError.unexpectedStatus(errSecInteractionNotAllowed).isInteractionNotAllowed)
+    XCTAssertFalse(KeychainError.unexpectedStatus(errSecItemNotFound).isInteractionNotAllowed)
+    XCTAssertFalse(KeychainError.encodingFailed.isInteractionNotAllowed)
+
+    XCTAssertEqual(
+      Set(GeoGarageKeychainKeys.allAccounts),
+      Set([
+        GeoGarageKeychainKeys.accessToken,
+        GeoGarageKeychainKeys.refreshToken,
+        GeoGarageKeychainKeys.packageSecret,
+        GeoGarageKeychainKeys.customerID
+      ])
+    )
+  }
+
+  func testSave_setsAfterFirstUnlockThisDeviceOnlyAccessibility() async throws {
+    try await manager.save(token: "token-after-first-unlock", for: testAccount)
+
+    let accessible = readAccessibleAttribute(for: testAccount)
+    XCTAssertEqual(accessible, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+  }
+
+  func testLegacyWhenUnlockedItem_retrieveMigrateIdempotentlyUpsertAndDelete() async throws {
+    try insertLegacyWhenUnlockedItem(token: "legacy-token-value", for: testAccount)
+    XCTAssertEqual(readAccessibleAttribute(for: testAccount), kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String)
+
+    // 1. `retrieveToken` must not filter by `kSecAttrAccessible` in `query`
+    let initialRead = try await manager.retrieveToken(for: testAccount)
+    XCTAssertEqual(initialRead, "legacy-token-value")
+
+    // 2. `migrateAccessibilityIfNeeded` upgrades to `AfterFirstUnlockThisDeviceOnly` and ignores missing accounts
+    let missingAccount = "com.alcyone-sillage.tests.missing.\(UUID().uuidString)"
+    try await manager.migrateAccessibilityIfNeeded(for: [missingAccount, testAccount])
+    XCTAssertEqual(readAccessibleAttribute(for: testAccount), kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+    let afterMigration = try await manager.retrieveToken(for: testAccount)
+    XCTAssertEqual(afterMigration, "legacy-token-value")
+
+    // 3. Second migration call is idempotent
+    try await manager.migrateAccessibilityIfNeeded(for: [testAccount])
+    XCTAssertEqual(readAccessibleAttribute(for: testAccount), kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+    let afterIdempotentCall = try await manager.retrieveToken(for: testAccount)
+    XCTAssertEqual(afterIdempotentCall, "legacy-token-value")
+
+    // 4. `deleteToken` and `save` upsert also handle legacy `WhenUnlocked` items cleanly
+    try await manager.deleteToken(for: testAccount)
+    try insertLegacyWhenUnlockedItem(token: "legacy-v1", for: testAccount)
+    XCTAssertEqual(readAccessibleAttribute(for: testAccount), kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String)
+
+    try await manager.save(token: "upgraded-v2", for: testAccount)
+    XCTAssertEqual(readAccessibleAttribute(for: testAccount), kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+    let afterUpsert = try await manager.retrieveToken(for: testAccount)
+    XCTAssertEqual(afterUpsert, "upgraded-v2")
+
+    // 5. Deleting a legacy `WhenUnlocked` item directly succeeds
+    try await manager.deleteToken(for: testAccount)
+    try insertLegacyWhenUnlockedItem(token: "legacy-to-delete", for: testAccount)
+    try await manager.deleteToken(for: testAccount)
+    let afterFinalDelete = try await manager.retrieveToken(for: testAccount)
+    XCTAssertNil(afterFinalDelete)
+  }
+
+  // MARK: - Raw Security.framework Helpers
+
+  private func insertLegacyWhenUnlockedItem(token: String, for account: String) throws {
+    let legacyItem: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: "com.alcyone-sillage.sillage",
+      kSecAttrAccount as String: account,
+      kSecValueData as String: Data(token.utf8),
+      kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+    ]
+    XCTAssertEqual(SecItemAdd(legacyItem as CFDictionary, nil), errSecSuccess)
+  }
+
+  private func readAccessibleAttribute(for account: String) -> String? {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: "com.alcyone-sillage.sillage",
+      kSecAttrAccount as String: account,
+      kSecReturnAttributes as String: kCFBooleanTrue as Any,
+      kSecMatchLimit as String: kSecMatchLimitOne
+    ]
+    var item: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+          let attributes = item as? [String: Any] else {
+      return nil
+    }
+    return attributes[kSecAttrAccessible as String] as? String
+  }
 }

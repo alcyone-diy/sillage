@@ -699,5 +699,53 @@ final class GeoGarageAuthServiceTests: XCTestCase {
     XCTAssertFalse(unconfiguredService.isGeoGarageConfigured)
     XCTAssertFalse(unconfiguredService.isGeoGarageAuthenticated)
   }
+
+  @MainActor
+  func testBootstrap_whenKeychainInteractionNotAllowed_preservesAuthStateAndMarksDeferred() async throws {
+    service.isGeoGarageAuthenticated = true
+    let cachedLayer = GeoGarageLayer(layer: "shom", brandName: "SHOM", versionDate: "2026-01-01", validUntil: "2027-01-01")
+    await layerRepository.saveLayers([cachedLayer])
+    mockKeychain.setStubbedError(.unexpectedStatus(errSecInteractionNotAllowed))
+
+    await service.bootstrap()
+
+    XCTAssertTrue(service.isGeoGarageAuthenticated, "Keychain lock (BFU) must not falsely sign out an authenticated session")
+    XCTAssertTrue(service.isDeferredForProtectedData)
+    XCTAssertEqual(service.availableLayers.map(\.layer), ["shom"], "Cached SQLite layers must still load when Keychain is locked")
+
+    // Once unlocked with no token in Keychain (`nil`), auth resets cleanly to `false` and clears deferred flag
+    mockKeychain.setStubbedError(nil)
+    await service.bootstrap()
+
+    XCTAssertFalse(service.isGeoGarageAuthenticated)
+    XCTAssertFalse(service.isDeferredForProtectedData)
+  }
+
+  @MainActor
+  func testBootstrap_whenPermanentNonBFUKeychainErrorOccurs_clearsAuthWithoutDeferring() async throws {
+    service.isGeoGarageAuthenticated = true
+    mockKeychain.setStubbedError(.decodingFailed)
+
+    await service.bootstrap()
+
+    XCTAssertFalse(service.isGeoGarageAuthenticated, "Permanent non-BFU Keychain error must not preserve stale authenticated state")
+    XCTAssertFalse(service.isDeferredForProtectedData, "Permanent non-BFU Keychain error must not leave isDeferredForProtectedData = true")
+  }
+
+  @MainActor
+  func testRefreshTokens_clearsDeferredProtectedDataFlagOnSuccess() async throws {
+    mockKeychain.setStubbedError(.unexpectedStatus(errSecInteractionNotAllowed))
+    await service.bootstrap()
+    XCTAssertTrue(service.isDeferredForProtectedData)
+
+    mockKeychain.setStubbedError(nil)
+    try await mockKeychain.save(token: "old-refresh", for: GeoGarageKeychainKeys.refreshToken)
+    installPortalHandler(log: RequestLog())
+
+    _ = try await service.refreshTokens()
+
+    XCTAssertTrue(service.isGeoGarageAuthenticated)
+    XCTAssertFalse(service.isDeferredForProtectedData)
+  }
 }
 

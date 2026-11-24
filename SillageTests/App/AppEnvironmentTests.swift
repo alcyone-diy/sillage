@@ -603,6 +603,279 @@ final class AppEnvironmentTests: XCTestCase {
 
     XCTAssertEqual(callCount, 1, "Handler registered while already in .error state must be invoked immediately instead of leaking")
   }
+
+  // MARK: - Lot 2: Protected Data (BFU) Deferral, Migration & Re-Hydration
+
+  func testBootstrap_inBFULockedState_defersMigrationAndRehydratesOnProtectedDataUnlock() async throws {
+    partnerSecretService.secrets = GeoGaragePartnerSecrets(
+      clientID: "mock-client",
+      customerID: nil,
+      packageSecret: "restored-secret",
+      teaSecret: ""
+    )
+    try await mockKeychain.save(token: "bfu_access_token", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "cus_bfu_42", for: GeoGarageKeychainKeys.customerID)
+    mockKeychain.setStubbedError(.unexpectedStatus(errSecInteractionNotAllowed))
+
+    let protectedDataAvailable = OSAllocatedUnfairLock<Bool>(initialState: false)
+    let bfuEnv = AppEnvironment(
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
+      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
+      partnerSecretService: partnerSecretService,
+      authSession: authSession,
+      keychainManager: mockKeychain,
+      preferencesService: testPreferencesService,
+      userDefaults: isolatedDefaults.defaults,
+      databaseManager: testDatabaseManager,
+      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
+      positioningService: MockPositioningService(),
+      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      isProtectedDataAvailable: { protectedDataAvailable.withLock { $0 } }
+    )
+
+    await bfuEnv.bootstrap()
+
+    guard case .ready(let container) = bfuEnv.state else {
+      XCTFail("Expected .ready state even when Keychain is locked in BFU")
+      return
+    }
+
+    // 1. While locked in BFU: migration not run, migration flag false, no false sign-in warning, no partner secret call
+    XCTAssertFalse(isolatedDefaults.defaults.bool(forKey: AppEnvironment.keychainAccessibilityMigratedDefaultsKey))
+    XCTAssertTrue(mockKeychain.migrationCalls.isEmpty)
+    XCTAssertTrue(bfuEnv.needsProtectedDataHydration)
+    XCTAssertTrue(container.geoGarageAuthService.isDeferredForProtectedData)
+    XCTAssertTrue(partnerSecretService.receivedAccessTokens.isEmpty, "Must not call /partners/me/ while Keychain is locked")
+
+    // Calling handleProtectedDataDidBecomeAvailable while still locked is a no-op
+    await bfuEnv.handleProtectedDataDidBecomeAvailable()
+    XCTAssertTrue(bfuEnv.needsProtectedDataHydration)
+    XCTAssertTrue(mockKeychain.migrationCalls.isEmpty)
+
+    // 2. Device unlocks: migration runs once, all 3 credentials hydrate, and missing package secret is restored
+    protectedDataAvailable.withLock { $0 = true }
+    mockKeychain.setStubbedError(nil)
+
+    await bfuEnv.handleProtectedDataDidBecomeAvailable()
+    await bfuEnv.packageSecretRestoreTask?.value
+
+    XCTAssertTrue(isolatedDefaults.defaults.bool(forKey: AppEnvironment.keychainAccessibilityMigratedDefaultsKey))
+    XCTAssertEqual(mockKeychain.migrationCalls, [GeoGarageKeychainKeys.allAccounts])
+    XCTAssertFalse(bfuEnv.needsProtectedDataHydration)
+    XCTAssertFalse(container.geoGarageAuthService.isDeferredForProtectedData)
+    XCTAssertTrue(container.geoGarageAuthService.isGeoGarageAuthenticated)
+    XCTAssertEqual(container.preferencesService.geoGarageCustomerID, "cus_bfu_42")
+    XCTAssertEqual(partnerSecretService.receivedAccessTokens, ["bfu_access_token"])
+
+    // 3. Subsequent foreground / unlock notifications are idempotent no-ops
+    await bfuEnv.handleProtectedDataDidBecomeAvailable()
+    XCTAssertEqual(mockKeychain.migrationCalls.count, 1)
+  }
+
+  func testProtectedDataUnlock_duringBootstrap_replaysHydrationAutomaticallyOnReady() async throws {
+    try await mockKeychain.save(token: "boot_access_token", for: GeoGarageKeychainKeys.accessToken)
+    try await mockKeychain.save(token: "cus_during_boot", for: GeoGarageKeychainKeys.customerID)
+    try await mockKeychain.save(token: "secret_during_boot", for: GeoGarageKeychainKeys.packageSecret)
+    mockKeychain.setStubbedError(.unexpectedStatus(errSecInteractionNotAllowed))
+
+    let protectedDataAvailable = OSAllocatedUnfairLock<Bool>(initialState: false)
+    let (enteredAnchorLoadStream, enteredAnchorLoadContinuation) = AsyncStream<Void>.makeStream()
+    let (releaseAnchorLoadStream, releaseAnchorLoadContinuation) = AsyncStream<Void>.makeStream()
+
+    let bfuEnv = AppEnvironment(
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
+      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
+      partnerSecretService: partnerSecretService,
+      authSession: authSession,
+      keychainManager: mockKeychain,
+      preferencesService: testPreferencesService,
+      userDefaults: isolatedDefaults.defaults,
+      databaseManager: testDatabaseManager,
+      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
+      positioningService: MockPositioningService(),
+      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      isProtectedDataAvailable: { protectedDataAvailable.withLock { $0 } }
+    )
+    bfuEnv.anchorStateStoreLoaderOverride = {
+      enteredAnchorLoadContinuation.yield()
+      enteredAnchorLoadContinuation.finish()
+      var iterator = releaseAnchorLoadStream.makeAsyncIterator()
+      _ = await iterator.next()
+      return MockAppEnvironmentAnchorStateStore()
+    }
+
+    let bootstrapTask = Task { @MainActor in
+      await bfuEnv.bootstrap()
+    }
+    defer {
+      releaseAnchorLoadContinuation.finish()
+    }
+
+    var enteredIterator = enteredAnchorLoadStream.makeAsyncIterator()
+    _ = await enteredIterator.next()
+
+    // Protected data unlocks mid-bootstrap (after Keychain reads already failed with errSecInteractionNotAllowed)
+    protectedDataAvailable.withLock { $0 = true }
+    mockKeychain.setStubbedError(nil)
+    await bfuEnv.handleProtectedDataDidBecomeAvailable()
+
+    releaseAnchorLoadContinuation.finish()
+    await bootstrapTask.value
+
+    guard case .ready(let container) = bfuEnv.state else {
+      XCTFail("Expected .ready state")
+      return
+    }
+
+    XCTAssertFalse(bfuEnv.needsProtectedDataHydration, "Unlock recorded during .bootstrapping must replay automatically upon .ready")
+    XCTAssertTrue(container.geoGarageAuthService.isGeoGarageAuthenticated)
+    XCTAssertEqual(container.preferencesService.geoGarageCustomerID, "cus_during_boot")
+    XCTAssertEqual(mockKeychain.migrationCalls, [GeoGarageKeychainKeys.allAccounts])
+  }
+
+  func testHandleProtectedDataDidBecomeAvailable_isNonReentrantUnderSimultaneousTriggers() async throws {
+    let gatingKeychain = GatingMigrationKeychainManager(
+      initialTokens: [
+        GeoGarageKeychainKeys.accessToken: "reentrant_access",
+        GeoGarageKeychainKeys.customerID: "cus_reentrant",
+        GeoGarageKeychainKeys.packageSecret: "secret_reentrant"
+      ]
+    )
+    await gatingKeychain.setLocked(true)
+
+    let protectedDataAvailable = OSAllocatedUnfairLock<Bool>(initialState: false)
+    let reentrantPrefs = PreferencesService(defaults: isolatedDefaults.defaults, keychainManager: gatingKeychain)
+    let bfuEnv = AppEnvironment(
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
+      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
+      partnerSecretService: partnerSecretService,
+      authSession: authSession,
+      keychainManager: gatingKeychain,
+      preferencesService: reentrantPrefs,
+      userDefaults: isolatedDefaults.defaults,
+      databaseManager: testDatabaseManager,
+      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
+      positioningService: MockPositioningService(),
+      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      isProtectedDataAvailable: { protectedDataAvailable.withLock { $0 } }
+    )
+
+    await bfuEnv.bootstrap()
+    XCTAssertTrue(bfuEnv.needsProtectedDataHydration)
+
+    let (enteredMigrationStream, enteredMigrationContinuation) = AsyncStream<Void>.makeStream()
+    let (releaseMigrationStream, releaseMigrationContinuation) = AsyncStream<Void>.makeStream()
+    await gatingKeychain.installMigrationGate(
+      onEnter: enteredMigrationContinuation,
+      releaseStream: releaseMigrationStream
+    )
+
+    protectedDataAvailable.withLock { $0 = true }
+    await gatingKeychain.setLocked(false)
+
+    // First call (`applicationProtectedDataDidBecomeAvailable`) enters hydration and suspends in migration
+    let firstCall = Task { @MainActor in
+      await bfuEnv.handleProtectedDataDidBecomeAvailable()
+    }
+    defer {
+      releaseMigrationContinuation.finish()
+    }
+
+    var enteredIterator = enteredMigrationStream.makeAsyncIterator()
+    _ = await enteredIterator.next()
+
+    // Second simultaneous call (`scenePhase == .active`) must bail out immediately via `isHydratingProtectedData`
+    await bfuEnv.handleProtectedDataDidBecomeAvailable()
+
+    releaseMigrationContinuation.finish()
+    await firstCall.value
+
+    let migrationCount = await gatingKeychain.migrationCallCount
+    XCTAssertEqual(migrationCount, 1, "Anti-reentrancy guard must prevent duplicate concurrent hydration passes")
+    XCTAssertFalse(bfuEnv.needsProtectedDataHydration)
+  }
+
+  func testBootstrap_whenPermanentNonBFUKeychainErrorOccurs_doesNotSetNeedsProtectedDataHydration() async throws {
+    mockKeychain.setStubbedError(.decodingFailed)
+
+    let permanentErrorEnv = AppEnvironment(
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
+      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
+      partnerSecretService: partnerSecretService,
+      authSession: authSession,
+      keychainManager: mockKeychain,
+      preferencesService: testPreferencesService,
+      userDefaults: isolatedDefaults.defaults,
+      databaseManager: testDatabaseManager,
+      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
+      positioningService: MockPositioningService(),
+      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      isProtectedDataAvailable: { true }
+    )
+
+    await permanentErrorEnv.bootstrap()
+
+    guard case .ready(let container) = permanentErrorEnv.state else {
+      XCTFail("Expected .ready state")
+      return
+    }
+
+    XCTAssertFalse(permanentErrorEnv.needsProtectedDataHydration, "Permanent Keychain error must not trigger infinite foreground hydration loops")
+    XCTAssertFalse(container.geoGarageAuthService.isDeferredForProtectedData)
+    XCTAssertFalse(container.geoGarageAuthService.isGeoGarageAuthenticated)
+  }
+}
+
+private actor GatingMigrationKeychainManager: KeychainManaging {
+  private var tokens: [String: String]
+  private var isLocked = false
+  private var onEnterMigration: AsyncStream<Void>.Continuation?
+  private var releaseMigrationStream: AsyncStream<Void>?
+  private(set) var migrationCallCount = 0
+
+  init(initialTokens: [String: String]) {
+    self.tokens = initialTokens
+  }
+
+  func setLocked(_ locked: Bool) {
+    self.isLocked = locked
+  }
+
+  func installMigrationGate(
+    onEnter: AsyncStream<Void>.Continuation,
+    releaseStream: AsyncStream<Void>
+  ) {
+    self.onEnterMigration = onEnter
+    self.releaseMigrationStream = releaseStream
+  }
+
+  func save(token: String, for account: String) async throws(KeychainError) {
+    if isLocked { throw .unexpectedStatus(errSecInteractionNotAllowed) }
+    tokens[account] = token
+  }
+
+  func retrieveToken(for account: String) async throws(KeychainError) -> String? {
+    if isLocked { throw .unexpectedStatus(errSecInteractionNotAllowed) }
+    return tokens[account]
+  }
+
+  func deleteToken(for account: String) async throws(KeychainError) {
+    if isLocked { throw .unexpectedStatus(errSecInteractionNotAllowed) }
+    tokens.removeValue(forKey: account)
+  }
+
+  func migrateAccessibilityIfNeeded(for accounts: [String]) async throws(KeychainError) {
+    if isLocked { throw .unexpectedStatus(errSecInteractionNotAllowed) }
+    migrationCallCount += 1
+    if let onEnterMigration, let releaseMigrationStream {
+      self.onEnterMigration = nil
+      self.releaseMigrationStream = nil
+      onEnterMigration.yield()
+      onEnterMigration.finish()
+      var iterator = releaseMigrationStream.makeAsyncIterator()
+      _ = await iterator.next()
+    }
+  }
 }
 
 nonisolated final class MockAppEnvironmentAnchorStateStore: AnchorStateStoreProtocol, Sendable {

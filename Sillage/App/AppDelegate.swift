@@ -80,6 +80,31 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     return true
   }
 
+  func applicationProtectedDataDidBecomeAvailable(_ application: UIApplication) {
+    guard !Self.isRunningUnitTests else { return }
+    handleProtectedDataAvailabilityChange()
+  }
+
+  /// Single entry point called both when `applicationProtectedDataDidBecomeAvailable(_:)` fires while
+  /// running and when `SillageApp` transitions to `scenePhase == .active` (covering unlock while suspended).
+  func handleProtectedDataAvailabilityChange() {
+    guard !Self.isRunningUnitTests else { return }
+    Task { @MainActor [weak self] in
+      await self?.processProtectedDataAvailabilityChange()
+    }
+  }
+
+  func processProtectedDataAvailabilityChange() async {
+    guard let backingEnvironment, backingEnvironment.canAccessProtectedData else { return }
+    if case .error = backingEnvironment.state {
+      guard backingEnvironment.didFailWhileProtectedDataUnavailable else { return }
+      Logger.system.info("Protected data became available after a locked bootstrap failure; retrying bootstrap.")
+      await bootstrapEnvironmentAndDrainNotifications()
+    } else {
+      await backingEnvironment.handleProtectedDataDidBecomeAvailable()
+    }
+  }
+
   func applicationWillTerminate(_ application: UIApplication) {
     guard !Self.isRunningUnitTests else { return }
     // Handle termination synchronously on MainActor: iOS kills the process immediately once

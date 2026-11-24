@@ -15,6 +15,11 @@ import os
 final class MockKeychainManager: KeychainManaging, @unchecked Sendable {
   private let storage = OSAllocatedUnfairLock<[String: String]>(initialState: [:])
   private let errorLock = OSAllocatedUnfairLock<KeychainError?>(initialState: nil)
+  private let migratedAccountsLock = OSAllocatedUnfairLock<[[String]]>(initialState: [])
+
+  var migrationCalls: [[String]] {
+    migratedAccountsLock.withLock { $0 }
+  }
 
   init(initialTokens: [String: String] = [:]) {
     storage.withLock { $0 = initialTokens }
@@ -45,7 +50,15 @@ final class MockKeychainManager: KeychainManaging, @unchecked Sendable {
     storage.withLock { _ = $0.removeValue(forKey: account) }
   }
 
+  func migrateAccessibilityIfNeeded(for accounts: [String]) async throws(KeychainError) {
+    if let error = errorLock.withLock({ $0 }) {
+      throw error
+    }
+    migratedAccountsLock.withLock { $0.append(accounts) }
+  }
+
   func clearAll() {
     storage.withLock { $0.removeAll() }
+    migratedAccountsLock.withLock { $0.removeAll() }
   }
 }

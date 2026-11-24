@@ -223,13 +223,21 @@ final class PreferencesServiceTests: XCTestCase {
 
   func testLoadGeoGarageCustomerIDHandlesKeychainErrorGracefully() async throws {
     let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    defaults.set("cus_legacy_preserved", forKey: "geogarage_customer_id")
     let mockKeychain = MockKeychainManager()
     let service = PreferencesService(defaults: defaults, keychainManager: mockKeychain)
     service.geoGarageCustomerID = "cus_existing"
     mockKeychain.setStubbedError(.unexpectedStatus(-25308))
 
-    await service.loadGeoGarageCustomerID()
+    let status = await service.loadGeoGarageCustomerID()
+    XCTAssertEqual(status, .deferredForProtectedData)
     XCTAssertEqual(service.geoGarageCustomerID, "cus_existing", "Existing in-memory value should remain intact when Keychain read fails")
+    XCTAssertEqual(defaults.string(forKey: "geogarage_customer_id"), "cus_legacy_preserved", "Legacy UserDefaults key must not be deleted while Keychain is locked")
+
+    // Permanent non-BFU Keychain error must return `.hydrated` so foreground transitions do not loop forever
+    mockKeychain.setStubbedError(.decodingFailed)
+    let nonBFUStatus = await service.loadGeoGarageCustomerID()
+    XCTAssertEqual(nonBFUStatus, .hydrated)
   }
 
   func testLoadGeoGarageCustomerIDMigratesLegacyUserDefaultsOneShot() async throws {

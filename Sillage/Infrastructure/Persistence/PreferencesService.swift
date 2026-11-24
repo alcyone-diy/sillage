@@ -116,6 +116,11 @@ nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiab
 }
 
 
+enum KeychainHydrationStatus: Equatable, Sendable {
+  case hydrated
+  case deferredForProtectedData
+}
+
 @MainActor
 protocol PreferencesServiceProtocol: AnyObject {
   var savedChartSource: String? { get set }
@@ -134,7 +139,8 @@ protocol PreferencesServiceProtocol: AnyObject {
   /// Used with `sharedSecret` to derive the SQLCipher decryption key at runtime.
   /// Persisted in Keychain by GeoGarage auth services; held in memory here for UI observation.
   var geoGarageCustomerID: String? { get set }
-  func loadGeoGarageCustomerID() async
+  @discardableResult
+  func loadGeoGarageCustomerID() async -> KeychainHydrationStatus
   var pendingCAASDownloads: [PendingCAASDownload] { get set }
 
   var isCOGVectorEnabled: Bool { get set }
@@ -301,25 +307,33 @@ class PreferencesService: PreferencesServiceProtocol {
 
   /// Hydrates `geoGarageCustomerID` asynchronously from Keychain at startup,
   /// migrating any legacy UserDefaults value one-shot if Keychain is empty.
-  func loadGeoGarageCustomerID() async {
-    guard let keychainManager else { return }
+  /// Returns `.deferredForProtectedData` without clearing in-memory or legacy state if Keychain is locked.
+  @discardableResult
+  func loadGeoGarageCustomerID() async -> KeychainHydrationStatus {
+    guard let keychainManager else { return .hydrated }
     let legacyCustomerIDKey = "geogarage_customer_id"
     do {
       if let customerID = try await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.customerID) {
         self.geoGarageCustomerID = customerID
-        return
+        return .hydrated
       }
 
       if let legacyID = defaults.string(forKey: legacyCustomerIDKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
          !legacyID.isEmpty {
-        self.geoGarageCustomerID = legacyID
         try await keychainManager.save(token: legacyID, for: GeoGarageKeychainKeys.customerID)
+        self.geoGarageCustomerID = legacyID
         defaults.removeObject(forKey: legacyCustomerIDKey)
       } else {
         self.geoGarageCustomerID = nil
       }
+      return .hydrated
     } catch {
+      if error.isInteractionNotAllowed {
+        Logger.storage.warning("Deferred loading GeoGarage customer ID: Keychain locked while protected data is unavailable.")
+        return .deferredForProtectedData
+      }
       Logger.storage.error("Failed to load GeoGarage customer ID from Keychain: \(error.localizedDescription, privacy: .public)")
+      return .hydrated
     }
   }
 

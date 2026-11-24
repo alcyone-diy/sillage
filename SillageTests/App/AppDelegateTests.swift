@@ -8,6 +8,7 @@
 //  See LICENSE file in the project root for full license information.
 //
 
+import os
 import UIKit
 import XCTest
 @testable import Sillage
@@ -133,5 +134,109 @@ final class AppDelegateTests: XCTestCase {
     sut.routeNotificationIdentifier(NotificationIntent.anchorDragging.rawValue)
 
     XCTAssertEqual(container.appViewModel.pendingNotificationIntent, .anchorDragging)
+  }
+
+  func testProcessProtectedDataAvailabilityChange_whenEnvironmentFailedInBFU_retriesBootstrapAndDrainsPendingNotification() async throws {
+    struct TransientBFUDatabaseError: Error {}
+
+    let protectedDataAvailable = OSAllocatedUnfairLock<Bool>(initialState: false)
+    let shouldFailDBLock = OSAllocatedUnfairLock<Bool>(initialState: true)
+    let validDB = try XCTUnwrap(self.databaseManager)
+    let recoverableEnv = AppEnvironment(
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
+      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
+      partnerSecretService: MockGeoGaragePartnerSecretService(),
+      authSession: authSession,
+      keychainManager: mockKeychain,
+      preferencesService: PreferencesService(defaults: isolatedDefaults.defaults, keychainManager: mockKeychain),
+      userDefaults: isolatedDefaults.defaults,
+      databaseManager: nil,
+      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
+      positioningService: MockPositioningService(),
+      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      isProtectedDataAvailable: { protectedDataAvailable.withLock { $0 } }
+    )
+    recoverableEnv.databaseManagerFactoryOverride = {
+      if shouldFailDBLock.withLock({ $0 }) {
+        throw TransientBFUDatabaseError()
+      }
+      return validDB
+    }
+
+    let delegate = AppDelegate(environment: recoverableEnv)
+    delegate.routeNotificationIdentifier(NotificationIntent.barometerDrop.rawValue)
+
+    // 1. Initial boot fails while locked (`protectedDataAvailable == false`) -> records BFU failure
+    await delegate.bootstrapEnvironmentAndDrainNotifications()
+    guard case .error = recoverableEnv.state else {
+      XCTFail("Expected .error state on initial BFU failure")
+      return
+    }
+    XCTAssertTrue(recoverableEnv.didFailWhileProtectedDataUnavailable)
+
+    // Calling while still locked must be a no-op
+    await delegate.processProtectedDataAvailabilityChange()
+    if case .error = recoverableEnv.state {
+      // Expected: still locked
+    } else {
+      XCTFail("Must not retry while protected data is still unavailable")
+    }
+
+    // 2. Protected data unlocks -> `processProtectedDataAvailabilityChange()` retries bootstrap and drains notification
+    protectedDataAvailable.withLock { $0 = true }
+    shouldFailDBLock.withLock { $0 = false }
+    await delegate.processProtectedDataAvailabilityChange()
+
+    guard case .ready(let container) = recoverableEnv.state else {
+      XCTFail("Expected .ready state after protected data unlock retry")
+      return
+    }
+
+    container.appViewModel.isReady = true
+    container.appViewModel.processDeferredIntent()
+    XCTAssertEqual(container.appViewModel.pendingNotificationIntent, .barometerDrop)
+  }
+
+  func testProcessProtectedDataAvailabilityChange_whenFailedWhileUnlocked_doesNotAutoRetryBootstrap() async {
+    struct PermanentUnlockedDatabaseError: Error {}
+
+    let attemptCountLock = OSAllocatedUnfairLock<Int>(initialState: 0)
+    let unlockedFailingEnv = AppEnvironment(
+      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
+      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
+      partnerSecretService: MockGeoGaragePartnerSecretService(),
+      authSession: authSession,
+      keychainManager: mockKeychain,
+      preferencesService: PreferencesService(defaults: isolatedDefaults.defaults, keychainManager: mockKeychain),
+      userDefaults: isolatedDefaults.defaults,
+      databaseManager: nil,
+      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
+      positioningService: MockPositioningService(),
+      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
+      isProtectedDataAvailable: { true }
+    )
+    unlockedFailingEnv.databaseManagerFactoryOverride = {
+      attemptCountLock.withLock { $0 += 1 }
+      throw PermanentUnlockedDatabaseError()
+    }
+
+    let delegate = AppDelegate(environment: unlockedFailingEnv)
+    await delegate.bootstrapEnvironmentAndDrainNotifications()
+
+    guard case .error = unlockedFailingEnv.state else {
+      XCTFail("Expected .error state")
+      return
+    }
+    XCTAssertFalse(unlockedFailingEnv.didFailWhileProtectedDataUnavailable)
+    XCTAssertEqual(attemptCountLock.withLock({ $0 }), 1)
+
+    // Returning `.active` (e.g. closing Control Center on SplashView) must NOT trigger a retry loop
+    await delegate.processProtectedDataAvailabilityChange()
+    XCTAssertEqual(attemptCountLock.withLock({ $0 }), 1, "Failures occurring while unlocked must only retry on explicit user tap")
+    if case .error = unlockedFailingEnv.state {
+      // Expected: remains on SplashView error state
+    } else {
+      XCTFail("Expected state to remain .error")
+    }
   }
 }
