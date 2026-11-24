@@ -347,26 +347,7 @@ struct ContentView: View {
         WaypointDetailView(
           viewModel: draftViewModel,
           onModifyPositionRequested: {
-            appViewModel.waypointDraft = nil
-            chartViewModel.startWaypointPositionAdjustment(
-              viewModel: draftViewModel,
-              onCancel: { [weak draftViewModel] in
-                guard let draftViewModel else { return }
-                let restoreCoord = draftViewModel.currentCoordinate ?? item.coordinate
-                appViewModel.waypointDraft = CoordinateWrapper(
-                  coordinate: restoreCoord,
-                  defaultName: draftViewModel.name
-                )
-              },
-              onConfirm: { [weak draftViewModel] newCoord in
-                guard let draftViewModel else { return }
-                draftViewModel.updateCoordinate(newCoord)
-                appViewModel.waypointDraft = CoordinateWrapper(
-                  coordinate: newCoord,
-                  defaultName: draftViewModel.name
-                )
-              }
-            )
+            startDraftPositionAdjustment(for: draftViewModel, item: item)
           }
         )
       } else {
@@ -377,6 +358,33 @@ struct ContentView: View {
     }
     .presentationDetents([.medium, .large])
     .presentationDragIndicator(.visible)
+  }
+
+  private func startDraftPositionAdjustment(
+    for draftViewModel: WaypointDetailViewModel,
+    item: CoordinateWrapper
+  ) {
+    let appVM = appViewModel
+    appVM.waypointDraft = nil
+    chartViewModel.startWaypointPositionAdjustment(
+      viewModel: draftViewModel,
+      onCancel: { [weak draftViewModel, weak appVM] in
+        guard let draftViewModel, let appVM else { return }
+        let restoreCoord = draftViewModel.currentCoordinate ?? item.coordinate
+        appVM.waypointDraft = CoordinateWrapper(
+          coordinate: restoreCoord,
+          defaultName: draftViewModel.name
+        )
+      },
+      onConfirm: { [weak draftViewModel, weak appVM] newCoord in
+        guard let draftViewModel, let appVM else { return }
+        draftViewModel.updateCoordinate(newCoord)
+        appVM.waypointDraft = CoordinateWrapper(
+          coordinate: newCoord,
+          defaultName: draftViewModel.name
+        )
+      }
+    )
   }
 
   @ViewBuilder

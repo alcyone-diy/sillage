@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import CoreLocation
 import SwiftUI
 import Observation
 
@@ -122,6 +123,15 @@ public final class PanelManagerViewModel {
     withAnimation(.spring(response: 0.45, dampingFraction: 1.0)) {
       activePanel = .command
     }
+  }
+
+  /// Updates the coordinate of the active waypoint draft at the top of `commandPath`,
+  /// preserving its identity so `NavigationStack` does not recreate the destination.
+  public func updateActiveWaypointDraftCoordinate(_ newCoordinate: CLLocationCoordinate2D) {
+    guard let last = commandPath.last, case .waypointDraft(let oldItem) = last else { return }
+    commandPath[commandPath.count - 1] = .waypointDraft(
+      CoordinateWrapper(id: oldItem.id, coordinate: newCoordinate, defaultName: oldItem.defaultName)
+    )
   }
 
   /// Handles UIKit native sheet dismissal completion.

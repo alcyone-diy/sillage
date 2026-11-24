@@ -255,22 +255,7 @@ struct CommandPanelView: View {
         WaypointDetailView(
           viewModel: draftViewModel,
           onModifyPositionRequested: {
-            chartViewModel.startWaypointPositionAdjustment(
-              viewModel: draftViewModel,
-              onCancel: {
-                viewModel.resumePanel()
-              },
-              onConfirm: { [weak draftViewModel] newCoord in
-                draftViewModel?.updateCoordinate(newCoord)
-                if let last = viewModel.commandPath.last, case .waypointDraft(let oldItem) = last {
-                  viewModel.commandPath[viewModel.commandPath.count - 1] = .waypointDraft(
-                    CoordinateWrapper(id: oldItem.id, coordinate: newCoord, defaultName: oldItem.defaultName)
-                  )
-                }
-                viewModel.resumePanel()
-              }
-            )
-            viewModel.suspendPanel()
+            startDraftPositionAdjustment(for: draftViewModel)
           }
         )
       } else {
@@ -337,6 +322,22 @@ struct CommandPanelView: View {
         }
       )
     }
+  }
+
+  private func startDraftPositionAdjustment(for draftViewModel: WaypointDetailViewModel) {
+    let panelViewModel = viewModel
+    chartViewModel.startWaypointPositionAdjustment(
+      viewModel: draftViewModel,
+      onCancel: { [weak panelViewModel] in
+        panelViewModel?.resumePanel()
+      },
+      onConfirm: { [weak draftViewModel, weak panelViewModel] newCoord in
+        draftViewModel?.updateCoordinate(newCoord)
+        panelViewModel?.updateActiveWaypointDraftCoordinate(newCoord)
+        panelViewModel?.resumePanel()
+      }
+    )
+    panelViewModel.suspendPanel()
   }
 }
 
