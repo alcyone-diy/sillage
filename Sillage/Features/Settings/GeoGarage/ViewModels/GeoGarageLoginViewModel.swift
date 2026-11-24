@@ -254,7 +254,7 @@ final class GeoGarageLoginViewModel {
           // the sign-in.
           Logger.network.error("Partner secret unavailable after sign-in: \(String(describing: error), privacy: .public)")
           secretWarning = AppMessage(
-            title: LocalizedStringResource("Offline charts unavailable"),
+            title: LocalizedStringResource("Offline Charts Unavailable"),
             detail: .localized("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
             severity: .warning,
             // Dedicated category: clearing `.geoGarage` below (and in

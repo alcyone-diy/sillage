@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+
+    },
     "%@ (D-%lld)" : {
       "localizations" : {
         "en" : {
@@ -833,6 +836,12 @@
     "GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in." : {
 
     },
+    "GeoGarage is unavailable because no client ID is configured in this build. You can still import local .mbtiles charts in Chart Preferences." : {
+
+    },
+    "GeoGarage is unavailable: no client ID is configured in this build." : {
+
+    },
     "GeoGarage Login" : {
 
     },
@@ -1250,7 +1259,7 @@
     "Offline Charts" : {
 
     },
-    "Offline charts unavailable" : {
+    "Offline Charts Unavailable" : {
 
     },
     "Offline Download Failed" : {

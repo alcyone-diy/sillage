@@ -70,7 +70,7 @@ enum AuthError: Error, LocalizedError {
     case .authorizationFailed(let description):
       return String(localized: "GeoGarage sign-in failed (\(description)). Please try again.")
     case .notConfigured:
-      return String(localized: "GeoGarage is not configured in this build.")
+      return String(localized: "GeoGarage is unavailable: no client ID is configured in this build.")
     case .unknown:
       return fallback
     }

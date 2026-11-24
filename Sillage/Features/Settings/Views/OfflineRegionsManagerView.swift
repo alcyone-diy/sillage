@@ -194,7 +194,7 @@ struct OfflineRegionsManagerView: View {
             .foregroundStyle(marineTheme.colors.primary)
         }
       } description: {
-        Text("GeoGarage is not configured in this build. You can still import local .mbtiles charts in Chart Preferences.")
+        Text("GeoGarage is unavailable because no client ID is configured in this build. You can still import local .mbtiles charts in Chart Preferences.")
       } actions: {
         NavigationLink(value: PanelManagerViewModel.CommandDestination.chartPreferences) {
           Text("Chart Preferences")

@@ -363,7 +363,7 @@ final class GeoGarageLoginViewModelTests: XCTestCase {
     let mockAuthService = MockGeoGarageAuthService()
     let messageService = MessageService()
     messageService.post(AppMessage(
-      title: "Offline charts unavailable",
+      title: "Offline Charts Unavailable",
       detail: "GeoGarage did not provide the decryption secret.",
       severity: .warning,
       category: .offlineCharts

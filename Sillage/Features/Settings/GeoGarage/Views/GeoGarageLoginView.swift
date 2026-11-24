@@ -235,7 +235,7 @@ struct GeoGarageLoginView: View {
       .disabled(viewModel.isLoading || !authService.isGeoGarageConfigured)
 
       if !authService.isGeoGarageConfigured {
-        Text("GeoGarage is not configured in this build.")
+        Text("GeoGarage is unavailable: no client ID is configured in this build.")
           .marineFont(.caption)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
