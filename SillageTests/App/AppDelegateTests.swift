@@ -35,24 +35,18 @@ final class AppDelegateTests: XCTestCase {
     authSession = MockURLProtocol.makeMockSession()
     isolatedDefaults = IsolatedUserDefaults(prefix: "AppDelegateTests")
     mockKeychain = MockKeychainManager()
-    let preferences = PreferencesService(defaults: isolatedDefaults.defaults, keychainManager: mockKeychain)
-    preferences.clearAll()
     databaseManager = try DatabaseManager.inMemory()
 
-    environment = AppEnvironment(
-      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: MockGeoGaragePartnerSecretService(),
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      preferencesService: preferences,
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: databaseManager,
-      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration()
-    )
+    environment = AppEnvironment(overrides: try makeFixtureOverrides())
     sut = AppDelegate(environment: environment)
+  }
+
+  private func makeFixtureOverrides() throws -> AppEnvironment.Overrides {
+    var overrides = try makeTestOverrides(userDefaults: isolatedDefaults.defaults)
+    overrides.authSession = authSession
+    overrides.keychainManager = mockKeychain
+    overrides.useDatabaseManager(databaseManager)
+    return overrides
   }
 
   override func tearDown() async throws {
@@ -142,26 +136,15 @@ final class AppDelegateTests: XCTestCase {
     let protectedDataAvailable = OSAllocatedUnfairLock<Bool>(initialState: false)
     let shouldFailDBLock = OSAllocatedUnfairLock<Bool>(initialState: true)
     let validDB = try XCTUnwrap(self.databaseManager)
-    let recoverableEnv = AppEnvironment(
-      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: MockGeoGaragePartnerSecretService(),
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      preferencesService: PreferencesService(defaults: isolatedDefaults.defaults, keychainManager: mockKeychain),
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: nil,
-      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
-      isProtectedDataAvailable: { protectedDataAvailable.withLock { $0 } }
-    )
-    recoverableEnv.databaseManagerFactoryOverride = {
+    var overrides = try makeFixtureOverrides()
+    overrides.isProtectedDataAvailable = { protectedDataAvailable.withLock { $0 } }
+    overrides.databaseManagerFactory = {
       if shouldFailDBLock.withLock({ $0 }) {
         throw TransientBFUDatabaseError()
       }
       return validDB
     }
+    let recoverableEnv = AppEnvironment(overrides: overrides)
 
     let delegate = AppDelegate(environment: recoverableEnv)
     delegate.routeNotificationIdentifier(NotificationIntent.barometerDrop.rawValue)
@@ -197,28 +180,17 @@ final class AppDelegateTests: XCTestCase {
     XCTAssertEqual(container.appViewModel.pendingNotificationIntent, .barometerDrop)
   }
 
-  func testProcessProtectedDataAvailabilityChange_whenFailedWhileUnlocked_doesNotAutoRetryBootstrap() async {
+  func testProcessProtectedDataAvailabilityChange_whenFailedWhileUnlocked_doesNotAutoRetryBootstrap() async throws {
     struct PermanentUnlockedDatabaseError: Error {}
 
     let attemptCountLock = OSAllocatedUnfairLock<Int>(initialState: 0)
-    let unlockedFailingEnv = AppEnvironment(
-      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: MockGeoGaragePartnerSecretService(),
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      preferencesService: PreferencesService(defaults: isolatedDefaults.defaults, keychainManager: mockKeychain),
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: nil,
-      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
-      isProtectedDataAvailable: { true }
-    )
-    unlockedFailingEnv.databaseManagerFactoryOverride = {
+    var overrides = try makeFixtureOverrides()
+    overrides.isProtectedDataAvailable = { true }
+    overrides.databaseManagerFactory = {
       attemptCountLock.withLock { $0 += 1 }
       throw PermanentUnlockedDatabaseError()
     }
+    let unlockedFailingEnv = AppEnvironment(overrides: overrides)
 
     let delegate = AppDelegate(environment: unlockedFailingEnv)
     await delegate.bootstrapEnvironmentAndDrainNotifications()

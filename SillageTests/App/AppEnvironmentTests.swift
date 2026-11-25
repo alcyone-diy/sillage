@@ -52,19 +52,18 @@ final class AppEnvironmentTests: XCTestCase {
     testPreferencesService = PreferencesService(defaults: isolatedDefaults.defaults, keychainManager: mockKeychain)
     testPreferencesService.clearAll()
     testDatabaseManager = try DatabaseManager.inMemory()
-    environment = AppEnvironment(
-      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: partnerSecretService,
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      preferencesService: testPreferencesService,
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: testDatabaseManager,
-      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration()
-    )
+    var setUpOverrides = try makeFixtureOverrides()
+    setUpOverrides.preferencesService = testPreferencesService
+    environment = AppEnvironment(overrides: setUpOverrides)
+  }
+
+  private func makeFixtureOverrides() throws -> AppEnvironment.Overrides {
+    var overrides = try makeTestOverrides(userDefaults: isolatedDefaults.defaults)
+    overrides.partnerSecretService = partnerSecretService
+    overrides.authSession = authSession
+    overrides.keychainManager = mockKeychain
+    overrides.useDatabaseManager(testDatabaseManager)
+    return overrides
   }
 
   override func tearDown() async throws {
@@ -390,18 +389,9 @@ final class AppEnvironmentTests: XCTestCase {
     )
     // Inject a mock PositioningService so simulated CoreLocation fixes far from (47.2, -1.5)
     // do not immediately transition the restored watch from `.armed` to `.dragging`.
-    let restoredEnv = AppEnvironment(
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: partnerSecretService,
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      preferencesService: testPreferencesService,
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: testDatabaseManager,
-      anchorStateStore: mockStore,
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration()
-    )
+    var overrides = try makeFixtureOverrides()
+    overrides.useAnchorStateStore(mockStore)
+    let restoredEnv = AppEnvironment(overrides: overrides)
 
     await restoredEnv.bootstrap()
 
@@ -470,19 +460,21 @@ final class AppEnvironmentTests: XCTestCase {
     let (enteredWindowBStream, enteredWindowBContinuation) = AsyncStream<Void>.makeStream()
     let (releaseBootstrapStream, releaseBootstrapContinuation) = AsyncStream<Void>.makeStream()
 
-    environment.anchorStateStoreLoaderOverride = {
+    var overrides = try makeFixtureOverrides()
+    overrides.anchorStateStoreLoader = {
       enteredWindowBContinuation.yield()
       enteredWindowBContinuation.finish()
       var releaseIterator = releaseBootstrapStream.makeAsyncIterator()
       _ = await releaseIterator.next()
       return MockAppEnvironmentAnchorStateStore()
     }
+    environment = AppEnvironment(overrides: overrides)
 
     let bootstrapTask = Task { @MainActor in
       await self.environment.bootstrap()
     }
     defer {
-      // Idempotent safety net: guarantees `anchorStateStoreLoaderOverride` is never left suspended
+      // Idempotent safety net: guarantees `anchorStateStoreLoader` is never left suspended
       // even if an assertion or `XCTUnwrap` throws before the end of the test.
       releaseBootstrapContinuation.finish()
     }
@@ -531,25 +523,14 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertEqual(callCount, 1)
   }
 
-  func testBackgroundSessionCompletion_whenBootstrapFails_invokesAndDrainsPendingHandler() async {
+  func testBackgroundSessionCompletion_whenBootstrapFails_invokesAndDrainsPendingHandler() async throws {
     struct SimulatedBootstrapFailure: LocalizedError {
       var errorDescription: String? { "Simulated database failure" }
     }
 
-    let failingEnv = AppEnvironment(
-      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: partnerSecretService,
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      preferencesService: testPreferencesService,
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: nil,
-      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration()
-    )
-    failingEnv.databaseManagerFactoryOverride = { throw SimulatedBootstrapFailure() }
+    var overrides = try makeFixtureOverrides()
+    overrides.databaseManagerFactory = { throw SimulatedBootstrapFailure() }
+    let failingEnv = AppEnvironment(overrides: overrides)
 
     var callCount = 0
     failingEnv.registerBackgroundURLSessionCompletionHandler {
@@ -559,7 +540,7 @@ final class AppEnvironmentTests: XCTestCase {
     await failingEnv.bootstrap()
 
     guard case .error = failingEnv.state else {
-      XCTFail("Expected .error state when databaseManagerFactoryOverride throws")
+      XCTFail("Expected .error state when databaseManagerFactory throws")
       return
     }
     XCTAssertFalse(failingEnv.offlineMapManager.isStarted, "OfflineMapManager must not start when Phase 1 fails")
@@ -571,23 +552,12 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertEqual(callCount, 1, "Drained background completion handler must not fire twice")
   }
 
-  func testBackgroundSessionCompletion_registeredWhenAlreadyInErrorState_invokesImmediately() async {
+  func testBackgroundSessionCompletion_registeredWhenAlreadyInErrorState_invokesImmediately() async throws {
     struct SimulatedBootstrapFailure: Error {}
 
-    let failingEnv = AppEnvironment(
-      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: partnerSecretService,
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      preferencesService: testPreferencesService,
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: nil,
-      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration()
-    )
-    failingEnv.databaseManagerFactoryOverride = { throw SimulatedBootstrapFailure() }
+    var overrides = try makeFixtureOverrides()
+    overrides.databaseManagerFactory = { throw SimulatedBootstrapFailure() }
+    let failingEnv = AppEnvironment(overrides: overrides)
 
     await failingEnv.bootstrap()
     guard case .error = failingEnv.state else {
@@ -618,20 +588,9 @@ final class AppEnvironmentTests: XCTestCase {
     mockKeychain.setStubbedError(.unexpectedStatus(errSecInteractionNotAllowed))
 
     let protectedDataAvailable = OSAllocatedUnfairLock<Bool>(initialState: false)
-    let bfuEnv = AppEnvironment(
-      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: partnerSecretService,
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      preferencesService: testPreferencesService,
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: testDatabaseManager,
-      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
-      isProtectedDataAvailable: { protectedDataAvailable.withLock { $0 } }
-    )
+    var overrides = try makeFixtureOverrides()
+    overrides.isProtectedDataAvailable = { protectedDataAvailable.withLock { $0 } }
+    let bfuEnv = AppEnvironment(overrides: overrides)
 
     await bfuEnv.bootstrap()
 
@@ -682,27 +641,16 @@ final class AppEnvironmentTests: XCTestCase {
     let (enteredAnchorLoadStream, enteredAnchorLoadContinuation) = AsyncStream<Void>.makeStream()
     let (releaseAnchorLoadStream, releaseAnchorLoadContinuation) = AsyncStream<Void>.makeStream()
 
-    let bfuEnv = AppEnvironment(
-      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: partnerSecretService,
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      preferencesService: testPreferencesService,
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: testDatabaseManager,
-      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
-      isProtectedDataAvailable: { protectedDataAvailable.withLock { $0 } }
-    )
-    bfuEnv.anchorStateStoreLoaderOverride = {
+    var overrides = try makeFixtureOverrides()
+    overrides.isProtectedDataAvailable = { protectedDataAvailable.withLock { $0 } }
+    overrides.anchorStateStoreLoader = {
       enteredAnchorLoadContinuation.yield()
       enteredAnchorLoadContinuation.finish()
       var iterator = releaseAnchorLoadStream.makeAsyncIterator()
       _ = await iterator.next()
       return MockAppEnvironmentAnchorStateStore()
     }
+    let bfuEnv = AppEnvironment(overrides: overrides)
 
     let bootstrapTask = Task { @MainActor in
       await bfuEnv.bootstrap()
@@ -744,21 +692,10 @@ final class AppEnvironmentTests: XCTestCase {
     await gatingKeychain.setLocked(true)
 
     let protectedDataAvailable = OSAllocatedUnfairLock<Bool>(initialState: false)
-    let reentrantPrefs = PreferencesService(defaults: isolatedDefaults.defaults, keychainManager: gatingKeychain)
-    let bfuEnv = AppEnvironment(
-      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: partnerSecretService,
-      authSession: authSession,
-      keychainManager: gatingKeychain,
-      preferencesService: reentrantPrefs,
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: testDatabaseManager,
-      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
-      isProtectedDataAvailable: { protectedDataAvailable.withLock { $0 } }
-    )
+    var overrides = try makeFixtureOverrides()
+    overrides.keychainManager = gatingKeychain
+    overrides.isProtectedDataAvailable = { protectedDataAvailable.withLock { $0 } }
+    let bfuEnv = AppEnvironment(overrides: overrides)
 
     await bfuEnv.bootstrap()
     XCTAssertTrue(bfuEnv.needsProtectedDataHydration)
@@ -798,20 +735,9 @@ final class AppEnvironmentTests: XCTestCase {
   func testBootstrap_whenPermanentNonBFUKeychainErrorOccurs_doesNotSetNeedsProtectedDataHydration() async throws {
     mockKeychain.setStubbedError(.decodingFailed)
 
-    let permanentErrorEnv = AppEnvironment(
-      configuration: AppConfiguration(geoGarageClientID: "test_client_id"),
-      offlineMapManager: OfflineMapManager(bindsToMapLibreStorage: false),
-      partnerSecretService: partnerSecretService,
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      preferencesService: testPreferencesService,
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: testDatabaseManager,
-      anchorStateStore: MockAppEnvironmentAnchorStateStore(),
-      positioningService: MockPositioningService(),
-      chartDownloaderSessionConfiguration: MockURLProtocol.makeMockConfiguration(),
-      isProtectedDataAvailable: { true }
-    )
+    var overrides = try makeFixtureOverrides()
+    overrides.isProtectedDataAvailable = { true }
+    let permanentErrorEnv = AppEnvironment(overrides: overrides)
 
     await permanentErrorEnv.bootstrap()
 
@@ -823,6 +749,33 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertFalse(permanentErrorEnv.needsProtectedDataHydration, "Permanent Keychain error must not trigger infinite foreground hydration loops")
     XCTAssertFalse(container.geoGarageAuthService.isDeferredForProtectedData)
     XCTAssertFalse(container.geoGarageAuthService.isGeoGarageAuthenticated)
+  }
+
+  func testBootstrap_releasesBootstrapOnlyOverridesUponReady() async throws {
+    final class EphemeralToken: Sendable {}
+    var strongToken: EphemeralToken? = EphemeralToken()
+    weak let weakToken = strongToken
+
+    var overrides = try makeFixtureOverrides()
+    if let capturedToken = strongToken {
+      let db = try XCTUnwrap(testDatabaseManager)
+      overrides.databaseManagerFactory = {
+        _ = capturedToken
+        return db
+      }
+    }
+    let env = AppEnvironment(overrides: overrides)
+    overrides = .init()
+    strongToken = nil
+    XCTAssertNotNil(weakToken, "Closure must remain retained while AppEnvironment is .uninitialized")
+
+    await env.bootstrap()
+    guard case .ready = env.state else {
+      XCTFail("Expected .ready state")
+      return
+    }
+
+    XCTAssertNil(weakToken, "Bootstrap-only overrides must be released once .ready is reached")
   }
 }
 
@@ -875,21 +828,5 @@ private actor GatingMigrationKeychainManager: KeychainManaging {
       var iterator = releaseMigrationStream.makeAsyncIterator()
       _ = await iterator.next()
     }
-  }
-}
-
-nonisolated final class MockAppEnvironmentAnchorStateStore: AnchorStateStoreProtocol, Sendable {
-  private let sessionLock: OSAllocatedUnfairLock<AnchorSessionData>
-
-  init(initialSession: AnchorSessionData = AnchorSessionData()) {
-    self.sessionLock = OSAllocatedUnfairLock(initialState: initialSession)
-  }
-
-  func loadSession() -> AnchorSessionData {
-    sessionLock.withLock { $0 }
-  }
-
-  func saveSession(_ session: AnchorSessionData) {
-    sessionLock.withLock { $0 = session }
   }
 }

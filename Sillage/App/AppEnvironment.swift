@@ -77,23 +77,13 @@ final class AppEnvironment {
     #endif
   }
   
-  /// Injectable so unit tests never reach the real GeoGarage portal.
-  private let authSession: URLSession
-  let keychainManager: any KeychainManaging
-  private let tileProxyManager: any TileProxyManagerProtocol
-  private let metadataOverride: AppMetadata?
-  private let preferencesServiceOverride: PreferencesService?
+  private let keychainManager: any KeychainManaging
   private let userDefaults: UserDefaults
-  private let databaseManagerOverride: DatabaseManager?
-  private let anchorStateStoreOverride: (any AnchorStateStoreProtocol)?
-  private let positioningServiceOverride: (any PositioningService)?
-  private let chartDownloaderSessionConfiguration: URLSessionConfiguration?
   private let isProtectedDataAvailable: @MainActor () -> Bool
 
+  /// Holds bootstrap-only overrides until `.ready` is reached; preserved on `.error` so retries keep injected seams.
   @ObservationIgnored
-  var databaseManagerFactoryOverride: (@Sendable () throws -> DatabaseManager)?
-  @ObservationIgnored
-  var anchorStateStoreLoaderOverride: (@Sendable () async -> any AnchorStateStoreProtocol)?
+  private var bootstrapOverrides: Overrides?
 
   @ObservationIgnored
   private var pendingBackgroundSessionCompletion: (@MainActor () -> Void)?
@@ -104,45 +94,32 @@ final class AppEnvironment {
   @ObservationIgnored
   private var didBecomeProtectedDataAvailableDuringBootstrap: Bool = false
 
-  #if DEBUG
-  private var screenshotScenarioOverride: ScreenshotScenario?
-  #endif
+  init(overrides: Overrides = .init()) {
+    let configuration = overrides.configuration ?? .fromBundle()
+    let keychainManager = overrides.keychainManager ?? KeychainManager.shared
 
-  public init(
-    metadata: AppMetadata? = nil,
-    configuration: AppConfiguration = .fromBundle(),
-    offlineMapManager: OfflineMapManager? = nil,
-    partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil,
-    authSession: URLSession = .shared,
-    keychainManager: any KeychainManaging = KeychainManager.shared,
-    tileProxyManager: (any TileProxyManagerProtocol)? = nil,
-    preferencesService: PreferencesService? = nil,
-    userDefaults: UserDefaults = .standard,
-    databaseManager: DatabaseManager? = nil,
-    anchorStateStore: (any AnchorStateStoreProtocol)? = nil,
-    positioningService: (any PositioningService)? = nil,
-    chartDownloaderSessionConfiguration: URLSessionConfiguration? = nil,
-    isProtectedDataAvailable: @escaping @MainActor () -> Bool = { UIApplication.shared.isProtectedDataAvailable }
-  ) {
-    self.metadataOverride = metadata
-    self.metadata = metadata
+    self.metadata = overrides.metadata
     self.bootDate = Date.now
     self.configuration = configuration
-    self.offlineMapManager = offlineMapManager ?? OfflineMapManager()
     self.keychainManager = keychainManager
-    self.tileProxyManager = tileProxyManager ?? TileProxyManager(
-      keychainManager: keychainManager,
-      configuration: configuration
-    )
-    self.geoGaragePartnerSecretService = partnerSecretService ?? GeoGaragePartnerSecretService(keychainManager: keychainManager)
-    self.authSession = authSession
-    self.preferencesServiceOverride = preferencesService
-    self.userDefaults = userDefaults
-    self.databaseManagerOverride = databaseManager
-    self.anchorStateStoreOverride = anchorStateStore
-    self.positioningServiceOverride = positioningService
-    self.chartDownloaderSessionConfiguration = chartDownloaderSessionConfiguration
-    self.isProtectedDataAvailable = isProtectedDataAvailable
+    self.userDefaults = overrides.userDefaults ?? .standard
+    self.isProtectedDataAvailable = overrides.isProtectedDataAvailable ?? {
+      UIApplication.shared.isProtectedDataAvailable
+    }
+    self.offlineMapManager = overrides.offlineMapManager ?? OfflineMapManager()
+    self.geoGaragePartnerSecretService = overrides.partnerSecretService
+      ?? GeoGaragePartnerSecretService(keychainManager: keychainManager)
+
+    // Strip collaborators already materialized onto `self` so `self` remains the single source of truth.
+    var remainingOverrides = overrides
+    remainingOverrides.metadata = nil
+    remainingOverrides.configuration = nil
+    remainingOverrides.keychainManager = nil
+    remainingOverrides.userDefaults = nil
+    remainingOverrides.isProtectedDataAvailable = nil
+    remainingOverrides.offlineMapManager = nil
+    remainingOverrides.partnerSecretService = nil
+    self.bootstrapOverrides = remainingOverrides
 
     // Pure synchronous callback wiring (no I/O, no KVO, no unstructured Task in `init`).
     self.offlineMapManager.onGlobalProgressChanged = { [weak self] progress in
@@ -151,28 +128,6 @@ final class AppEnvironment {
       self.updateCompositeOfflineChartsProgress()
     }
   }
-
-  #if DEBUG
-  convenience init(
-    screenshotScenario: ScreenshotScenario,
-    partnerSecretService: (any GeoGaragePartnerSecretServiceProtocol)? = nil,
-    authSession: URLSession = .shared,
-    keychainManager: any KeychainManaging = KeychainManager.shared,
-    userDefaults: UserDefaults = .standard,
-    databaseManager: DatabaseManager? = nil,
-    anchorStateStore: (any AnchorStateStoreProtocol)? = nil
-  ) {
-    self.init(
-      partnerSecretService: partnerSecretService,
-      authSession: authSession,
-      keychainManager: keychainManager,
-      userDefaults: userDefaults,
-      databaseManager: databaseManager,
-      anchorStateStore: anchorStateStore
-    )
-    self.screenshotScenarioOverride = screenshotScenario
-  }
-  #endif
   
   /// Routes an iOS background `URLSession` completion handler across all `AppEnvironment` lifecycle windows:
   /// - `.error`: invokes immediately on `@MainActor` so iOS never times out waiting for a failed boot.
@@ -203,12 +158,14 @@ final class AppEnvironment {
     didBecomeProtectedDataAvailableDuringBootstrap = false
     Logger.system.info("🚀 Starting AppEnvironment bootstrap sequence. Boot time: \(self.bootDate, privacy: .public)")
 
+    let overrides = self.bootstrapOverrides ?? .init()
+
     // Phase 1: Strictly isolate ALL throwing bootstrap steps (`setupFileSystem`, `DatabaseManager`,
     // debug database seeding, and default checklist seeding). Returning early in `catch` guarantees
     // at compile time that Phase 2 cannot fail and that neither MapLibre nor a background `URLSession`
     // is ever started if Phase 1 fails.
     #if DEBUG
-    let activeScreenshotScenario = self.screenshotScenarioOverride ?? ScreenshotScenario.active
+    let activeScreenshotScenario = overrides.screenshotScenario ?? ScreenshotScenario.active
     if let scenario = activeScreenshotScenario {
       let gpsLabel = scenario.gpsPreset?.rawValue ?? "off"
       let baroLabel = scenario.baroPreset?.rawValue ?? "off"
@@ -219,16 +176,14 @@ final class AppEnvironment {
     let databaseManager: DatabaseManager
     let baroDatabaseManager: DatabaseManager
     let checklistService: ChecklistService
-    let databaseFactory = self.databaseManagerFactoryOverride
+    let databaseFactory = overrides.databaseManagerFactory
 
     do {
       try await Task.detached {
         try self.setupFileSystem()
       }.value
 
-      if let databaseManagerOverride {
-        databaseManager = databaseManagerOverride
-      } else if let databaseFactory {
+      if let databaseFactory {
         databaseManager = try await Task.detached {
           try databaseFactory()
         }.value
@@ -246,9 +201,9 @@ final class AppEnvironment {
       }
 
       if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
-        if let databaseManagerOverride {
-          try await ScreenshotBootstrapper.seedBarometricHistory(scenario, into: databaseManagerOverride)
-          baroDatabaseManager = databaseManagerOverride
+        if databaseFactory != nil {
+          try await ScreenshotBootstrapper.seedBarometricHistory(scenario, into: databaseManager)
+          baroDatabaseManager = databaseManager
         } else {
           baroDatabaseManager = try await ScreenshotBootstrapper.makeBarometricDatabase(scenario: scenario)
         }
@@ -263,7 +218,7 @@ final class AppEnvironment {
       try await checklistService.seedDefaultTemplatesIfNeeded()
     } catch {
       Logger.system.error("❌ AppEnvironment bootstrap failed: \(error.localizedDescription, privacy: .public)")
-      didFailWhileProtectedDataUnavailable = !isProtectedDataAvailable()
+      didFailWhileProtectedDataUnavailable = !self.isProtectedDataAvailable()
       state = .error(error)
       if let pendingHandler = self.pendingBackgroundSessionCompletion {
         self.pendingBackgroundSessionCompletion = nil
@@ -277,13 +232,19 @@ final class AppEnvironment {
     Self.setupMapLibreProtocol()
     self.offlineMapManager.start()
 
-    async let resolvedMetadata: AppMetadata? = self.metadataOverride == nil
+    async let resolvedMetadata: AppMetadata? = self.metadata == nil
       ? AppMetadataProvider.resolve()
       : nil
 
+    let authSession = overrides.authSession ?? .shared
+    let tileProxyManager: any TileProxyManagerProtocol = overrides.tileProxyManager ?? TileProxyManager(
+      keychainManager: self.keychainManager,
+      configuration: self.configuration
+    )
+
     let messageService = MessageService()
 
-    let preferencesService = self.preferencesServiceOverride ?? PreferencesService(
+    let preferencesService = overrides.preferencesService ?? PreferencesService(
       defaults: self.userDefaults,
       keychainManager: self.keychainManager
     )
@@ -311,7 +272,7 @@ final class AppEnvironment {
     let simulatedPositioning: (any PositioningService)? = nil
     let initialPausesAutomatically = false
     #endif
-    let positioningService: any PositioningService = self.positioningServiceOverride ?? simulatedPositioning ?? CoreLocationPositioningService(
+    let positioningService: any PositioningService = overrides.positioningService ?? simulatedPositioning ?? CoreLocationPositioningService(
       initialAccuracyMode: preferencesService.gpsAccuracyMode,
       initialPausesLocationUpdatesAutomatically: initialPausesAutomatically
     )
@@ -476,7 +437,7 @@ final class AppEnvironment {
     let geoGarageChartDownloader = GeoGarageChartDownloader(
       packageService: geoGaragePackageService,
       downloadRepository: geoGarageDownloadRepository,
-      sessionConfiguration: self.chartDownloaderSessionConfiguration,
+      sessionConfiguration: overrides.chartDownloaderSessionConfiguration,
       initialBackgroundCompletionHandler: initialBackgroundCompletion
     )
     self.activeChartDownloader = geoGarageChartDownloader
@@ -487,10 +448,8 @@ final class AppEnvironment {
 
     let alarmAudioService = AlarmAudioService()
     let anchorStateStore: any AnchorStateStoreProtocol
-    if let loaderOverride = self.anchorStateStoreLoaderOverride {
+    if let loaderOverride = overrides.anchorStateStoreLoader {
       anchorStateStore = await loaderOverride()
-    } else if let anchorStateStoreOverride {
-      anchorStateStore = anchorStateStoreOverride
     } else {
       anchorStateStore = await AnchorStateStore.load()
     }
@@ -623,6 +582,7 @@ final class AppEnvironment {
 
     Logger.system.info("✅ AppEnvironment bootstrap complete. Transitioning to ready.")
     state = .ready(container)
+    self.bootstrapOverrides = nil
 
     if !self.needsProtectedDataHydration {
       // The secret catch-up talks to the portal (up to three 15 s calls). Keep it off the launch
@@ -1230,7 +1190,9 @@ extension AppEnvironment {
     let suiteName = "preview.appEnvironment"
     let defaults = UserDefaults(suiteName: suiteName) ?? .standard
     defaults.removePersistentDomain(forName: suiteName)
-    return AppEnvironment(userDefaults: defaults)
+    var overrides = Overrides()
+    overrides.userDefaults = defaults
+    return AppEnvironment(overrides: overrides)
   }
 }
 #endif

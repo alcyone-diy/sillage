@@ -58,14 +58,16 @@ struct ScreenshotModeTests {
     var scenario = ScreenshotScenario.default
     scenario.legOriginSettleDelay = .milliseconds(50)
 
-    let env = AppEnvironment(
-      screenshotScenario: scenario,
-      partnerSecretService: partnerSecretService,
-      authSession: authSession,
-      keychainManager: mockKeychain,
-      userDefaults: isolatedDefaults.defaults,
-      databaseManager: dbManager
-    )
+    var overrides = try makeTestOverrides(userDefaults: isolatedDefaults.defaults)
+    overrides.partnerSecretService = partnerSecretService
+    overrides.authSession = authSession
+    overrides.keychainManager = mockKeychain
+    overrides.useDatabaseManager(dbManager)
+    // Leave `positioningService` unset so `bootstrap()` selects `SimulatedPositioningService(scenario:)`.
+    overrides.positioningService = nil
+    overrides.screenshotScenario = scenario
+
+    let env = AppEnvironment(overrides: overrides)
 
     await env.bootstrap()
 
