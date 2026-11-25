@@ -18,8 +18,14 @@ public struct ChecklistTemplateListView: View {
   @State private var viewModel: ChecklistTemplateListViewModel
   @State private var templateToDelete: ChecklistTemplate?
 
-  public init(checklistService: any ChecklistServiceProtocol) {
-    _viewModel = State(wrappedValue: ChecklistTemplateListViewModel(checklistService: checklistService))
+  public init(
+    catalogService: any ChecklistCatalogServiceProtocol,
+    sessionService: any ChecklistSessionServiceProtocol
+  ) {
+    _viewModel = State(wrappedValue: ChecklistTemplateListViewModel(
+      catalogService: catalogService,
+      sessionService: sessionService
+    ))
   }
 
   public init(viewModel: ChecklistTemplateListViewModel) {

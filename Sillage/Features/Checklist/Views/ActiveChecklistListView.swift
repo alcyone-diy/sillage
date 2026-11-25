@@ -64,11 +64,11 @@ public struct ActiveChecklistListView: View {
 
   @State private var pendingAction: PendingSessionAction?
   let viewModel: ChecklistOverlayViewModel
-  let checklistService: (any ChecklistServiceProtocol)?
+  let sessionService: (any ChecklistSessionServiceProtocol)?
 
-  public init(viewModel: ChecklistOverlayViewModel, checklistService: (any ChecklistServiceProtocol)? = nil) {
+  public init(viewModel: ChecklistOverlayViewModel, sessionService: (any ChecklistSessionServiceProtocol)? = nil) {
     self.viewModel = viewModel
-    self.checklistService = checklistService
+    self.sessionService = sessionService
   }
 
   public var body: some View {
@@ -118,7 +118,7 @@ public struct ActiveChecklistListView: View {
             .marineListCell()
           }
         } header: {
-          Text("COMPLETED IN LAST \(ChecklistService.completedSessionRetentionHours)h")
+          Text("COMPLETED IN LAST \(ChecklistSessionService.completedSessionRetentionHours)h")
             .marineSectionHeader()
         }
       }
@@ -155,18 +155,22 @@ public struct ActiveChecklistListView: View {
       presenting: pendingAction
     ) { action in
       Button(action.actionTitle, role: .destructive) {
-        let sessionId = action.session.id
-        Task {
-          do {
-            try await checklistService?.deleteSession(sessionId: sessionId)
-          } catch {
-            Logger.checklist.error("Failed to delete session '\(sessionId.uuidString, privacy: .public)' from swipe action: \(String(reflecting: error), privacy: .public)")
-          }
-        }
+        deleteSession(id: action.session.id)
       }
       Button("Cancel", role: .cancel) { }
     } message: { action in
       Text(action.message)
+    }
+  }
+
+  private func deleteSession(id sessionId: UUID) {
+    let service = self.sessionService
+    Task {
+      do {
+        try await service?.deleteSession(sessionId: sessionId)
+      } catch {
+        Logger.checklist.error("Failed to delete session '\(sessionId.uuidString, privacy: .public)' from swipe action: \(String(reflecting: error), privacy: .public)")
+      }
     }
   }
 }

@@ -15,7 +15,8 @@ import GRDB
 @MainActor
 final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   private var databaseManager: DatabaseManager?
-  private var checklistService: ChecklistService?
+  private var catalogService: ChecklistCatalogService?
+  private var sessionService: ChecklistSessionService?
   private var template: ChecklistTemplate?
   private var viewModel: ChecklistTemplateDetailViewModel?
 
@@ -23,13 +24,15 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     try await super.setUp()
     let db = try DatabaseManager.inMemory()
     self.databaseManager = db
-    let service = ChecklistService(
+    let catalog = ChecklistCatalogService(databaseManager: db)
+    let session = ChecklistSessionService(
       databaseManager: db,
       throttler: ChecklistThrottler(window: .zero)
     )
-    self.checklistService = service
+    self.catalogService = catalog
+    self.sessionService = session
 
-    let createdTemplate = try await service.createCustomTemplate(
+    let createdTemplate = try await catalog.createTemplate(
       title: "Pre-Sail Brief",
       description: "Safety walkaround",
       categoryId: "safety_emergency",
@@ -42,14 +45,16 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
 
     self.viewModel = ChecklistTemplateDetailViewModel(
       templateId: createdTemplate.id,
-      checklistService: service
+      catalogService: catalog,
+      sessionService: session
     )
   }
 
   override func tearDown() async throws {
     viewModel = nil
     template = nil
-    checklistService = nil
+    sessionService = nil
+    catalogService = nil
     databaseManager = nil
     try await super.tearDown()
   }
@@ -100,7 +105,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testUsageStatusWithActiveSessionAndProgress() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let service = try XCTUnwrap(sessionService)
     let tmpl = try XCTUnwrap(template)
     let vm = try XCTUnwrap(viewModel)
 
@@ -130,7 +135,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testUsageStatusWithCompletedSession() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let service = try XCTUnwrap(sessionService)
     let tmpl = try XCTUnwrap(template)
     let vm = try XCTUnwrap(viewModel)
 
@@ -159,7 +164,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testObservationUpdatesActiveAndCompletedSessions() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let service = try XCTUnwrap(sessionService)
     let tmpl = try XCTUnwrap(template)
     let vm = try XCTUnwrap(viewModel)
 
@@ -229,7 +234,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
 
   func testDeleteTemplate() async throws {
     let vm = try XCTUnwrap(viewModel)
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
     let tmpl = try XCTUnwrap(template)
 
     await vm.load()
@@ -237,7 +242,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     let success = await vm.deleteTemplate()
     XCTAssertTrue(success)
 
-    let reloaded = try? await service.fetchTemplate(id: tmpl.id)
+    let reloaded = try? await catalog.fetchTemplate(id: tmpl.id)
     XCTAssertNil(reloaded)
   }
 
@@ -269,7 +274,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
 
   func testSaveUpdatesTemplateAndSwitchesEditMode() async throws {
     let vm = try XCTUnwrap(viewModel)
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
     let tmpl = try XCTUnwrap(template)
 
     await vm.load()
@@ -290,16 +295,18 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertEqual(vm.title, "Updated Title")
     XCTAssertEqual(vm.items.count, 3)
 
-    let reloaded = try? await service.fetchTemplate(id: tmpl.id)
+    let reloaded = try? await catalog.fetchTemplate(id: tmpl.id)
     XCTAssertEqual(reloaded?.title, "Updated Title")
   }
 
   // MARK: - Creation Mode Tests
 
   func testCreationInitialState() throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let creationVM = ChecklistTemplateDetailViewModel(
-      checklistService: service,
+      catalogService: catalog,
+      sessionService: service,
       initialCategoryId: "routine"
     )
 
@@ -319,9 +326,11 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testValidationRequiresCategoryTitleAndNonEmptyItem() throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let creationVM = ChecklistTemplateDetailViewModel(
-      checklistService: service,
+      catalogService: catalog,
+      sessionService: service,
       initialCategoryId: "routine"
     )
 
@@ -362,8 +371,9 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testAddRemoveAndMoveItems() throws {
-    let service = try XCTUnwrap(checklistService)
-    let creationVM = ChecklistTemplateDetailViewModel(checklistService: service)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
+    let creationVM = ChecklistTemplateDetailViewModel(catalogService: catalog, sessionService: service)
     guard !creationVM.items.isEmpty else {
       XCTFail("Expected items to not be empty")
       return
@@ -397,8 +407,9 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testMoveItemUpAndDown() throws {
-    let service = try XCTUnwrap(checklistService)
-    let creationVM = ChecklistTemplateDetailViewModel(checklistService: service)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
+    let creationVM = ChecklistTemplateDetailViewModel(catalogService: catalog, sessionService: service)
     guard !creationVM.items.isEmpty else {
       XCTFail("Expected items to not be empty")
       return
@@ -420,8 +431,9 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testSaveNewTemplate() async throws {
-    let service = try XCTUnwrap(checklistService)
-    let creationVM = ChecklistTemplateDetailViewModel(checklistService: service)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
+    let creationVM = ChecklistTemplateDetailViewModel(catalogService: catalog, sessionService: service)
     creationVM.title = "Passage Prep"
     creationVM.descriptionText = "Pre-passage safety checklist"
     creationVM.categoryId = "safety_emergency"
@@ -445,8 +457,9 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testEditExistingTemplateViaDirectInit() async throws {
-    let service = try XCTUnwrap(checklistService)
-    let existing = try await service.createCustomTemplate(
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
+    let existing = try await catalog.createTemplate(
       title: "Original Title",
       description: "Original description",
       categoryId: "routine",
@@ -458,7 +471,8 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
 
     let existingVM = ChecklistTemplateDetailViewModel(
       template: existing,
-      checklistService: service,
+      catalogService: catalog,
+      sessionService: service,
       startEditable: true
     )
 
@@ -482,18 +496,20 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     XCTAssertEqual(updated?.title, "Updated Title")
     XCTAssertEqual(updated?.items.count, 3)
 
-    let reloaded = try await service.fetchTemplate(id: existing.id)
+    let reloaded = try await catalog.fetchTemplate(id: existing.id)
     XCTAssertEqual(reloaded?.title, "Updated Title")
     XCTAssertEqual(reloaded?.items.count, 3)
   }
 
   func testLoadDoesNotOverwriteUnsavedEditsWhenAlreadyHydratedAndEditable() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let tmpl = try XCTUnwrap(template)
 
     let editingVM = ChecklistTemplateDetailViewModel(
       template: tmpl,
-      checklistService: service,
+      catalogService: catalog,
+      sessionService: service,
       startEditable: true
     )
 
@@ -524,12 +540,14 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testLoadPopulatesDraftWhenOpenedByTemplateIdOnlyInEditMode() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let tmpl = try XCTUnwrap(template)
 
     let idOnlyVM = ChecklistTemplateDetailViewModel(
       templateId: tmpl.id,
-      checklistService: service,
+      catalogService: catalog,
+      sessionService: service,
       startEditable: true
     )
 
@@ -557,9 +575,11 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testCategoryIdSelectionAndHelpers() throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = ChecklistTemplateDetailViewModel(
-      checklistService: service,
+      catalogService: catalog,
+      sessionService: service,
       initialCategoryId: "routine"
     )
     XCTAssertEqual(vm.categoryId, "routine")
@@ -580,8 +600,9 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
   }
 
   func testSaveTemplateWithCustomCategory() async throws {
-    let service = try XCTUnwrap(checklistService)
-    let customCategory = try await service.createCategory(
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
+    let customCategory = try await catalog.createCategory(
       id: "custom_electronics",
       name: "Marine Electronics",
       icon: "antenna.radiowaves.left.and.right",
@@ -589,7 +610,8 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     )
 
     let creationVM = ChecklistTemplateDetailViewModel(
-      checklistService: service,
+      catalogService: catalog,
+      sessionService: service,
       initialCategoryId: customCategory.id
     )
     XCTAssertEqual(creationVM.categoryId, "custom_electronics")
@@ -602,7 +624,7 @@ final class ChecklistTemplateDetailViewModelTests: XCTestCase {
     let savedTemplate = try XCTUnwrap(saved)
     XCTAssertEqual(savedTemplate.categoryId, "custom_electronics")
 
-    let reloaded = try await service.fetchTemplate(id: savedTemplate.id)
+    let reloaded = try await catalog.fetchTemplate(id: savedTemplate.id)
     XCTAssertEqual(reloaded?.categoryId, "custom_electronics")
   }
 }

@@ -106,6 +106,11 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertNotNil(environment.geoGarageChartDownloader)
     XCTAssertNotNil(environment.geoGarageOfflineTileProvider)
     XCTAssertNotNil(environment.geoGarageLayerRepository)
+
+    let seededTemplates = try await environment.checklistCatalogService.fetchTemplates()
+    XCTAssertEqual(seededTemplates.count, 4)
+    let recentSessions = try await environment.checklistSessionService.fetchRecentSessions(limit: 5)
+    XCTAssertTrue(recentSessions.isEmpty)
   }
 
   func testBootstrap_executesLifecycleWithInMemoryDatabaseWithoutResidualCachesFile() async throws {

@@ -1,5 +1,5 @@
 //
-//  ChecklistSessionError.swift
+//  ChecklistError.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-09-27.
@@ -10,11 +10,11 @@
 
 import Foundation
 
-/// Specific domain errors related to checklist lifecycle and database operations.
+/// Specific domain errors related to checklist catalog, session lifecycle, and database operations.
 ///
 /// - `errorDescription` is user-facing: localized, free of identifiers and architecture jargon.
 /// - `debugDescription` carries technical details for logs (use `String(reflecting: error)`).
-public enum ChecklistSessionError: Error, Sendable, LocalizedError, CustomDebugStringConvertible, Equatable {
+public enum ChecklistError: Error, Sendable, LocalizedError, CustomDebugStringConvertible, Equatable {
   case templateNotFound(UUID)
   case sessionNotFound(UUID)
   case sessionAlreadyFinished(UUID)
@@ -74,9 +74,9 @@ public enum ChecklistSessionError: Error, Sendable, LocalizedError, CustomDebugS
     String(localized: "A storage error occurred. Please try again.")
   }
 
-  /// Maps any error thrown by the checklist service to a mariner-facing message.
+  /// Maps any error thrown by checklist services to a mariner-facing message.
   /// Untyped errors (e.g. raw GRDB errors) fall back to the generic storage message.
   public static func userMessage(for error: any Error) -> String {
-    (error as? ChecklistSessionError)?.errorDescription ?? storageFailureMessage
+    (error as? ChecklistError)?.errorDescription ?? storageFailureMessage
   }
 }

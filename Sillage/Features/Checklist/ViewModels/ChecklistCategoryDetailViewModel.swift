@@ -16,7 +16,7 @@ import OSLog
 @MainActor
 @Observable
 public final class ChecklistCategoryDetailViewModel {
-  private let checklistService: any ChecklistServiceProtocol
+  private let catalogService: any ChecklistCatalogServiceProtocol
 
   public private(set) var categoryId: String?
   public private(set) var category: ChecklistCategoryItem?
@@ -88,13 +88,13 @@ public final class ChecklistCategoryDetailViewModel {
   public init(
     categoryId: String? = nil,
     category: ChecklistCategoryItem? = nil,
-    checklistService: any ChecklistServiceProtocol,
+    catalogService: any ChecklistCatalogServiceProtocol,
     startEditable: Bool = false
   ) {
     let resolvedId = categoryId ?? category?.id
     self.categoryId = resolvedId
     self.category = category
-    self.checklistService = checklistService
+    self.catalogService = catalogService
     self.isEditable = (resolvedId == nil) ? true : startEditable
 
     if let category {
@@ -113,8 +113,8 @@ public final class ChecklistCategoryDetailViewModel {
     errorMessage = nil
 
     do {
-      async let fetchedCategory = checklistService.fetchCategory(id: categoryId)
-      async let allTemplates = checklistService.fetchTemplates()
+      async let fetchedCategory = catalogService.fetchCategory(id: categoryId)
+      async let allTemplates = catalogService.fetchTemplates()
 
       let (cat, templates) = try await (fetchedCategory, allTemplates)
       if let cat {
@@ -171,7 +171,7 @@ public final class ChecklistCategoryDetailViewModel {
     do {
       let saved: ChecklistCategoryItem
       if let categoryId {
-        saved = try await checklistService.updateCategory(
+        saved = try await catalogService.updateCategory(
           id: categoryId,
           name: trimmedName,
           icon: resolvedIcon,
@@ -179,7 +179,7 @@ public final class ChecklistCategoryDetailViewModel {
         )
         Logger.checklist.info("Successfully updated checklist category: \(saved.id, privacy: .public)")
       } else {
-        saved = try await checklistService.createCategory(
+        saved = try await catalogService.createCategory(
           id: nil,
           name: trimmedName,
           icon: resolvedIcon,
@@ -196,7 +196,7 @@ public final class ChecklistCategoryDetailViewModel {
     } catch {
       Logger.checklist.error("Failed to save checklist category: \(String(reflecting: error), privacy: .public)")
       alertTitle = String(localized: "Error")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
       return nil
     }
   }
@@ -206,13 +206,13 @@ public final class ChecklistCategoryDetailViewModel {
   public func deleteCategory() async -> Bool {
     guard let categoryId else { return false }
     do {
-      try await checklistService.deleteCategory(id: categoryId)
+      try await catalogService.deleteCategory(id: categoryId)
       Logger.checklist.info("Successfully deleted category: \(categoryId, privacy: .public)")
       return true
     } catch {
       Logger.checklist.error("Failed to delete category: \(String(reflecting: error), privacy: .public)")
       alertTitle = String(localized: "Error")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
       return false
     }
   }

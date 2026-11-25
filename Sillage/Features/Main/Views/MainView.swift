@@ -23,7 +23,6 @@ struct ContentView: View {
   @Environment(PermissionService.self) private var permissionService
   @Environment(ActiveTrackViewModel.self) private var activeTrackViewModel
   @Environment(\.marineTheme) private var marineTheme
-  @Environment(ChecklistService.self) private var checklistService
   @Environment(AppEnvironment.self) private var appEnvironment
 
   @State private var checklistOverlayViewModel = ChecklistOverlayViewModel()
@@ -292,7 +291,7 @@ struct ContentView: View {
       NavigationStack(path: $checklistOverlayViewModel.navigationPath) {
         ActiveChecklistListView(
           viewModel: checklistOverlayViewModel,
-          checklistService: checklistService
+          sessionService: appEnvironment.checklistSessionService
         )
         .navigationDestination(for: ChecklistOverlayDestination.self) { destination in
           switch destination {
@@ -300,7 +299,8 @@ struct ContentView: View {
             let environment = self.appEnvironment
             ChecklistSessionView(
               payload: route,
-              checklistService: checklistService,
+              catalogService: appEnvironment.checklistCatalogService,
+              sessionService: appEnvironment.checklistSessionService,
               locationProvider: { [weak environment] in
                 environment?.lastKnownLocation
               }
@@ -308,7 +308,8 @@ struct ContentView: View {
           case .templateDetail(let templateId, let startEditable):
             ChecklistTemplateDetailView(
               templateId: templateId,
-              checklistService: checklistService,
+              catalogService: appEnvironment.checklistCatalogService,
+              sessionService: appEnvironment.checklistSessionService,
               startEditable: startEditable
             )
           }
@@ -336,7 +337,7 @@ struct ContentView: View {
       appViewModel.pendingNotificationIntent = nil
     }
     .task {
-      await checklistOverlayViewModel.observe(service: checklistService)
+      await checklistOverlayViewModel.observe(service: appEnvironment.checklistSessionService)
     }
   }
 

@@ -14,19 +14,22 @@ import XCTest
 @MainActor
 final class ChecklistOverlayViewModelTests: XCTestCase {
   private var databaseManager: DatabaseManager?
-  private var checklistService: ChecklistService?
+  private var catalogService: ChecklistCatalogService?
+  private var sessionService: ChecklistSessionService?
   private var viewModel: ChecklistOverlayViewModel?
   private var observationTask: Task<Void, Never>?
 
   override func setUp() async throws {
     try await super.setUp()
     let dbManager = try DatabaseManager.inMemory()
-    let service = ChecklistService(
+    let catalog = ChecklistCatalogService(databaseManager: dbManager)
+    let session = ChecklistSessionService(
       databaseManager: dbManager,
       throttler: ChecklistThrottler(window: .zero)
     )
     self.databaseManager = dbManager
-    self.checklistService = service
+    self.catalogService = catalog
+    self.sessionService = session
     self.viewModel = ChecklistOverlayViewModel()
   }
 
@@ -34,7 +37,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     observationTask?.cancel()
     observationTask = nil
     viewModel = nil
-    checklistService = nil
+    sessionService = nil
+    catalogService = nil
     databaseManager = nil
     try await super.tearDown()
   }
@@ -56,7 +60,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   // MARK: - Reactive Observation & Business Filtering Tests
 
   func testObserveActiveSessionsIncludesSessionsWithoutProgress() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -65,7 +70,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     }
 
     // Create a template
-    let template = try await service.createCustomTemplate(
+    let template = try await catalog.createTemplate(
       title: "Engine Check",
       description: nil,
       categoryId: "engine_technical",
@@ -99,7 +104,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   }
 
   func testObserveActiveSessionsPreservesSessionsWhenCompleted() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -107,7 +113,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       await vm.observe(service: service)
     }
 
-    let template = try await service.createCustomTemplate(
+    let template = try await catalog.createTemplate(
       title: "Mooring Prep",
       description: nil,
       categoryId: "routine",
@@ -146,7 +152,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   }
 
   func testMultipleActiveSessions() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -154,13 +161,13 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       await vm.observe(service: service)
     }
 
-    let template1 = try await service.createCustomTemplate(
+    let template1 = try await catalog.createTemplate(
       title: "Checklist 1",
       description: nil,
       categoryId: "routine",
       items: [("Item 1", nil)]
     )
-    let template2 = try await service.createCustomTemplate(
+    let template2 = try await catalog.createTemplate(
       title: "Checklist 2",
       description: nil,
       categoryId: "safety_emergency",
@@ -179,7 +186,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   }
 
   func testPresentationControls() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -187,7 +195,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       await vm.observe(service: service)
     }
 
-    let template = try await service.createCustomTemplate(
+    let template = try await catalog.createTemplate(
       title: "Engine Check",
       description: nil,
       categoryId: "engine_technical",
@@ -217,7 +225,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   }
 
   func testSessionEditorDoesNotAutoDismissWhenSessionCompletes() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -225,7 +234,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       await vm.observe(service: service)
     }
 
-    let template = try await service.createCustomTemplate(
+    let template = try await catalog.createTemplate(
       title: "Pre-departure Check",
       description: nil,
       categoryId: "routine",
@@ -257,7 +266,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   }
 
   func testOpenActiveChecklistsRoutesToSingleWhenOnlyOneActive() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -265,7 +275,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       await vm.observe(service: service)
     }
 
-    let template = try await service.createCustomTemplate(
+    let template = try await catalog.createTemplate(
       title: "Solo Check",
       description: nil,
       categoryId: "routine",
@@ -292,7 +302,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   }
 
   func testOpenActiveChecklistsRoutesToListWhenMultipleActive() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -300,13 +311,13 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       await vm.observe(service: service)
     }
 
-    let template1 = try await service.createCustomTemplate(
+    let template1 = try await catalog.createTemplate(
       title: "Check 1",
       description: nil,
       categoryId: "routine",
       items: [("Item 1", nil)]
     )
-    let template2 = try await service.createCustomTemplate(
+    let template2 = try await catalog.createTemplate(
       title: "Check 2",
       description: nil,
       categoryId: "routine",
@@ -350,7 +361,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   }
 
   func testProgressMetricsAcrossActiveSessions() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -358,13 +370,13 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       await vm.observe(service: service)
     }
 
-    let template1 = try await service.createCustomTemplate(
+    let template1 = try await catalog.createTemplate(
       title: "Check 1",
       description: nil,
       categoryId: "routine",
       items: [("Item 1A", nil), ("Item 1B", nil), ("Item 1C", nil), ("Item 1D", nil)]
     )
-    let template2 = try await service.createCustomTemplate(
+    let template2 = try await catalog.createTemplate(
       title: "Check 2",
       description: nil,
       categoryId: "navigation_maneuver",
@@ -400,7 +412,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   }
 
   func testSeparationOfInProgressAndCompletedSessions() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -408,21 +421,21 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       await vm.observe(service: service)
     }
 
-    let routineTemplate = try await service.createCustomTemplate(
+    let routineTemplate = try await catalog.createTemplate(
       title: "Routine Checklist",
       description: nil,
       categoryId: "routine",
       items: [("Task 1", nil)]
     )
 
-    let engineTemplate = try await service.createCustomTemplate(
+    let engineTemplate = try await catalog.createTemplate(
       title: "Engine Checklist",
       description: nil,
       categoryId: "engine_technical",
       items: [("Task 2", nil)]
     )
 
-    let safetyTemplate = try await service.createCustomTemplate(
+    let safetyTemplate = try await catalog.createTemplate(
       title: "Safety Checklist",
       description: nil,
       categoryId: "safety_emergency",
@@ -459,7 +472,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   }
 
   func testSessionsSortedAlphabetically() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -467,19 +481,19 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       await vm.observe(service: service)
     }
 
-    let templateZ = try await service.createCustomTemplate(
+    let templateZ = try await catalog.createTemplate(
       title: "Zulu Checklist",
       description: nil,
       categoryId: "routine",
       items: [("Z1", nil)]
     )
-    let templateA = try await service.createCustomTemplate(
+    let templateA = try await catalog.createTemplate(
       title: "Alpha Checklist",
       description: nil,
       categoryId: "routine",
       items: [("A1", nil)]
     )
-    let templateB = try await service.createCustomTemplate(
+    let templateB = try await catalog.createTemplate(
       title: "Bravo Checklist",
       description: nil,
       categoryId: "routine",
@@ -514,7 +528,8 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
   }
 
   func testTemplateDeletionUpdatesSessionsAndActiveChecklists() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
     observationTask = Task { [weak vm, weak service] in
@@ -522,7 +537,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
       await vm.observe(service: service)
     }
 
-    let template = try await service.createCustomTemplate(
+    let template = try await catalog.createTemplate(
       title: "Temporary Checklist",
       description: nil,
       categoryId: "routine",
@@ -533,7 +548,7 @@ final class ChecklistOverlayViewModelTests: XCTestCase {
     try await waitUntil { vm.activeSessions.count == 1 && vm.hasActiveChecklists }
 
     // Delete the template from the service
-    try await service.deleteCustomTemplate(id: template.id)
+    try await catalog.deleteTemplate(id: template.id)
 
     // DB stream updates sessions and active checklist state without side-effect mutations on navigationPath
     try await waitUntil { vm.activeSessions.isEmpty }

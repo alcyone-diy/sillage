@@ -21,18 +21,21 @@ public struct ChecklistSessionView: View {
   /// - Parameters:
   ///   - sessionId: Persistent identifier of the session.
   ///   - session: Optional in-memory session snapshot enabling zero-latency initial rendering.
-  ///   - checklistService: The checklist service handling data mutations and observation.
+  ///   - catalogService: The checklist catalog service providing parent template and category metadata.
+  ///   - sessionService: The checklist session service handling data mutations and observation.
   ///   - locationProvider: Optional provider for auditing GPS coordinates upon step completion.
   public init(
     sessionId: UUID,
     session: ChecklistSession? = nil,
-    checklistService: any ChecklistServiceProtocol,
+    catalogService: any ChecklistCatalogServiceProtocol,
+    sessionService: any ChecklistSessionServiceProtocol,
     locationProvider: (@MainActor () -> NavigationFix?)? = nil
   ) {
     _viewModel = State(wrappedValue: ChecklistSessionViewModel(
       sessionId: sessionId,
       session: session,
-      checklistService: checklistService,
+      catalogService: catalogService,
+      sessionService: sessionService,
       locationProvider: locationProvider
     ))
   }
@@ -40,13 +43,15 @@ public struct ChecklistSessionView: View {
   /// Initializes the checklist session view with a navigation payload.
   public init(
     payload: ChecklistSessionPayload,
-    checklistService: any ChecklistServiceProtocol,
+    catalogService: any ChecklistCatalogServiceProtocol,
+    sessionService: any ChecklistSessionServiceProtocol,
     locationProvider: (@MainActor () -> NavigationFix?)? = nil
   ) {
     self.init(
       sessionId: payload.id,
       session: payload.snapshot,
-      checklistService: checklistService,
+      catalogService: catalogService,
+      sessionService: sessionService,
       locationProvider: locationProvider
     )
   }

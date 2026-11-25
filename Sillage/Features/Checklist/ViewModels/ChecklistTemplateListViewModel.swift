@@ -16,7 +16,8 @@ import OSLog
 @MainActor
 @Observable
 public final class ChecklistTemplateListViewModel {
-  private let checklistService: any ChecklistServiceProtocol
+  private let catalogService: any ChecklistCatalogServiceProtocol
+  private let sessionService: any ChecklistSessionServiceProtocol
 
   public private(set) var templates: [ChecklistTemplate] = []
   public private(set) var categories: [ChecklistCategoryItem] = []
@@ -53,8 +54,12 @@ public final class ChecklistTemplateListViewModel {
     return result
   }
 
-  public init(checklistService: any ChecklistServiceProtocol) {
-    self.checklistService = checklistService
+  public init(
+    catalogService: any ChecklistCatalogServiceProtocol,
+    sessionService: any ChecklistSessionServiceProtocol
+  ) {
+    self.catalogService = catalogService
+    self.sessionService = sessionService
   }
 
   /// Loads available checklist templates and categories from the database.
@@ -64,24 +69,24 @@ public final class ChecklistTemplateListViewModel {
     errorMessage = nil
 
     do {
-      async let fetchedTemplates = checklistService.fetchTemplates()
-      async let fetchedCategories = checklistService.fetchCategories()
+      async let fetchedTemplates = catalogService.fetchTemplates()
+      async let fetchedCategories = catalogService.fetchCategories()
       let (templatesList, categoriesList) = try await (fetchedTemplates, fetchedCategories)
       templates = templatesList.sorted(by: ChecklistTemplate.standardComparator)
       categories = categoriesList
     } catch {
       Logger.checklist.error("Failed to load checklist templates: \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
     }
   }
 
   /// Loads available categories from the database.
   public func loadCategories() async {
     do {
-      categories = try await checklistService.fetchCategories()
+      categories = try await catalogService.fetchCategories()
     } catch {
       Logger.checklist.error("Failed to load checklist categories: \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
     }
   }
 
@@ -98,7 +103,7 @@ public final class ChecklistTemplateListViewModel {
     sortOrder: Int? = nil
   ) async -> ChecklistCategoryItem? {
     do {
-      let created = try await checklistService.createCategory(
+      let created = try await catalogService.createCategory(
         id: nil,
         name: name,
         icon: icon,
@@ -108,7 +113,7 @@ public final class ChecklistTemplateListViewModel {
       return created
     } catch {
       Logger.checklist.error("Failed to create checklist category '\(name, privacy: .public)': \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
       return nil
     }
   }
@@ -117,12 +122,12 @@ public final class ChecklistTemplateListViewModel {
   /// - Returns: `true` if deletion succeeded, `false` otherwise.
   public func deleteCategory(id: String) async -> Bool {
     do {
-      try await checklistService.deleteCategory(id: id)
+      try await catalogService.deleteCategory(id: id)
       await loadCategories()
       return true
     } catch {
       Logger.checklist.error("Failed to delete checklist category '\(id, privacy: .public)': \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
       return false
     }
   }
@@ -130,7 +135,7 @@ public final class ChecklistTemplateListViewModel {
   /// Observes active in-progress checklist sessions.
   public func observeActiveSessions() async {
     do {
-      for try await sessions in checklistService.observeActiveSessions() {
+      for try await sessions in sessionService.observeActiveSessions() {
         if Task.isCancelled { break }
         self.activeSessions = sessions
       }
@@ -163,11 +168,11 @@ public final class ChecklistTemplateListViewModel {
   /// - Returns: The active `ChecklistSession`, or `nil` on failure.
   public func startOrResumeSession(for templateId: UUID) async -> ChecklistSession? {
     do {
-      let session = try await checklistService.startSession(templateId: templateId)
+      let session = try await sessionService.startSession(templateId: templateId)
       return session
     } catch {
       Logger.checklist.error("Failed to start or resume session for template \(templateId.uuidString, privacy: .public): \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
       return nil
     }
   }
@@ -175,7 +180,7 @@ public final class ChecklistTemplateListViewModel {
   /// Observes latest completion dates for checklist templates.
   public func observeCompletedSessions() async {
     do {
-      for try await dates in checklistService.observeCompletedSessions() {
+      for try await dates in sessionService.observeCompletedSessions() {
         if Task.isCancelled { break }
         self.latestCompletionDates = dates
       }
@@ -191,15 +196,15 @@ public final class ChecklistTemplateListViewModel {
     latestCompletionDates[templateId]
   }
 
-  /// Deletes a custom checklist template.
+  /// Deletes a checklist template.
   public func deleteTemplate(id: UUID) async -> Bool {
     do {
-      try await checklistService.deleteCustomTemplate(id: id)
+      try await catalogService.deleteTemplate(id: id)
       await loadTemplates()
       return true
     } catch {
-      Logger.checklist.error("Failed to delete custom template \(id.uuidString, privacy: .public): \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      Logger.checklist.error("Failed to delete template \(id.uuidString, privacy: .public): \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistError.userMessage(for: error)
       return false
     }
   }

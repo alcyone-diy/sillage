@@ -15,7 +15,8 @@ import CoreLocation
 @MainActor
 final class ChecklistSessionViewModelTests: XCTestCase {
   private var databaseManager: DatabaseManager?
-  private var checklistService: ChecklistService?
+  private var catalogService: ChecklistCatalogService?
+  private var sessionService: ChecklistSessionService?
   private var template: ChecklistTemplate?
   private var session: ChecklistSession?
   private var viewModel: ChecklistSessionViewModel?
@@ -26,13 +27,15 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     try await super.setUp()
     let db = try DatabaseManager.inMemory()
     self.databaseManager = db
-    let service = ChecklistService(
+    let catalog = ChecklistCatalogService(databaseManager: db)
+    let sessionSvc = ChecklistSessionService(
       databaseManager: db,
       throttler: ChecklistThrottler(window: .zero)
     )
-    self.checklistService = service
+    self.catalogService = catalog
+    self.sessionService = sessionSvc
 
-    let createdTemplate = try await service.createCustomTemplate(
+    let createdTemplate = try await catalog.createTemplate(
       title: "Engine Check",
       description: "Pre-departure engine inspection",
       categoryId: "engine_technical",
@@ -44,12 +47,13 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     )
     self.template = createdTemplate
 
-    let createdSession = try await service.startSession(templateId: createdTemplate.id)
+    let createdSession = try await sessionSvc.startSession(templateId: createdTemplate.id)
     self.session = createdSession
 
     self.viewModel = ChecklistSessionViewModel(
       sessionId: createdSession.id,
-      checklistService: service,
+      catalogService: catalog,
+      sessionService: sessionSvc,
       locationProvider: { [weak self] in
         self?.simulatedFix
       }
@@ -63,7 +67,8 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     simulatedFix = nil
     session = nil
     template = nil
-    checklistService = nil
+    sessionService = nil
+    catalogService = nil
     databaseManager = nil
     try await super.tearDown()
   }
@@ -72,12 +77,14 @@ final class ChecklistSessionViewModelTests: XCTestCase {
 
   func testInitWithPreloadedSessionExposesTitleInstantly() throws {
     let currentSession = try XCTUnwrap(session)
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
 
     let preloadedVM = ChecklistSessionViewModel(
       sessionId: currentSession.id,
       session: currentSession,
-      checklistService: service
+      catalogService: catalog,
+      sessionService: service
     )
 
     XCTAssertEqual(preloadedVM.title, "Engine Check")
@@ -252,7 +259,7 @@ final class ChecklistSessionViewModelTests: XCTestCase {
 
   func testTemplateDeletionMarksSessionAsDeleted() async throws {
     let vm = try XCTUnwrap(viewModel)
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
     let currentTemplate = try XCTUnwrap(template)
 
     await vm.load()
@@ -264,7 +271,7 @@ final class ChecklistSessionViewModelTests: XCTestCase {
     }
     defer { task.cancel() }
 
-    try await service.deleteTemplate(id: currentTemplate.id)
+    try await catalog.deleteTemplate(id: currentTemplate.id)
 
     let start = Date()
     while !vm.isSessionDeleted && Date().timeIntervalSince(start) < 2.0 {
@@ -314,15 +321,16 @@ final class ChecklistSessionViewModelTests: XCTestCase {
   }
 
   func testCategoryItemResolvesForCustomCategory() async throws {
-    let service = try XCTUnwrap(checklistService)
-    let customCategory = try await service.createCategory(
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
+    let customCategory = try await catalog.createCategory(
       id: "custom_hull",
       name: "Hull & Keel",
       icon: "shield",
       sortOrder: 15
     )
 
-    let customTemplate = try await service.createCustomTemplate(
+    let customTemplate = try await catalog.createTemplate(
       title: "Hull Inspection",
       description: "Thru-hulls and zincs",
       categoryId: customCategory.id,
@@ -333,7 +341,8 @@ final class ChecklistSessionViewModelTests: XCTestCase {
 
     let customVM = ChecklistSessionViewModel(
       sessionId: customSession.id,
-      checklistService: service
+      catalogService: catalog,
+      sessionService: service
     )
 
     await customVM.load()

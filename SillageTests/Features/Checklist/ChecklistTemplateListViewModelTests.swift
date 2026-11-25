@@ -15,24 +15,31 @@ import GRDB
 @MainActor
 final class ChecklistTemplateListViewModelTests: XCTestCase {
   private var databaseManager: DatabaseManager?
-  private var checklistService: ChecklistService?
+  private var catalogService: ChecklistCatalogService?
+  private var sessionService: ChecklistSessionService?
   private var viewModel: ChecklistTemplateListViewModel?
 
   override func setUp() async throws {
     try await super.setUp()
     let dbManager = try DatabaseManager.inMemory()
-    let service = ChecklistService(
+    let catalog = ChecklistCatalogService(databaseManager: dbManager)
+    let session = ChecklistSessionService(
       databaseManager: dbManager,
       throttler: ChecklistThrottler(window: .zero)
     )
     self.databaseManager = dbManager
-    self.checklistService = service
-    self.viewModel = ChecklistTemplateListViewModel(checklistService: service)
+    self.catalogService = catalog
+    self.sessionService = session
+    self.viewModel = ChecklistTemplateListViewModel(
+      catalogService: catalog,
+      sessionService: session
+    )
   }
 
   override func tearDown() async throws {
     viewModel = nil
-    checklistService = nil
+    sessionService = nil
+    catalogService = nil
     databaseManager = nil
     try await super.tearDown()
   }
@@ -51,16 +58,16 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
   // MARK: - Loading Templates Tests
 
   func testLoadTemplates() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
     let vm = try XCTUnwrap(viewModel)
 
-    _ = try await service.createCustomTemplate(
+    _ = try await catalog.createTemplate(
       title: "Routine Check",
       description: "Routine items",
       categoryId: "routine",
       items: [("Item 1", "Detail 1")]
     )
-    _ = try await service.createCustomTemplate(
+    _ = try await catalog.createTemplate(
       title: "Safety Brief",
       description: "Emergency equipment",
       categoryId: "safety_emergency",
@@ -75,24 +82,24 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
   }
 
   func testTemplatesSortedAlphabeticallyWhenSameSortOrder() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
     let vm = try XCTUnwrap(viewModel)
 
-    // createCustomTemplate assigns sort_order = 0 to each custom template,
+    // createTemplate assigns sort_order = 0 to each created template,
     // so this tests the alphabetical fallback when sortOrder is identical.
-    _ = try await service.createCustomTemplate(
+    _ = try await catalog.createTemplate(
       title: "Zebra Checklist",
       description: nil,
       categoryId: "routine",
       items: [("Z1", nil)]
     )
-    _ = try await service.createCustomTemplate(
+    _ = try await catalog.createTemplate(
       title: "Alpha Checklist",
       description: nil,
       categoryId: "routine",
       items: [("A1", nil)]
     )
-    _ = try await service.createCustomTemplate(
+    _ = try await catalog.createTemplate(
       title: "Beta Checklist",
       description: nil,
       categoryId: "routine",
@@ -175,10 +182,11 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
   // MARK: - Active Sessions Observation Tests
 
   func testActiveSessionsTracking() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
-    let template = try await service.createCustomTemplate(
+    let template = try await catalog.createTemplate(
       title: "Navigation Prep",
       description: nil,
       categoryId: "navigation_maneuver",
@@ -236,10 +244,10 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
   // MARK: - Start or Resume Session Tests
 
   func testStartOrResumeSessionReturnsSessionId() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
     let vm = try XCTUnwrap(viewModel)
 
-    let template = try await service.createCustomTemplate(
+    let template = try await catalog.createTemplate(
       title: "Quick Check",
       description: nil,
       categoryId: "routine",
@@ -257,10 +265,11 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
   // MARK: - Completed Sessions Observation Tests
 
   func testCompletedSessionsTracking() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
+    let service = try XCTUnwrap(sessionService)
     let vm = try XCTUnwrap(viewModel)
 
-    let template = try await service.createCustomTemplate(
+    let template = try await catalog.createTemplate(
       title: "Departure Checklist",
       description: nil,
       categoryId: "routine",
@@ -304,17 +313,17 @@ final class ChecklistTemplateListViewModelTests: XCTestCase {
   // MARK: - Category Management Tests
 
   func testCategoriesLoadedAndGroupedByCategoryItem() async throws {
-    let service = try XCTUnwrap(checklistService)
+    let catalog = try XCTUnwrap(catalogService)
     let vm = try XCTUnwrap(viewModel)
 
-    let customCategory = try await service.createCategory(
+    let customCategory = try await catalog.createCategory(
       id: "custom_moorings",
       name: "Moorings & Anchoring",
       icon: "anchor",
       sortOrder: 10
     )
 
-    _ = try await service.createCustomTemplate(
+    _ = try await catalog.createTemplate(
       title: "Anchorage Check",
       description: "Depth and swing radius",
       categoryId: customCategory.id,

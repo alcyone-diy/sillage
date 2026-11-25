@@ -42,7 +42,8 @@ public struct ChecklistItemDraft: Identifiable, Equatable, Sendable {
 @Observable
 public final class ChecklistTemplateDetailViewModel {
   public private(set) var templateId: UUID?
-  private let checklistService: any ChecklistServiceProtocol
+  private let catalogService: any ChecklistCatalogServiceProtocol
+  private let sessionService: any ChecklistSessionServiceProtocol
 
   public private(set) var template: ChecklistTemplate?
   public private(set) var activeSession: ChecklistSession?
@@ -158,12 +159,14 @@ public final class ChecklistTemplateDetailViewModel {
   public init(
     templateId: UUID? = nil,
     template: ChecklistTemplate? = nil,
-    checklistService: any ChecklistServiceProtocol,
+    catalogService: any ChecklistCatalogServiceProtocol,
+    sessionService: any ChecklistSessionServiceProtocol,
     startEditable: Bool = false,
     initialCategoryId: String? = nil
   ) {
     self.templateId = templateId ?? template?.id
-    self.checklistService = checklistService
+    self.catalogService = catalogService
+    self.sessionService = sessionService
     self.isEditable = (templateId == nil && template == nil) ? true : startEditable
     self.isLoading = (self.templateId != nil && template == nil)
 
@@ -190,7 +193,7 @@ public final class ChecklistTemplateDetailViewModel {
     }
 
     do {
-      let categories = try await checklistService.fetchCategories()
+      let categories = try await catalogService.fetchCategories()
       guard !Task.isCancelled else { return }
       self.availableCategories = categories
       if categoryId.isEmpty, let firstCategory = availableCategories.first {
@@ -211,7 +214,7 @@ public final class ChecklistTemplateDetailViewModel {
     errorMessage = nil
 
     do {
-      let fetchedTemplate = try await checklistService.fetchTemplate(id: templateId)
+      let fetchedTemplate = try await catalogService.fetchTemplate(id: templateId)
       guard !Task.isCancelled else { return }
       let hadTemplate = self.template != nil
       self.template = fetchedTemplate
@@ -219,17 +222,17 @@ public final class ChecklistTemplateDetailViewModel {
         populate(from: fetchedTemplate)
       }
 
-      let activeSession = try await checklistService.fetchActiveSession(for: templateId)
+      let activeSession = try await sessionService.fetchActiveSession(for: templateId)
       guard !Task.isCancelled else { return }
       self.activeSession = activeSession
 
-      let latestCompletionDate = try await checklistService.fetchLatestCompletionDate(for: templateId)
+      let latestCompletionDate = try await sessionService.fetchLatestCompletionDate(for: templateId)
       guard !Task.isCancelled else { return }
       self.latestCompletionDate = latestCompletionDate
     } catch {
       if error is CancellationError || Task.isCancelled { return }
       Logger.checklist.error("Failed to load checklist template \(templateId.uuidString, privacy: .public): \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
     }
   }
 
@@ -247,7 +250,7 @@ public final class ChecklistTemplateDetailViewModel {
   public func observeActiveSessions() async {
     guard let templateId else { return }
     do {
-      for try await sessions in checklistService.observeActiveSessions() {
+      for try await sessions in sessionService.observeActiveSessions() {
         if Task.isCancelled { break }
         self.activeSession = sessions.first {
           $0.templateId == templateId &&
@@ -265,7 +268,7 @@ public final class ChecklistTemplateDetailViewModel {
   public func observeCompletedSessions() async {
     guard let templateId else { return }
     do {
-      for try await dates in checklistService.observeCompletedSessions() {
+      for try await dates in sessionService.observeCompletedSessions() {
         if Task.isCancelled { break }
         self.latestCompletionDate = dates[templateId]
       }
@@ -308,27 +311,27 @@ public final class ChecklistTemplateDetailViewModel {
   public func startOrResumeSession() async -> UUID? {
     guard let templateId else { return nil }
     do {
-      let session = try await checklistService.startSession(templateId: templateId)
+      let session = try await sessionService.startSession(templateId: templateId)
       self.activeSession = session
       return session.id
     } catch {
       Logger.checklist.error("Failed to start or resume checklist session: \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
       return nil
     }
   }
 
-  /// Deletes the custom template from the database.
+  /// Deletes the template from the database.
   /// - Returns: `true` if deletion succeeded, `false` otherwise.
   public func deleteTemplate() async -> Bool {
     guard let templateId else { return false }
     do {
-      try await checklistService.deleteCustomTemplate(id: templateId)
-      Logger.checklist.info("Successfully deleted custom template: \(templateId.uuidString, privacy: .public)")
+      try await catalogService.deleteTemplate(id: templateId)
+      Logger.checklist.info("Successfully deleted template: \(templateId.uuidString, privacy: .public)")
       return true
     } catch {
-      Logger.checklist.error("Failed to delete custom template: \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      Logger.checklist.error("Failed to delete template: \(String(reflecting: error), privacy: .public)")
+      errorMessage = ChecklistError.userMessage(for: error)
       return false
     }
   }
@@ -416,14 +419,14 @@ public final class ChecklistTemplateDetailViewModel {
             detail: itemDetail.isEmpty ? nil : itemDetail
           )
         }
-        saved = try await checklistService.updateCustomTemplate(
+        saved = try await catalogService.updateTemplate(
           id: templateId,
           title: trimmedTitle,
           description: desc,
           categoryId: categoryId,
           items: serviceItems
         )
-        Logger.checklist.info("Successfully updated custom checklist template: \(saved.id.uuidString, privacy: .public)")
+        Logger.checklist.info("Successfully updated checklist template: \(saved.id.uuidString, privacy: .public)")
       } else {
         let serviceItems = validItems.map { item in
           let itemTitle = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -433,13 +436,13 @@ public final class ChecklistTemplateDetailViewModel {
             detail: itemDetail.isEmpty ? nil : itemDetail
           )
         }
-        saved = try await checklistService.createCustomTemplate(
+        saved = try await catalogService.createTemplate(
           title: trimmedTitle,
           description: desc,
           categoryId: categoryId,
           items: serviceItems
         )
-        Logger.checklist.info("Successfully created custom checklist template: \(saved.id.uuidString, privacy: .public)")
+        Logger.checklist.info("Successfully created checklist template: \(saved.id.uuidString, privacy: .public)")
       }
 
       self.template = saved
@@ -449,7 +452,7 @@ public final class ChecklistTemplateDetailViewModel {
       return saved
     } catch {
       Logger.checklist.error("Failed to save checklist template: \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
       return nil
     }
   }

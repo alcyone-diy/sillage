@@ -14,20 +14,18 @@ import GRDB
 
 @MainActor
 final class ChecklistCategoryTests: XCTestCase {
-  private var databaseManager: DatabaseManager!
-  private var checklistService: ChecklistService!
+  private var databaseManager: DatabaseManager?
+  private var catalogService: ChecklistCatalogService?
 
   override func setUp() async throws {
     try await super.setUp()
-    databaseManager = try DatabaseManager.inMemory()
-    checklistService = ChecklistService(
-      databaseManager: databaseManager,
-      throttler: ChecklistThrottler(window: .zero)
-    )
+    let db = try DatabaseManager.inMemory()
+    databaseManager = db
+    catalogService = ChecklistCatalogService(databaseManager: db)
   }
 
   override func tearDown() async throws {
-    checklistService = nil
+    catalogService = nil
     databaseManager = nil
     try await super.tearDown()
   }
@@ -35,7 +33,8 @@ final class ChecklistCategoryTests: XCTestCase {
   // MARK: - Category Pre-population & Schema Tests
 
   func testDefaultCategoriesPrepopulated() async throws {
-    let categories = try await checklistService.fetchCategories()
+    let catalog = try XCTUnwrap(catalogService)
+    let categories = try await catalog.fetchCategories()
     let expectedIds = ["safety_emergency", "navigation_maneuver", "routine", "engine_technical", "wintering_maintenance"]
     XCTAssertEqual(categories.count, expectedIds.count)
 
@@ -50,18 +49,21 @@ final class ChecklistCategoryTests: XCTestCase {
   }
 
   func testSeederRunsOnlyOnceAndDoesNotRecreateDeletedCategories() async throws {
+    let catalog = try XCTUnwrap(catalogService)
+    let dbManager = try XCTUnwrap(databaseManager)
+
     // Clear categories and seeding state in DB first
-    try await databaseManager.write { db in
+    try await dbManager.write { db in
       try db.execute(sql: "DELETE FROM checklist_category")
       try db.execute(sql: "DELETE FROM checklist_seeding_state")
     }
 
     // 1. First seed populates categories and records seeding state in SQLite
-    try await databaseManager.write { db in
+    try await dbManager.write { db in
       try ChecklistSeeder.seedDefaultCategoriesIfNeeded(in: db)
     }
 
-    let isMarkedSeeded = try await databaseManager.reader.read { db in
+    let isMarkedSeeded = try await dbManager.reader.read { db in
       try Row.fetchOne(
         db,
         sql: "SELECT 1 FROM checklist_seeding_state WHERE id = ?",
@@ -70,34 +72,37 @@ final class ChecklistCategoryTests: XCTestCase {
     }
     XCTAssertTrue(isMarkedSeeded)
 
-    let categoriesAfterFirstSeed = try await checklistService.fetchCategories()
+    let categoriesAfterFirstSeed = try await catalog.fetchCategories()
     XCTAssertEqual(categoriesAfterFirstSeed.count, 5)
     let routine = try XCTUnwrap(categoriesAfterFirstSeed.first(where: { $0.id == "routine" }))
     XCTAssertEqual(routine.name, String(localized: "Routine"))
 
     // 2. Delete a category
-    try await checklistService.deleteCategory(id: "routine")
-    let afterDelete = try await checklistService.fetchCategories()
+    try await catalog.deleteCategory(id: "routine")
+    let afterDelete = try await catalog.fetchCategories()
     XCTAssertEqual(afterDelete.count, 4)
 
     // 3. Second seed is a no-op and does NOT recreate the deleted category
-    try await databaseManager.write { db in
+    try await dbManager.write { db in
       try ChecklistSeeder.seedDefaultCategoriesIfNeeded(in: db)
     }
-    let afterSecondSeed = try await checklistService.fetchCategories()
+    let afterSecondSeed = try await catalog.fetchCategories()
     XCTAssertEqual(afterSecondSeed.count, 4)
     XCTAssertNil(afterSecondSeed.first(where: { $0.id == "routine" }))
   }
 
   func testSeedDefaultTemplatesFallsBackToFirstCategoryWhenPreferredDeleted() async throws {
-    // Categories are already marked as seeded by migration; delete "routine" from DB
-    try await checklistService.deleteCategory(id: "routine")
+    let catalog = try XCTUnwrap(catalogService)
+    let dbManager = try XCTUnwrap(databaseManager)
 
-    try await databaseManager.write { db in
+    // Categories are already marked as seeded by migration; delete "routine" from DB
+    try await catalog.deleteCategory(id: "routine")
+
+    try await dbManager.write { db in
       try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db)
     }
 
-    let templates = try await checklistService.fetchTemplates()
+    let templates = try await catalog.fetchTemplates()
     XCTAssertEqual(templates.count, 4)
     let departure = try XCTUnwrap(templates.first(where: { $0.title == String(localized: "Pre-Departure Checklist") }))
     // "routine" was deleted, so it must fall back to the first available category ("safety_emergency")
@@ -105,26 +110,32 @@ final class ChecklistCategoryTests: XCTestCase {
   }
 
   func testSeedDefaultTemplatesSkipsWhenNoCategoriesExist() async throws {
+    let catalog = try XCTUnwrap(catalogService)
+    let dbManager = try XCTUnwrap(databaseManager)
+
     // Categories are already marked as seeded by migration; wipe all categories from DB
-    try await databaseManager.write { db in
+    try await dbManager.write { db in
       try db.execute(sql: "DELETE FROM checklist_category")
     }
 
     // Should not throw or recreate categories
-    try await databaseManager.write { db in
+    try await dbManager.write { db in
       try ChecklistSeeder.seedDefaultTemplatesIfNeeded(in: db)
     }
 
-    let categories = try await checklistService.fetchCategories()
+    let categories = try await catalog.fetchCategories()
     XCTAssertTrue(categories.isEmpty)
-    let templates = try await checklistService.fetchTemplates()
+    let templates = try await catalog.fetchTemplates()
     XCTAssertTrue(templates.isEmpty)
   }
 
   // MARK: - Association & Relationship Tests
 
   func testTemplateHasCategoryIdSynchronized() async throws {
-    let template = try await checklistService.createCustomTemplate(
+    let catalog = try XCTUnwrap(catalogService)
+    let dbManager = try XCTUnwrap(databaseManager)
+
+    let template = try await catalog.createTemplate(
       title: "Engine Pre-Start",
       description: "Checks before starting engine",
       categoryId: "engine_technical",
@@ -135,7 +146,7 @@ final class ChecklistCategoryTests: XCTestCase {
 
     // Direct database verification
     let templateId = template.id.uuidString
-    let record = try await databaseManager.reader.read { db in
+    let record = try await dbManager.reader.read { db in
       try ChecklistTemplateRecord.fetchOne(db, key: templateId)
     }
     let unwrappedRecord = try XCTUnwrap(record)
@@ -143,7 +154,8 @@ final class ChecklistCategoryTests: XCTestCase {
   }
 
   func testCannotDeleteCategoryWithAssociatedTemplatesViaService() async throws {
-    _ = try await checklistService.createCustomTemplate(
+    let catalog = try XCTUnwrap(catalogService)
+    _ = try await catalog.createTemplate(
       title: "Routine Morning Check",
       description: nil,
       categoryId: "routine",
@@ -151,15 +163,18 @@ final class ChecklistCategoryTests: XCTestCase {
     )
 
     do {
-      try await checklistService.deleteCategory(id: "routine")
+      try await catalog.deleteCategory(id: "routine")
       XCTFail("Expected categoryHasAssociatedTemplates error")
-    } catch let error as ChecklistSessionError {
+    } catch let error as ChecklistError {
       XCTAssertEqual(error, .categoryHasAssociatedTemplates("routine"))
     }
   }
 
   func testCannotDeleteCategoryWithAssociatedTemplatesAtDatabaseLevel() async throws {
-    _ = try await checklistService.createCustomTemplate(
+    let catalog = try XCTUnwrap(catalogService)
+    let dbManager = try XCTUnwrap(databaseManager)
+
+    _ = try await catalog.createTemplate(
       title: "Safety Gear Check",
       description: nil,
       categoryId: "safety_emergency",
@@ -167,7 +182,7 @@ final class ChecklistCategoryTests: XCTestCase {
     )
 
     do {
-      try await databaseManager.write { db in
+      try await dbManager.write { db in
         try db.execute(
           sql: "DELETE FROM checklist_category WHERE id = ?",
           arguments: ["safety_emergency"]
@@ -182,25 +197,27 @@ final class ChecklistCategoryTests: XCTestCase {
   }
 
   func testCanDeleteCategoryWithoutAssociatedTemplates() async throws {
-    let customCat = try await checklistService.createCategory(
+    let catalog = try XCTUnwrap(catalogService)
+    let customCat = try await catalog.createCategory(
       id: "temporary_ops",
       name: "Temporary Ops",
       icon: "flag",
       sortOrder: 10
     )
 
-    let fetchedBefore = try await checklistService.fetchCategory(id: customCat.id)
+    let fetchedBefore = try await catalog.fetchCategory(id: customCat.id)
     XCTAssertNotNil(fetchedBefore)
 
-    try await checklistService.deleteCategory(id: customCat.id)
+    try await catalog.deleteCategory(id: customCat.id)
 
-    let fetchedAfter = try await checklistService.fetchCategory(id: customCat.id)
+    let fetchedAfter = try await catalog.fetchCategory(id: customCat.id)
     XCTAssertNil(fetchedAfter)
   }
 
   func testCannotInsertTemplateWithInvalidCategoryForeignKey() async throws {
+    let dbManager = try XCTUnwrap(databaseManager)
     do {
-      try await databaseManager.write { db in
+      try await dbManager.write { db in
         let now = Date()
         let invalidRecord = ChecklistTemplateRecord(
           id: UUID().uuidString,
@@ -223,8 +240,10 @@ final class ChecklistCategoryTests: XCTestCase {
   // MARK: - Category CRUD Tests
 
   func testCategoryCRUD() async throws {
+    let catalog = try XCTUnwrap(catalogService)
+
     // Create
-    let created = try await checklistService.createCategory(
+    let created = try await catalog.createCategory(
       id: "docking",
       name: "Docking & Mooring",
       icon: "ferry",
@@ -236,11 +255,11 @@ final class ChecklistCategoryTests: XCTestCase {
     XCTAssertEqual(created.sortOrder, 5)
 
     // Read
-    let fetched = try await checklistService.fetchCategory(id: "docking")
+    let fetched = try await catalog.fetchCategory(id: "docking")
     XCTAssertEqual(fetched?.name, "Docking & Mooring")
 
     // Update
-    let updated = try await checklistService.updateCategory(
+    let updated = try await catalog.updateCategory(
       id: "docking",
       name: "Harbor & Docking",
       icon: "ferry.fill",
@@ -251,44 +270,47 @@ final class ChecklistCategoryTests: XCTestCase {
     XCTAssertEqual(updated.sortOrder, 6)
 
     // Delete
-    try await checklistService.deleteCategory(id: "docking")
-    let afterDelete = try await checklistService.fetchCategory(id: "docking")
+    try await catalog.deleteCategory(id: "docking")
+    let afterDelete = try await catalog.fetchCategory(id: "docking")
     XCTAssertNil(afterDelete)
   }
 
   func testFetchChecklistCountsByCategory() async throws {
-    _ = try await checklistService.createCustomTemplate(
+    let catalog = try XCTUnwrap(catalogService)
+
+    _ = try await catalog.createTemplate(
       title: "Routine 1",
       description: nil,
       categoryId: "routine",
       items: [("Item 1", nil)]
     )
-    _ = try await checklistService.createCustomTemplate(
+    _ = try await catalog.createTemplate(
       title: "Routine 2",
       description: nil,
       categoryId: "routine",
       items: [("Item 2", nil)]
     )
-    _ = try await checklistService.createCustomTemplate(
+    _ = try await catalog.createTemplate(
       title: "Safety 1",
       description: nil,
       categoryId: "safety_emergency",
       items: [("Item 3", nil)]
     )
 
-    let counts = try await checklistService.fetchChecklistCountsByCategory()
+    let counts = try await catalog.fetchChecklistCountsByCategory()
     XCTAssertEqual(counts["routine"], 2)
     XCTAssertEqual(counts["safety_emergency"], 1)
     XCTAssertNil(counts["engine_technical"])
   }
 
   func testReorderCategoriesPersistsNewOrder() async throws {
-    let initial = try await checklistService.fetchCategories()
+    let catalog = try XCTUnwrap(catalogService)
+    let initial = try await catalog.fetchCategories()
     let reversedIds = Array(initial.map(\.id).reversed())
 
-    try await checklistService.reorderCategories(ids: reversedIds)
+    try await catalog.reorderCategories(ids: reversedIds)
 
-    let reordered = try await checklistService.fetchCategories()
+    let reordered = try await catalog.fetchCategories()
     XCTAssertEqual(reordered.map(\.id), reversedIds)
     for (expectedOrder, category) in reordered.enumerated() {
       XCTAssertEqual(category.sortOrder, expectedOrder)

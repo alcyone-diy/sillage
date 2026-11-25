@@ -19,7 +19,6 @@ struct CommandPanelView: View {
   @Environment(AppEnvironment.self) private var appEnvironment
   @Environment(\.marineTheme) private var marineTheme
   @Environment(WaypointService.self) private var waypointService
-  @Environment(ChecklistService.self) private var checklistService
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(BarometerViewModel.self) private var barometerViewModel
   @Environment(PermissionService.self) private var permissionService
@@ -299,24 +298,29 @@ struct CommandPanelView: View {
       DebugView()
 #endif
     case .checklists:
-      ChecklistTemplateListView(checklistService: checklistService)
+      ChecklistTemplateListView(
+        catalogService: appEnvironment.checklistCatalogService,
+        sessionService: appEnvironment.checklistSessionService
+      )
     case .checklistCategories:
-      ChecklistCategoryListView(checklistService: checklistService)
+      ChecklistCategoryListView(catalogService: appEnvironment.checklistCatalogService)
     case .checklistCategoryDetail(let payload):
       ChecklistCategoryDetailView(
         payload: payload,
-        checklistService: checklistService
+        catalogService: appEnvironment.checklistCatalogService
       )
     case .checklistTemplateDetail(let payload):
       ChecklistTemplateDetailView(
         payload: payload,
-        checklistService: checklistService
+        catalogService: appEnvironment.checklistCatalogService,
+        sessionService: appEnvironment.checklistSessionService
       )
     case .checklistSession(let payload):
       let environment = appEnvironment
       ChecklistSessionView(
         payload: payload,
-        checklistService: checklistService,
+        catalogService: appEnvironment.checklistCatalogService,
+        sessionService: appEnvironment.checklistSessionService,
         locationProvider: { [weak environment] in
           environment?.lastKnownLocation
         }

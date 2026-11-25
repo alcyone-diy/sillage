@@ -117,7 +117,7 @@ public final class ChecklistOverlayViewModel {
 
   /// Observes checklist sessions continuously using structured concurrency.
   /// Cancellation is handled automatically by the caller's asynchronous context (e.g. SwiftUI `.task`).
-  public func observe(service: any ChecklistServiceProtocol) async {
+  public func observe(service: any ChecklistSessionServiceProtocol) async {
     do {
       for try await sessions in service.observeSessions() {
         if Task.isCancelled { break }

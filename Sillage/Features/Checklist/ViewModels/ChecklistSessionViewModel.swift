@@ -18,7 +18,8 @@ import OSLog
 @Observable
 public final class ChecklistSessionViewModel {
   public let sessionId: UUID
-  private let checklistService: any ChecklistServiceProtocol
+  private let catalogService: any ChecklistCatalogServiceProtocol
+  private let sessionService: any ChecklistSessionServiceProtocol
   private let locationProvider: (@MainActor () -> NavigationFix?)?
 
   public private(set) var session: ChecklistSession?
@@ -36,17 +37,20 @@ public final class ChecklistSessionViewModel {
   ///   - sessionId: Persistent identifier for database lookup, persistence, and fallback.
   ///   - session: Optional in-memory session snapshot used to render the title and steps immediately,
   ///              preventing UI latency while the asynchronous database load completes.
-  ///   - checklistService: The service handling checklist execution and persistence.
+  ///   - catalogService: The service providing parent template and category metadata.
+  ///   - sessionService: The service handling checklist execution and persistence.
   ///   - locationProvider: Optional closure returning the latest GPS fix for geotagged checks.
   public init(
     sessionId: UUID,
     session: ChecklistSession? = nil,
-    checklistService: any ChecklistServiceProtocol,
+    catalogService: any ChecklistCatalogServiceProtocol,
+    sessionService: any ChecklistSessionServiceProtocol,
     locationProvider: (@MainActor () -> NavigationFix?)? = nil
   ) {
     self.sessionId = sessionId
     self.session = session
-    self.checklistService = checklistService
+    self.catalogService = catalogService
+    self.sessionService = sessionService
     self.locationProvider = locationProvider
   }
 
@@ -110,11 +114,11 @@ public final class ChecklistSessionViewModel {
     defer { isLoading = false }
 
     do {
-      if let fetchedSession = try await checklistService.fetchSession(id: sessionId) {
+      if let fetchedSession = try await sessionService.fetchSession(id: sessionId) {
         self.session = fetchedSession
-        self.template = try await checklistService.fetchTemplate(id: fetchedSession.templateId)
+        self.template = try await catalogService.fetchTemplate(id: fetchedSession.templateId)
         let resolvedCatId = fetchedSession.categoryId
-        self.categoryItem = try await checklistService.fetchCategory(id: resolvedCatId)
+        self.categoryItem = try await catalogService.fetchCategory(id: resolvedCatId)
       } else {
         self.session = nil
         self.isSessionDeleted = true
@@ -122,20 +126,20 @@ public final class ChecklistSessionViewModel {
       }
     } catch {
       Logger.checklist.error("Failed to load checklist session '\(self.sessionId.uuidString, privacy: .public)': \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
     }
   }
 
   /// Subscribes asynchronously to sessions stream to drive UI reactively from the database.
   public func observe() async {
     do {
-      for try await sessions in checklistService.observeSessions() {
+      for try await sessions in sessionService.observeSessions() {
         if Task.isCancelled { break }
         if let matching = sessions.first(where: { $0.id == sessionId }) {
           if self.session != matching {
             self.session = matching
             if matching.categoryId != self.categoryItem?.id {
-              self.categoryItem = try? await checklistService.fetchCategory(id: matching.categoryId)
+              self.categoryItem = try? await catalogService.fetchCategory(id: matching.categoryId)
             }
           }
         } else if session != nil {
@@ -161,7 +165,7 @@ public final class ChecklistSessionViewModel {
 
     do {
       let coordinate = resolveAuditableCoordinate()
-      let updated = try await checklistService.setItemChecked(
+      let updated = try await sessionService.setItemChecked(
         sessionId: currentSession.id,
         itemId: item.id,
         isChecked: !item.isChecked,
@@ -170,7 +174,7 @@ public final class ChecklistSessionViewModel {
       self.session = updated
     } catch {
       Logger.checklist.error("Failed to toggle checklist item '\(item.id.uuidString, privacy: .public)': \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
     }
   }
 
@@ -185,14 +189,14 @@ public final class ChecklistSessionViewModel {
     defer { isPerformingAction = false }
 
     do {
-      let completedSession = try await checklistService.completeSession(
+      let completedSession = try await sessionService.completeSession(
         sessionId: currentSession.id,
         notes: nil
       )
       self.session = completedSession
     } catch {
       Logger.checklist.error("Failed to complete checklist session '\(currentSession.id.uuidString, privacy: .public)': \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
     }
   }
 
@@ -203,15 +207,14 @@ public final class ChecklistSessionViewModel {
     defer { isPerformingAction = false }
 
     do {
-      try await checklistService.deleteSession(sessionId: currentSession.id)
+      try await sessionService.deleteSession(sessionId: currentSession.id)
       self.session = nil
       self.isSessionDeleted = true
     } catch {
       Logger.checklist.error("Failed to delete checklist session '\(currentSession.id.uuidString, privacy: .public)': \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
     }
   }
-
 
   // MARK: - Defensive GPS Accuracy Resolution
 

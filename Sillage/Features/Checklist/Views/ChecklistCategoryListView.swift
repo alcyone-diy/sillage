@@ -18,8 +18,8 @@ public struct ChecklistCategoryListView: View {
   @State private var viewModel: ChecklistCategoryListViewModel
   @State private var editMode: EditMode = .inactive
 
-  public init(checklistService: any ChecklistServiceProtocol) {
-    _viewModel = State(wrappedValue: ChecklistCategoryListViewModel(checklistService: checklistService))
+  public init(catalogService: any ChecklistCatalogServiceProtocol) {
+    _viewModel = State(wrappedValue: ChecklistCategoryListViewModel(catalogService: catalogService))
   }
 
   public init(viewModel: ChecklistCategoryListViewModel) {

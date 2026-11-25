@@ -17,7 +17,7 @@ import OSLog
 @MainActor
 @Observable
 public final class ChecklistCategoryListViewModel {
-  private let checklistService: any ChecklistServiceProtocol
+  private let catalogService: any ChecklistCatalogServiceProtocol
   private var saveTask: Task<Void, Never>?
 
   public private(set) var categories: [ChecklistCategoryItem] = []
@@ -25,8 +25,8 @@ public final class ChecklistCategoryListViewModel {
   public private(set) var isLoading: Bool = false
   public var errorMessage: String?
 
-  public init(checklistService: any ChecklistServiceProtocol) {
-    self.checklistService = checklistService
+  public init(catalogService: any ChecklistCatalogServiceProtocol) {
+    self.catalogService = catalogService
   }
 
   /// Returns the number of checklist templates belonging to the given category.
@@ -41,8 +41,8 @@ public final class ChecklistCategoryListViewModel {
     errorMessage = nil
 
     do {
-      async let fetchedCategories = checklistService.fetchCategories()
-      async let fetchedCounts = checklistService.fetchChecklistCountsByCategory()
+      async let fetchedCategories = catalogService.fetchCategories()
+      async let fetchedCounts = catalogService.fetchChecklistCountsByCategory()
       let (categoriesList, counts) = try await (fetchedCategories, fetchedCounts)
 
       categories = categoriesList
@@ -107,13 +107,13 @@ public final class ChecklistCategoryListViewModel {
     guard !Task.isCancelled else { return }
     let orderedIds = categories.map(\.id)
     do {
-      try await checklistService.reorderCategories(ids: orderedIds)
+      try await catalogService.reorderCategories(ids: orderedIds)
     } catch {
       if error is CancellationError {
         return
       }
       Logger.checklist.error("Failed to reorder checklist categories: \(String(reflecting: error), privacy: .public)")
-      errorMessage = ChecklistSessionError.userMessage(for: error)
+      errorMessage = ChecklistError.userMessage(for: error)
     }
   }
 

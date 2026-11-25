@@ -25,7 +25,7 @@ public struct ChecklistCategoryDetailView: View {
   public init(
     categoryId: String? = nil,
     category: ChecklistCategoryItem? = nil,
-    checklistService: any ChecklistServiceProtocol,
+    catalogService: any ChecklistCatalogServiceProtocol,
     startEditable: Bool = false,
     onCategorySaved: (@MainActor (ChecklistCategoryItem) -> Void)? = nil
   ) {
@@ -35,7 +35,7 @@ public struct ChecklistCategoryDetailView: View {
       wrappedValue: ChecklistCategoryDetailViewModel(
         categoryId: categoryId,
         category: category,
-        checklistService: checklistService,
+        catalogService: catalogService,
         startEditable: startEditable
       )
     )
@@ -43,13 +43,13 @@ public struct ChecklistCategoryDetailView: View {
 
   public init(
     payload: ChecklistCategoryDetailPayload,
-    checklistService: any ChecklistServiceProtocol,
+    catalogService: any ChecklistCatalogServiceProtocol,
     onCategorySaved: (@MainActor (ChecklistCategoryItem) -> Void)? = nil
   ) {
     self.init(
       categoryId: payload.categoryId,
       category: payload.category,
-      checklistService: checklistService,
+      catalogService: catalogService,
       startEditable: payload.startEditable,
       onCategorySaved: onCategorySaved
     )

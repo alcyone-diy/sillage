@@ -64,7 +64,8 @@ final class AppEnvironment {
     let networkMonitorService: NetworkMonitorService
     let notificationService: NotificationService
     let secondaryTelemetryViewModel: SecondaryTelemetryViewModel
-    let checklistService: ChecklistService
+    let checklistCatalogService: ChecklistCatalogService
+    let checklistSessionService: ChecklistSessionService
 
     #if DEBUG
     fileprivate(set) var developerSettingsService = DeveloperSettingsService()
@@ -175,7 +176,7 @@ final class AppEnvironment {
 
     let databaseManager: DatabaseManager
     let baroDatabaseManager: DatabaseManager
-    let checklistService: ChecklistService
+    let checklistCatalogService: ChecklistCatalogService
     let databaseFactory = overrides.databaseManagerFactory
 
     do {
@@ -214,8 +215,8 @@ final class AppEnvironment {
       baroDatabaseManager = databaseManager
       #endif
 
-      checklistService = ChecklistService(databaseManager: databaseManager)
-      try await checklistService.seedDefaultTemplatesIfNeeded()
+      checklistCatalogService = ChecklistCatalogService(databaseManager: databaseManager)
+      try await checklistCatalogService.seedDefaultTemplatesIfNeeded()
     } catch {
       Logger.system.error("❌ AppEnvironment bootstrap failed: \(error.localizedDescription, privacy: .public)")
       didFailWhileProtectedDataUnavailable = !self.isProtectedDataAvailable()
@@ -527,6 +528,7 @@ final class AppEnvironment {
     #else
     let batteryService: (any DeviceBatteryServiceProtocol)? = nil
     #endif
+    let checklistSessionService = ChecklistSessionService(databaseManager: databaseManager)
     let secondaryTelemetryViewModel = SecondaryTelemetryViewModel(batteryService: batteryService)
     await trackRecordingService.attemptRecoveryIfNeeded()
     await geoGarageDownloadService.resumePendingDownloadIfNeeded()
@@ -570,7 +572,8 @@ final class AppEnvironment {
       networkMonitorService: networkMonitorService,
       notificationService: notificationService,
       secondaryTelemetryViewModel: secondaryTelemetryViewModel,
-      checklistService: checklistService
+      checklistCatalogService: checklistCatalogService,
+      checklistSessionService: checklistSessionService
     )
     #if DEBUG
     .withDeveloperSettings(developerSettingsService)
@@ -1027,9 +1030,18 @@ final class AppEnvironment {
     return container.offlineSelectionViewModel
   }
 
-  var checklistService: ChecklistService? {
-    guard case .ready(let container) = state else { return nil }
-    return container.checklistService
+  public var checklistCatalogService: ChecklistCatalogService {
+    guard case .ready(let container) = state else {
+      fatalError("CRITICAL: ChecklistCatalogService accessed before AppEnvironment is ready.")
+    }
+    return container.checklistCatalogService
+  }
+
+  public var checklistSessionService: ChecklistSessionService {
+    guard case .ready(let container) = state else {
+      fatalError("CRITICAL: ChecklistSessionService accessed before AppEnvironment is ready.")
+    }
+    return container.checklistSessionService
   }
 
   public var trackService: TrackService {

@@ -34,7 +34,8 @@ public struct ChecklistTemplateDetailView: View {
   public init(
     templateId: UUID? = nil,
     template: ChecklistTemplate? = nil,
-    checklistService: any ChecklistServiceProtocol,
+    catalogService: any ChecklistCatalogServiceProtocol,
+    sessionService: any ChecklistSessionServiceProtocol,
     startEditable: Bool = false,
     initialCategoryId: String? = nil,
     onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)? = nil
@@ -45,7 +46,8 @@ public struct ChecklistTemplateDetailView: View {
     _viewModel = State(wrappedValue: ChecklistTemplateDetailViewModel(
       templateId: templateId,
       template: template,
-      checklistService: checklistService,
+      catalogService: catalogService,
+      sessionService: sessionService,
       startEditable: startEditable,
       initialCategoryId: initialCategoryId
     ))
@@ -53,14 +55,16 @@ public struct ChecklistTemplateDetailView: View {
 
   public init(
     payload: ChecklistTemplateDetailPayload,
-    checklistService: any ChecklistServiceProtocol,
+    catalogService: any ChecklistCatalogServiceProtocol,
+    sessionService: any ChecklistSessionServiceProtocol,
     initialCategoryId: String? = nil,
     onTemplateSaved: (@MainActor (ChecklistTemplate) -> Void)? = nil
   ) {
     self.init(
       templateId: payload.templateId,
       template: payload.template,
-      checklistService: checklistService,
+      catalogService: catalogService,
+      sessionService: sessionService,
       startEditable: payload.startEditable,
       initialCategoryId: initialCategoryId,
       onTemplateSaved: onTemplateSaved
