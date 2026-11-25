@@ -14,10 +14,6 @@ import OSLog
 /// Intermediate lifecycle milestones and persistence mutations emitted during a single CAAS chart
 /// download execution. Terminal outcomes are communicated strictly via return value or `throws`.
 nonisolated enum GeoGarageDownloadPipelineEvent: Equatable, Sendable {
-  /// Indicates that the previously retained local chart was deleted upfront due to constrained disk space,
-  /// requiring `replacesChartID` to be cleared immediately in persistent pending state.
-  case replacesChartCleared
-
   /// Indicates that the CAAS server assigned a `packageID`, which must be persisted immediately
   /// before polling begins so interrupted sessions can resume without re-requesting generation.
   case packageIDAssigned(UUID)
@@ -74,41 +70,13 @@ nonisolated struct GeoGarageDownloadPipelineExecutor: Sendable {
       throw CaasError.authenticationRequired
     }
 
-    var currentReplacesChartID = item.replacesChartID
-
-    // Storage safety evaluation before package generation request when replacing an existing chart:
-    // retain the valid local chart unless constrained disk space forces upfront removal.
-    if let replacesID = currentReplacesChartID {
-      let estimatedSize = OfflinePackageSizeEstimator.estimatePackageSize(
-        wkt: item.boundsWKT,
-        zoomMax: item.zoomMax
-      )
-      let available = diskSpaceProvider.availableDiskSpace()
-      let hasSufficientSpace: Bool
-      if let estimatedSize, let available {
-        hasSufficientSpace = OfflineStoragePolicy.hasSufficientSpace(
-          availableSpace: available,
-          estimatedDownloadSize: estimatedSize
-        )
-      } else {
-        hasSufficientSpace = false
-      }
-
-      if !hasSufficientSpace {
-        Logger.offline.warning("Insufficient storage buffer to retain chart \(replacesID.uuidString, privacy: .public). Deleting upfront before download.")
-        do {
-          try await downloader.deleteLocalChart(id: replacesID)
-          currentReplacesChartID = nil
-          await onEvent(.replacesChartCleared)
-          Logger.offline.info("Deleted previous chart \(replacesID.uuidString, privacy: .public) upfront due to storage limits.")
-        } catch {
-          Logger.offline.error("Failed to delete previous chart upfront: \(error.localizedDescription, privacy: .public)")
-          throw error
-        }
-      } else {
-        Logger.offline.info("Sufficient storage space available. Retaining previous chart \(replacesID.uuidString, privacy: .public) during download.")
-      }
-    }
+    // Fail-safe storage guard before any network request: never purge an existing valid chart upfront
+    // to make room, because the replacement download may fail or lose connectivity at sea.
+    let estimatedSize = OfflinePackageSizeEstimator.estimatePackageSize(
+      wkt: item.boundsWKT,
+      zoomMax: item.zoomMax
+    )
+    try verifySufficientDiskSpace(for: estimatedSize, stage: "pre-request")
 
     try Task.checkCancellation()
 
@@ -138,7 +106,6 @@ nonisolated struct GeoGarageDownloadPipelineExecutor: Sendable {
     return try await pollAndDownloadArchive(
       packageID: packageID,
       item: item,
-      currentReplacesChartID: currentReplacesChartID,
       accessToken: accessToken,
       onEvent: onEvent,
       onProgress: onProgress
@@ -147,15 +114,40 @@ nonisolated struct GeoGarageDownloadPipelineExecutor: Sendable {
 
   // MARK: - Private Pipeline Steps
 
+  /// Enforces a blocking, fail-safe disk space check before starting server generation or archive download.
+  /// Throws `CaasError.diskSpaceUnavailable` when available device space cannot be read,
+  /// and `CaasError.insufficientDiskSpace` when free space is below the required threshold
+  /// (falling back to `minimumDeviceFreeBuffer` when package size is indeterminate).
+  private func verifySufficientDiskSpace(
+    for downloadSize: Measurement<UnitInformationStorage>?,
+    stage: String
+  ) throws(CaasError) {
+    guard let available = diskSpaceProvider.availableDiskSpace() else {
+      Logger.offline.warning("Unable to read available disk space (\(stage, privacy: .public)). Aborting download fail-safely.")
+      throw .diskSpaceUnavailable
+    }
+
+    let required: Measurement<UnitInformationStorage>
+    if let downloadSize {
+      required = OfflineStoragePolicy.requiredSpace(forDownloadSize: downloadSize)
+    } else {
+      Logger.offline.warning("Download size unavailable (\(stage, privacy: .public)); enforcing minimum device free buffer.")
+      required = OfflineStoragePolicy.minimumDeviceFreeBuffer
+    }
+
+    if available < required {
+      Logger.offline.warning("Insufficient disk space for offline chart download (\(stage, privacy: .public); available: \(available.converted(to: .megabytes).value, privacy: .public) MB, required: \(required.converted(to: .megabytes).value, privacy: .public) MB). Aborting without deleting existing charts.")
+      throw .insufficientDiskSpace(required: required, available: available)
+    }
+  }
+
   private func pollAndDownloadArchive(
     packageID: UUID,
     item: PendingCAASDownload,
-    currentReplacesChartID: UUID?,
     accessToken: String,
     onEvent: @Sendable (GeoGarageDownloadPipelineEvent) async -> Void,
     onProgress: @escaping @Sendable (Int64, Int64) -> Void
   ) async throws -> OfflineChartDownload {
-    var retainedReplacesChartID = currentReplacesChartID
     var finalStatus: PackageStatusResponse?
 
     let statusStream = await packageService.pollUntilComplete(
@@ -190,31 +182,15 @@ nonisolated struct GeoGarageDownloadPipelineExecutor: Sendable {
     }
 
     let totalBytes = completedStatus.size ?? 0
+
+    // Re-evaluate disk space with the exact server-reported archive size before starting the transfer
+    // (or enforce minimumDeviceFreeBuffer if the server omitted `size`).
+    let exactPackageSize = totalBytes > 0
+      ? Measurement(value: Double(totalBytes), unit: UnitInformationStorage.bytes)
+      : nil
+    try verifySufficientDiskSpace(for: exactPackageSize, stage: "pre-download")
+
     await onEvent(.downloadingStarted(totalBytes: totalBytes))
-
-    // Storage re-evaluation before downloading the archive file using exact server-reported byte size.
-    // Non-fatal if deletion fails here: retainedReplacesChartID stays set so post-download cleanup retries.
-    if let replacesID = retainedReplacesChartID, totalBytes > 0 {
-      let exactPackageSize = Measurement(value: Double(totalBytes), unit: UnitInformationStorage.bytes)
-      let available = diskSpaceProvider.availableDiskSpace()
-      let hasSufficientSpace = available.map {
-        OfflineStoragePolicy.hasSufficientSpace(
-          availableSpace: $0,
-          estimatedDownloadSize: exactPackageSize
-        )
-      } ?? false
-
-      if !hasSufficientSpace {
-        Logger.offline.warning("Storage became constrained during package generation for \(replacesID.uuidString, privacy: .public). Deleting old chart now before archive download.")
-        do {
-          try await downloader.deleteLocalChart(id: replacesID)
-          retainedReplacesChartID = nil
-          await onEvent(.replacesChartCleared)
-        } catch {
-          Logger.offline.error("Failed to delete old chart before archive download: \(error.localizedDescription, privacy: .public)")
-        }
-      }
-    }
 
     try Task.checkCancellation()
 
@@ -244,8 +220,9 @@ nonisolated struct GeoGarageDownloadPipelineExecutor: Sendable {
       finalRecord = record
     }
 
-    // Post-download replacement cleanup is strictly non-fatal: never invalidate an already verified local archive.
-    if let replacesID = retainedReplacesChartID {
+    // Post-download replacement cleanup is strictly non-fatal: never invalidate an already verified local archive,
+    // and only remove the replaced chart after the new archive has passed MD5 verification and been persisted.
+    if let replacesID = item.replacesChartID {
       do {
         try await downloader.deleteLocalChart(id: replacesID)
         Logger.offline.info("Deleted previous offline chart package \(replacesID.uuidString, privacy: .public) after successfully replacing zone.")

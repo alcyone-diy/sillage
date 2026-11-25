@@ -315,6 +315,11 @@ nonisolated enum CaasError: Error, LocalizedError, Sendable, Equatable {
   case fileSystemError(underlying: String)
   case decryptionFailed(reason: String)
   case authenticationRequired
+  case insufficientDiskSpace(
+    required: Measurement<UnitInformationStorage>,
+    available: Measurement<UnitInformationStorage>
+  )
+  case diskSpaceUnavailable
 
   var errorDescription: String? {
     switch self {
@@ -338,6 +343,12 @@ nonisolated enum CaasError: Error, LocalizedError, Sendable, Equatable {
       return String(localized: "Decryption failed: \(reason).")
     case .authenticationRequired:
       return String(localized: "Authentication required. Please check your credentials or log in again.")
+    case .insufficientDiskSpace(let required, let available):
+      let availableText = ByteCountFormatter.string(from: available, countStyle: .file)
+      let requiredText = ByteCountFormatter.string(from: required, countStyle: .file)
+      return String(localized: "Not enough storage space to download this chart (\(availableText) available, \(requiredText) required). Free up space or delete an unused chart, then try again.")
+    case .diskSpaceUnavailable:
+      return String(localized: "Unable to verify available storage space. Download cancelled to protect existing offline charts.")
     }
   }
 }

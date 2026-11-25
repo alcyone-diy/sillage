@@ -1644,7 +1644,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     }
   }
 
-  func testStartDownload_whenModifyingZone_withConstrainedSpace_deletesOldChartUpfront() async throws {
+  func testStartDownload_whenModifyingZone_withConstrainedSpace_failsSafelyWithoutDeletingOldChart() async throws {
     let mockDownloader = MockChartDownloader()
     let mockRepo = MockDownloadRepository()
     let mockDisk = MockDiskSpaceProvider()
@@ -1678,51 +1678,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
 
     sut.startDownload(accessToken: "token123", customerID: "cust123")
 
-    // With constrained disk space, old chart is deleted upfront before package request
-    for _ in 0..<50 {
-      if mockDownloader.deletedIDs.contains(chartID) { break }
-      try await Task.sleep(nanoseconds: 10_000_000)
-    }
-
-    XCTAssertTrue(mockDownloader.deletedIDs.contains(chartID), "Old chart must be deleted upfront when disk space is constrained")
-  }
-
-  func testStartDownload_whenModifyingZone_andSpaceIsConstrained_andDeletionFails_abortsDownloadAndReportsError() async throws {
-    let mockDownloader = MockChartDownloader()
-    mockDownloader.deleteError = CaasError.fileSystemError(underlying: "Disk IO failure")
-    let mockRepo = MockDownloadRepository()
-    let mockDisk = MockDiskSpaceProvider()
-    mockDisk.availableBytes = 50_000_000 // 50 MB: constrained
-    let chartID = UUID()
-
-    let oldDownload = OfflineChartDownload(
-      id: chartID,
-      layerID: "shom",
-      layerName: "SHOM France",
-      downloadDate: Date(),
-      relativePath: "Charts/test.mbtiles",
-      md5: "md5",
-      zoomMax: 14,
-      boundsWKT: "POLYGON((-5.0 48.0, -4.0 48.0, -4.0 49.0, -5.0 49.0, -5.0 48.0))",
-      customName: "Zone Brest"
-    )
-    mockRepo.downloads = [oldDownload]
-
-    let (sut, _, _, _, _, _, _, _) = makeSUT(
-      downloader: mockDownloader,
-      downloadRepository: mockRepo,
-      diskSpaceProvider: mockDisk
-    )
-
-    sut.startModifyingZone(
-      for: oldDownload,
-      customName: "Zone Brest Modifiée",
-      padding: MarineTheme.standard.offlineSelectionEdgeInsets
-    )
-
-    sut.startDownload(accessToken: "token123", customerID: "cust123")
-
-    // Wait for the failure state
+    // With constrained disk space, the download must fail safely and never purge the existing local chart
     for _ in 0..<50 {
       if case .failed = sut.downloadPhase { break }
       try await Task.sleep(nanoseconds: 10_000_000)
@@ -1731,9 +1687,10 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     if case .failed(let message) = sut.downloadPhase {
       XCTAssertFalse(message.isEmpty)
     } else {
-      XCTFail("Expected downloadPhase to be .failed when deletion fails, but got \(sut.downloadPhase)")
+      XCTFail("Expected downloadPhase to be .failed when disk space is constrained, but got \(sut.downloadPhase)")
     }
 
+    XCTAssertFalse(mockDownloader.deletedIDs.contains(chartID), "Existing valid chart must never be deleted when disk space is constrained")
     XCTAssertFalse(sut.isDownloading)
   }
 
@@ -1783,7 +1740,7 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     XCTAssertFalse(mockDownloader.deletedIDs.contains(chartID), "Failed download must not delete the retained chart")
   }
 
-  func testResumePendingDownload_whenStorageConstrainedOnResume_deletesRetainedChart() async throws {
+  func testResumePendingDownload_whenStorageConstrainedOnResume_preservesRetainedChartAndFailsSafely() async throws {
     let mockDownloader = MockChartDownloader()
     let mockRepo = MockDownloadRepository()
     let mockDisk = MockDiskSpaceProvider()
@@ -1824,8 +1781,17 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     // Resume when disk space has become constrained while app was closed
     await sut.resumePendingDownloadIfNeeded()
 
-    XCTAssertTrue(mockDownloader.deletedIDs.contains(oldChartID), "When resuming under constrained disk space, retained old chart must be deleted immediately")
-    XCTAssertNil(prefs.pendingCAASDownloads.first?.replacesChartID, "Pending download's replacesChartID must be cleared once old chart is deleted")
+    for _ in 0..<50 {
+      if case .failed = sut.downloadPhase { break }
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    XCTAssertFalse(mockDownloader.deletedIDs.contains(oldChartID), "When resuming under constrained disk space, retained old chart must never be purged")
+    if case .failed(let message) = sut.downloadPhase {
+      XCTAssertFalse(message.isEmpty)
+    } else {
+      XCTFail("Expected downloadPhase to be .failed on constrained resume, got \(sut.downloadPhase)")
+    }
   }
 
   func testStartNewSelection_withoutExplicitBounds_leavesSelectedBoundsNilForMapToInitialize() {

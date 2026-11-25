@@ -587,8 +587,7 @@ final class GeoGarageDownloadPipelineExecutorTests: XCTestCase {
       onProgress: { _, _ in }
     )
 
-    // Old chart must ONLY be deleted AFTER downloadStarted, and .replacesChartCleared must NOT be emitted
-    XCTAssertFalse(recorder.actions.contains(.pipelineEvent(.replacesChartCleared)))
+    // Old chart must ONLY be deleted AFTER downloadStarted
     let downloadIdx = try XCTUnwrap(recorder.actions.firstIndex(of: .downloadStarted(packageID: pkgID, localID: newLocalID)))
     let deleteIdx = try XCTUnwrap(recorder.actions.firstIndex(of: .deleteLocalChart(id: oldChartID)))
     XCTAssertGreaterThan(deleteIdx, downloadIdx)
@@ -640,54 +639,12 @@ final class GeoGarageDownloadPipelineExecutorTests: XCTestCase {
     )
   }
 
-  func testExecute_replacesChartWithConstrainedSpaceBeforeRequest_deletesUpfrontAndEmitsCleared() async throws {
+  func testExecute_replacesChartWithConstrainedSpaceBeforeRequest_throwsInsufficientDiskSpaceAndPreservesOldChart() async {
     // 100 MB is below OfflineStoragePolicy.minimumDeviceFreeBuffer (300 MB)
     let (sut, packageService, downloader, _, _, recorder) = makeSUT(
       availableSpace: Measurement(value: 100, unit: .megabytes)
     )
-    let pkgID = UUID()
     let oldChartID = UUID()
-
-    packageService.state.withLock {
-      $0.packageIDToReturn = pkgID
-      $0.pollStatuses = [Self.makeSuccessStatus(packageID: pkgID, size: 2_000_000)]
-    }
-
-    let item = PendingCAASDownload(
-      id: UUID(),
-      packageID: nil,
-      layerID: "shom",
-      layerName: "SHOM",
-      boundsWKT: validBrittanyWKT,
-      zoomMax: 12,
-      replacesChartID: oldChartID
-    )
-
-    _ = try await sut.execute(
-      item: item,
-      accessToken: "valid_token",
-      onEvent: { event in recorder.record(.pipelineEvent(event)) },
-      onProgress: { _, _ in }
-    )
-
-    // Deleted once upfront BEFORE requestPackage, .replacesChartCleared emitted immediately, no duplicate post-delete
-    let deleteIdx = try XCTUnwrap(recorder.actions.firstIndex(of: .deleteLocalChart(id: oldChartID)))
-    let clearedIdx = try XCTUnwrap(recorder.actions.firstIndex(of: .pipelineEvent(.replacesChartCleared)))
-    let requestIdx = try XCTUnwrap(recorder.actions.firstIndex(of: .requestPackage(layerID: "shom")))
-    XCTAssertLessThan(deleteIdx, clearedIdx)
-    XCTAssertLessThan(clearedIdx, requestIdx)
-    XCTAssertEqual(downloader.state.withLock { $0.deletedChartIDs }, [oldChartID])
-  }
-
-  func testExecute_replacesChartWhenUpfrontDeleteBeforeRequestFails_throwsBlockingError() async {
-    let (sut, packageService, downloader, _, _, recorder) = makeSUT(
-      availableSpace: Measurement(value: 100, unit: .megabytes)
-    )
-    let oldChartID = UUID()
-
-    downloader.state.withLock {
-      $0.deleteErrorsQueue = [.fileSystemError(underlying: "Permission denied")]
-    }
 
     let item = PendingCAASDownload(
       id: UUID(),
@@ -706,18 +663,97 @@ final class GeoGarageDownloadPipelineExecutorTests: XCTestCase {
         onEvent: { event in recorder.record(.pipelineEvent(event)) },
         onProgress: { _, _ in }
       )
-      XCTFail("Expected upfront delete failure before requestPackage to throw")
+      XCTFail("Expected CaasError.insufficientDiskSpace when storage is constrained")
     } catch let error as CaasError {
-      XCTAssertEqual(error, .fileSystemError(underlying: "Permission denied"))
+      guard case .insufficientDiskSpace(let required, let available) = error else {
+        return XCTFail("Expected CaasError.insufficientDiskSpace, got \(error)")
+      }
+      XCTAssertGreaterThan(required, available)
     } catch {
       XCTFail("Unexpected error: \(error)")
     }
 
-    XCTAssertFalse(recorder.actions.contains(.pipelineEvent(.replacesChartCleared)))
+    XCTAssertTrue(
+      downloader.state.withLock { $0.deletedChartIDs.isEmpty },
+      "Existing valid chart must never be purged upfront when disk space is constrained"
+    )
     XCTAssertEqual(packageService.state.withLock { $0.requestCallCount }, 0)
+    XCTAssertTrue(recorder.actions.isEmpty)
   }
 
-  func testExecute_replacesChartWhenPreDownloadDeleteFails_doesNotClearIDAndRetriesPostDownload() async throws {
+  func testExecute_newChartWithConstrainedSpaceBeforeRequest_throwsInsufficientDiskSpaceWithoutNetworkRequest() async {
+    let (sut, packageService, downloader, _, _, recorder) = makeSUT(
+      availableSpace: Measurement(value: 100, unit: .megabytes)
+    )
+
+    let item = PendingCAASDownload(
+      id: UUID(),
+      packageID: nil,
+      layerID: "shom",
+      layerName: "SHOM",
+      boundsWKT: validBrittanyWKT,
+      zoomMax: 12,
+      replacesChartID: nil
+    )
+
+    do {
+      _ = try await sut.execute(
+        item: item,
+        accessToken: "valid_token",
+        onEvent: { event in recorder.record(.pipelineEvent(event)) },
+        onProgress: { _, _ in }
+      )
+      XCTFail("Expected CaasError.insufficientDiskSpace for new chart when storage is constrained")
+    } catch let error as CaasError {
+      guard case .insufficientDiskSpace = error else {
+        return XCTFail("Expected CaasError.insufficientDiskSpace, got \(error)")
+      }
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+
+    XCTAssertEqual(packageService.state.withLock { $0.requestCallCount }, 0)
+    XCTAssertEqual(downloader.state.withLock { $0.downloadCallCount }, 0)
+    XCTAssertTrue(recorder.actions.isEmpty)
+  }
+
+  func testExecute_withUnavailableDiskSpace_throwsDiskSpaceUnavailableAndPreservesOldChart() async {
+    let (sut, packageService, downloader, _, _, recorder) = makeSUT(availableSpace: nil)
+    let oldChartID = UUID()
+
+    let item = PendingCAASDownload(
+      id: UUID(),
+      packageID: nil,
+      layerID: "shom",
+      layerName: "SHOM",
+      boundsWKT: validBrittanyWKT,
+      zoomMax: 12,
+      replacesChartID: oldChartID
+    )
+
+    do {
+      _ = try await sut.execute(
+        item: item,
+        accessToken: "valid_token",
+        onEvent: { event in recorder.record(.pipelineEvent(event)) },
+        onProgress: { _, _ in }
+      )
+      XCTFail("Expected CaasError.diskSpaceUnavailable when disk space cannot be read")
+    } catch let error as CaasError {
+      XCTAssertEqual(error, .diskSpaceUnavailable)
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+
+    XCTAssertTrue(
+      downloader.state.withLock { $0.deletedChartIDs.isEmpty },
+      "Existing valid chart must be preserved when available disk space is indeterminate"
+    )
+    XCTAssertEqual(packageService.state.withLock { $0.requestCallCount }, 0)
+    XCTAssertTrue(recorder.actions.isEmpty)
+  }
+
+  func testExecute_whenExactServerSizeExceedsAvailableSpace_throwsInsufficientDiskSpaceAndPreservesOldChart() async {
     // 500 MB is plenty for small WKT estimate (~3 MB * 1.5 + 300 MB < 500 MB),
     // but insufficient when server reports exact size = 200 MB (200 * 1.5 + 300 = 600 MB > 500 MB).
     let (sut, packageService, downloader, _, _, recorder) = makeSUT(
@@ -730,10 +766,6 @@ final class GeoGarageDownloadPipelineExecutorTests: XCTestCase {
       $0.packageIDToReturn = pkgID
       $0.pollStatuses = [Self.makeSuccessStatus(packageID: pkgID, size: 200_000_000)]
     }
-    // First delete attempt (pre-download) fails; second attempt (post-download) succeeds
-    downloader.state.withLock {
-      $0.deleteErrorsQueue = [.fileSystemError(underlying: "Temporary lock"), nil]
-    }
 
     let item = PendingCAASDownload(
       id: UUID(),
@@ -745,22 +777,121 @@ final class GeoGarageDownloadPipelineExecutorTests: XCTestCase {
       replacesChartID: oldChartID
     )
 
-    _ = try await sut.execute(
-      item: item,
-      accessToken: "valid_token",
-      onEvent: { event in recorder.record(.pipelineEvent(event)) },
-      onProgress: { _, _ in }
+    do {
+      _ = try await sut.execute(
+        item: item,
+        accessToken: "valid_token",
+        onEvent: { event in recorder.record(.pipelineEvent(event)) },
+        onProgress: { _, _ in }
+      )
+      XCTFail("Expected CaasError.insufficientDiskSpace when exact server size exceeds free space")
+    } catch let error as CaasError {
+      guard case .insufficientDiskSpace(let required, let available) = error else {
+        return XCTFail("Expected CaasError.insufficientDiskSpace, got \(error)")
+      }
+      XCTAssertGreaterThan(required, available)
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+
+    XCTAssertTrue(
+      downloader.state.withLock { $0.deletedChartIDs.isEmpty },
+      "Existing valid chart must not be deleted when exact archive size exceeds available disk space"
+    )
+    XCTAssertEqual(downloader.state.withLock { $0.downloadCallCount }, 0)
+    XCTAssertFalse(
+      recorder.actions.contains(.pipelineEvent(.downloadingStarted(totalBytes: 200_000_000))),
+      "downloadingStarted must not be emitted when pre-transfer storage check fails"
+    )
+  }
+
+  func testExecute_whenEstimatedSizeIsNilWithSufficientSpace_proceedsToRequestAndEnforcesExactServerSizeCheck() async {
+    // 500 MB exceeds minimumDeviceFreeBuffer (300 MB), so nil heuristic estimate must NOT block requestPackage,
+    // while exact server size of 200 MB (requires 600 MB) MUST still block before archive download.
+    let (sut, packageService, downloader, _, _, recorder) = makeSUT(
+      availableSpace: Measurement(value: 500, unit: .megabytes)
+    )
+    let pkgID = UUID()
+    let oldChartID = UUID()
+
+    packageService.state.withLock {
+      $0.packageIDToReturn = pkgID
+      $0.pollStatuses = [Self.makeSuccessStatus(packageID: pkgID, size: 200_000_000)]
+    }
+
+    let item = PendingCAASDownload(
+      id: UUID(),
+      packageID: nil,
+      layerID: "shom",
+      layerName: "SHOM",
+      boundsWKT: "POLYGON(())",
+      zoomMax: 12,
+      replacesChartID: oldChartID
     )
 
-    XCTAssertFalse(
-      recorder.actions.contains(.pipelineEvent(.replacesChartCleared)),
-      "replacesChartCleared must not be emitted when pre-download delete fails"
-    )
+    do {
+      _ = try await sut.execute(
+        item: item,
+        accessToken: "valid_token",
+        onEvent: { event in recorder.record(.pipelineEvent(event)) },
+        onProgress: { _, _ in }
+      )
+      XCTFail("Expected CaasError.insufficientDiskSpace once exact server size is checked")
+    } catch let error as CaasError {
+      guard case .insufficientDiskSpace(let required, let available) = error else {
+        return XCTFail("Expected CaasError.insufficientDiskSpace, got \(error)")
+      }
+      XCTAssertGreaterThan(required, available)
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+
     XCTAssertEqual(
-      downloader.state.withLock { $0.deletedChartIDs },
-      [oldChartID, oldChartID],
-      "Post-download cleanup must retry deleting the retained old chart"
+      packageService.state.withLock { $0.requestCallCount },
+      1,
+      "Nil heuristic estimate must not block package generation when available disk space exceeds minimum buffer"
     )
+    XCTAssertEqual(downloader.state.withLock { $0.downloadCallCount }, 0)
+    XCTAssertTrue(downloader.state.withLock { $0.deletedChartIDs.isEmpty })
+  }
+
+  func testExecute_whenEstimatedSizeAndServerSizeAreUnavailableAndSpaceBelowBuffer_throwsInsufficientDiskSpace() async {
+    // 200 MB is below minimumDeviceFreeBuffer (300 MB): must fail safely even when estimate is nil.
+    let (sut, packageService, downloader, _, _, _) = makeSUT(
+      availableSpace: Measurement(value: 200, unit: .megabytes)
+    )
+
+    let item = PendingCAASDownload(
+      id: UUID(),
+      packageID: nil,
+      layerID: "shom",
+      layerName: "SHOM",
+      boundsWKT: "POLYGON(())",
+      zoomMax: 12
+    )
+
+    do {
+      _ = try await sut.execute(
+        item: item,
+        accessToken: "valid_token",
+        onEvent: { _ in },
+        onProgress: { _, _ in }
+      )
+      XCTFail("Expected CaasError.insufficientDiskSpace when free space is below minimum buffer")
+    } catch let error as CaasError {
+      XCTAssertEqual(
+        error,
+        .insufficientDiskSpace(
+          required: OfflineStoragePolicy.minimumDeviceFreeBuffer,
+          available: Measurement(value: 200, unit: .megabytes)
+        )
+      )
+    } catch {
+      XCTFail("Unexpected error: \(error)")
+    }
+
+    XCTAssertEqual(packageService.state.withLock { $0.requestCallCount }, 0)
+    XCTAssertEqual(downloader.state.withLock { $0.downloadCallCount }, 0)
   }
 
   // MARK: - 5. Custom Name & Non-Fatal Final Cleanup

@@ -244,6 +244,19 @@ final class GeoGaragePackageModelsTests: XCTestCase {
     XCTAssertFalse(error.errorDescription?.isEmpty ?? true)
   }
 
+  func testCaasError_insufficientDiskSpaceHasDescription() {
+    let error = CaasError.insufficientDiskSpace(
+      required: Measurement(value: 600, unit: .megabytes),
+      available: Measurement(value: 150, unit: .megabytes)
+    )
+    XCTAssertFalse(error.errorDescription?.isEmpty ?? true)
+  }
+
+  func testCaasError_diskSpaceUnavailableHasDescription() {
+    let error = CaasError.diskSpaceUnavailable
+    XCTAssertFalse(error.errorDescription?.isEmpty ?? true)
+  }
+
   // MARK: - GeoGarageDownloadPhaseState Equatable
 
   func testDownloadPhaseState_equatable() {

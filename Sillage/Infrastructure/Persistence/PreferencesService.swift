@@ -99,20 +99,6 @@ nonisolated struct PendingCAASDownload: Codable, Equatable, Sendable, Identifiab
       replacesChartID: self.replacesChartID
     )
   }
-
-  func updating(replacesChartID: UUID?) -> PendingCAASDownload {
-    PendingCAASDownload(
-      id: self.id,
-      packageID: self.packageID,
-      layerID: self.layerID,
-      layerName: self.layerName,
-      boundsWKT: self.boundsWKT,
-      zoomMax: self.zoomMax,
-      createdAt: self.createdAt,
-      customName: self.customName,
-      replacesChartID: replacesChartID
-    )
-  }
 }
 
 

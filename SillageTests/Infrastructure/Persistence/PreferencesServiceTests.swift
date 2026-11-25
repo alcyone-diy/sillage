@@ -118,29 +118,6 @@ final class PreferencesServiceTests: XCTestCase {
     XCTAssertEqual(updated.replacesChartID, initial.replacesChartID)
   }
 
-  func testPendingCAASDownload_updatingReplacesChartID() {
-    let initialReplacesID = UUID()
-    let initial = PendingCAASDownload(
-      id: UUID(),
-      packageID: UUID(),
-      layerID: "shom",
-      layerName: "SHOM",
-      boundsWKT: "POLYGON((-5 47, 0 47, 0 50, -5 50, -5 47))",
-      zoomMax: 14,
-      customName: "My Chart",
-      replacesChartID: initialReplacesID
-    )
-
-    let updatedCleared = initial.updating(replacesChartID: nil)
-    XCTAssertEqual(updatedCleared.id, initial.id)
-    XCTAssertEqual(updatedCleared.packageID, initial.packageID)
-    XCTAssertNil(updatedCleared.replacesChartID)
-
-    let newReplacesID = UUID()
-    let updatedNew = updatedCleared.updating(replacesChartID: newReplacesID)
-    XCTAssertEqual(updatedNew.replacesChartID, newReplacesID)
-  }
-
   func testClearAll_ResetsAllPreferencesToDefaults() throws {
     let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
     let service = PreferencesService(defaults: defaults)

@@ -92,7 +92,6 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   private let downloadRepository: GeoGarageDownloadRepositoryProtocol
   private let preferencesService: PreferencesServiceProtocol
   private let networkMonitor: NetworkMonitorServiceProtocol
-  private let diskSpaceProvider: DiskSpaceProviderProtocol
   private let messageService: MessageService
   private let keychainManager: any KeychainManaging
   private let pipelineExecutor: GeoGarageDownloadPipelineExecutor
@@ -228,7 +227,6 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     self.downloadRepository = downloadRepository
     self.preferencesService = preferencesService
     self.networkMonitor = networkMonitor
-    self.diskSpaceProvider = diskSpaceProvider
     self.messageService = messageService
     self.keychainManager = keychainManager
     self.nowProvider = nowProvider
@@ -328,35 +326,6 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
 
     let validPackageIDs = Set(preferencesService.pendingCAASDownloads.compactMap(\.packageID))
     await downloader.cleanupOrphanedDownloads(retainingPackageIDs: validPackageIDs)
-
-    // App Resume Storage Re-evaluation:
-    // If the app terminated and resumed, re-evaluate disk space for any pending downloads that intended to retain an old chart.
-    let candidates = preferencesService.pendingCAASDownloads.compactMap { pending -> (id: UUID, replacesID: UUID, boundsWKT: String, zoomMax: Int)? in
-      guard let replacesID = pending.replacesChartID, downloadRepository.downloads.contains(where: { $0.id == replacesID }) else { return nil }
-      return (pending.id, replacesID, pending.boundsWKT, pending.zoomMax)
-    }
-
-    for candidate in candidates {
-      let estimatedSize = OfflinePackageSizeEstimator.estimatePackageSize(wkt: candidate.boundsWKT, zoomMax: candidate.zoomMax)
-      let available = diskSpaceProvider.availableDiskSpace()
-      let hasSufficientSpace: Bool
-      if let estimatedSize, let available {
-        hasSufficientSpace = OfflineStoragePolicy.hasSufficientSpace(availableSpace: available, estimatedDownloadSize: estimatedSize)
-      } else {
-        hasSufficientSpace = false
-      }
-
-      if !hasSufficientSpace {
-        Logger.offline.warning("App resumed with constrained disk space. Deleting retained previous chart \(candidate.replacesID.uuidString, privacy: .public) before resuming download.")
-        do {
-          try await self.downloader.deleteLocalChart(id: candidate.replacesID)
-          // Re-fetch post-await: update target item atomically by ID without bulk overwriting preferences
-          self.updatePendingReplacesChartID(id: candidate.id, replacesChartID: nil)
-        } catch {
-          Logger.offline.error("Failed to delete retained previous chart on resume: \(error.localizedDescription, privacy: .public)")
-        }
-      }
-    }
 
     let currentPending = preferencesService.pendingCAASDownloads
     guard !currentPending.isEmpty else {
@@ -547,17 +516,6 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     }
   }
 
-  private func updatePendingReplacesChartID(id: UUID, replacesChartID: UUID?) {
-    if let prefIndex = preferencesService.pendingCAASDownloads.firstIndex(where: { $0.id == id }) {
-      preferencesService.pendingCAASDownloads[prefIndex] = preferencesService.pendingCAASDownloads[prefIndex].updating(replacesChartID: replacesChartID)
-    }
-
-    if let index = activeDownloads.firstIndex(where: { $0.id == id }) {
-      let updated = activeDownloads[index].item.updating(replacesChartID: replacesChartID)
-      activeDownloads[index] = ActiveCAASDownload(item: updated, phase: activeDownloads[index].phase)
-    }
-  }
-
   private func removeDownload(id: UUID) {
     downloadTasks[id]?.task.cancel()
     downloadTasks.removeValue(forKey: id)
@@ -656,8 +614,6 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     guard activeDownloads.contains(where: { $0.id == id }) else { return }
 
     switch event {
-    case .replacesChartCleared:
-      updatePendingReplacesChartID(id: id, replacesChartID: nil)
     case .packageIDAssigned(let packageID):
       updatePendingPackageID(id: id, packageID: packageID)
     case .generating(let progress, let message):

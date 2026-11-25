@@ -68,15 +68,22 @@ nonisolated public enum OfflineStoragePolicy {
   /// Headroom factor applied to estimated download size (1.5x = 50% safety margin).
   public static let safetyHeadroomMultiplier: Double = 1.5
 
-  /// Evaluates whether the device has enough space (with margin) to retain the previous chart during download.
+  /// Computes the minimum available device storage required to safely download a package of the given size,
+  /// including the safety headroom multiplier and minimum free buffer.
+  public static func requiredSpace(
+    forDownloadSize estimatedDownloadSize: Measurement<UnitInformationStorage>
+  ) -> Measurement<UnitInformationStorage> {
+    let scaledBytes = estimatedDownloadSize.converted(to: .bytes).value * safetyHeadroomMultiplier
+    let requiredBytes = scaledBytes + minimumDeviceFreeBuffer.converted(to: .bytes).value
+    return Measurement(value: requiredBytes, unit: UnitInformationStorage.bytes)
+  }
+
+  /// Evaluates whether the device has enough space (with safety margin) to download a package
+  /// without touching existing local charts.
   public static func hasSufficientSpace(
     availableSpace: Measurement<UnitInformationStorage>,
     estimatedDownloadSize: Measurement<UnitInformationStorage>
   ) -> Bool {
-    let scaledBytes = estimatedDownloadSize.converted(to: .bytes).value * safetyHeadroomMultiplier
-    let requiredBytes = scaledBytes + minimumDeviceFreeBuffer.converted(to: .bytes).value
-    let requiredSpace = Measurement(value: requiredBytes, unit: UnitInformationStorage.bytes)
-
-    return availableSpace >= requiredSpace
+    return availableSpace >= requiredSpace(forDownloadSize: estimatedDownloadSize)
   }
 }

@@ -1244,6 +1244,16 @@
     "North-East Bound" : {
 
     },
+    "Not enough storage space to download this chart (%@ available, %@ required). Free up space or delete an unused chart, then try again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not enough storage space to download this chart (%1$@ available, %2$@ required). Free up space or delete an unused chart, then try again."
+          }
+        }
+      }
+    },
     "Note: The alarm only works in the background if you are recording a track or the anchor alarm is active." : {
 
     },
@@ -1821,6 +1831,9 @@
 
     },
     "Unable to load checklist categories. Please try again." : {
+
+    },
+    "Unable to verify available storage space. Download cancelled to protect existing offline charts." : {
 
     },
     "Unavailable" : {

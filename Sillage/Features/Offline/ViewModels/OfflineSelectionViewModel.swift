@@ -516,7 +516,7 @@ final class OfflineSelectionViewModel {
     }
   }
 
-  /// Processes a validated download request, awaiting deletion of any replaced chart package before initiating download.
+  /// Processes a validated download request, delegating execution and post-verification replacement cleanup to `downloadService`.
   private func processDownloadRequest(
     layerID: String,
     layerName: String,

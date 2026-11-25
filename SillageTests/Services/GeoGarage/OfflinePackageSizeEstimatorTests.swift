@@ -82,6 +82,14 @@ final class OfflinePackageSizeEstimatorTests: XCTestCase {
     XCTAssertFalse(result)
   }
 
+  func testOfflineStoragePolicy_requiredSpaceAppliesHeadroomAndFreeBuffer() {
+    let estimated = Measurement(value: 100, unit: UnitInformationStorage.megabytes)
+    // Required: (100 * 1.5) + 300 = 450 MB
+    let required = OfflineStoragePolicy.requiredSpace(forDownloadSize: estimated)
+
+    XCTAssertEqual(required.converted(to: .megabytes).value, 450, accuracy: 0.01)
+  }
+
   func testEstimatePackageSize_invalidZoomMaxReturnsNil() {
     let bounds = GeographicBoundingBox(
       southWest: CLLocationCoordinate2D(latitude: 47.0, longitude: -3.5),
