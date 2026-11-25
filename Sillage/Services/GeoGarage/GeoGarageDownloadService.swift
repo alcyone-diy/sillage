@@ -13,35 +13,71 @@ import Observation
 import os
 import OSLog
 
+/// Thread-safe per-job progress throttling state evaluated synchronously on the downloader thread
+/// via `OSAllocatedUnfairLock` to prevent spawning unstructured `MainActor` tasks on every raw network chunk.
+nonisolated struct GeoGarageProgressThrottleState: Sendable {
+  var lastUpdateTime: ContinuousClock.Instant?
+  var lastReportedBytes: Int64 = 0
+  var isClosed: Bool = false
+
+  mutating func shouldEmit(
+    received: Int64,
+    total: Int64,
+    now: ContinuousClock.Instant,
+    minimumInterval: Duration = .milliseconds(250),
+    minimumFractionDelta: Double = 0.01
+  ) -> Bool {
+    guard !isClosed, received >= lastReportedBytes else { return false }
+
+    let isComplete = total > 0 && received >= total
+    let hasElapsedInterval: Bool
+    if let lastUpdateTime {
+      hasElapsedInterval = (now - lastUpdateTime) >= minimumInterval
+    } else {
+      hasElapsedInterval = true
+    }
+    let bytesDelta = total > 0 ? Double(received - lastReportedBytes) / Double(total) : 0.0
+
+    if isComplete || hasElapsedInterval || bytesDelta >= minimumFractionDelta {
+      self.lastUpdateTime = now
+      self.lastReportedBytes = received
+      return true
+    }
+    return false
+  }
+}
+
 /// A global, persistent service responsible for orchestrating GeoGarage CAAS chart package
-/// generation, polling, downloading, state preservation across app terminations, and automatic
-/// recovery upon network reconnection.
+/// queueing, state preservation across app terminations, and automatic recovery upon network reconnection,
+/// while delegating unitary job execution to `GeoGarageDownloadPipelineExecutor`.
 ///
 /// ### Architectural Rationale:
 /// 1. **ViewModel Decoupling:**
 ///    Downloading a chart package is a long-lived operation that may take minutes over cellular/satellite connections.
 ///    Placing the execution pipeline inside `OfflineSelectionViewModel` caused downloads and recovery to be cancelled
-///    whenever the selection panel was dismissed by the user. By isolating the pipeline in this persistent service
+///    whenever the selection panel was dismissed by the user. By isolating orchestration in this persistent service
 ///    instantiated within `AppEnvironment`, downloads proceed uninterrupted regardless of active view lifecycles.
 ///
-/// 2. **Structured Concurrency Network Observation:**
+/// 2. **Queue Orchestration vs. Stateless Pipeline Execution:**
+///    `GeoGarageDownloadService` owns the `@MainActor` queue, `@Observable` UI state, 4 Hz throttling, and
+///    `PreferencesService` synchronization, while `GeoGarageDownloadPipelineExecutor` executes individual jobs
+///    without reading or mutating `activeDownloads`.
+///
+/// 3. **Structured Concurrency Network Observation:**
 ///    Instead of legacy `NotificationCenter` broadcasts, this service consumes `NetworkMonitorService.connectionStream()`,
 ///    an `AsyncStream<Bool>`, within an isolated `Task` loop with cooperative cancellation. When connectivity transitions
 ///    to `true`, pending downloads are seamlessly resumed.
 ///
-/// 3. **Synchronous State Persistence Before Network Dispatch:**
+/// 4. **Synchronous State Persistence Before Network Dispatch:**
 ///    To guarantee resilience against immediate app crashes or sudden terminations, `PendingCAASDownload` is written
-///    synchronously to `PreferencesService` (UserDefaults) with `packageID = nil` *before* the first HTTP request is dispatched.
+///    synchronously to `PreferencesService` (UserDefaults) with `packageID = nil` *before* the first HTTP request is dispatched,
+///    and updated immediately when intermediate pipeline events arrive.
 ///
-/// 4. **Fine-Grained Local Connectivity Error Classification:**
+/// 5. **Fine-Grained Local Connectivity Error Classification:**
 ///    Only true local connectivity outages (e.g. `URLError.notConnectedToInternet`, `URLError.networkConnectionLost`,
 ///    `URLError.dataNotAllowed`) transition the workflow into `.waitingForNetwork` while keeping the request queued.
 ///    Fatal errors (HTTP 401 Unauthorized, HTTP 400 Bad Request, server generation failures, MD5 corruption) are routed
 ///    to `.failed(errorMessage:)` and purge the pending state to prevent infinite retry loops and excessive battery drain.
-///
-/// 5. **Cooperative Cancellation:**
-///    The active download task is tracked via `currentDownloadTask`. Cooperative cancellation checks (`Task.checkCancellation()`)
-///    are performed between each pipeline phase (request, polling steps, download) to ensure clean deallocation.
 @Observable
 @MainActor
 final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
@@ -52,7 +88,6 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
 
   // MARK: - Injected Dependencies
 
-  private let packageService: GeoGaragePackageServiceProtocol
   private let downloader: GeoGarageChartDownloaderProtocol
   private let downloadRepository: GeoGarageDownloadRepositoryProtocol
   private let preferencesService: PreferencesServiceProtocol
@@ -60,6 +95,8 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
   private let diskSpaceProvider: DiskSpaceProviderProtocol
   private let messageService: MessageService
   private let keychainManager: any KeychainManaging
+  private let pipelineExecutor: GeoGarageDownloadPipelineExecutor
+  private let nowProvider: @Sendable () -> ContinuousClock.Instant
 
   // MARK: - State Properties
 
@@ -102,12 +139,6 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
 
   @ObservationIgnored
   private let progressContinuationsLock = OSAllocatedUnfairLock<[UUID: AsyncStream<Double?>.Continuation]>(initialState: [:])
-
-  @ObservationIgnored
-  private var lastProgressUpdateDate: [UUID: Date] = [:]
-
-  @ObservationIgnored
-  private var lastReportedBytes: [UUID: Int64] = [:]
 
   @ObservationIgnored
   private var downloadTasks: [UUID: (token: UUID, task: Task<Void, Never>)] = [:]
@@ -190,9 +221,9 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     networkMonitor: NetworkMonitorServiceProtocol,
     diskSpaceProvider: DiskSpaceProviderProtocol = SystemDiskSpaceProvider(),
     messageService: MessageService,
-    keychainManager: any KeychainManaging = KeychainManager.shared
+    keychainManager: any KeychainManaging = KeychainManager.shared,
+    nowProvider: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }
   ) {
-    self.packageService = packageService
     self.downloader = downloader
     self.downloadRepository = downloadRepository
     self.preferencesService = preferencesService
@@ -200,6 +231,13 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     self.diskSpaceProvider = diskSpaceProvider
     self.messageService = messageService
     self.keychainManager = keychainManager
+    self.nowProvider = nowProvider
+    self.pipelineExecutor = GeoGarageDownloadPipelineExecutor(
+      packageService: packageService,
+      downloader: downloader,
+      downloadRepository: downloadRepository,
+      diskSpaceProvider: diskSpaceProvider
+    )
 
     // Restore any existing persisted pending downloads into queued state
     self.activeDownloads = preferencesService.pendingCAASDownloads.map {
@@ -431,8 +469,7 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     for i in 0..<activeDownloads.count {
       guard availableSlots > 0 else { break }
       if case .queued = activeDownloads[i].phase {
-        let pending = activeDownloads[i].item
-        let targetID = pending.id
+        let targetID = activeDownloads[i].item.id
 
         availableSlots -= 1
         updateDownloadPhase(id: targetID, to: .requesting)
@@ -461,7 +498,10 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
               )
               return
             }
-            guard !Task.isCancelled, self.activeDownloads.contains(where: { $0.id == targetID }) else { return }
+            guard !Task.isCancelled,
+                  let currentItem = self.activeDownloads.first(where: { $0.id == targetID })?.item else {
+              return
+            }
 
             let resolvedCustomer = self.preferencesService.geoGarageCustomerID
 
@@ -477,20 +517,12 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
             }
 
             guard self.networkMonitor.isConnected else {
-              Logger.offline.info("Device is offline. Queuing pending download for '\(pending.layerID, privacy: .public)' in waiting state.")
+              Logger.offline.info("Device is offline. Queuing pending download for '\(currentItem.layerID, privacy: .public)' in waiting state.")
               self.updateDownloadPhase(id: targetID, to: .waitingForNetwork(message: String(localized: "Waiting for network connection…")))
               return
             }
 
-            await self.executeDownloadPipeline(
-              accessToken: resolvedAccessToken,
-              layerID: pending.layerID,
-              layerName: pending.layerName,
-              zoneWKT: pending.boundsWKT,
-              zoomMax: pending.zoomMax,
-              existingPackageID: pending.packageID,
-              localID: targetID
-            )
+            await self.runDownloadPipeline(for: currentItem, accessToken: resolvedAccessToken)
           }
         )
       }
@@ -533,28 +565,16 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     activeDownloads.removeAll { $0.id == id }
   }
 
-  // MARK: - Pipeline Execution
+  // MARK: - Pipeline Orchestration & Event Handling
 
-  private func executeDownloadPipeline(
-    accessToken: String,
-    layerID: String,
-    layerName: String,
-    zoneWKT: String,
-    zoomMax: Int,
-    existingPackageID: UUID?,
-    localID: UUID
+  private func runDownloadPipeline(
+    for item: PendingCAASDownload,
+    accessToken: String
   ) async {
+    let localID = item.id
+
     guard !Task.isCancelled else {
-      guard activeDownloads.contains(where: { $0.id == localID }) else { return }
-      removeDownload(id: localID)
-      sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
-      if activeDownloads.isEmpty {
-        sessionCompletedDownloadsCount = 0
-        sessionTotalDownloadsCount = 0
-        lastTerminalPhase = .cancelled
-      }
-      notifyProgressObservers()
-      processQueue()
+      handlePipelineCancellation(id: localID)
       return
     }
 
@@ -568,84 +588,55 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     }
 
     guard networkMonitor.isConnected else {
-      Logger.offline.info("Device is offline. Queuing pending CAAS download for '\(layerID, privacy: .public)' until connection is restored.")
+      Logger.offline.info("Device is offline. Queuing pending CAAS download for '\(item.layerID, privacy: .public)' until connection is restored.")
       updateDownloadPhase(id: localID, to: .waitingForNetwork(message: String(localized: "Waiting for network connection…")))
       return
     }
 
+    // Per-job synchronous throttle gate: filters raw URLSession chunks at ~4 Hz (250 ms) or 1% delta
+    // on the calling thread before hopping to MainActor, and seals immediately on exit via defer.
+    let progressGate = OSAllocatedUnfairLock(initialState: GeoGarageProgressThrottleState())
+    let nowProvider = self.nowProvider
+    defer {
+      progressGate.withLock { $0.isClosed = true }
+    }
+
     do {
-      try Task.checkCancellation()
-
-      // Technical Design: Storage safety evaluation if replacing an existing chart
-      if let replacesID = activeDownloads.first(where: { $0.id == localID })?.item.replacesChartID {
-        let estimatedSize = OfflinePackageSizeEstimator.estimatePackageSize(wkt: zoneWKT, zoomMax: zoomMax)
-        let available = diskSpaceProvider.availableDiskSpace()
-        let hasSufficientSpace: Bool
-        if let estimatedSize, let available {
-          hasSufficientSpace = OfflineStoragePolicy.hasSufficientSpace(availableSpace: available, estimatedDownloadSize: estimatedSize)
-        } else {
-          hasSufficientSpace = false
-        }
-
-        if !hasSufficientSpace {
-          Logger.offline.warning("Insufficient storage buffer to retain chart \(replacesID.uuidString, privacy: .public). Deleting upfront before download.")
-          do {
-            try await self.downloader.deleteLocalChart(id: replacesID)
-            self.updatePendingReplacesChartID(id: localID, replacesChartID: nil)
-            Logger.offline.info("Deleted previous chart \(replacesID.uuidString, privacy: .public) upfront due to storage limits.")
-          } catch {
-            Logger.offline.error("Failed to delete previous chart upfront: \(error.localizedDescription, privacy: .public)")
-            self.failDownload(id: localID, errorMessage: error.localizedDescription)
-            return
-          }
-        } else {
-          Logger.offline.info("Sufficient storage space available. Retaining previous chart \(replacesID.uuidString, privacy: .public) during download.")
-        }
-      }
-
-      let packageID: UUID
-      if let existing = existingPackageID {
-        packageID = existing
-      } else {
-        let request = PackageRequest(
-          layerID: layerID,
-          zoneWKT: zoneWKT,
-          zoomMax: zoomMax,
-          format: .mbtiles,
-          cipher: .v4
-        )
-
-        packageID = try await packageService.requestPackage(
-          request,
-          accessToken: accessToken
-        )
-
-        try Task.checkCancellation()
-        updatePendingPackageID(id: localID, packageID: packageID)
-      }
-
-      try Task.checkCancellation()
-
-      try await pollAndDownloadArchive(
-        packageID: packageID,
-        localID: localID,
+      let finalRecord = try await pipelineExecutor.execute(
+        item: item,
         accessToken: accessToken,
-        layerID: layerID,
-        layerName: layerName,
-        boundsWKT: zoneWKT,
-        zoomMax: zoomMax
+        onEvent: { [weak self] event in
+          await self?.handlePipelineEvent(event, for: localID)
+        },
+        onProgress: { [weak self] received, total in
+          guard self != nil else { return }
+          let now = nowProvider()
+          let shouldUpdate = progressGate.withLock { state in
+            state.shouldEmit(received: received, total: total, now: now)
+          }
+          guard shouldUpdate else { return }
+          Task { @MainActor [weak self] in
+            guard let self, !progressGate.withLock({ $0.isClosed }) else { return }
+            self.applyThrottledDownloadProgress(id: localID, receivedBytes: received, totalBytes: total)
+          }
+        }
       )
-    } catch is CancellationError {
+
+      try Task.checkCancellation()
       guard activeDownloads.contains(where: { $0.id == localID }) else { return }
+
+      sessionCompletedDownloadsCount += 1
+      updateDownloadPhase(id: localID, to: .completed(finalRecord))
       removeDownload(id: localID)
-      sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
       if activeDownloads.isEmpty {
         sessionCompletedDownloadsCount = 0
         sessionTotalDownloadsCount = 0
-        lastTerminalPhase = .cancelled
+        lastTerminalPhase = .completed(finalRecord)
       }
       notifyProgressObservers()
       processQueue()
+    } catch is CancellationError {
+      handlePipelineCancellation(id: localID)
     } catch {
       if isConnectivityError(error) {
         Logger.offline.info("Network connectivity error during CAAS download: \(error.localizedDescription, privacy: .public). Queued in pending state.")
@@ -661,129 +652,42 @@ final class GeoGarageDownloadService: GeoGarageDownloadServiceProtocol {
     }
   }
 
-  private func pollAndDownloadArchive(
-    packageID: UUID,
-    localID: UUID,
-    accessToken: String,
-    layerID: String,
-    layerName: String,
-    boundsWKT: String,
-    zoomMax: Int
-  ) async throws {
-    var finalStatus: PackageStatusResponse?
+  private func handlePipelineEvent(_ event: GeoGarageDownloadPipelineEvent, for id: UUID) {
+    guard activeDownloads.contains(where: { $0.id == id }) else { return }
 
-    let statusStream = await packageService.pollUntilComplete(
-      packageID: packageID,
-      accessToken: accessToken
-    )
-
-    for try await status in statusStream {
-      try Task.checkCancellation()
-
-      let progress = status.normalizedProgress
-      let msg: String
-      if let monitor = status.monitor {
-        msg = "\(status.state.rawValue): \(monitor)"
-      } else {
-        msg = status.state.rawValue
-      }
-      updateDownloadPhase(id: localID, to: .generating(progress: progress, message: msg))
-
-      if status.state == .success {
-        finalStatus = status
-      }
+    switch event {
+    case .replacesChartCleared:
+      updatePendingReplacesChartID(id: id, replacesChartID: nil)
+    case .packageIDAssigned(let packageID):
+      updatePendingPackageID(id: id, packageID: packageID)
+    case .generating(let progress, let message):
+      updateDownloadPhase(id: id, to: .generating(progress: progress, message: message))
+    case .downloadingStarted(let totalBytes):
+      updateDownloadPhase(id: id, to: .downloading(receivedBytes: 0, totalBytes: totalBytes))
     }
+  }
 
-    try Task.checkCancellation()
-
-    guard let completedStatus = finalStatus,
-          let rawURLString = completedStatus.url,
-          let downloadURL = URL(string: rawURLString),
-          let fileHash = completedStatus.md5 else {
-      throw CaasError.downloadFailed(underlying: "Server generation completed without valid download URL or MD5 hash.")
+  private func applyThrottledDownloadProgress(id: UUID, receivedBytes: Int64, totalBytes: Int64) {
+    // Phase and monotonicity guards prevent late or out-of-order ticks from overwriting terminal states
+    // or regressing the progress bar during high-throughput updates.
+    guard let index = activeDownloads.firstIndex(where: { $0.id == id }),
+          case .downloading(let currentReceived, let currentTotal) = activeDownloads[index].phase else {
+      return
     }
-
-    let totalBytes = completedStatus.size ?? 0
-    updateDownloadPhase(id: localID, to: .downloading(receivedBytes: 0, totalBytes: totalBytes))
-
-    // Storage Re-evaluation: Before downloading the archive file, verify exact size if old chart is retained
-    if let replacesID = activeDownloads.first(where: { $0.id == localID })?.item.replacesChartID, totalBytes > 0 {
-      let exactPackageSize = Measurement(value: Double(totalBytes), unit: UnitInformationStorage.bytes)
-      let available = diskSpaceProvider.availableDiskSpace()
-      let hasSufficientSpace = available.map {
-        OfflineStoragePolicy.hasSufficientSpace(availableSpace: $0, estimatedDownloadSize: exactPackageSize)
-      } ?? false
-
-      if !hasSufficientSpace {
-        Logger.offline.warning("Storage became constrained during package generation for \(replacesID.uuidString, privacy: .public). Deleting old chart now before archive download.")
-        do {
-          try await self.downloader.deleteLocalChart(id: replacesID)
-          self.updatePendingReplacesChartID(id: localID, replacesChartID: nil)
-        } catch {
-          Logger.offline.error("Failed to delete old chart before archive download: \(error.localizedDescription, privacy: .public)")
-        }
-      }
+    if totalBytes == currentTotal, receivedBytes < currentReceived {
+      return
     }
+    updateDownloadPhase(id: id, to: .downloading(receivedBytes: receivedBytes, totalBytes: totalBytes))
+  }
 
-    let record = try await downloader.download(
-      packageID: packageID,
-      downloadURL: downloadURL,
-      expectedMD5: fileHash,
-      layerID: layerID,
-      layerName: layerName,
-      boundsWKT: boundsWKT,
-      zoomMax: zoomMax,
-      accessToken: accessToken,
-      localID: localID,
-      progressHandler: { [weak self] received, total in
-        Task { @MainActor [weak self] in
-          guard let self = self else { return }
-          // Throttle progress events to ~4 Hz (250ms) or 1% delta to protect MainActor & battery
-          let now = Date()
-          let lastDate = self.lastProgressUpdateDate[localID] ?? .distantPast
-          let lastBytes = self.lastReportedBytes[localID] ?? 0
-          let isComplete = total > 0 && received >= total
-          let timeDelta = now.timeIntervalSince(lastDate)
-          let bytesDelta = total > 0 ? Double(received - lastBytes) / Double(total) : 0.0
-
-          if isComplete || timeDelta >= 0.25 || bytesDelta >= 0.01 {
-            self.lastProgressUpdateDate[localID] = now
-            self.lastReportedBytes[localID] = received
-            self.updateDownloadPhase(id: localID, to: .downloading(receivedBytes: received, totalBytes: total))
-          }
-        }
-      }
-    )
-
-    lastProgressUpdateDate.removeValue(forKey: localID)
-    lastReportedBytes.removeValue(forKey: localID)
-
-    let finalRecord: OfflineChartDownload
-    if let custom = activeDownloads.first(where: { $0.id == localID })?.item.customName, !custom.isEmpty {
-      let customRecord = record.updatingCustomName(custom)
-      try? await downloadRepository.save(customRecord)
-      finalRecord = customRecord
-    } else {
-      finalRecord = record
-    }
-
-    // If an old chart was being replaced and kept during download, delete it now that new chart is safely downloaded and stored
-    if let replacesID = activeDownloads.first(where: { $0.id == localID })?.item.replacesChartID {
-      do {
-        try await self.downloader.deleteLocalChart(id: replacesID)
-        Logger.offline.info("Deleted previous offline chart package \(replacesID.uuidString, privacy: .public) after successfully replacing zone.")
-      } catch {
-        Logger.offline.warning("Non-fatal: Failed to delete previous chart package \(replacesID.uuidString, privacy: .public) after replacement: \(error.localizedDescription, privacy: .public)")
-      }
-    }
-
-    sessionCompletedDownloadsCount += 1
-    updateDownloadPhase(id: localID, to: .completed(finalRecord))
-    removeDownload(id: localID)
+  private func handlePipelineCancellation(id: UUID) {
+    guard activeDownloads.contains(where: { $0.id == id }) else { return }
+    removeDownload(id: id)
+    sessionTotalDownloadsCount = max(sessionCompletedDownloadsCount + activeDownloads.count, max(0, sessionTotalDownloadsCount - 1))
     if activeDownloads.isEmpty {
       sessionCompletedDownloadsCount = 0
       sessionTotalDownloadsCount = 0
-      lastTerminalPhase = .completed(finalRecord)
+      lastTerminalPhase = .cancelled
     }
     notifyProgressObservers()
     processQueue()

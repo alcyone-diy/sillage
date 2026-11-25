@@ -8,6 +8,7 @@
 //  See LICENSE file in the project root for full license information.
 //
 
+import os
 import XCTest
 @testable import Sillage
 
@@ -20,9 +21,15 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     var packageIDToReturn: UUID = UUID()
     var pollResponses: [PackageStatusResponse] = []
     var shouldFailRequest = false
+    var customRequestError: Error?
     var shouldHangPoll = false
+    var requestPackageCallCount = 0
 
     func requestPackage(_ request: PackageRequest, accessToken: String) async throws(CaasError) -> UUID {
+      requestPackageCallCount += 1
+      if let customError = customRequestError as? CaasError {
+        throw customError
+      }
       if shouldFailRequest {
         throw CaasError.requestFailed(statusCode: 500)
       }
@@ -56,7 +63,12 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     ) async -> AsyncThrowingStream<PackageStatusResponse, Error> {
       let responses = self.pollResponses
       let hang = self.shouldHangPoll
+      let customError = self.customRequestError
       return AsyncThrowingStream { continuation in
+        if let customError, !(customError is CaasError) {
+          continuation.finish(throwing: customError)
+          return
+        }
         if hang {
           let task = Task {
             try await Task.sleep(for: .seconds(10))
@@ -82,6 +94,7 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     var downloadResultToReturn: OfflineChartDownload?
     var shouldFailDownload = false
     var progressUpdatesToSimulate: [(Int64, Int64)] = []
+    var onDownloadSuspended: (@Sendable (@escaping @Sendable (Int64, Int64) -> Void, CheckedContinuation<Void, Never>) -> Void)?
 
     func download(
       packageID: UUID,
@@ -99,8 +112,14 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
       if shouldFailDownload {
         throw CaasError.downloadFailed(underlying: "Disk full or simulated failure")
       }
-      for (received, total) in progressUpdatesToSimulate {
-        progressHandler?(received, total)
+      if let onDownloadSuspended, let progressHandler {
+        await withCheckedContinuation { continuation in
+          onDownloadSuspended(progressHandler, continuation)
+        }
+      } else {
+        for (received, total) in progressUpdatesToSimulate {
+          progressHandler?(received, total)
+        }
       }
       return downloadResultToReturn ?? OfflineChartDownload(
         id: localID ?? packageID,
@@ -455,5 +474,293 @@ final class GeoGarageDownloadProgressTests: XCTestCase {
     XCTAssertTrue(service.activeDownloads.isEmpty)
     XCTAssertEqual(service.sessionTotalDownloadsCount, 0)
     XCTAssertEqual(service.sessionCompletedDownloadsCount, 0)
+  }
+
+  // MARK: - 7. Queue Concurrency Limit, 4 Hz Throttling, Terminal Guard & Resumption
+
+  func testQueueConcurrencyLimit_maxTwoActiveDownloads_keepsThirdQueuedUntilSlotOpens() async throws {
+    let packageService = MockPackageService()
+    packageService.shouldHangPoll = true
+    let downloader = MockChartDownloader()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+    let preferences = makePreferencesService()
+    let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
+
+    let service = GeoGarageDownloadService(
+      packageService: packageService,
+      downloader: downloader,
+      downloadRepository: repository,
+      preferencesService: preferences,
+      networkMonitor: networkMonitor,
+      messageService: messageService,
+      keychainManager: makeKeychainManager()
+    )
+
+    service.startDownload(layerID: "c1", layerName: "Chart 1", zoneWKT: "POLYGON(())", zoomMax: 12)
+    service.startDownload(layerID: "c2", layerName: "Chart 2", zoneWKT: "POLYGON(())", zoomMax: 12)
+    service.startDownload(layerID: "c3", layerName: "Chart 3", zoneWKT: "POLYGON(())", zoomMax: 12)
+
+    XCTAssertEqual(service.activeDownloads.count, 3)
+    XCTAssertEqual(service.activeDownloads[0].phase, .requesting)
+    XCTAssertEqual(service.activeDownloads[1].phase, .requesting)
+    XCTAssertEqual(service.activeDownloads[2].phase, .queued)
+
+    // Cancelling item 1 immediately promotes item 3 into .requesting
+    service.cancelDownload(id: service.activeDownloads[0].id)
+    XCTAssertEqual(service.activeDownloads.count, 2)
+    XCTAssertEqual(service.activeDownloads[0].phase, .requesting)
+    XCTAssertEqual(service.activeDownloads[1].phase, .requesting)
+
+    service.cancelDownload()
+  }
+
+  private nonisolated struct SuspendedDownloadCapture: Sendable {
+    var handler: (@Sendable (Int64, Int64) -> Void)?
+    var continuation: CheckedContinuation<Void, Never>?
+  }
+
+  func testProgressThrottling_filters4HzAnd1PercentSynchronously_andBlocksLateTicksAfterCompletion() async throws {
+    let pkgID = UUID()
+    let packageService = MockPackageService()
+    packageService.packageIDToReturn = pkgID
+    packageService.pollResponses = [
+      PackageStatusResponse(
+        uuid: pkgID,
+        state: .success,
+        tileNumbers: 100,
+        tilesPerSec: 50,
+        monitor: "100/100",
+        eta: nil,
+        url: "https://mock.example.com/chart.mbtiles",
+        md5: "md5ok",
+        size: 10_000,
+        error: nil
+      )
+    ]
+
+    let baseInstant = ContinuousClock.now
+    let elapsedMsLock = OSAllocatedUnfairLock<Int>(initialState: 0)
+    let suspendBox = OSAllocatedUnfairLock(initialState: SuspendedDownloadCapture())
+
+    let downloader = MockChartDownloader()
+    downloader.onDownloadSuspended = { handler, continuation in
+      suspendBox.withLock {
+        $0.handler = handler
+        $0.continuation = continuation
+      }
+    }
+
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+    let preferences = makePreferencesService()
+    let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
+
+    let service = GeoGarageDownloadService(
+      packageService: packageService,
+      downloader: downloader,
+      downloadRepository: repository,
+      preferencesService: preferences,
+      networkMonitor: networkMonitor,
+      messageService: messageService,
+      keychainManager: makeKeychainManager(),
+      nowProvider: {
+        let ms = elapsedMsLock.withLock { $0 }
+        return baseInstant.advanced(by: .milliseconds(ms))
+      }
+    )
+
+    service.startDownload(layerID: "shom", layerName: "SHOM", zoneWKT: "POLYGON(())", zoomMax: 12)
+
+    for _ in 0..<100 {
+      if suspendBox.withLock({ $0.handler != nil }) { break }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+
+    let progressHandler = try XCTUnwrap(suspendBox.withLock { $0.handler })
+    let resumeContinuation = try XCTUnwrap(suspendBox.withLock { $0.continuation })
+
+    // First tick (hasElapsedInterval == true since lastUpdateTime is nil) -> accepted (100 / 10_000)
+    progressHandler(100, 10_000)
+    await Task.yield()
+    try await Task.sleep(for: .milliseconds(15))
+    XCTAssertEqual(service.downloadPhase, .downloading(receivedBytes: 100, totalBytes: 10_000))
+
+    // Sub-250ms (+50ms) and sub-1% (+40 bytes = 0.4%) -> filtered out synchronously
+    elapsedMsLock.withLock { $0 += 50 }
+    progressHandler(140, 10_000)
+    await Task.yield()
+    try await Task.sleep(for: .milliseconds(15))
+    XCTAssertEqual(
+      service.downloadPhase,
+      .downloading(receivedBytes: 100, totalBytes: 10_000),
+      "Sub-250ms and sub-1% tick must be dropped by synchronous lock filter"
+    )
+
+    // Advance >= 1% (+150 bytes from last reported 100 -> 250 / 10_000 = +1.5%) without advancing clock -> accepted
+    progressHandler(250, 10_000)
+    await Task.yield()
+    try await Task.sleep(for: .milliseconds(15))
+    XCTAssertEqual(service.downloadPhase, .downloading(receivedBytes: 250, totalBytes: 10_000))
+
+    // Advance clock by >= 250ms (+260ms) with tiny byte delta (+10 bytes) -> accepted
+    elapsedMsLock.withLock { $0 += 260 }
+    progressHandler(260, 10_000)
+    await Task.yield()
+    try await Task.sleep(for: .milliseconds(15))
+    XCTAssertEqual(service.downloadPhase, .downloading(receivedBytes: 260, totalBytes: 10_000))
+
+    // Out-of-order lower byte count (even after +300ms clock advance) must be rejected synchronously
+    // without lowering lastReportedBytes or consuming the 250ms throttle window.
+    var unitThrottle = GeoGarageProgressThrottleState()
+    let t0 = ContinuousClock.now
+    XCTAssertTrue(unitThrottle.shouldEmit(received: 500, total: 10_000, now: t0))
+    XCTAssertFalse(unitThrottle.shouldEmit(received: 400, total: 10_000, now: t0.advanced(by: .milliseconds(300))))
+    XCTAssertEqual(unitThrottle.lastReportedBytes, 500)
+    XCTAssertEqual(unitThrottle.lastUpdateTime, t0)
+
+    elapsedMsLock.withLock { $0 += 300 }
+    progressHandler(200, 10_000)
+    await Task.yield()
+    try await Task.sleep(for: .milliseconds(15))
+    XCTAssertEqual(service.downloadPhase, .downloading(receivedBytes: 260, totalBytes: 10_000))
+
+    // Complete the download
+    resumeContinuation.resume()
+    for _ in 0..<100 {
+      if case .completed = service.downloadPhase { break }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+
+    guard case .completed(let finalRecord) = service.downloadPhase else {
+      XCTFail("Expected .completed terminal phase, got \(service.downloadPhase)")
+      return
+    }
+
+    // Late tick arriving AFTER completion (even with +5s clock advance and 100% bytes) must NOT overwrite .completed
+    elapsedMsLock.withLock { $0 += 5_000 }
+    progressHandler(10_000, 10_000)
+    await Task.yield()
+    try await Task.sleep(for: .milliseconds(20))
+
+    XCTAssertEqual(service.downloadPhase, .completed(finalRecord))
+    XCTAssertTrue(service.activeDownloads.isEmpty)
+  }
+
+  func testResumePendingDownloadIfNeeded_reusesPersistedPackageIDWithoutReRequesting() async throws {
+    let persistedPkgID = UUID()
+    let persistedLocalID = UUID()
+
+    let packageService = MockPackageService()
+    packageService.pollResponses = [
+      PackageStatusResponse(
+        uuid: persistedPkgID,
+        state: .success,
+        tileNumbers: 50,
+        tilesPerSec: 25,
+        monitor: "50/50",
+        eta: nil,
+        url: "https://mock.example.com/resumed.mbtiles",
+        md5: "resumedmd5",
+        size: 2048,
+        error: nil
+      )
+    ]
+
+    let downloader = MockChartDownloader()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+    let preferences = makePreferencesService()
+    preferences.pendingCAASDownloads = [
+      PendingCAASDownload(
+        id: persistedLocalID,
+        packageID: persistedPkgID,
+        layerID: "shom",
+        layerName: "SHOM",
+        boundsWKT: "POLYGON(())",
+        zoomMax: 12
+      )
+    ]
+
+    let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
+
+    let service = GeoGarageDownloadService(
+      packageService: packageService,
+      downloader: downloader,
+      downloadRepository: repository,
+      preferencesService: preferences,
+      networkMonitor: networkMonitor,
+      messageService: messageService,
+      keychainManager: makeKeychainManager()
+    )
+
+    await service.resumePendingDownloadIfNeeded()
+
+    for _ in 0..<100 {
+      if case .completed = service.downloadPhase { break }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+
+    XCTAssertEqual(packageService.requestPackageCallCount, 0, "Must resume polling existing packageID without calling requestPackage")
+    XCTAssertTrue(preferences.pendingCAASDownloads.isEmpty)
+    if case .completed(let record) = service.downloadPhase {
+      XCTAssertEqual(record.id, persistedLocalID)
+      XCTAssertEqual(record.md5, "resumedmd5")
+    } else {
+      XCTFail("Expected .completed after resume, got \(service.downloadPhase)")
+    }
+  }
+
+  func testErrorClassification_connectivityErrorQueuesWaitingWhileAuthErrorFailsAndPurges() async throws {
+    let packageService = MockPackageService()
+    packageService.customRequestError = URLError(.notConnectedToInternet)
+    let downloader = MockChartDownloader()
+    let dbManager = try DatabaseManager.inMemory()
+    let repository = GeoGarageDownloadRepository(databaseManager: dbManager)
+    let preferences = makePreferencesService()
+    let networkMonitor = MockNetworkMonitor()
+    let messageService = MessageService()
+
+    let service = GeoGarageDownloadService(
+      packageService: packageService,
+      downloader: downloader,
+      downloadRepository: repository,
+      preferencesService: preferences,
+      networkMonitor: networkMonitor,
+      messageService: messageService,
+      keychainManager: makeKeychainManager()
+    )
+
+    // 1. URLError(.notConnectedToInternet) during polling -> .waitingForNetwork, pending item retained
+    service.startDownload(layerID: "shom", layerName: "SHOM", zoneWKT: "POLYGON(())", zoomMax: 12)
+    for _ in 0..<100 {
+      if case .waitingForNetwork = service.downloadPhase { break }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    if case .waitingForNetwork = service.downloadPhase {
+      XCTAssertEqual(preferences.pendingCAASDownloads.count, 1)
+      XCTAssertTrue(messageService.messages.isEmpty)
+    } else {
+      XCTFail("Expected .waitingForNetwork on connectivity outage, got \(service.downloadPhase)")
+    }
+
+    service.cancelDownload()
+
+    // 2. CaasError.authenticationRequired -> .failed, pending state purged, settings intent posted
+    packageService.customRequestError = CaasError.authenticationRequired
+    service.startDownload(layerID: "shom", layerName: "SHOM", zoneWKT: "POLYGON(())", zoomMax: 12)
+    for _ in 0..<100 {
+      if case .failed = service.downloadPhase { break }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    if case .failed = service.downloadPhase {
+      XCTAssertTrue(preferences.pendingCAASDownloads.isEmpty)
+      XCTAssertEqual(messageService.messages.last?.intent, .openSettings(target: .geoGarage))
+    } else {
+      XCTFail("Expected .failed on CaasError.authenticationRequired, got \(service.downloadPhase)")
+    }
   }
 }
