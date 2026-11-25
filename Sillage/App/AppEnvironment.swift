@@ -34,50 +34,7 @@ final class AppEnvironment {
   /// Fetches the package decryption secret from `/partners/me/` after sign-in, so nothing secret
   /// ships in the binary; the secret lives in the Keychain.
   public let geoGaragePartnerSecretService: any GeoGaragePartnerSecretServiceProtocol
-  
-  @MainActor
-  struct AppContainer {
-    let userDefaults: UserDefaults
-    let messageService: MessageService
-    let preferencesService: PreferencesService
-    let positioningService: any PositioningService
-    let trackRecordingService: TrackRecordingService
-    let trackService: TrackService
-    let waypointService: WaypointService
-    let geoGarageAuthService: GeoGarageAuthService
-    let geoGarageLayerRepository: GeoGarageLayerRepository
-    let geoGarageDownloadRepository: GeoGarageDownloadRepository
-    let geoGaragePackageService: GeoGaragePackageService
-    let geoGarageChartDownloader: GeoGarageChartDownloader
-    let geoGarageDownloadService: GeoGarageDownloadService
-    let geoGarageOfflineTileProvider: GeoGarageOfflineTileProvider
-    let anchorService: AnchorService
-    let kinematicsService: VesselKinematicsService
-    
-    let appViewModel: AppViewModel
-    let chartViewModel: ChartViewModel
-    let activeTrackViewModel: ActiveTrackViewModel
-    let barometerViewModel: BarometerViewModel
-    let anchorViewModel: AnchorViewModel
-    let permissionService: PermissionService
-    let offlineSelectionViewModel: OfflineSelectionViewModel
-    let networkMonitorService: NetworkMonitorService
-    let notificationService: NotificationService
-    let secondaryTelemetryViewModel: SecondaryTelemetryViewModel
-    let checklistCatalogService: ChecklistCatalogService
-    let checklistSessionService: ChecklistSessionService
 
-    #if DEBUG
-    fileprivate(set) var developerSettingsService = DeveloperSettingsService()
-
-    func withDeveloperSettings(_ service: DeveloperSettingsService) -> Self {
-      var copy = self
-      copy.developerSettingsService = service
-      return copy
-    }
-    #endif
-  }
-  
   private let keychainManager: any KeychainManaging
   private let userDefaults: UserDefaults
   private let isProtectedDataAvailable: @MainActor () -> Bool
@@ -166,12 +123,7 @@ final class AppEnvironment {
     // at compile time that Phase 2 cannot fail and that neither MapLibre nor a background `URLSession`
     // is ever started if Phase 1 fails.
     #if DEBUG
-    let activeScreenshotScenario = overrides.screenshotScenario ?? ScreenshotScenario.active
-    if let scenario = activeScreenshotScenario {
-      let gpsLabel = scenario.gpsPreset?.rawValue ?? "off"
-      let baroLabel = scenario.baroPreset?.rawValue ?? "off"
-      Logger.system.notice("📸 Sensor simulation active (gps=\(gpsLabel, privacy: .public), baro=\(baroLabel, privacy: .public), tracks=\(scenario.simulateTracksAndWaypoints, privacy: .public)). User preferences remain untouched.")
-    }
+    let activeScreenshotScenario = DebugBootstrapper.resolveScenario(override: overrides.screenshotScenario)
     #endif
 
     let databaseManager: DatabaseManager
@@ -195,22 +147,11 @@ final class AppEnvironment {
       }
 
       #if DEBUG
-      if let scenario = activeScreenshotScenario, scenario.simulateTracksAndWaypoints {
-        try await ScreenshotBootstrapper.seedTracksAndWaypoints(scenario, into: databaseManager)
-      } else {
-        try await ScreenshotBootstrapper.removeSeededTracksAndWaypoints(from: databaseManager)
-      }
-
-      if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
-        if databaseFactory != nil {
-          try await ScreenshotBootstrapper.seedBarometricHistory(scenario, into: databaseManager)
-          baroDatabaseManager = databaseManager
-        } else {
-          baroDatabaseManager = try await ScreenshotBootstrapper.makeBarometricDatabase(scenario: scenario)
-        }
-      } else {
-        baroDatabaseManager = databaseManager
-      }
+      baroDatabaseManager = try await DebugBootstrapper.prepareDatabases(
+        scenario: activeScreenshotScenario,
+        databaseManager: databaseManager,
+        hasCustomDatabaseFactory: databaseFactory != nil
+      )
       #else
       baroDatabaseManager = databaseManager
       #endif
@@ -250,24 +191,11 @@ final class AppEnvironment {
       keychainManager: self.keychainManager
     )
     #if DEBUG
-    let devSettingsDefaults: UserDefaults? = {
-      guard activeScreenshotScenario?.gpsPreset != nil else { return nil }
-      let suiteName = "com.alcyone.sillage.simulated.devsettings"
-      let ephemeralDefaults = UserDefaults(suiteName: suiteName)
-      ephemeralDefaults?.removePersistentDomain(forName: suiteName)
-      return ephemeralDefaults
-    }()
-    let developerSettingsService = DeveloperSettingsService(defaults: devSettingsDefaults ?? self.userDefaults)
-    if activeScreenshotScenario?.gpsPreset != nil {
-      developerSettingsService.cogSogCalculationSource = .iOS
-      developerSettingsService.cogDampingDuration = 0.0
-    }
-
-    let simulatedPositioning: (any PositioningService)? = if let scenario = activeScreenshotScenario, scenario.gpsPreset != nil {
-      SimulatedPositioningService(scenario: scenario)
-    } else {
-      nil
-    }
+    let developerSettingsService = DebugBootstrapper.makeDeveloperSettingsService(
+      scenario: activeScreenshotScenario,
+      userDefaults: self.userDefaults
+    )
+    let simulatedPositioning = DebugBootstrapper.makeSimulatedPositioningService(scenario: activeScreenshotScenario)
     let initialPausesAutomatically = developerSettingsService.pausesLocationUpdatesAutomatically
     #else
     let simulatedPositioning: (any PositioningService)? = nil
@@ -287,15 +215,10 @@ final class AppEnvironment {
     )
 
     #if DEBUG
-    kinematicsService.calculationSource = developerSettingsService.cogSogCalculationSource
-    kinematicsService.noiseMultiplier = developerSettingsService.noiseMultiplier
-    kinematicsService.velocityWindowDuration = developerSettingsService.velocityWindowDuration
-    instrumentDampingService.cogDampingDuration = developerSettingsService.cogDampingDuration
-
-    observeDeveloperSettings(
-      developerSettingsService: developerSettingsService,
-      kinematicsService: kinematicsService,
-      instrumentDampingService: instrumentDampingService
+    DebugBootstrapper.bindDeveloperSettings(
+      developerSettingsService,
+      to: kinematicsService,
+      dampingService: instrumentDampingService
     )
     #endif
 
@@ -308,20 +231,11 @@ final class AppEnvironment {
       notificationService: notificationService
     )
     #if DEBUG
-    if let scenario = activeScreenshotScenario {
-      permissionService.forceAuthorizedForSimulatedSensors(
-        gps: scenario.gpsPreset != nil,
-        baro: scenario.baroPreset != nil
-      )
-    }
-    #endif
-
-    #if DEBUG
-    let simulatedAltimeter: (any AltimeterProvider)? = if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
-      SimulatedAltimeterProvider(scenario: scenario)
-    } else {
-      nil
-    }
+    DebugBootstrapper.applySimulatedPermissions(
+      scenario: activeScreenshotScenario,
+      to: permissionService
+    )
+    let simulatedAltimeter = DebugBootstrapper.makeSimulatedAltimeterProvider(scenario: activeScreenshotScenario)
     #else
     let simulatedAltimeter: (any AltimeterProvider)? = nil
     #endif
@@ -521,10 +435,11 @@ final class AppEnvironment {
       keychainManager: keychainManager
     )
     #if DEBUG
-    let batteryService: (any DeviceBatteryServiceProtocol)? = activeScreenshotScenario.map { SimulatedBatteryService(scenario: $0) }
-    if let scenario = activeScreenshotScenario, scenario.baroPreset != nil {
-      await barometerViewModel.refreshFullHistory()
-    }
+    let batteryService = DebugBootstrapper.makeSimulatedBatteryService(scenario: activeScreenshotScenario)
+    await DebugBootstrapper.refreshSimulatedBarometerIfNeeded(
+      scenario: activeScreenshotScenario,
+      barometerViewModel: barometerViewModel
+    )
     #else
     let batteryService: (any DeviceBatteryServiceProtocol)? = nil
     #endif
@@ -696,37 +611,6 @@ final class AppEnvironment {
 
     await container.geoGarageDownloadService.resumePendingDownloadIfNeeded()
   }
-
-  #if DEBUG
-  private func observeDeveloperSettings<C: Clock & Sendable>(
-    developerSettingsService: DeveloperSettingsService,
-    kinematicsService: VesselKinematicsService,
-    instrumentDampingService: InstrumentDampingService<C>
-  ) where C.Duration == Duration {
-    withObservationTracking {
-      _ = developerSettingsService.cogSogCalculationSource
-      _ = developerSettingsService.noiseMultiplier
-      _ = developerSettingsService.velocityWindowDuration
-      _ = developerSettingsService.cogDampingDuration
-    } onChange: { [weak self, weak kinematicsService, weak instrumentDampingService, weak developerSettingsService] in
-      Task { @MainActor [weak self, weak kinematicsService, weak instrumentDampingService, weak developerSettingsService] in
-        guard let self,
-              let settings = developerSettingsService,
-              let kinematics = kinematicsService,
-              let damping = instrumentDampingService else { return }
-        kinematics.calculationSource = settings.cogSogCalculationSource
-        kinematics.noiseMultiplier = settings.noiseMultiplier
-        kinematics.velocityWindowDuration = settings.velocityWindowDuration
-        damping.cogDampingDuration = settings.cogDampingDuration
-        self.observeDeveloperSettings(
-          developerSettingsService: settings,
-          kinematicsService: kinematics,
-          instrumentDampingService: damping
-        )
-      }
-    }
-  }
-  #endif
 
   private func observeWaypointGoTo(
     waypointService: WaypointService,
