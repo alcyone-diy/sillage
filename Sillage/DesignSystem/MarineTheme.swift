@@ -11,7 +11,7 @@
 import SwiftUI
 import UIKit
 
-struct MarineTheme: Equatable, Hashable {
+struct MarineTheme: Equatable, Hashable, Sendable {
   enum Palette: Hashable, Sendable {
     case day
   }
@@ -21,7 +21,7 @@ struct MarineTheme: Equatable, Hashable {
   let isGloveMode: Bool
   let colors: Colors
 
-  struct Colors {
+  struct Colors: Sendable {
     let primary: Color
     let inactive: Color
     let warning: Color

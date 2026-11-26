@@ -11,14 +11,14 @@
 import Foundation
 import CoreLocation
 
-enum AnchorVisualStatus: String, Equatable {
+enum AnchorVisualStatus: String, Equatable, Sendable {
   case setup
   case dropped
   case armed
   case dragging
 }
 
-struct AnchorVisualState: Equatable {
+struct AnchorVisualState: Equatable, Sendable {
   let status: AnchorVisualStatus
   let pointCoordinate: CLLocationCoordinate2D
   let radius: Measurement<UnitLength>?

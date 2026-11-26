@@ -158,141 +158,71 @@ struct MapLibreView: UIViewRepresentable {
     return mapView
   }
   
+  func makeStyleSnapshot(
+    using coordinator: Coordinator,
+    activeTrackPoints: ArraySlice<TrackPoint>
+  ) -> MapStyleSnapshot {
+    let activeSelectionBounds = coordinator.resolvedOfflineSelectionBounds(
+      isSelectionModeActive: offlineSelectionViewModel.isSelectionModeActive,
+      committedBounds: offlineSelectionViewModel.selectedBounds
+    )
+    return MapStyleSnapshot(
+      chartSource: viewModel.currentChartSource,
+      isOpenSeaMapOverlayEnabled: viewModel.isOpenSeaMapOverlayEnabled,
+      marineTheme: marineTheme,
+      offlineMask: viewModel.offlineMaskVisualState,
+      offlineHighlight: viewModel.highlightedOfflineRegion,
+      offlineSelectionBounds: activeSelectionBounds,
+      gpsAccuracy: viewModel.gpsAccuracyVisualState,
+      savedTrack: viewModel.savedTrackVisualState,
+      activeTrack: ActiveTrackFingerprint(points: activeTrackPoints),
+      bearingLine: viewModel.bearingLineVisualState,
+      measureState: viewModel.measureToolViewModel.state,
+      measureActivePin: viewModel.measureToolViewModel.activePin,
+      visibleWaypoints: viewModel.visibleWaypointVisualStates,
+      goToWaypoint: viewModel.goToWaypointVisualState,
+      anchor: viewModel.anchorVisualState,
+      headingVector: viewModel.headingVectorData,
+      vessel: viewModel.vesselVisualState,
+      isDataStale: viewModel.isDataStale,
+      aimingCoordinate: viewModel.calloutViewModel.aimingCoordinate
+    )
+  }
+
   func updateUIView(_ uiView: MLNMapView, context: Context) {
     // Updates the coordinator's parent to always point to the latest view (SwiftUI struct)
     context.coordinator.parent = self
     
-    // Unconditional observation of state to ensure updateUIView is triggered 
-    // even if the map style hasn't fully loaded yet.
-    let vesselVisualState = viewModel.vesselVisualState
-    let headingVectorData = viewModel.headingVectorData
-    let gpsAccuracyVisualState = viewModel.gpsAccuracyVisualState
+    // Unconditionally construct snapshot so SwiftUI tracks all `@Observable` dependencies
+    // even if the MapLibre style hasn't finished loading yet.
+    // `activeTrackPoints` is scoped locally and never stored inside `lastSnapshot` to preserve CoW refcount == 1.
     let activeTrackPoints = trackRecordingService.trackPoints
-    let savedTrackVisualState = viewModel.savedTrackVisualState
-    let visibleWaypointVisualStates = viewModel.visibleWaypointVisualStates
-    let goToWaypointVisualState = viewModel.goToWaypointVisualState
-    let bearingLineVisualState = viewModel.bearingLineVisualState
-    let offlineMaskVisualState = viewModel.offlineMaskVisualState
-    let anchorVisualState = viewModel.anchorVisualState
-    let highlightedOfflineRegion = viewModel.highlightedOfflineRegion
-    let isDataStale = viewModel.isDataStale
-    let currentSource = viewModel.currentChartSource
-    let isOpenSeaMapOverlayEnabled = viewModel.isOpenSeaMapOverlayEnabled
+    let snapshot = makeStyleSnapshot(using: context.coordinator, activeTrackPoints: activeTrackPoints)
     let trackingMode = viewModel.trackingMode
-    let _ = viewModel.measureToolViewModel.state
-    let _ = viewModel.measureToolViewModel.activePin
     
-    // Defensive Update for Vessel and Heading Features
     if let style = uiView.style {
-      if context.coordinator.lastMarineTheme != marineTheme {
-        context.coordinator.lastMarineTheme = marineTheme
-        MapStyleController.applyTheme(marineTheme, in: style)
-      }
-      
-      // Vessel feature update
-      if vesselVisualState != context.coordinator.lastVesselVisualState {
-        MapStyleController.updateVessel(state: vesselVisualState, in: style)
-        context.coordinator.lastVesselVisualState = vesselVisualState
-      }
-      
-      // Heading vector feature update
-      if headingVectorData != context.coordinator.lastHeadingVectorData {
-        MapStyleController.updateHeadingVector(data: headingVectorData, in: style)
-        context.coordinator.lastHeadingVectorData = headingVectorData
-      }
-      
-      // GPS accuracy feature update
-      if gpsAccuracyVisualState != context.coordinator.lastGpsAccuracyVisualState {
-        MapStyleController.updateGpsAccuracy(state: gpsAccuracyVisualState, in: style)
-        context.coordinator.lastGpsAccuracyVisualState = gpsAccuracyVisualState
-      }
-      
-      // Active track feature update
-      let currentActiveCount = activeTrackPoints.count
-      let currentActiveTimestamp = activeTrackPoints.last?.timestamp
-      if currentActiveCount != context.coordinator.lastActiveTrackCount || currentActiveTimestamp != context.coordinator.lastActiveTrackTimestamp {
-        MapStyleController.updateActiveTrack(points: activeTrackPoints, in: style)
-        context.coordinator.lastActiveTrackCount = currentActiveCount
-        context.coordinator.lastActiveTrackTimestamp = currentActiveTimestamp
-      }
-      
-      // Saved track feature update
-      if savedTrackVisualState != context.coordinator.lastSavedTrackVisualState {
-        MapStyleController.updateSavedTrack(state: savedTrackVisualState, in: style)
-        context.coordinator.lastSavedTrackVisualState = savedTrackVisualState
-      }
-      
-      // Displayed waypoints feature update
-      if visibleWaypointVisualStates != context.coordinator.lastVisibleWaypointVisualStates {
-        MapStyleController.updateVisibleWaypoints(states: visibleWaypointVisualStates, in: style)
-        context.coordinator.lastVisibleWaypointVisualStates = visibleWaypointVisualStates
-      }
-      
-      // GoTo waypoint feature update
-      if goToWaypointVisualState != context.coordinator.lastGoToWaypointVisualState {
-        MapStyleController.updateGoToWaypoint(state: goToWaypointVisualState, in: style)
-        context.coordinator.lastGoToWaypointVisualState = goToWaypointVisualState
-      }
-      
-      // Bearing Line feature update
-      if bearingLineVisualState != context.coordinator.lastBearingLineVisualState {
-        MapStyleController.updateBearingLine(state: bearingLineVisualState, in: style)
-        context.coordinator.lastBearingLineVisualState = bearingLineVisualState
-      }
+      let hadPreviousSnapshot = context.coordinator.styleSynchronizer.lastSnapshot != nil
+      let dirty = context.coordinator.styleSynchronizer.apply(
+        snapshot,
+        activeTrackPoints: activeTrackPoints,
+        forceAll: false,
+        to: style
+      )
 
-      // Target Aiming Crosshair GPU layer update during centering flight
-      let aimingCoord = viewModel.calloutViewModel.aimingCoordinate
-      if aimingCoord != context.coordinator.lastAimingCoordinate {
-        context.coordinator.lastAimingCoordinate = aimingCoord
-        MapStyleController.updateTargetAimingCrosshair(coordinate: aimingCoord, in: style)
-      }
-
-      // Measure feature update (polyline and pins)
-      let measureState = viewModel.measureToolViewModel.state
-      let measureActivePin = viewModel.measureToolViewModel.activePin
-      if measureState != context.coordinator.lastMeasureState || measureActivePin != context.coordinator.lastMeasureActivePin {
-        MapStyleController.updateMeasureLine(state: measureState, in: style)
-        MapStyleController.updateMeasurePins(state: measureState, activePin: measureActivePin, in: style)
-        context.coordinator.lastMeasureState = measureState
-        context.coordinator.lastMeasureActivePin = measureActivePin
-      }
-      
-      // Anchor update
-      if anchorVisualState != context.coordinator.lastAnchorVisualState {
-        context.coordinator.lastAnchorVisualState = anchorVisualState
-        MapStyleController.updateAnchor(state: anchorVisualState, in: style)
-      }
-
-      // Offline mask update
-      if offlineMaskVisualState != context.coordinator.lastOfflineMaskVisualState {
-        MapStyleController.updateOfflineMask(state: offlineMaskVisualState, in: style)
-        context.coordinator.lastOfflineMaskVisualState = offlineMaskVisualState
+      if dirty.contains(.offlineMask) {
         viewModel.updateOfflineRegionScreenPositions(
           projection: { uiView.convert($0, toPointTo: uiView) },
           bounds: uiView.bounds
         )
       }
 
-      // Highlighted offline region update
-      if highlightedOfflineRegion != context.coordinator.lastHighlightedOfflineRegion {
-        context.coordinator.lastHighlightedOfflineRegion = highlightedOfflineRegion
-        MapStyleController.updateOfflineHighlight(region: highlightedOfflineRegion, in: style)
-      }
-
-      // Active offline selection zone update (preserve in-flight corner drag bounds against background GPS renders)
-      let activeSelectionBounds = context.coordinator.resolvedOfflineSelectionBounds(
-        isSelectionModeActive: offlineSelectionViewModel.isSelectionModeActive,
-        committedBounds: offlineSelectionViewModel.selectedBounds
-      )
-      if activeSelectionBounds != context.coordinator.lastOfflineSelectionBounds {
-        context.coordinator.lastOfflineSelectionBounds = activeSelectionBounds
-        MapStyleController.updateOfflineSelection(bounds: activeSelectionBounds, in: style)
-      }
-
-      // Data Stale state update (Opacity)
-      if isDataStale != context.coordinator.lastDataStale {
-        MapStyleController.updateDataStaleState(isStale: isDataStale, in: style)
-        context.coordinator.lastDataStale = isDataStale
+      if hadPreviousSnapshot && dirty.contains(.baseChart) && snapshot.chartSource != nil {
+        uiView.setCenter(
+          viewModel.centerCoordinate,
+          zoomLevel: viewModel.zoomLevel,
+          direction: viewModel.chartDirection.converted(to: .degrees).value,
+          animated: false
+        )
       }
     }
 
@@ -315,8 +245,7 @@ struct MapLibreView: UIViewRepresentable {
         withTransaction(transaction) {
           viewModel.calloutViewModel.interruptCentering(at: resolvedCoord, waypointID: targetWaypointID)
         }
-        context.coordinator.lastAimingCoordinate = nil
-        MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style)
+        context.coordinator.styleSynchronizer.updateAimingCoordinate(nil, in: style)
       }
     }
 
@@ -346,23 +275,6 @@ struct MapLibreView: UIViewRepresentable {
     if uiView.userTrackingMode != .none {
       uiView.userTrackingMode = .none
     }
-    
-    // If the map source has changed, update the map's style/source
-    if let currentSource = currentSource,
-       context.coordinator.lastChartSource != currentSource,
-       let style = uiView.style {
-      MapStyleController.updateChartSource(currentSource, in: style, isOverlayEnabled: isOpenSeaMapOverlayEnabled)
-      context.coordinator.lastChartSource = currentSource
-      context.coordinator.lastOpenSeaMapOverlayEnabled = isOpenSeaMapOverlayEnabled
-      uiView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, direction: viewModel.chartDirection.converted(to: .degrees).value, animated: false)
-    }
-    
-    // Handle OpenSeaMap overlay toggle
-    if let style = uiView.style, context.coordinator.lastOpenSeaMapOverlayEnabled != isOpenSeaMapOverlayEnabled {
-      context.coordinator.lastOpenSeaMapOverlayEnabled = isOpenSeaMapOverlayEnabled
-      MapStyleController.updateOpenSeaMapOverlay(isEnabled: isOpenSeaMapOverlayEnabled, in: style)
-    }
-
     
     // Handle Content Inset for Look-ahead in Course Up mode
     let newInset: UIEdgeInsets
@@ -415,22 +327,10 @@ struct MapLibreView: UIViewRepresentable {
   @MainActor
   class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
     var parent: MapLibreView
+    let styleSynchronizer = MapStyleStateSynchronizer()
     private var streamTask: TaskCancellable?
     private var networkObservationTask: TaskCancellable?
-    var lastChartSource: ChartSource?
-    var lastOpenSeaMapOverlayEnabled: Bool = false
     weak var mapView: MLNMapView?
-    
-    // Cache for diffing to avoid unnecessary MapLibre shape updates
-    var lastVesselVisualState: VesselVisualState?
-    var lastHeadingVectorData: HeadingVectorData?
-    var lastGpsAccuracyVisualState: GpsAccuracyVisualState?
-    var lastSavedTrackVisualState: SavedTrackVisualState?
-    var lastVisibleWaypointVisualStates: [WaypointVisualState] = []
-    var lastGoToWaypointVisualState: WaypointVisualState?
-    var lastBearingLineVisualState: BearingLineVisualState?
-    var lastMeasureState: MeasureState = .inactive
-    var lastMeasureActivePin: ActiveMeasurePin?
     weak var pinPanGesture: UIPanGestureRecognizer?
     private var activeDraggedPin: ActiveMeasurePin?
     private var snappedMeasurePinWaypointID: String?
@@ -451,11 +351,6 @@ struct MapLibreView: UIViewRepresentable {
     private var lastPanUpdateTime: CFTimeInterval = 0
     private var lastCalloutTargetUpdateTime: CFTimeInterval = 0
     private static let pinPanThrottleInterval: CFTimeInterval = 0.016
-    var lastMarineTheme: MarineTheme?
-    var lastAnchorVisualState: AnchorVisualState?
-    var lastOfflineMaskVisualState: OfflineMaskVisualState?
-    var lastHighlightedOfflineRegion: HighlightedOfflineRegion?
-    var lastOfflineSelectionBounds: GeographicBoundingBox?
 
     enum ActiveSelectionCorner {
       case topLeft      // NW
@@ -467,9 +362,6 @@ struct MapLibreView: UIViewRepresentable {
     private var activeSelectionDragInitialBounds: GeographicBoundingBox?
     private var activeSelectionDragCurrentBounds: GeographicBoundingBox?
     
-    var lastActiveTrackCount: Int?
-    var lastActiveTrackTimestamp: Date?
-    var lastDataStale: Bool?
     var lastTrackingMode: ChartTrackingMode = .free
     
     /// Technical Design Choice: Vessel Centering Gesture Tolerance Margin
@@ -479,7 +371,6 @@ struct MapLibreView: UIViewRepresentable {
     var initialPanScreenPoint: CGPoint?
     var hasExceededTrackingMargin: Bool = false
     var lastBounds: CGRect = .zero
-    var lastAimingCoordinate: CLLocationCoordinate2D?
     var hasAppliedInitialCamera: Bool = false
     var pendingReloadCamera: (center: CLLocationCoordinate2D, zoomLevel: Double, direction: CLLocationDirection)?
     
@@ -841,13 +732,7 @@ struct MapLibreView: UIViewRepresentable {
         if let hit = closestWaypoint {
           // Unified reticle targeting: place the GPU crosshair directly on the waypoint coordinate
           // so the user can drag off it or release to center it under the reticle.
-          if let style = mapView.style {
-            lastAimingCoordinate = hit.feature.coordinate
-            MapStyleController.updateTargetAimingCrosshair(
-              coordinate: hit.feature.coordinate,
-              in: style
-            )
-          }
+          styleSynchronizer.updateAimingCoordinate(hit.feature.coordinate, in: mapView.style)
           parent.viewModel.calloutViewModel.startAimingPreview(at: hit.feature.coordinate, waypointID: hit.id)
         } else if containsDraftFeature {
           // Interacting exclusively with the draft waypoint currently being created: ignore map callout presentation
@@ -857,15 +742,7 @@ struct MapLibreView: UIViewRepresentable {
           // 2. Display callout dialog immediately
           // 3. Display crosshair in MapLibre under the finger immediately
           let targetCoordinate = mapView.convert(touchPoint, toCoordinateFrom: mapView)
-
-          if let style = mapView.style {
-            lastAimingCoordinate = targetCoordinate
-            MapStyleController.updateTargetAimingCrosshair(
-              coordinate: targetCoordinate,
-              in: style
-            )
-          }
-
+          styleSynchronizer.updateAimingCoordinate(targetCoordinate, in: mapView.style)
           parent.viewModel.calloutViewModel.startAimingPreview(at: targetCoordinate, waypointID: nil)
         }
 
@@ -906,13 +783,7 @@ struct MapLibreView: UIViewRepresentable {
           updatedWaypointID = nil
         }
 
-        if let style = mapView.style {
-          lastAimingCoordinate = updatedCoordinate
-          MapStyleController.updateTargetAimingCrosshair(
-            coordinate: updatedCoordinate,
-            in: style
-          )
-        }
+        styleSynchronizer.updateAimingCoordinate(updatedCoordinate, in: mapView.style)
         parent.viewModel.calloutViewModel.updateAimingPreview(at: updatedCoordinate, waypointID: updatedWaypointID)
 
       case .ended:
@@ -939,13 +810,7 @@ struct MapLibreView: UIViewRepresentable {
             resolvedWaypointID = nil
           }
 
-          if let style = mapView.style {
-            lastAimingCoordinate = resolvedCoordinate
-            MapStyleController.updateTargetAimingCrosshair(
-              coordinate: resolvedCoordinate,
-              in: style
-            )
-          }
+          styleSynchronizer.updateAimingCoordinate(resolvedCoordinate, in: mapView.style)
 
           let targetScreenPoint = CGPoint(
             x: mapView.bounds.midX,
@@ -990,13 +855,7 @@ struct MapLibreView: UIViewRepresentable {
         hasDraggedDuringLongPress = false
         longPressBeganPoint = nil
         if parent.viewModel.calloutViewModel.aimingCoordinate != nil {
-          if let style = mapView.style {
-            lastAimingCoordinate = nil
-            MapStyleController.updateTargetAimingCrosshair(
-              coordinate: nil,
-              in: style
-            )
-          }
+          styleSynchronizer.updateAimingCoordinate(nil, in: mapView.style)
           parent.viewModel.calloutViewModel.cancelAimingPreview()
         }
 
@@ -1417,88 +1276,10 @@ struct MapLibreView: UIViewRepresentable {
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
       Logger.chart.info("MapLibre successfully loaded the default style.")
 
-      if let currentSource = parent.viewModel.currentChartSource {
-        MapStyleController.updateChartSource(currentSource, in: style, isOverlayEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled)
-        lastChartSource = currentSource
-      }
+      let activeTrackPoints = parent.trackRecordingService.trackPoints
+      let snapshot = parent.makeStyleSnapshot(using: self, activeTrackPoints: activeTrackPoints)
+      styleSynchronizer.apply(snapshot, activeTrackPoints: activeTrackPoints, forceAll: true, to: style)
 
-      lastOpenSeaMapOverlayEnabled = parent.viewModel.isOpenSeaMapOverlayEnabled
-      MapStyleController.updateOpenSeaMapOverlay(isEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled, in: style)
-
-      // Single initialization path: create all vector layers in Z-Index order, then apply theme colors & sprites
-      MapStyleController.ensureAllLayers(in: style)
-      MapStyleController.applyTheme(parent.marineTheme, in: style)
-      lastMarineTheme = parent.marineTheme
-
-      let headingData = parent.viewModel.headingVectorData
-      MapStyleController.updateHeadingVector(data: headingData, in: style)
-      lastHeadingVectorData = headingData
-
-      let gpsState = parent.viewModel.gpsAccuracyVisualState
-      MapStyleController.updateGpsAccuracy(state: gpsState, in: style)
-      lastGpsAccuracyVisualState = gpsState
-
-      let vesselState = parent.viewModel.vesselVisualState
-      MapStyleController.updateVessel(state: vesselState, in: style)
-      lastVesselVisualState = vesselState
-
-      MapStyleController.updateActiveTrack(points: parent.trackRecordingService.trackPoints, in: style)
-      lastActiveTrackCount = parent.trackRecordingService.trackPoints.count
-      lastActiveTrackTimestamp = parent.trackRecordingService.trackPoints.last?.timestamp
-
-      let savedState = parent.viewModel.savedTrackVisualState
-      MapStyleController.updateSavedTrack(state: savedState, in: style)
-      lastSavedTrackVisualState = savedState
-
-      let visibleStates = parent.viewModel.visibleWaypointVisualStates
-      MapStyleController.updateVisibleWaypoints(states: visibleStates, in: style)
-      lastVisibleWaypointVisualStates = visibleStates
-
-      let goToState = parent.viewModel.goToWaypointVisualState
-      MapStyleController.updateGoToWaypoint(state: goToState, in: style)
-      lastGoToWaypointVisualState = goToState
-
-      let bearingState = parent.viewModel.bearingLineVisualState
-      MapStyleController.updateBearingLine(state: bearingState, in: style)
-      lastBearingLineVisualState = bearingState
-
-      let measureState = parent.viewModel.measureToolViewModel.state
-      let measureActivePin = parent.viewModel.measureToolViewModel.activePin
-      MapStyleController.updateMeasureLine(state: measureState, in: style)
-      MapStyleController.updateMeasurePins(state: measureState, activePin: measureActivePin, in: style)
-      lastMeasureState = measureState
-      lastMeasureActivePin = measureActivePin
-
-      let anchorVisualState = parent.viewModel.anchorVisualState
-      MapStyleController.updateAnchor(state: anchorVisualState, in: style)
-      lastAnchorVisualState = anchorVisualState
-
-      // Offline Mask layer initialization
-      let maskState = parent.viewModel.offlineMaskVisualState
-      MapStyleController.updateOfflineMask(state: maskState, in: style)
-      lastOfflineMaskVisualState = maskState
-
-      // Highlighted offline region preview initialization
-      let highlightRegion = parent.viewModel.highlightedOfflineRegion
-      MapStyleController.updateOfflineHighlight(region: highlightRegion, in: style)
-      lastHighlightedOfflineRegion = highlightRegion
-
-      // Active offline selection zone initialization
-      let activeSelection = resolvedOfflineSelectionBounds(
-        isSelectionModeActive: parent.offlineSelectionViewModel.isSelectionModeActive,
-        committedBounds: parent.offlineSelectionViewModel.selectedBounds
-      )
-      MapStyleController.updateOfflineSelection(bounds: activeSelection, in: style)
-      lastOfflineSelectionBounds = activeSelection
-
-      let isStale = parent.viewModel.isDataStale
-      MapStyleController.updateDataStaleState(isStale: isStale, in: style)
-      lastDataStale = isStale
-
-      lastAimingCoordinate = nil
-
-
-      
       // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
       // In SwiftUI, `didFinishLoading` can fire before the map view has a non-zero frame.
       // Calling coordinate bounds on a `.zero` frame corrupts the MapLibre camera (`NaN` zoom level).
@@ -1511,7 +1292,19 @@ struct MapLibreView: UIViewRepresentable {
         mapView.setCenter(savedCamera.center, zoomLevel: savedCamera.zoomLevel, direction: savedCamera.direction, animated: false)
       } else if !hasAppliedInitialCamera {
         hasAppliedInitialCamera = true
-        mapView.setCenter(parent.viewModel.centerCoordinate, zoomLevel: parent.viewModel.zoomLevel, direction: parent.viewModel.chartDirection.converted(to: .degrees).value, animated: false)
+        mapView.setCenter(
+          parent.viewModel.centerCoordinate,
+          zoomLevel: parent.viewModel.zoomLevel,
+          direction: parent.viewModel.chartDirection.converted(to: .degrees).value,
+          animated: false
+        )
+      }
+
+      if snapshot.offlineMask != nil, mapView.bounds.width > 0, mapView.bounds.height > 0 {
+        parent.viewModel.updateOfflineRegionScreenPositions(
+          projection: { mapView.convert($0, toPointTo: mapView) },
+          bounds: mapView.bounds
+        )
       }
     }
     
@@ -1718,14 +1511,8 @@ struct MapLibreView: UIViewRepresentable {
         activeSelectionDragCurrentBounds = updatedBounds
 
         // Isolated visual update: directly mutate MapLibre vector layers to prevent SwiftUI render storm
-        // while keeping `lastOfflineSelectionBounds` aligned with the rendered geometry.
-        if let style = mapView.style {
-          lastOfflineSelectionBounds = updatedBounds
-          MapStyleController.updateOfflineSelection(
-            bounds: updatedBounds,
-            in: style
-          )
-        }
+        // while keeping `styleSynchronizer.lastSnapshot` aligned with the rendered geometry.
+        styleSynchronizer.updateOfflineSelectionBounds(updatedBounds, in: mapView.style)
 
       case .ended:
         let committedBounds: GeographicBoundingBox?
@@ -1740,9 +1527,8 @@ struct MapLibreView: UIViewRepresentable {
         activeSelectionDragInitialBounds = nil
         activeSelectionDragCurrentBounds = nil
         if let finalBounds = committedBounds {
-          if let style = mapView.style, lastOfflineSelectionBounds != finalBounds {
-            lastOfflineSelectionBounds = finalBounds
-            MapStyleController.updateOfflineSelection(bounds: finalBounds, in: style)
+          if styleSynchronizer.lastSnapshot?.offlineSelectionBounds != finalBounds {
+            styleSynchronizer.updateOfflineSelectionBounds(finalBounds, in: mapView.style)
           }
           parent.offlineSelectionViewModel.updateBoundingBox(finalBounds)
         }
@@ -1752,13 +1538,7 @@ struct MapLibreView: UIViewRepresentable {
           ? parent.offlineSelectionViewModel.selectedBounds
           : nil
         // Restore MapLibre visual layers and diff cache to the uncommitted model bounds
-        if let style = mapView.style {
-          lastOfflineSelectionBounds = restoredBounds
-          MapStyleController.updateOfflineSelection(
-            bounds: restoredBounds,
-            in: style
-          )
-        }
+        styleSynchronizer.updateOfflineSelectionBounds(restoredBounds, in: mapView.style)
         activeDraggedSelectionCorner = nil
         activeSelectionDragInitialBounds = nil
         activeSelectionDragCurrentBounds = nil

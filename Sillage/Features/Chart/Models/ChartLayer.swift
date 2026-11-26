@@ -11,7 +11,7 @@
 import Foundation
 import MapLibre
 
-enum ChartSource: Equatable {
+enum ChartSource: Equatable, Sendable {
   case localMBTiles(url: URL)
   case remoteGeoGarage(clientID: String, layerID: String)
   case openSeaMap
