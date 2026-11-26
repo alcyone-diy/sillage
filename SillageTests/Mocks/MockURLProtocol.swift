@@ -13,7 +13,7 @@ import os
 
 /// A custom URLProtocol subclass allowing deterministic request intercept and response mocking
 /// for URLSession tests under Swift 6 strict concurrency.
-final class MockURLProtocol: URLProtocol, @unchecked Sendable {
+final class MockURLProtocol: URLProtocol {
 
   private struct HandlerState: Sendable {
     var requestHandlers: [@Sendable (URLRequest) -> (HTTPURLResponse, Data?)] = []
