@@ -31,6 +31,7 @@ final class AppEnvironment {
   public let bootDate: Date
   public let configuration: AppConfiguration
   public let offlineMapManager: OfflineMapManager
+  public let offlineChartsProgressMonitor: OfflineChartsProgressMonitor
   /// Fetches the package decryption secret from `/partners/me/` after sign-in, so nothing secret
   /// ships in the binary; the secret lives in the Keychain.
   public let geoGaragePartnerSecretService: any GeoGaragePartnerSecretServiceProtocol
@@ -65,6 +66,7 @@ final class AppEnvironment {
       UIApplication.shared.isProtectedDataAvailable
     }
     self.offlineMapManager = overrides.offlineMapManager ?? OfflineMapManager()
+    self.offlineChartsProgressMonitor = OfflineChartsProgressMonitor()
     self.geoGaragePartnerSecretService = overrides.partnerSecretService
       ?? GeoGaragePartnerSecretService(keychainManager: keychainManager)
 
@@ -80,10 +82,9 @@ final class AppEnvironment {
     self.bootstrapOverrides = remainingOverrides
 
     // Pure synchronous callback wiring (no I/O, no KVO, no unstructured Task in `init`).
-    self.offlineMapManager.onGlobalProgressChanged = { [weak self] progress in
-      guard let self else { return }
-      self.lastMapLibreProgress = progress
-      self.updateCompositeOfflineChartsProgress()
+    let progressMonitor = self.offlineChartsProgressMonitor
+    self.offlineMapManager.onGlobalProgressChanged = { [weak progressMonitor] progress in
+      progressMonitor?.updateMapLibreProgress(progress)
     }
   }
   
@@ -458,7 +459,9 @@ final class AppEnvironment {
       }
     }
 
-    setupGeoGarageProgressObservation(geoGarageDownloadService: geoGarageDownloadService)
+    offlineChartsProgressMonitor.start(
+      geoGarageProgressStream: geoGarageDownloadService.downloadProgressStream()
+    )
 
     let container = AppContainer(
       userDefaults: self.userDefaults,
@@ -942,49 +945,14 @@ final class AppEnvironment {
 
   // MARK: - Global Offline Charts Download Status
 
-  @ObservationIgnored
-  private var geoGarageObservationTask: Task<Void, Never>?
-
-  @ObservationIgnored
-  private var lastGeoGarageProgress: Double?
-
-  @ObservationIgnored
-  private var lastMapLibreProgress: Double?
-
   /// Indicates whether an offline chart download is currently in progress across GeoGarage or MapLibre engines.
   var isDownloadingOfflineCharts: Bool {
-    offlineChartsDownloadProgress != nil
+    offlineChartsProgressMonitor.isDownloading
   }
 
-  /// Normalized download progress value (0.0 to 1.0) when available, or nil for indeterminate state.
-  /// Stored property driven reactively via Swift 6 AsyncStream observation to guarantee SwiftUI updates across protocol boundaries.
-  var offlineChartsDownloadProgress: Double? = nil
-
-  @MainActor
-  private func setupGeoGarageProgressObservation(geoGarageDownloadService: GeoGarageDownloadServiceProtocol) {
-    geoGarageObservationTask?.cancel()
-    geoGarageObservationTask = Task { @MainActor [weak self, weak geoGarageDownloadService] in
-      guard let service = geoGarageDownloadService else { return }
-      for await progress in service.downloadProgressStream() {
-        guard !Task.isCancelled else { break }
-        guard let self = self else { break }
-        self.lastGeoGarageProgress = progress
-        self.updateCompositeOfflineChartsProgress()
-      }
-    }
-  }
-
-  @MainActor
-  private func updateCompositeOfflineChartsProgress() {
-    if let gg = lastGeoGarageProgress, let ml = lastMapLibreProgress {
-      self.offlineChartsDownloadProgress = (gg + ml) / 2.0
-    } else if let gg = lastGeoGarageProgress {
-      self.offlineChartsDownloadProgress = gg
-    } else if let ml = lastMapLibreProgress {
-      self.offlineChartsDownloadProgress = ml
-    } else {
-      self.offlineChartsDownloadProgress = nil
-    }
+  /// Normalized download progress value (0.0 to 1.0) when available, or nil when idle.
+  var offlineChartsDownloadProgress: Double? {
+    offlineChartsProgressMonitor.progress
   }
 
   // MARK: - GPS Accuracy
@@ -1070,7 +1038,6 @@ final class AppEnvironment {
   }
 
   deinit {
-    geoGarageObservationTask?.cancel()
     geoGarageDownloadsObservationTask?.cancel()
     geoGarageCustomerIDObservationTask?.cancel()
     geoGarageSyncTask?.cancel()
