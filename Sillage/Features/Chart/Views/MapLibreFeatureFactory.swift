@@ -29,6 +29,7 @@ enum MapLibreFeatureFactory {
     pointFeature.coordinate = state.pointCoordinate
     pointFeature.attributes = [
       MapFeatureKey.type.rawValue: MapFeatureType.anchorPoint.rawValue,
+      MapFeatureKey.status.rawValue: state.status.rawValue
     ]
     
     let radiusFeature: MLNPolygonFeature? = {
@@ -40,6 +41,7 @@ enum MapLibreFeatureFactory {
       let feature = MLNPolygonFeature(coordinates: &coords, count: UInt(coords.count))
       feature.attributes = [
         MapFeatureKey.type.rawValue: MapFeatureType.anchorRadius.rawValue,
+        MapFeatureKey.status.rawValue: state.status.rawValue
       ]
       return feature
     }()
@@ -54,7 +56,8 @@ enum MapLibreFeatureFactory {
       var coords = state.evitementCoordinates
       let feature = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
       feature.attributes = [
-        MapFeatureKey.type.rawValue: "anchor-evitement-line",
+        MapFeatureKey.type.rawValue: MapFeatureType.anchorEvitement.rawValue,
+        MapFeatureKey.status.rawValue: state.status.rawValue
       ]
       return feature
     }()
@@ -305,6 +308,65 @@ enum MapLibreFeatureFactory {
       return feature
     }
     return MLNShapeCollectionFeature(shapes: pointFeatures)
+  }
+
+  // MARK: - Chart Tools (Measure & Target Aiming Crosshair)
+
+  /// Creates a 2-point polyline feature for the interactive distance/bearing measure tool.
+  static func createMeasureLineFeature(from state: MeasureState) -> MLNPolylineFeature? {
+    switch state {
+    case .inactive:
+      return nil
+    case .active(let start, let end):
+      var coordinates = [start, end]
+      let feature = MLNPolylineFeature(coordinates: &coordinates, count: 2)
+      feature.attributes = [
+        MapFeatureKey.type.rawValue: MapFeatureType.measureLine.rawValue
+      ]
+      return feature
+    }
+  }
+
+  /// Creates point features for Measure Pins A and B with data-driven icon and z-order attributes.
+  static func createMeasurePinsFeature(
+    from state: MeasureState,
+    activePin: ActiveMeasurePin
+  ) -> MLNShapeCollectionFeature? {
+    switch state {
+    case .inactive:
+      return nil
+    case .active(let start, let end):
+      let featureA = MLNPointFeature()
+      featureA.coordinate = start
+      featureA.attributes = [
+        MapFeatureKey.type.rawValue: MapFeatureType.measurePin.rawValue,
+        MapFeatureKey.id.rawValue: "A",
+        MapFeatureKey.icon.rawValue: MapSpriteIdentifier.measurePinIcon(for: .start, isSelected: activePin == .start),
+        MapFeatureKey.sortKey.rawValue: activePin == .start ? 2 : 1
+      ]
+
+      let featureB = MLNPointFeature()
+      featureB.coordinate = end
+      featureB.attributes = [
+        MapFeatureKey.type.rawValue: MapFeatureType.measurePin.rawValue,
+        MapFeatureKey.id.rawValue: "B",
+        MapFeatureKey.icon.rawValue: MapSpriteIdentifier.measurePinIcon(for: .end, isSelected: activePin == .end),
+        MapFeatureKey.sortKey.rawValue: activePin == .end ? 2 : 1
+      ]
+
+      return MLNShapeCollectionFeature(shapes: [featureA, featureB])
+    }
+  }
+
+  /// Creates a point feature for the GPU target aiming crosshair during map centering flights.
+  static func createTargetAimingCrosshairFeature(from coordinate: CLLocationCoordinate2D?) -> MLNPointFeature? {
+    guard let coordinate else { return nil }
+    let feature = MLNPointFeature()
+    feature.coordinate = coordinate
+    feature.attributes = [
+      MapFeatureKey.type.rawValue: MapFeatureType.targetAimingCrosshair.rawValue
+    ]
+    return feature
   }
 }
 

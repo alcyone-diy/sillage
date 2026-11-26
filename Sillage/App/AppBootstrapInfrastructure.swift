@@ -44,7 +44,7 @@ enum AppBootstrapInfrastructure {
       removeGPXExportsDirectoryIfPresent(in: resolvedTempDir)
     }
 
-    Logger.storage.debug("⚓️ FileSystem ready: \(docsURL.path, privacy: .public)")
+    Logger.storage.debug("⚓️ FileSystem ready: \(docsURL.path)")
   }
 
   /// Creates `<documentsDirectory>/Charts` synchronously if it does not already exist.

@@ -180,23 +180,26 @@ struct MapLibreView: UIViewRepresentable {
     
     // Defensive Update for Vessel and Heading Features
     if let style = uiView.style {
-      MapStyleController.ensureTelemetryLayersExist(in: style, theme: marineTheme)
+      if context.coordinator.lastMarineTheme != marineTheme {
+        context.coordinator.lastMarineTheme = marineTheme
+        MapStyleController.applyTheme(marineTheme, in: style)
+      }
       
       // Vessel feature update
       if vesselVisualState != context.coordinator.lastVesselVisualState {
-        MapStyleController.updateVessel(state: vesselVisualState, in: style, theme: marineTheme)
+        MapStyleController.updateVessel(state: vesselVisualState, in: style)
         context.coordinator.lastVesselVisualState = vesselVisualState
       }
       
       // Heading vector feature update
       if headingVectorData != context.coordinator.lastHeadingVectorData {
-        MapStyleController.updateHeadingVector(data: headingVectorData, in: style, theme: marineTheme)
+        MapStyleController.updateHeadingVector(data: headingVectorData, in: style)
         context.coordinator.lastHeadingVectorData = headingVectorData
       }
       
       // GPS accuracy feature update
       if gpsAccuracyVisualState != context.coordinator.lastGpsAccuracyVisualState {
-        MapStyleController.updateGpsAccuracy(state: gpsAccuracyVisualState, in: style, theme: marineTheme)
+        MapStyleController.updateGpsAccuracy(state: gpsAccuracyVisualState, in: style)
         context.coordinator.lastGpsAccuracyVisualState = gpsAccuracyVisualState
       }
       
@@ -204,68 +207,48 @@ struct MapLibreView: UIViewRepresentable {
       let currentActiveCount = activeTrackPoints.count
       let currentActiveTimestamp = activeTrackPoints.last?.timestamp
       if currentActiveCount != context.coordinator.lastActiveTrackCount || currentActiveTimestamp != context.coordinator.lastActiveTrackTimestamp {
-        MapStyleController.updateActiveTrack(points: activeTrackPoints, in: style, theme: marineTheme)
+        MapStyleController.updateActiveTrack(points: activeTrackPoints, in: style)
         context.coordinator.lastActiveTrackCount = currentActiveCount
         context.coordinator.lastActiveTrackTimestamp = currentActiveTimestamp
       }
       
       // Saved track feature update
       if savedTrackVisualState != context.coordinator.lastSavedTrackVisualState {
-        MapStyleController.updateSavedTrack(state: savedTrackVisualState, in: style, theme: marineTheme)
+        MapStyleController.updateSavedTrack(state: savedTrackVisualState, in: style)
         context.coordinator.lastSavedTrackVisualState = savedTrackVisualState
       }
       
       // Displayed waypoints feature update
       if visibleWaypointVisualStates != context.coordinator.lastVisibleWaypointVisualStates {
-        MapStyleController.updateVisibleWaypoints(states: visibleWaypointVisualStates, in: style, theme: marineTheme)
+        MapStyleController.updateVisibleWaypoints(states: visibleWaypointVisualStates, in: style)
         context.coordinator.lastVisibleWaypointVisualStates = visibleWaypointVisualStates
       }
       
       // GoTo waypoint feature update
       if goToWaypointVisualState != context.coordinator.lastGoToWaypointVisualState {
-        MapStyleController.updateGoToWaypoint(state: goToWaypointVisualState, in: style, theme: marineTheme)
+        MapStyleController.updateGoToWaypoint(state: goToWaypointVisualState, in: style)
         context.coordinator.lastGoToWaypointVisualState = goToWaypointVisualState
       }
       
       // Bearing Line feature update
       if bearingLineVisualState != context.coordinator.lastBearingLineVisualState {
-        MapStyleController.updateBearingLine(state: bearingLineVisualState, in: style, theme: marineTheme)
+        MapStyleController.updateBearingLine(state: bearingLineVisualState, in: style)
         context.coordinator.lastBearingLineVisualState = bearingLineVisualState
-      }
-
-      // Ensure pin and anchor images match the current MarineTheme when the theme changes
-      var themeHasher = Hasher()
-      themeHasher.combine(marineTheme.isGloveMode)
-      themeHasher.combine(marineTheme.colors.primary)
-      themeHasher.combine(marineTheme.colors.accent)
-      themeHasher.combine(marineTheme.colors.surfaceBackground)
-      themeHasher.combine(marineTheme.colors.textPrimary)
-      themeHasher.combine(marineTheme.colors.panelBackground)
-      themeHasher.combine(marineTheme.colors.anchorDropped)
-      themeHasher.combine(marineTheme.colors.anchorArmed)
-      themeHasher.combine(marineTheme.colors.anchorDragging)
-      let currentThemeHash = themeHasher.finalize()
-
-      if context.coordinator.lastThemeHash != currentThemeHash {
-        context.coordinator.lastThemeHash = currentThemeHash
-        MapStyleController.ensureAnchorImagesExist(in: style, theme: marineTheme)
-        MapStyleController.ensureMeasurePinImagesExist(in: style, theme: marineTheme)
-        MapStyleController.refreshTargetAimingCrosshairImage(in: style, theme: marineTheme)
       }
 
       // Target Aiming Crosshair GPU layer update during centering flight
       let aimingCoord = viewModel.calloutViewModel.aimingCoordinate
       if aimingCoord != context.coordinator.lastAimingCoordinate {
         context.coordinator.lastAimingCoordinate = aimingCoord
-        MapStyleController.updateTargetAimingCrosshair(coordinate: aimingCoord, in: style, theme: marineTheme)
+        MapStyleController.updateTargetAimingCrosshair(coordinate: aimingCoord, in: style)
       }
 
       // Measure feature update (polyline and pins)
       let measureState = viewModel.measureToolViewModel.state
       let measureActivePin = viewModel.measureToolViewModel.activePin
       if measureState != context.coordinator.lastMeasureState || measureActivePin != context.coordinator.lastMeasureActivePin {
-        MapStyleController.updateMeasureLine(state: measureState, in: style, theme: marineTheme)
-        MapStyleController.updateMeasurePins(state: measureState, activePin: measureActivePin, in: style, theme: marineTheme)
+        MapStyleController.updateMeasureLine(state: measureState, in: style)
+        MapStyleController.updateMeasurePins(state: measureState, activePin: measureActivePin, in: style)
         context.coordinator.lastMeasureState = measureState
         context.coordinator.lastMeasureActivePin = measureActivePin
       }
@@ -273,12 +256,12 @@ struct MapLibreView: UIViewRepresentable {
       // Anchor update
       if anchorVisualState != context.coordinator.lastAnchorVisualState {
         context.coordinator.lastAnchorVisualState = anchorVisualState
-        MapStyleController.updateAnchor(state: anchorVisualState, in: style, theme: marineTheme)
+        MapStyleController.updateAnchor(state: anchorVisualState, in: style)
       }
 
       // Offline mask update
       if offlineMaskVisualState != context.coordinator.lastOfflineMaskVisualState {
-        MapStyleController.updateOfflineMask(state: offlineMaskVisualState, in: style, theme: marineTheme)
+        MapStyleController.updateOfflineMask(state: offlineMaskVisualState, in: style)
         context.coordinator.lastOfflineMaskVisualState = offlineMaskVisualState
         viewModel.updateOfflineRegionScreenPositions(
           projection: { uiView.convert($0, toPointTo: uiView) },
@@ -289,14 +272,14 @@ struct MapLibreView: UIViewRepresentable {
       // Highlighted offline region update
       if highlightedOfflineRegion != context.coordinator.lastHighlightedOfflineRegion {
         context.coordinator.lastHighlightedOfflineRegion = highlightedOfflineRegion
-        MapStyleController.updateOfflineHighlight(region: highlightedOfflineRegion, in: style, theme: marineTheme)
+        MapStyleController.updateOfflineHighlight(region: highlightedOfflineRegion, in: style)
       }
 
       // Active offline selection zone update
       let activeSelectionBounds = offlineSelectionViewModel.isSelectionModeActive ? offlineSelectionViewModel.selectedBounds : nil
       if activeSelectionBounds != context.coordinator.lastOfflineSelectionBounds {
         context.coordinator.lastOfflineSelectionBounds = activeSelectionBounds
-        MapStyleController.updateOfflineSelection(bounds: activeSelectionBounds, in: style, theme: marineTheme)
+        MapStyleController.updateOfflineSelection(bounds: activeSelectionBounds, in: style)
       }
 
       // Data Stale state update (Opacity)
@@ -326,7 +309,7 @@ struct MapLibreView: UIViewRepresentable {
           viewModel.calloutViewModel.interruptCentering(at: resolvedCoord, waypointID: targetWaypointID)
         }
         context.coordinator.lastAimingCoordinate = nil
-        MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style, theme: marineTheme)
+        MapStyleController.updateTargetAimingCrosshair(coordinate: nil, in: style)
       }
     }
 
@@ -473,7 +456,7 @@ struct MapLibreView: UIViewRepresentable {
     private var lastPanUpdateTime: CFTimeInterval = 0
     private var lastCalloutTargetUpdateTime: CFTimeInterval = 0
     private static let pinPanThrottleInterval: CFTimeInterval = 0.016
-    var lastThemeHash: Int?
+    var lastMarineTheme: MarineTheme?
     var lastAnchorVisualState: AnchorVisualState?
     var lastOfflineMaskVisualState: OfflineMaskVisualState?
     var lastHighlightedOfflineRegion: HighlightedOfflineRegion?
@@ -883,8 +866,7 @@ struct MapLibreView: UIViewRepresentable {
             lastAimingCoordinate = hit.feature.coordinate
             MapStyleController.updateTargetAimingCrosshair(
               coordinate: hit.feature.coordinate,
-              in: style,
-              theme: parent.marineTheme
+              in: style
             )
           }
           parent.viewModel.calloutViewModel.startAimingPreview(at: hit.feature.coordinate, waypointID: hit.id)
@@ -901,8 +883,7 @@ struct MapLibreView: UIViewRepresentable {
             lastAimingCoordinate = targetCoordinate
             MapStyleController.updateTargetAimingCrosshair(
               coordinate: targetCoordinate,
-              in: style,
-              theme: parent.marineTheme
+              in: style
             )
           }
 
@@ -950,8 +931,7 @@ struct MapLibreView: UIViewRepresentable {
           lastAimingCoordinate = updatedCoordinate
           MapStyleController.updateTargetAimingCrosshair(
             coordinate: updatedCoordinate,
-            in: style,
-            theme: parent.marineTheme
+            in: style
           )
         }
         parent.viewModel.calloutViewModel.updateAimingPreview(at: updatedCoordinate, waypointID: updatedWaypointID)
@@ -984,8 +964,7 @@ struct MapLibreView: UIViewRepresentable {
             lastAimingCoordinate = resolvedCoordinate
             MapStyleController.updateTargetAimingCrosshair(
               coordinate: resolvedCoordinate,
-              in: style,
-              theme: parent.marineTheme
+              in: style
             )
           }
 
@@ -1033,8 +1012,7 @@ struct MapLibreView: UIViewRepresentable {
             lastAimingCoordinate = nil
             MapStyleController.updateTargetAimingCrosshair(
               coordinate: nil,
-              in: style,
-              theme: parent.marineTheme
+              in: style
             )
           }
           parent.viewModel.calloutViewModel.cancelAimingPreview()
@@ -1444,93 +1422,82 @@ struct MapLibreView: UIViewRepresentable {
     // Called when the map has finished loading its style
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
       Logger.chart.info("MapLibre successfully loaded the default style.")
-      
-      // Add vessel cursor image
-      if let image = VesselGraphicsFactory.createVesselImage(size: MarineTheme.ChartMetrics.vesselCursorBaseSize, color: UIColor(parent.marineTheme.colors.accent)) {
-        style.setImage(image, forName: "vessel-cursor")
-      }
-      
-      // Register all pin and anchor status icons once in MapLibre style
-      MapStyleController.ensureAnchorImagesExist(in: style, theme: parent.marineTheme)
-      MapStyleController.ensureMeasurePinImagesExist(in: style, theme: parent.marineTheme)
-      lastThemeHash = nil
-      
+
       if let currentSource = parent.viewModel.currentChartSource {
         MapStyleController.updateChartSource(currentSource, in: style, isOverlayEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled)
         lastChartSource = currentSource
       }
-      
+
       lastOpenSeaMapOverlayEnabled = parent.viewModel.isOpenSeaMapOverlayEnabled
       MapStyleController.updateOpenSeaMapOverlay(isEnabled: parent.viewModel.isOpenSeaMapOverlayEnabled, in: style)
 
-      
-      // Ensure vessel & telemetry layers are initialized after style finishes loading
-      MapStyleController.ensureTelemetryLayersExist(in: style, theme: parent.marineTheme)
+      // Single initialization path: create all vector layers in Z-Index order, then apply theme colors & sprites
+      MapStyleController.ensureAllLayers(in: style)
+      MapStyleController.applyTheme(parent.marineTheme, in: style)
+      lastMarineTheme = parent.marineTheme
+
       let headingData = parent.viewModel.headingVectorData
-      MapStyleController.updateHeadingVector(data: headingData, in: style, theme: parent.marineTheme)
+      MapStyleController.updateHeadingVector(data: headingData, in: style)
       lastHeadingVectorData = headingData
 
       let gpsState = parent.viewModel.gpsAccuracyVisualState
-      MapStyleController.updateGpsAccuracy(state: gpsState, in: style, theme: parent.marineTheme)
+      MapStyleController.updateGpsAccuracy(state: gpsState, in: style)
       lastGpsAccuracyVisualState = gpsState
 
       let vesselState = parent.viewModel.vesselVisualState
-      MapStyleController.updateVessel(state: vesselState, in: style, theme: parent.marineTheme)
+      MapStyleController.updateVessel(state: vesselState, in: style)
       lastVesselVisualState = vesselState
 
-      MapStyleController.ensureNavigationLayersExist(in: style, theme: parent.marineTheme)
-
-      MapStyleController.updateActiveTrack(points: parent.trackRecordingService.trackPoints, in: style, theme: parent.marineTheme)
+      MapStyleController.updateActiveTrack(points: parent.trackRecordingService.trackPoints, in: style)
       lastActiveTrackCount = parent.trackRecordingService.trackPoints.count
       lastActiveTrackTimestamp = parent.trackRecordingService.trackPoints.last?.timestamp
 
       let savedState = parent.viewModel.savedTrackVisualState
-      MapStyleController.updateSavedTrack(state: savedState, in: style, theme: parent.marineTheme)
+      MapStyleController.updateSavedTrack(state: savedState, in: style)
       lastSavedTrackVisualState = savedState
 
       let visibleStates = parent.viewModel.visibleWaypointVisualStates
-      MapStyleController.updateVisibleWaypoints(states: visibleStates, in: style, theme: parent.marineTheme)
+      MapStyleController.updateVisibleWaypoints(states: visibleStates, in: style)
       lastVisibleWaypointVisualStates = visibleStates
 
       let goToState = parent.viewModel.goToWaypointVisualState
-      MapStyleController.updateGoToWaypoint(state: goToState, in: style, theme: parent.marineTheme)
+      MapStyleController.updateGoToWaypoint(state: goToState, in: style)
       lastGoToWaypointVisualState = goToState
 
       let bearingState = parent.viewModel.bearingLineVisualState
-      MapStyleController.updateBearingLine(state: bearingState, in: style, theme: parent.marineTheme)
+      MapStyleController.updateBearingLine(state: bearingState, in: style)
       lastBearingLineVisualState = bearingState
 
       let measureState = parent.viewModel.measureToolViewModel.state
       let measureActivePin = parent.viewModel.measureToolViewModel.activePin
-      MapStyleController.updateMeasureLine(state: measureState, in: style, theme: parent.marineTheme)
-      MapStyleController.updateMeasurePins(state: measureState, activePin: measureActivePin, in: style, theme: parent.marineTheme)
+      MapStyleController.updateMeasureLine(state: measureState, in: style)
+      MapStyleController.updateMeasurePins(state: measureState, activePin: measureActivePin, in: style)
       lastMeasureState = measureState
       lastMeasureActivePin = measureActivePin
 
       let anchorVisualState = parent.viewModel.anchorVisualState
-      MapStyleController.updateAnchor(state: anchorVisualState, in: style, theme: parent.marineTheme)
+      MapStyleController.updateAnchor(state: anchorVisualState, in: style)
       lastAnchorVisualState = anchorVisualState
 
       // Offline Mask layer initialization
       let maskState = parent.viewModel.offlineMaskVisualState
-      MapStyleController.updateOfflineMask(state: maskState, in: style, theme: parent.marineTheme)
+      MapStyleController.updateOfflineMask(state: maskState, in: style)
       lastOfflineMaskVisualState = maskState
 
       // Highlighted offline region preview initialization
       let highlightRegion = parent.viewModel.highlightedOfflineRegion
-      MapStyleController.updateOfflineHighlight(region: highlightRegion, in: style, theme: parent.marineTheme)
+      MapStyleController.updateOfflineHighlight(region: highlightRegion, in: style)
       lastHighlightedOfflineRegion = highlightRegion
 
       // Active offline selection zone initialization
       let activeSelection = parent.offlineSelectionViewModel.isSelectionModeActive ? parent.offlineSelectionViewModel.selectedBounds : nil
-      MapStyleController.updateOfflineSelection(bounds: activeSelection, in: style, theme: parent.marineTheme)
+      MapStyleController.updateOfflineSelection(bounds: activeSelection, in: style)
       lastOfflineSelectionBounds = activeSelection
 
       let isStale = parent.viewModel.isDataStale
       MapStyleController.updateDataStaleState(isStale: isStale, in: style)
       lastDataStale = isStale
 
-      MapStyleController.ensureTargetAimingCrosshairLayersExist(in: style, theme: parent.marineTheme)
       lastAimingCoordinate = nil
 
 
@@ -1749,8 +1716,7 @@ struct MapLibreView: UIViewRepresentable {
         if let style = mapView.style {
           MapStyleController.updateOfflineSelection(
             bounds: updatedBounds,
-            in: style,
-            theme: parent.marineTheme
+            in: style
           )
         }
 
@@ -1772,8 +1738,7 @@ struct MapLibreView: UIViewRepresentable {
         if let style = mapView.style {
           MapStyleController.updateOfflineSelection(
             bounds: parent.offlineSelectionViewModel.selectedBounds,
-            in: style,
-            theme: parent.marineTheme
+            in: style
           )
         }
         activeDraggedSelectionCorner = nil

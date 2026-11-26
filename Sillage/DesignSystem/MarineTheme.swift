@@ -11,7 +11,12 @@
 import SwiftUI
 import UIKit
 
-struct MarineTheme {
+struct MarineTheme: Equatable, Hashable {
+  enum Palette: Hashable, Sendable {
+    case day
+  }
+
+  let palette: Palette
   let minTouchTarget: CGFloat
   let isGloveMode: Bool
   let colors: Colors
@@ -47,6 +52,12 @@ struct MarineTheme {
     let anchorArmed: Color
     let anchorDragging: Color
     let anchorDropped: Color
+
+    // Cartographic Tracks & Symbol Halos
+    // Dedicated tokens prevent Night/Red palettes from inheriting bright blue or pure white glare.
+    let trackActive: Color
+    let trackSaved: Color
+    let chartSymbolHalo: Color
 
     // Computed properties for derived colors and aliases
     var accent: Color { primary }
@@ -84,7 +95,10 @@ struct MarineTheme {
     vectorTick: .black,
     anchorArmed: Color(red: 0.17, green: 0.24, blue: 0.31), // Navy / Slate #2C3E50
     anchorDragging: Color(red: 0.90, green: 0.11, blue: 0.14), // Alert Red #E61C24
-    anchorDropped: Color(red: 0.82, green: 0.0, blue: 0.45) // Magenta #D10074
+    anchorDropped: Color(red: 0.82, green: 0.0, blue: 0.45), // Magenta #D10074
+    trackActive: Color(uiColor: .systemRed),
+    trackSaved: Color(uiColor: .systemBlue),
+    chartSymbolHalo: .white
   )
 
   struct Metrics {
@@ -204,8 +218,29 @@ struct MarineTheme {
     ]
   }
 
-  static let standard = MarineTheme(minTouchTarget: 44, isGloveMode: false, colors: dayColors)
-  static let gloveMode = MarineTheme(minTouchTarget: 66, isGloveMode: true, colors: dayColors)
+  // Private initializer enforces that `colors` and `minTouchTarget` derive strictly from `(palette, isGloveMode)`,
+  // keeping O(1) Equatable/Hashable comparisons sound at compile time.
+  private init(palette: Palette, isGloveMode: Bool) {
+    self.palette = palette
+    self.isGloveMode = isGloveMode
+    self.minTouchTarget = isGloveMode ? 66 : 44
+    switch palette {
+    case .day:
+      self.colors = Self.dayColors
+    }
+  }
+
+  static let standard = MarineTheme(palette: .day, isGloveMode: false)
+  static let gloveMode = MarineTheme(palette: .day, isGloveMode: true)
+
+  static func == (lhs: MarineTheme, rhs: MarineTheme) -> Bool {
+    lhs.palette == rhs.palette && lhs.isGloveMode == rhs.isGloveMode
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine(palette)
+    hasher.combine(isGloveMode)
+  }
 
   /// Resolves the semantic `Font.TextStyle` and optional explicit weight for a `MarineTextStyle`.
   /// Declared `static` so typography is guaranteed at compile time to remain invariant to `isGloveMode`;

@@ -11,7 +11,6 @@
 import CoreMotion
 import Foundation
 import Observation
-import os
 import OSLog
 import UIKit
 

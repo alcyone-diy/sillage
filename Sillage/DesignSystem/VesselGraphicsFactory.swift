@@ -14,7 +14,11 @@ class VesselGraphicsFactory {
 
   /// Draws a sleek isosceles triangle pointing upwards and returns it as a UIImage.
   /// The center of the generated image matches the vessel's pivot point.
-  static func createVesselImage(size: CGSize, color: UIColor) -> UIImage? {
+  static func createVesselImage(
+    size: CGSize,
+    color: UIColor,
+    strokeColor: UIColor = .white
+  ) -> UIImage? {
     UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
     // Draw an isosceles triangle
     // A simple triangle (0, h) to (w/2, 0) to (w, h) has its centroid at y = 2/3 * h.
@@ -64,7 +68,7 @@ class VesselGraphicsFactory {
     path.fill()
 
     // Add a slight border for visibility
-    UIColor.white.setStroke()
+    strokeColor.setStroke()
     path.lineWidth = 1.5
     path.stroke()
 

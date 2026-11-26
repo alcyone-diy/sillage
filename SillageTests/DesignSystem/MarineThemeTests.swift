@@ -86,4 +86,19 @@ final class MarineThemeTests: XCTestCase {
     XCTAssertTrue(MarineTheme.gloveMode.isGloveMode)
     XCTAssertEqual(MarineTheme.gloveMode.minTouchTarget, 66)
   }
+
+  func testEquatableAndHashable_DifferentiatesGloveModeWithPresetIdentity() {
+    XCTAssertEqual(MarineTheme.standard, MarineTheme.standard)
+    XCTAssertEqual(MarineTheme.gloveMode, MarineTheme.gloveMode)
+    XCTAssertNotEqual(MarineTheme.standard, MarineTheme.gloveMode)
+
+    let set: Set<MarineTheme> = [.standard, .gloveMode, .standard]
+    XCTAssertEqual(set.count, 2)
+  }
+
+  func testCartographicTokens_AreDefinedForTracksAndSymbolHalos() {
+    let colors = MarineTheme.standard.colors
+    XCTAssertNotEqual(colors.trackActive, colors.trackSaved)
+    XCTAssertEqual(colors.chartSymbolHalo, .white)
+  }
 }

@@ -37,6 +37,7 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
 
     XCTAssertNotNil(features.pointFeature)
     XCTAssertEqual(features.pointFeature?.coordinate.latitude, anchorCoord.latitude)
+    XCTAssertEqual(features.pointFeature?.attributes[MapFeatureKey.status.rawValue] as? String, AnchorVisualStatus.setup.rawValue)
     XCTAssertNil(features.radiusFeature)
     XCTAssertNil(features.rodeLineFeature)
   }
@@ -54,6 +55,7 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
 
     XCTAssertNotNil(features.pointFeature)
     XCTAssertNotNil(features.radiusFeature)
+    XCTAssertEqual(features.radiusFeature?.attributes[MapFeatureKey.status.rawValue] as? String, AnchorVisualStatus.setup.rawValue)
     XCTAssertNil(features.rodeLineFeature)
   }
 
@@ -323,5 +325,68 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     XCTAssertEqual(feature?.attributes[MapFeatureKey.course.rawValue] as? Double, 135.0)
     XCTAssertEqual(feature?.attributes[MapFeatureKey.isStale.rawValue] as? Bool, true)
     XCTAssertEqual(feature?.attributes[MapFeatureKey.isDegraded.rawValue] as? Bool, true)
+  }
+
+  func testCreateAnchorFeatures_whenDraggingWithEvitement_attachesStatusToAllFeatures() {
+    let anchorCoord = CLLocationCoordinate2D(latitude: 47.218, longitude: -1.553)
+    let evitement = [
+      CLLocationCoordinate2D(latitude: 47.2181, longitude: -1.5531),
+      CLLocationCoordinate2D(latitude: 47.2183, longitude: -1.5534)
+    ]
+    let state = AnchorVisualState(
+      status: .dragging,
+      pointCoordinate: anchorCoord,
+      radius: Measurement(value: 40, unit: .meters),
+      vesselCoordinate: evitement.last,
+      evitementCoordinates: evitement
+    )
+
+    let features = MapLibreFeatureFactory.createAnchorFeatures(from: state)
+
+    XCTAssertEqual(features.pointFeature?.attributes[MapFeatureKey.status.rawValue] as? String, AnchorVisualStatus.dragging.rawValue)
+    XCTAssertEqual(features.radiusFeature?.attributes[MapFeatureKey.status.rawValue] as? String, AnchorVisualStatus.dragging.rawValue)
+    XCTAssertEqual(features.evitementLineFeature?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.anchorEvitement.rawValue)
+    XCTAssertEqual(features.evitementLineFeature?.attributes[MapFeatureKey.status.rawValue] as? String, AnchorVisualStatus.dragging.rawValue)
+  }
+
+  // MARK: - Chart Tools Feature Tests
+
+  func testCreateMeasureFeatures_whenInactive_returnsNil() {
+    XCTAssertNil(MapLibreFeatureFactory.createMeasureLineFeature(from: .inactive))
+    XCTAssertNil(MapLibreFeatureFactory.createMeasurePinsFeature(from: .inactive, activePin: .start))
+  }
+
+  func testCreateMeasureFeatures_whenActive_setsStandardizedVocabularyAttributes() {
+    let start = CLLocationCoordinate2D(latitude: 46.15, longitude: -1.16)
+    let end = CLLocationCoordinate2D(latitude: 46.18, longitude: -1.20)
+    let state = MeasureState.active(start: start, end: end)
+
+    let line = MapLibreFeatureFactory.createMeasureLineFeature(from: state)
+    XCTAssertEqual(line?.pointCount, 2)
+    XCTAssertEqual(line?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.measureLine.rawValue)
+
+    let pinsCollection = MapLibreFeatureFactory.createMeasurePinsFeature(from: state, activePin: .end)
+    guard let pins = pinsCollection?.shapes as? [MLNPointFeature], pins.count == 2 else {
+      XCTFail("Expected 2 measure pin point features")
+      return
+    }
+
+    XCTAssertEqual(pins[0].attributes[MapFeatureKey.id.rawValue] as? String, "A")
+    XCTAssertEqual(pins[0].attributes[MapFeatureKey.icon.rawValue] as? String, "measure-pin-a-idle")
+    XCTAssertEqual(pins[0].attributes[MapFeatureKey.sortKey.rawValue] as? Int, 1)
+
+    XCTAssertEqual(pins[1].attributes[MapFeatureKey.id.rawValue] as? String, "B")
+    XCTAssertEqual(pins[1].attributes[MapFeatureKey.icon.rawValue] as? String, "measure-pin-b-selected")
+    XCTAssertEqual(pins[1].attributes[MapFeatureKey.sortKey.rawValue] as? Int, 2)
+  }
+
+  func testCreateTargetAimingCrosshairFeature_handlesOptionalCoordinate() {
+    XCTAssertNil(MapLibreFeatureFactory.createTargetAimingCrosshairFeature(from: nil))
+
+    let coord = CLLocationCoordinate2D(latitude: 46.15, longitude: -1.16)
+    let feature = MapLibreFeatureFactory.createTargetAimingCrosshairFeature(from: coord)
+    XCTAssertEqual(feature?.coordinate.latitude, coord.latitude)
+    XCTAssertEqual(feature?.coordinate.longitude, coord.longitude)
+    XCTAssertEqual(feature?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.targetAimingCrosshair.rawValue)
   }
 }
