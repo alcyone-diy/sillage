@@ -87,25 +87,19 @@ final class AppEnvironmentTests: XCTestCase {
     } else {
       XCTFail("Initial state should be uninitialized")
     }
-    XCTAssertNil(environment.offlineSelectionViewModel)
+    XCTAssertNil(environment.geoGarageDownloadRepository)
   }
 
   func testBootstrapTransitionsToReadyAndExposesViewModels() async throws {
     await environment.bootstrap()
 
-    if case .ready = environment.state {
-      // Expected
-    } else {
+    guard case .ready(let container) = environment.state else {
       XCTFail("State should be ready after bootstrap")
+      return
     }
 
-    XCTAssertNotNil(environment.offlineSelectionViewModel)
-    XCTAssertNotNil(environment.preferencesService)
     XCTAssertNotNil(environment.geoGarageDownloadRepository)
-    XCTAssertNotNil(environment.geoGaragePackageService)
-    XCTAssertNotNil(environment.geoGarageChartDownloader)
-    XCTAssertNotNil(environment.geoGarageOfflineTileProvider)
-    XCTAssertNotNil(environment.geoGarageLayerRepository)
+    XCTAssertEqual(ObjectIdentifier(container.preferencesService), ObjectIdentifier(testPreferencesService))
 
     let seededTemplates = try await environment.checklistCatalogService.fetchTemplates()
     XCTAssertEqual(seededTemplates.count, 4)
@@ -123,13 +117,12 @@ final class AppEnvironmentTests: XCTestCase {
 
     await environment.bootstrap()
 
-    if case .ready = environment.state {
-      // Expected
-    } else {
+    guard case .ready(let container) = environment.state else {
       XCTFail("State should be ready after bootstrap")
+      return
     }
 
-    XCTAssertNotNil(environment.geoGarageLayerRepository)
+    XCTAssertTrue(container.geoGarageLayerRepository.layers.isEmpty)
 
     if let path = legacyCacheFile?.path {
       XCTAssertFalse(FileManager.default.fileExists(atPath: path), "No geogarage_layers.json file should be written to Library/Caches during bootstrap.")
@@ -177,17 +170,20 @@ final class AppEnvironmentTests: XCTestCase {
     let keychain = mockKeychain
     let env = environment
     addTeardownBlock { @MainActor in
-      env?.geoGarageDownloadService?.cancelDownload()
+      if case .ready(let container) = env?.state {
+        container.geoGarageDownloadService.cancelDownload()
+      }
       try? await keychain?.deleteToken(for: GeoGarageKeychainKeys.accessToken)
       try? await keychain?.deleteToken(for: GeoGarageKeychainKeys.customerID)
     }
 
     await environment.bootstrap()
 
-    guard let offlineVM = environment.offlineSelectionViewModel else {
-      XCTFail("offlineSelectionViewModel must be non-nil after bootstrap")
+    guard case .ready(let container) = environment.state else {
+      XCTFail("Environment must be ready after bootstrap")
       return
     }
+    let offlineVM = container.offlineSelectionViewModel
 
     for _ in 0..<100 {
       if offlineVM.isDownloading { break }
@@ -224,7 +220,11 @@ final class AppEnvironmentTests: XCTestCase {
     // 2. After bootstrap (geoGarageDownloadService is present but isDownloading == false)
     await environment.bootstrap()
     try? await Task.sleep(for: .milliseconds(50))
-    XCTAssertEqual(environment.geoGarageDownloadService?.isDownloading, false)
+    guard case .ready(let container) = environment.state else {
+      XCTFail("Expected environment to reach .ready")
+      return
+    }
+    XCTAssertFalse(container.geoGarageDownloadService.isDownloading)
     XCTAssertTrue(environment.isDownloadingOfflineCharts, "isDownloadingOfflineCharts must return true when GeoGarage is inactive but offlineMapManager has pending downloads")
     XCTAssertEqual(environment.offlineChartsDownloadProgress, 0.4)
   }
@@ -454,8 +454,11 @@ final class AppEnvironmentTests: XCTestCase {
     }
 
     await environment.bootstrap()
-    let downloader = try XCTUnwrap(environment.geoGarageChartDownloader)
-    downloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
+    guard case .ready(let container) = environment.state else {
+      XCTFail("Expected environment to reach .ready")
+      return
+    }
+    container.geoGarageChartDownloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
 
     await fulfillment(of: [invoked], timeout: 2.0)
     XCTAssertEqual(callCount, 1)
@@ -505,8 +508,11 @@ final class AppEnvironmentTests: XCTestCase {
     releaseBootstrapContinuation.finish()
     await bootstrapTask.value
 
-    let downloader = try XCTUnwrap(environment.geoGarageChartDownloader)
-    downloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
+    guard case .ready(let container) = environment.state else {
+      XCTFail("Expected environment to reach .ready")
+      return
+    }
+    container.geoGarageChartDownloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
 
     await fulfillment(of: [invoked], timeout: 2.0)
     XCTAssertEqual(callCount, 1)
@@ -514,7 +520,10 @@ final class AppEnvironmentTests: XCTestCase {
 
   func testBackgroundSessionCompletion_registeredAfterReady_isForwardedDirectlyToDownloader() async throws {
     await environment.bootstrap()
-    let downloader = try XCTUnwrap(environment.geoGarageChartDownloader)
+    guard case .ready(let container) = environment.state else {
+      XCTFail("Expected environment to reach .ready")
+      return
+    }
 
     let invoked = expectation(description: "Background completion handler invoked when registered in .ready state")
     var callCount = 0
@@ -523,7 +532,7 @@ final class AppEnvironmentTests: XCTestCase {
       invoked.fulfill()
     }
 
-    downloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
+    container.geoGarageChartDownloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
     await fulfillment(of: [invoked], timeout: 2.0)
     XCTAssertEqual(callCount, 1)
   }
@@ -550,7 +559,7 @@ final class AppEnvironmentTests: XCTestCase {
     }
     XCTAssertFalse(failingEnv.offlineMapManager.isStarted, "OfflineMapManager must not start when Phase 1 fails")
     XCTAssertEqual(callCount, 1, "Pending background completion handler must be invoked immediately when bootstrap fails")
-    XCTAssertNil(failingEnv.geoGarageChartDownloader, "No background chart downloader must be created when Phase 1 throws")
+    XCTAssertNil(failingEnv.activeChartDownloader, "No background chart downloader must be created when Phase 1 throws")
 
     // Retrying and failing again must NOT re-invoke the already-drained handler
     await failingEnv.bootstrap()

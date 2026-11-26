@@ -93,8 +93,11 @@ final class AppDelegateTests: XCTestCase {
     }
 
     await sut.bootstrapEnvironmentAndDrainNotifications()
-    let downloader = try XCTUnwrap(environment.geoGarageChartDownloader)
-    downloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
+    guard case .ready(let container) = environment.state else {
+      XCTFail("Expected environment to reach .ready")
+      return
+    }
+    container.geoGarageChartDownloader.urlSessionDidFinishEvents(forBackgroundURLSession: authSession)
 
     await fulfillment(of: [completed], timeout: 2.0)
     XCTAssertEqual(completionCount, 1)
