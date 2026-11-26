@@ -52,6 +52,8 @@ final class AppEnvironment {
   private var isHydratingProtectedData: Bool = false
   @ObservationIgnored
   private var didBecomeProtectedDataAvailableDuringBootstrap: Bool = false
+  @ObservationIgnored
+  private var geoGarageOfflineCoordinator: GeoGarageOfflineCoordinator?
 
   init(overrides: Overrides = .init()) {
     let configuration = overrides.configuration ?? .fromBundle()
@@ -284,56 +286,38 @@ final class AppEnvironment {
     let geoGarageDownloadRepository = GeoGarageDownloadRepository(databaseManager: databaseManager)
     await geoGarageDownloadRepository.load()
 
-    let geoGarageOfflineTileProvider = GeoGarageOfflineTileProvider(
-      onCompatibilityMismatch: { [weak geoGarageDownloadRepository] downloadID, correctedRequiresV3 in
-        guard let repo = geoGarageDownloadRepository else { return }
-        guard let download = await MainActor.run(body: {
-          repo.downloads.first(where: { $0.id == downloadID })
-        }) else { return }
-        let updated = download.updatingRequiresV3Compatibility(correctedRequiresV3)
-        do {
-          try await repo.save(updated)
-          Logger.caas.info("Reconciled requiresV3Compatibility=\(correctedRequiresV3, privacy: .public) for package \(downloadID.uuidString, privacy: .public) in database.")
-        } catch {
-          Logger.caas.error("Failed to reconcile requiresV3Compatibility for package \(downloadID.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
-        }
-      }
+    let geoGarageOfflineTileProvider = GeoGarageOfflineCoordinator.makeOfflineTileProvider(
+      downloadRepository: geoGarageDownloadRepository
     )
-    let lastAuthRefreshAttempt = OSAllocatedUnfairLock<ContinuousClock.Instant?>(initialState: nil)
-    TileProxyProtocol.configure(
+
+    self.geoGarageOfflineCoordinator?.stop()
+    let geoGarageOfflineCoordinator = GeoGarageOfflineCoordinator(
+      authService: geoGarageAuthService,
+      downloadRepository: geoGarageDownloadRepository,
       offlineTileProvider: geoGarageOfflineTileProvider,
-      tileProxyManager: tileProxyManager,
+      preferencesService: preferencesService,
+      partnerSecretService: self.geoGaragePartnerSecretService,
       keychainManager: keychainManager,
-      onAuthenticationFailure: { [weak geoGarageAuthService] in
-        let shouldAttempt = lastAuthRefreshAttempt.withLock { lastAttempt in
-          let now = ContinuousClock.now
-          if let lastAttempt, now - lastAttempt < .seconds(10) {
-            return false
-          }
-          lastAttempt = now
-          return true
-        }
-        guard shouldAttempt else { return }
-        Task { @MainActor in
-          guard let authService = geoGarageAuthService else { return }
-          do {
-            _ = try await authService.refreshTokens()
-          } catch {
-            Logger.network.warning("GeoGarage token refresh after tile 401/403 failed: \(error.localizedDescription, privacy: .public)")
-          }
-        }
+      onPackageSecretWarning: { [weak messageService] in
+        guard let messageService else { return }
+        Self.postPackageSecretWarning(on: messageService)
+      },
+      onOfflineReadersOpened: { [weak messageService] in
+        messageService?.clear(category: .offlineCharts)
+      },
+      onProtectedDataHydrationRequired: { [weak self] in
+        self?.needsProtectedDataHydration = true
       }
     )
+    self.geoGarageOfflineCoordinator = geoGarageOfflineCoordinator
+    geoGarageOfflineCoordinator.configureTileProxy(tileProxyManager: tileProxyManager)
 
     // Hydrate GeoGarage customer ID asynchronously from Keychain before checking offline credentials.
     let customerIDStatus = await preferencesService.loadGeoGarageCustomerID()
 
     // Empty until the user signs in; skip tile loading until valid credentials (secret & customerID) are present.
     // On `errSecInteractionNotAllowed`, preserve open readers and defer hydration until protected data unlocks.
-    let secretStatus = await syncGeoGarageOfflineTileProvider(
-      downloadRepository: geoGarageDownloadRepository,
-      offlineTileProvider: geoGarageOfflineTileProvider,
-      preferencesService: preferencesService,
+    let secretStatus = await geoGarageOfflineCoordinator.syncOfflineTileProvider(
       customerIDStatus: customerIDStatus
     )
     self.needsProtectedDataHydration = migrationStatus == .deferredForProtectedData
@@ -341,11 +325,7 @@ final class AppEnvironment {
       || customerIDStatus == .deferredForProtectedData
       || secretStatus == .deferredForProtectedData
 
-    observeGeoGarageDownloads(
-      downloadRepository: geoGarageDownloadRepository,
-      offlineTileProvider: geoGarageOfflineTileProvider,
-      preferencesService: preferencesService
-    )
+    geoGarageOfflineCoordinator.start()
 
     let geoGaragePackageService = GeoGaragePackageService(session: authSession)
     let initialBackgroundCompletion = self.pendingBackgroundSessionCompletion
@@ -506,19 +486,7 @@ final class AppEnvironment {
     self.bootstrapOverrides = nil
 
     if !self.needsProtectedDataHydration {
-      // The secret catch-up talks to the portal (up to three 15 s calls). Keep it off the launch
-      // critical path so a boat connected without WAN never waits on it.
-      packageSecretRestoreTask?.cancel()
-      packageSecretRestoreTask = Task { @MainActor [weak self] in
-        guard let self else { return }
-        await self.restorePackageSecretIfMissing(
-          authService: geoGarageAuthService,
-          messageService: messageService,
-          downloadRepository: geoGarageDownloadRepository,
-          offlineTileProvider: geoGarageOfflineTileProvider,
-          preferencesService: preferencesService
-        )
-      }
+      geoGarageOfflineCoordinator.schedulePackageSecretRestore()
     }
 
     if self.didBecomeProtectedDataAvailableDuringBootstrap {
@@ -578,19 +546,10 @@ final class AppEnvironment {
 
     Logger.system.info("Protected data available; re-hydrating deferred GeoGarage Keychain credentials.")
 
-    await container.geoGarageAuthService.bootstrap()
-    let customerIDStatus = await container.preferencesService.loadGeoGarageCustomerID()
-    let secretStatus = await syncGeoGarageOfflineTileProvider(
-      downloadRepository: container.geoGarageDownloadRepository,
-      offlineTileProvider: container.geoGarageOfflineTileProvider,
-      preferencesService: container.preferencesService,
-      customerIDStatus: customerIDStatus
-    )
+    let geoGarageStatus = await geoGarageOfflineCoordinator?.rehydrateAfterProtectedDataUnlock() ?? .hydrated
 
     let stillDeferred = migrationStatus == .deferredForProtectedData
-      || container.geoGarageAuthService.isDeferredForProtectedData
-      || customerIDStatus == .deferredForProtectedData
-      || secretStatus == .deferredForProtectedData
+      || geoGarageStatus == .deferredForProtectedData
     self.needsProtectedDataHydration = stillDeferred
 
     guard !stillDeferred else {
@@ -599,19 +558,7 @@ final class AppEnvironment {
     }
 
     container.chartViewModel.refreshGeoGarageLayersIfAuthenticated()
-
-    packageSecretRestoreTask?.cancel()
-    packageSecretRestoreTask = Task { @MainActor [weak self] in
-      guard let self else { return }
-      await self.restorePackageSecretIfMissing(
-        authService: container.geoGarageAuthService,
-        messageService: container.messageService,
-        downloadRepository: container.geoGarageDownloadRepository,
-        offlineTileProvider: container.geoGarageOfflineTileProvider,
-        preferencesService: container.preferencesService
-      )
-    }
-
+    geoGarageOfflineCoordinator?.schedulePackageSecretRestore()
     await container.geoGarageDownloadService.resumePendingDownloadIfNeeded()
   }
 
@@ -630,239 +577,12 @@ final class AppEnvironment {
     }
   }
 
-  @ObservationIgnored
-  nonisolated(unsafe) private var geoGarageDownloadsObservationTask: Task<Void, Never>?
-  @ObservationIgnored
-  nonisolated(unsafe) private var geoGarageCustomerIDObservationTask: Task<Void, Never>?
-  @ObservationIgnored
-  nonisolated(unsafe) private var geoGarageSyncTask: Task<Void, Never>?
-
-  private func observeGeoGarageDownloads(
-    downloadRepository: GeoGarageDownloadRepository,
-    offlineTileProvider: GeoGarageOfflineTileProvider,
-    preferencesService: PreferencesService
-  ) {
-    geoGarageDownloadsObservationTask?.cancel()
-    geoGarageCustomerIDObservationTask?.cancel()
-    geoGarageSyncTask?.cancel()
-    let downloadsStream = downloadRepository.downloadsDidChangeStream
-    let customerIDStream = preferencesService.geoGarageCustomerIDDidChangeStream
-
-    geoGarageDownloadsObservationTask = Task { @MainActor [weak self, weak downloadRepository, weak offlineTileProvider, weak preferencesService] in
-      for await _ in downloadsStream {
-        guard !Task.isCancelled,
-              let self,
-              let repo = downloadRepository,
-              let provider = offlineTileProvider,
-              let preferences = preferencesService else { break }
-        self.scheduleGeoGarageSync(
-          downloadRepository: repo,
-          offlineTileProvider: provider,
-          preferencesService: preferences
-        )
-      }
-    }
-
-    geoGarageCustomerIDObservationTask = Task { @MainActor [weak self, weak downloadRepository, weak offlineTileProvider, weak preferencesService] in
-      for await _ in customerIDStream {
-        guard !Task.isCancelled,
-              let self,
-              let repo = downloadRepository,
-              let provider = offlineTileProvider,
-              let preferences = preferencesService else { break }
-        self.scheduleGeoGarageSync(
-          downloadRepository: repo,
-          offlineTileProvider: provider,
-          preferencesService: preferences
-        )
-      }
-    }
-  }
-
-  private func scheduleGeoGarageSync(
-    downloadRepository: GeoGarageDownloadRepository,
-    offlineTileProvider: GeoGarageOfflineTileProvider,
-    preferencesService: PreferencesService
-  ) {
-    geoGarageSyncTask?.cancel()
-    geoGarageSyncTask = Task { @MainActor [weak self, weak downloadRepository, weak offlineTileProvider, weak preferencesService] in
-      guard let self,
-            let repo = downloadRepository,
-            let provider = offlineTileProvider,
-            let preferences = preferencesService else { return }
-      let status = await self.syncGeoGarageOfflineTileProvider(
-        downloadRepository: repo,
-        offlineTileProvider: provider,
-        preferencesService: preferences
-      )
-      if status == .deferredForProtectedData {
-        self.needsProtectedDataHydration = true
-      }
-    }
-  }
-
-  @discardableResult
-  private func syncGeoGarageOfflineTileProvider(
-    downloadRepository: GeoGarageDownloadRepository,
-    offlineTileProvider: GeoGarageOfflineTileProvider,
-    preferencesService: PreferencesService,
-    customerIDStatus: KeychainHydrationStatus = .hydrated
-  ) async -> KeychainHydrationStatus {
-    let secret: String?
-    do {
-      secret = try await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount)
-    } catch {
-      if error.isInteractionNotAllowed {
-        Logger.caas.warning("Deferred loading GeoGarage package secret: Keychain locked while protected data is unavailable.")
-        return .deferredForProtectedData
-      }
-      Logger.caas.error("Failed to read GeoGarage package secret from Keychain: \(error.localizedDescription, privacy: .public)")
-      guard !Task.isCancelled else { return .hydrated }
-      await offlineTileProvider.close()
-      return .hydrated
-    }
-
-    guard !Task.isCancelled else { return .hydrated }
-
-    if customerIDStatus == .deferredForProtectedData {
-      return .deferredForProtectedData
-    }
-
-    guard let secret,
-          let customerID = preferencesService.geoGarageCustomerID,
-          !customerID.isEmpty else {
-      await offlineTileProvider.close()
-      return .hydrated
-    }
-
-    await offlineTileProvider.reloadDownloads(
-      downloadRepository.downloads,
-      sharedSecret: secret,
-      customerID: customerID
-    )
-    return .hydrated
-  }
-
-  // MARK: - GeoGarage Package Secret Recovery
-
   /// Secret catch-up started after `state = .ready`; exposed so tests can await it.
-  @ObservationIgnored
-  private(set) var packageSecretRestoreTask: Task<Void, Never>?
-
-  /// One-shot recovery of package credentials (secret and/or customerID) missing at launch.
-  private func restorePackageSecretIfMissing(
-    authService: GeoGarageAuthService,
-    messageService: MessageService,
-    downloadRepository: GeoGarageDownloadRepository,
-    offlineTileProvider: GeoGarageOfflineTileProvider,
-    preferencesService: PreferencesService
-  ) async {
-    guard authService.isGeoGarageAuthenticated else { return }
-    let currentSecret = try? await keychainManager.retrieveValidToken(for: GeoGaragePartnerSecretService.keychainAccount)
-    let currentCustomerID = preferencesService.geoGarageCustomerID
-    let isSecretMissing = currentSecret == nil
-    let isCustomerMissing = currentCustomerID == nil || currentCustomerID?.isEmpty == true
-    guard isSecretMissing || isCustomerMissing else { return }
-    guard let accessToken = try? await keychainManager.retrieveValidToken(for: GeoGarageKeychainKeys.accessToken) else { return }
-
-    do {
-      let secrets = try await geoGaragePartnerSecretService.refresh(accessToken: accessToken)
-      Logger.network.info("Partner package secret restored at startup.")
-      if let newCust = secrets.customerID, !newCust.isEmpty {
-        preferencesService.geoGarageCustomerID = newCust
-      }
-      if preferencesService.geoGarageCustomerID == nil {
-        _ = try? await authService.fetchAccountSettings(accessToken: accessToken)
-      }
-      let newSecret = secrets.packageSecret.isEmpty ? nil : secrets.packageSecret
-      let resolvedSecret = newSecret ?? currentSecret
-      if let resolvedSecret, let resolvedCust = preferencesService.geoGarageCustomerID, !resolvedCust.isEmpty {
-        await openOfflineReaders(
-          with: resolvedSecret,
-          customerID: resolvedCust,
-          messageService: messageService,
-          downloadRepository: downloadRepository,
-          offlineTileProvider: offlineTileProvider
-        )
-      }
-      return
-    } catch PartnerSecretError.unauthorized {
-      // Access token expired since the last launch: refresh once, then a single retry.
-      Logger.network.info("Partner package secret restore rejected the access token, refreshing once.")
-    } catch PartnerSecretError.networkError(let description) {
-      // Offline at launch: the next launch retries, no need to alarm the user.
-      Logger.network.info("Partner package secret restore skipped, network unavailable: \(description, privacy: .public)")
-      return
-    } catch PartnerSecretError.cancelled {
-      Logger.network.info("Partner package secret restore cancelled.")
-      return
-    } catch {
-      Logger.network.error("Partner package secret restore failed: \(String(describing: error), privacy: .public)")
-      postPackageSecretWarning(on: messageService)
-      return
-    }
-
-    do {
-      let tokens = try await authService.refreshTokens()
-      let secrets = try await geoGaragePartnerSecretService.refresh(accessToken: tokens.access_token)
-      Logger.network.info("Partner package secret restored at startup after a token refresh.")
-      if let newCust = secrets.customerID, !newCust.isEmpty {
-        preferencesService.geoGarageCustomerID = newCust
-      }
-      if preferencesService.geoGarageCustomerID == nil {
-        _ = try? await authService.fetchAccountSettings(accessToken: tokens.access_token)
-      }
-      let newSecret = secrets.packageSecret.isEmpty ? nil : secrets.packageSecret
-      let resolvedSecret = newSecret ?? currentSecret
-      if let resolvedSecret, let resolvedCust = preferencesService.geoGarageCustomerID, !resolvedCust.isEmpty {
-        await openOfflineReaders(
-          with: resolvedSecret,
-          customerID: resolvedCust,
-          messageService: messageService,
-          downloadRepository: downloadRepository,
-          offlineTileProvider: offlineTileProvider
-        )
-      }
-    } catch AuthError.tokenExpired {
-      // Refresh token replaced, revoked or purged: the real cause is "session expired", already
-      // published in `authError` and shown by Settings. A second message would mislead the user.
-      Logger.network.info("Partner package secret restore stopped, the GeoGarage session has expired.")
-    } catch AuthError.networkError(let error) {
-      // Offline during the refresh: same policy as `/partners/me/` offline.
-      Logger.network.info("Partner package secret restore skipped, token refresh offline: \(error.localizedDescription, privacy: .public)")
-    } catch AuthError.cancelled {
-      Logger.network.info("Partner package secret restore cancelled during the token refresh.")
-    } catch PartnerSecretError.networkError(let description) {
-      Logger.network.info("Partner package secret restore skipped after token refresh, network unavailable: \(description, privacy: .public)")
-    } catch PartnerSecretError.cancelled {
-      Logger.network.info("Partner package secret restore cancelled after token refresh.")
-    } catch {
-      Logger.network.error("Partner package secret restore failed after token refresh: \(String(describing: error), privacy: .public)")
-      postPackageSecretWarning(on: messageService)
-    }
+  var packageSecretRestoreTask: Task<Void, Never>? {
+    geoGarageOfflineCoordinator?.packageSecretRestoreTask
   }
 
-  /// Reopens the offline readers with the freshly fetched credentials.
-  private func openOfflineReaders(
-    with packageSecret: String,
-    customerID: String,
-    messageService: MessageService,
-    downloadRepository: GeoGarageDownloadRepository,
-    offlineTileProvider: GeoGarageOfflineTileProvider
-  ) async {
-    messageService.clear(category: .offlineCharts)
-    guard !customerID.isEmpty else {
-      await offlineTileProvider.close()
-      return
-    }
-    await offlineTileProvider.reloadDownloads(
-      downloadRepository.downloads,
-      sharedSecret: packageSecret,
-      customerID: customerID
-    )
-  }
-
-  private func postPackageSecretWarning(on messageService: MessageService) {
+  private static func postPackageSecretWarning(on messageService: MessageService) {
     let appMessage = AppMessage(
       title: LocalizedStringResource("Offline Charts Unavailable"),
       detail: .localized("GeoGarage did not provide the decryption secret. Online charts work; offline downloads are disabled until the next sign-in."),
@@ -1035,13 +755,6 @@ final class AppEnvironment {
       config.protocolClasses = [TileProxyProtocol.self]
     }
     MLNNetworkConfiguration.sharedManager.sessionConfiguration = config
-  }
-
-  deinit {
-    geoGarageDownloadsObservationTask?.cancel()
-    geoGarageCustomerIDObservationTask?.cancel()
-    geoGarageSyncTask?.cancel()
-    packageSecretRestoreTask?.cancel()
   }
 
 }

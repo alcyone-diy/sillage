@@ -85,12 +85,17 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
     }
   }
 
-  #if DEBUG
-  /// Resets all injected dependencies atomically (for testing).
-  static func resetForTesting() {
+  /// Resets all injected dependencies atomically.
+  static func reset() {
     dependenciesLock.withLock { state in
       state = Dependencies()
     }
+  }
+
+  #if DEBUG
+  /// Resets all injected dependencies atomically (for testing).
+  static func resetForTesting() {
+    reset()
   }
   #endif
 
