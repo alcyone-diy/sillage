@@ -136,23 +136,16 @@ struct MapLibreView: UIViewRepresentable {
       return visibleRect.contains(pt)
     }
 
-    offlineSelectionViewModel.defaultSelectionBoundsProvider = { [weak mapView, weak offlineVM = offlineSelectionViewModel] in
-      guard let mapView, let offlineVM, mapView.bounds.width > 0, mapView.bounds.height > 0 else {
-        return nil
-      }
+    offlineSelectionViewModel.defaultSelectionBoundsProvider = { [weak coordinator = context.coordinator, weak mapView, weak offlineVM = offlineSelectionViewModel] in
+      guard let coordinator, let mapView, let offlineVM else { return nil }
       // Restore North-Up orientation and level pitch in a single camera update before projecting the screen crop box,
       // preventing tilted/rotated perspectives from producing skewed coordinates.
       Self.resetCameraToNorthUpLevelIfNeeded(mapView)
-      let baseSize = min(mapView.bounds.width, mapView.bounds.height) * offlineVM.cropBoxWidthRatio
-      let size = CGSize(width: baseSize, height: baseSize * offlineVM.cropBoxAspect)
-      let rect = CGRect(
-        x: (mapView.bounds.width - size.width) / 2.0,
-        y: (mapView.bounds.height - size.height) / 2.0,
-        width: size.width,
-        height: size.height
+      return coordinator.offlineSelectionController.makeDefaultBounds(
+        in: mapView,
+        cropBoxWidthRatio: offlineVM.cropBoxWidthRatio,
+        cropBoxAspect: offlineVM.cropBoxAspect
       )
-      let mlnBounds = mapView.convert(rect, toCoordinateBoundsFrom: mapView)
-      return GeographicBoundingBox(southWest: mlnBounds.sw, northEast: mlnBounds.ne)
     }
     
     return mapView
@@ -162,7 +155,7 @@ struct MapLibreView: UIViewRepresentable {
     using coordinator: Coordinator,
     activeTrackPoints: ArraySlice<TrackPoint>
   ) -> MapStyleSnapshot {
-    let activeSelectionBounds = coordinator.resolvedOfflineSelectionBounds(
+    let activeSelectionBounds = coordinator.offlineSelectionController.resolvedBounds(
       isSelectionModeActive: offlineSelectionViewModel.isSelectionModeActive,
       committedBounds: offlineSelectionViewModel.selectedBounds
     )
@@ -328,13 +321,13 @@ struct MapLibreView: UIViewRepresentable {
   class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
     var parent: MapLibreView
     let styleSynchronizer = MapStyleStateSynchronizer()
+    let offlineSelectionController: OfflineSelectionInteractionController
+    let measureController = MeasureMapInteractionController()
     private var streamTask: TaskCancellable?
     private var networkObservationTask: TaskCancellable?
     weak var mapView: MLNMapView?
     weak var pinPanGesture: UIPanGestureRecognizer?
-    private var activeDraggedPin: ActiveMeasurePin?
-    private var snappedMeasurePinWaypointID: String?
-    private var isLongPressActive: Bool = false
+    private var isCalloutLongPressActive: Bool = false
     private var hasDraggedDuringLongPress: Bool = false
     private var longPressBeganPoint: CGPoint?
     private static let longPressDragThreshold: CGFloat = 6.0
@@ -344,23 +337,14 @@ struct MapLibreView: UIViewRepresentable {
     private var isZoomMoveActive: Bool = false
     private var panStartWaypointID: String?
     private let snapFeedbackGenerator = UISelectionFeedbackGenerator()
-    private var measurePinDragOffset: CGPoint = .zero
-    private var isUserActivelyInteractingWithPins: Bool {
-      isLongPressActive || activeDraggedPin != nil || parent.viewModel.measureToolViewModel.isDraggingPin || activeDraggedSelectionCorner != nil
+    private var isUserActivelyInteractingWithTools: Bool {
+      isCalloutLongPressActive ||
+      measureController.isInteracting(measureViewModel: parent.viewModel.measureToolViewModel) ||
+      offlineSelectionController.isInteracting
     }
-    private var lastPanUpdateTime: CFTimeInterval = 0
+    private var lastCalloutLongPressUpdateTime: CFTimeInterval = 0
     private var lastCalloutTargetUpdateTime: CFTimeInterval = 0
-    private static let pinPanThrottleInterval: CFTimeInterval = 0.016
-
-    enum ActiveSelectionCorner {
-      case topLeft      // NW
-      case topRight     // NE
-      case bottomLeft   // SW
-      case bottomRight  // SE
-    }
-    private var activeDraggedSelectionCorner: ActiveSelectionCorner?
-    private var activeSelectionDragInitialBounds: GeographicBoundingBox?
-    private var activeSelectionDragCurrentBounds: GeographicBoundingBox?
+    private static let calloutLongPressThrottleInterval: CFTimeInterval = 0.016
     
     var lastTrackingMode: ChartTrackingMode = .free
     
@@ -376,6 +360,7 @@ struct MapLibreView: UIViewRepresentable {
     
     init(_ parent: MapLibreView) {
       self.parent = parent
+      self.offlineSelectionController = OfflineSelectionInteractionController(styleSynchronizer: styleSynchronizer)
       super.init()
     }
     
@@ -385,63 +370,30 @@ struct MapLibreView: UIViewRepresentable {
       networkObservationTask?.cancel()
       networkObservationTask = nil
     }
-    
-    func resolvedOfflineSelectionBounds(
-      isSelectionModeActive: Bool,
-      committedBounds: GeographicBoundingBox?
-    ) -> GeographicBoundingBox? {
-      guard isSelectionModeActive else { return nil }
-      return activeSelectionDragCurrentBounds ?? committedBounds
-    }
-    
-    /// Computes the minimal distance between a touch point and an inverted nautical map pin (checking both circular head and needle tip).
-    private func distanceToPin(touchPoint: CGPoint, tipPoint: CGPoint) -> CGFloat {
-      let headOffset = MarineMapPinShape.needleToHeadCenterOffset
-      let headCenter = CGPoint(x: tipPoint.x, y: tipPoint.y + headOffset)
-      let distHead = hypot(touchPoint.x - headCenter.x, touchPoint.y - headCenter.y)
-      let distTip = hypot(touchPoint.x - tipPoint.x, touchPoint.y - tipPoint.y)
-      return min(distHead, distTip)
-    }
 
-    /// Tests whether a screen touch point is within the touch hit target of Pin A or Pin B.
-    func hitTestMeasurePin(at point: CGPoint, in mapView: MLNMapView) -> ActiveMeasurePin? {
-      guard parent.viewModel.measureToolViewModel.isActive else { return nil }
-      let measureVM = parent.viewModel.measureToolViewModel
-      guard let startCoord = measureVM.startCoordinate,
-            let endCoord = measureVM.endCoordinate else { return nil }
-
-      let ptA = mapView.convert(startCoord, toPointTo: mapView)
-      let ptB = mapView.convert(endCoord, toPointTo: mapView)
-
-      let hitRadius = parent.marineTheme.metrics.mapHandleHitRadius
-      let minA = distanceToPin(touchPoint: point, tipPoint: ptA)
-      let minB = distanceToPin(touchPoint: point, tipPoint: ptB)
-
-      if minA <= hitRadius && minB <= hitRadius {
-        if measureVM.activePin == .start {
-          return .start
-        } else if measureVM.activePin == .end {
-          return .end
-        }
-        return minA <= minB ? .start : .end
-      } else if minA <= hitRadius {
-        return .start
-      } else if minB <= hitRadius {
-        return .end
-      }
-      return nil
-    }
+    // MARK: - Explicit Tool Gesture Routing
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
       if gestureRecognizer === pinPanGesture {
-        guard !isLongPressActive else { return false }
+        guard !isCalloutLongPressActive, !measureController.isLongPressingPin else { return false }
         guard let mapView = self.mapView else { return false }
         let touchPoint = gestureRecognizer.location(in: mapView)
+        let hitRadius = parent.marineTheme.metrics.mapHandleHitRadius
         if parent.viewModel.measureToolViewModel.isActive {
-          return hitTestMeasurePin(at: touchPoint, in: mapView) != nil
+          return measureController.shouldBeginPan(
+            at: touchPoint,
+            in: mapView,
+            measureViewModel: parent.viewModel.measureToolViewModel,
+            hitRadius: hitRadius
+          )
         }
         if parent.offlineSelectionViewModel.isSelectionModeActive {
-          return hitTestSelectionCorner(at: touchPoint, in: mapView) != nil
+          return offlineSelectionController.shouldBeginPan(
+            at: touchPoint,
+            in: mapView,
+            offlineViewModel: parent.offlineSelectionViewModel,
+            hitRadius: hitRadius
+          )
         }
         return false
       }
@@ -450,158 +402,84 @@ struct MapLibreView: UIViewRepresentable {
     
     @objc func handleTap(_ sender: UITapGestureRecognizer) {
       guard sender.state == .ended else { return }
-      if parent.viewModel.measureToolViewModel.isActive {
-        guard let mapView = sender.view as? MLNMapView else { return }
-        parent.viewModel.chartInteractedByUser()
-        let point = sender.location(in: mapView)
-        // Check if user tapped directly on Pin A or Pin B to select it
-        if let hitPin = hitTestMeasurePin(at: point, in: mapView) {
-          parent.viewModel.measureToolViewModel.activePin = hitPin
-          return
-        }
-        let coord = mapView.convert(point, toCoordinateFrom: mapView)
-        parent.viewModel.measureToolViewModel.handleMapTap(at: coord)
+      guard parent.viewModel.measureToolViewModel.isActive,
+            let mapView = sender.view as? MLNMapView else {
         return
       }
+      measureController.handleTap(
+        sender,
+        in: mapView,
+        measureViewModel: parent.viewModel.measureToolViewModel,
+        hitRadius: parent.marineTheme.metrics.mapHandleHitRadius,
+        onUserInteraction: { [weak self] in
+          self?.parent.viewModel.chartInteractedByUser()
+        }
+      )
     }
     
     @objc func handlePinPan(_ sender: UIPanGestureRecognizer) {
       guard let mapView = sender.view as? MLNMapView else { return }
 
-      // Route according to active measure tool pin drag
-      if activeDraggedPin != nil || parent.viewModel.measureToolViewModel.isActive {
-        handleMeasurePinPan(sender, in: mapView)
+      // 1. Active drag session takes strict precedence so `.changed` / `.ended` / `.cancelled`
+      // always complete inside their originating controller even if tool mode flips mid-gesture.
+      if measureController.isDraggingPin {
+        routePanToMeasure(sender, in: mapView)
+        return
+      }
+      if offlineSelectionController.isDraggingCorner {
+        routePanToOfflineSelection(sender, in: mapView)
         return
       }
 
-      if activeDraggedSelectionCorner != nil || (parent.offlineSelectionViewModel.isSelectionModeActive && hitTestSelectionCorner(at: sender.location(in: mapView), in: mapView) != nil) {
-        handleSelectionCornerPan(sender, in: mapView)
+      // 2. New drag session: route according to active modal tool
+      if parent.viewModel.measureToolViewModel.isActive {
+        routePanToMeasure(sender, in: mapView)
         return
       }
-    }
-
-    private func handleMeasurePinPan(_ sender: UIPanGestureRecognizer, in mapView: MLNMapView) {
-      let touchPoint = sender.location(in: mapView)
-
-      switch sender.state {
-      case .began:
-        guard let pin = hitTestMeasurePin(at: touchPoint, in: mapView) else { return }
-        activeDraggedPin = pin
-        parent.viewModel.measureToolViewModel.activePin = pin
-        parent.viewModel.measureToolViewModel.isDraggingPin = true
-        parent.viewModel.chartInteractedByUser()
-        snapFeedbackGenerator.prepare()
-
-        let currentCoord = (pin == .start)
-          ? parent.viewModel.measureToolViewModel.startCoordinate
-          : parent.viewModel.measureToolViewModel.endCoordinate
-        if let currentCoord = currentCoord {
-          let tipPoint = mapView.convert(currentCoord, toPointTo: mapView)
-          measurePinDragOffset = CGPoint(
-            x: touchPoint.x - tipPoint.x,
-            y: touchPoint.y - tipPoint.y
-          )
-          // Seed hysteresis only if the pin is actually resting on a waypoint (<= 1pt),
-          // so zooming out near an open-water pin never causes a false lock on grab.
-          snappedMeasurePinWaypointID = WaypointMagneticSnap.evaluate(
-            reticlePoint: tipPoint,
-            candidates: waypointSnapCandidates(in: mapView),
-            currentlySnappedID: nil,
-            attachRadius: 1.0,
-            detachHysteresis: 0
-          )?.waypointID
-        } else {
-          measurePinDragOffset = .zero
-          snappedMeasurePinWaypointID = nil
-        }
-        lastPanUpdateTime = CACurrentMediaTime()
-
-      case .changed:
-        guard let pin = activeDraggedPin else { return }
-        guard parent.viewModel.measureToolViewModel.isActive else {
-          activeDraggedPin = nil
-          snappedMeasurePinWaypointID = nil
-          measurePinDragOffset = .zero
-          parent.viewModel.measureToolViewModel.isDraggingPin = false
-          return
-        }
-
-        let now = CACurrentMediaTime()
-        guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { return }
-        lastPanUpdateTime = now
-
-        let rawTip = CGPoint(
-          x: touchPoint.x - measurePinDragOffset.x,
-          y: touchPoint.y - measurePinDragOffset.y
-        )
-        let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
-        let coord = resolveMeasurePinCoordinate(for: clampedTip, in: mapView)
-        switch pin {
-        case .start:
-          parent.viewModel.measureToolViewModel.updateStart(to: coord)
-        case .end:
-          parent.viewModel.measureToolViewModel.updateEnd(to: coord)
-        }
-
-      case .ended:
-        if let pin = activeDraggedPin {
-          let rawTip = CGPoint(
-            x: touchPoint.x - measurePinDragOffset.x,
-            y: touchPoint.y - measurePinDragOffset.y
-          )
-          let clampedTip = clampPointToMapBounds(rawTip, in: mapView)
-          let coord = resolveMeasurePinCoordinate(for: clampedTip, in: mapView)
-          switch pin {
-          case .start:
-            parent.viewModel.measureToolViewModel.updateStart(to: coord)
-          case .end:
-            parent.viewModel.measureToolViewModel.updateEnd(to: coord)
-          }
-        }
-        activeDraggedPin = nil
-        snappedMeasurePinWaypointID = nil
-        measurePinDragOffset = .zero
-        parent.viewModel.measureToolViewModel.isDraggingPin = false
-        ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
-
-      case .cancelled, .failed:
-        activeDraggedPin = nil
-        snappedMeasurePinWaypointID = nil
-        measurePinDragOffset = .zero
-        parent.viewModel.measureToolViewModel.isDraggingPin = false
-        ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
-
-      default:
-        break
+      if parent.offlineSelectionViewModel.isSelectionModeActive {
+        routePanToOfflineSelection(sender, in: mapView)
       }
     }
 
-    /// Resolves a measure pin tip screen position with the same waypoint magnetism and hysteresis
-    /// used by the chart aiming reticle, firing selection haptic feedback upon attaching to a waypoint.
-    private func resolveMeasurePinCoordinate(
-      for tipPoint: CGPoint,
-      in mapView: MLNMapView
-    ) -> CLLocationCoordinate2D {
-      if let snap = evaluateWaypointSnap(
-        at: tipPoint,
+    private func routePanToMeasure(_ sender: UIPanGestureRecognizer, in mapView: MLNMapView) {
+      let attachRadius = parent.marineTheme.isGloveMode
+        ? AppConstants.Map.waypointMagneticSnapGloveRadius
+        : AppConstants.Map.waypointMagneticSnapRadius
+      measureController.handlePan(
+        sender,
         in: mapView,
-        currentlySnappedID: snappedMeasurePinWaypointID
-      ) {
-        if snap.waypointID != snappedMeasurePinWaypointID {
-          snapFeedbackGenerator.selectionChanged()
+        measureViewModel: parent.viewModel.measureToolViewModel,
+        hitRadius: parent.marineTheme.metrics.mapHandleHitRadius,
+        attachRadius: attachRadius,
+        snapCandidatesProvider: { [weak self] map in
+          self?.waypointSnapCandidates(in: map) ?? []
+        },
+        onUserInteraction: { [weak self] in
+          self?.parent.viewModel.chartInteractedByUser()
+        },
+        onRequestVerticalFraming: { [weak self, weak mapView] request, sheetHeight in
+          guard let self, let mapView else { return }
+          self.shiftCameraToFitVerticalRange(
+            minY: request.minY,
+            maxY: request.maxY,
+            fallbackPoint: request.fallbackPoint,
+            fallbackBottomOffset: request.fallbackBottomOffset,
+            in: mapView,
+            sheetHeight: sheetHeight
+          )
         }
-        snappedMeasurePinWaypointID = snap.waypointID
-        return snap.coordinate
-      } else {
-        snappedMeasurePinWaypointID = nil
-        return mapView.convert(tipPoint, toCoordinateFrom: mapView)
-      }
+      )
     }
 
-    private func clampPointToMapBounds(_ point: CGPoint, in mapView: MLNMapView) -> CGPoint {
-      CGPoint(
-        x: min(max(point.x, 0), mapView.bounds.width),
-        y: min(max(point.y, 0), mapView.bounds.height)
+    private func routePanToOfflineSelection(_ sender: UIPanGestureRecognizer, in mapView: MLNMapView) {
+      offlineSelectionController.handlePan(
+        sender,
+        in: mapView,
+        offlineViewModel: parent.offlineSelectionViewModel,
+        hitRadius: parent.marineTheme.metrics.mapHandleHitRadius,
+        onUserInteraction: { [weak self] in
+          self?.parent.viewModel.chartInteractedByUser()
+        }
       )
     }
     
@@ -612,70 +490,32 @@ struct MapLibreView: UIViewRepresentable {
       if gestureRecognizer is UILongPressGestureRecognizer || otherGestureRecognizer is UILongPressGestureRecognizer {
         return false
       }
-      if isUserActivelyInteractingWithPins {
+      if isUserActivelyInteractingWithTools {
         return false
       }
       return true
     }
     
     @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
-      if sender.state == .ended || sender.state == .cancelled || sender.state == .failed {
-        // Guarantee isLongPressActive and measure pin drag session are reset, even if guards return early
-        if parent.viewModel.measureToolViewModel.isDraggingPin && !parent.viewModel.measureToolViewModel.isActive {
-          parent.viewModel.measureToolViewModel.isDraggingPin = false
+      // 1. Active long-press session takes strict precedence so `.changed` / `.ended` / `.cancelled`
+      // never jump across controllers if tool state changes mid-gesture.
+      if measureController.isLongPressingPin {
+        guard let mapView = sender.view as? MLNMapView else {
+          measureController.cancelActiveInteraction(measureViewModel: parent.viewModel.measureToolViewModel)
+          return
         }
-        isLongPressActive = false
+        routeLongPressToMeasure(sender, in: mapView)
+        return
+      }
+      if isCalloutLongPressActive {
+        handleCalloutLongPress(sender)
+        return
       }
 
+      // 2. New long-press session: route according to active tool state
       if parent.viewModel.measureToolViewModel.isActive {
         guard let mapView = sender.view as? MLNMapView else { return }
-        let touchPoint = sender.location(in: mapView)
-        // Technical Design Choice: Offset so the circular round head arrives directly under the user's finger,
-        // leaving the needle tip pointing above the finger for full chart feature visibility.
-        let tipPoint = CGPoint(
-          x: touchPoint.x,
-          y: touchPoint.y - MarineMapPinShape.needleToHeadCenterOffset
-        )
-        let clampedTip = clampPointToMapBounds(tipPoint, in: mapView)
-
-        switch sender.state {
-        case .began:
-          parent.viewModel.measureToolViewModel.isDraggingPin = true
-          isLongPressActive = true
-          snappedMeasurePinWaypointID = nil
-          snapFeedbackGenerator.prepare()
-          parent.viewModel.chartInteractedByUser()
-          let coord = resolveMeasurePinCoordinate(for: clampedTip, in: mapView)
-          parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
-          lastPanUpdateTime = CACurrentMediaTime()
-
-        case .changed:
-          let now = CACurrentMediaTime()
-          guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { return }
-          lastPanUpdateTime = now
-
-          parent.viewModel.chartInteractedByUser()
-          let coord = resolveMeasurePinCoordinate(for: clampedTip, in: mapView)
-          parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
-
-        case .ended:
-          parent.viewModel.chartInteractedByUser()
-          let coord = resolveMeasurePinCoordinate(for: clampedTip, in: mapView)
-          parent.viewModel.measureToolViewModel.handleMapLongPress(at: coord)
-          snappedMeasurePinWaypointID = nil
-          parent.viewModel.measureToolViewModel.isDraggingPin = false
-          isLongPressActive = false
-          ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
-
-        case .cancelled, .failed:
-          snappedMeasurePinWaypointID = nil
-          parent.viewModel.measureToolViewModel.isDraggingPin = false
-          isLongPressActive = false
-          ensureMeasurePinsVisible(in: mapView, sheetHeight: parent.viewModel.measureToolViewModel.lastSheetHeight)
-
-        default:
-          break
-        }
+        routeLongPressToMeasure(sender, in: mapView)
         return
       }
 
@@ -683,17 +523,53 @@ struct MapLibreView: UIViewRepresentable {
       /// Prevents long-press waypoint popover creation whenever a MarineActionConfirmationCard is active
       /// (e.g. anchor repositioning or offline area selection).
       guard !parent.viewModel.isActionConfirmationCardActive else { return }
+      handleCalloutLongPress(sender)
+    }
+
+    private func routeLongPressToMeasure(_ sender: UILongPressGestureRecognizer, in mapView: MLNMapView) {
+      let attachRadius = parent.marineTheme.isGloveMode
+        ? AppConstants.Map.waypointMagneticSnapGloveRadius
+        : AppConstants.Map.waypointMagneticSnapRadius
+      measureController.handleLongPress(
+        sender,
+        in: mapView,
+        measureViewModel: parent.viewModel.measureToolViewModel,
+        attachRadius: attachRadius,
+        snapCandidatesProvider: { [weak self] map in
+          self?.waypointSnapCandidates(in: map) ?? []
+        },
+        onUserInteraction: { [weak self] in
+          self?.parent.viewModel.chartInteractedByUser()
+        },
+        onRequestVerticalFraming: { [weak self, weak mapView] request, sheetHeight in
+          guard let self, let mapView else { return }
+          self.shiftCameraToFitVerticalRange(
+            minY: request.minY,
+            maxY: request.maxY,
+            fallbackPoint: request.fallbackPoint,
+            fallbackBottomOffset: request.fallbackBottomOffset,
+            in: mapView,
+            sheetHeight: sheetHeight
+          )
+        }
+      )
+    }
+
+    private func handleCalloutLongPress(_ sender: UILongPressGestureRecognizer) {
+      if sender.state == .ended || sender.state == .cancelled || sender.state == .failed {
+        isCalloutLongPressActive = false
+      }
       
       guard let mapView = sender.view as? MLNMapView else { return }
       let touchPoint = sender.location(in: mapView)
 
       switch sender.state {
       case .began:
-        isLongPressActive = true
+        isCalloutLongPressActive = true
         hasDraggedDuringLongPress = false
         longPressBeganPoint = touchPoint
         isMagneticRecentering = false
-        lastPanUpdateTime = CACurrentMediaTime()
+        lastCalloutLongPressUpdateTime = CACurrentMediaTime()
         snapFeedbackGenerator.prepare()
         // Disable active tracking mode during target inspection
         parent.viewModel.chartInteractedByUser()
@@ -750,8 +626,8 @@ struct MapLibreView: UIViewRepresentable {
         // Update crosshair under finger as the user drags before releasing (with light waypoint magnetism)
         guard parent.viewModel.calloutViewModel.aimingCoordinate != nil else { break }
         let now = CACurrentMediaTime()
-        guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { break }
-        lastPanUpdateTime = now
+        guard now - lastCalloutLongPressUpdateTime >= Self.calloutLongPressThrottleInterval else { break }
+        lastCalloutLongPressUpdateTime = now
 
         let currentTouchPoint = sender.location(in: mapView)
         if !hasDraggedDuringLongPress {
@@ -787,7 +663,7 @@ struct MapLibreView: UIViewRepresentable {
         parent.viewModel.calloutViewModel.updateAimingPreview(at: updatedCoordinate, waypointID: updatedWaypointID)
 
       case .ended:
-        isLongPressActive = false
+        isCalloutLongPressActive = false
         longPressBeganPoint = nil
         if let currentAimingCoordinate = parent.viewModel.calloutViewModel.aimingCoordinate {
           let resolvedCoordinate: CLLocationCoordinate2D
@@ -851,7 +727,7 @@ struct MapLibreView: UIViewRepresentable {
         }
 
       case .cancelled, .failed:
-        isLongPressActive = false
+        isCalloutLongPressActive = false
         hasDraggedDuringLongPress = false
         longPressBeganPoint = nil
         if parent.viewModel.calloutViewModel.aimingCoordinate != nil {
@@ -882,63 +758,23 @@ struct MapLibreView: UIViewRepresentable {
 
       let effectiveSheetHeight = sheetHeight > 0 ? sheetHeight : (parent.marineTheme.isGloveMode ? 260.0 : 220.0)
       let dialogTopY = mapView.bounds.height - effectiveSheetHeight - safeBottom
-      let targetPinBottomY = dialogTopY - marginAboveSheet
+      let targetPinBottomY = max(topClearance, dialogTopY - marginAboveSheet)
       let effectiveFallbackOffset = fallbackBottomOffset ?? MarinePinGraphicsFactory.pinHeight
 
-      var deltaY: CGFloat = 0.0
+      let deltaY = MeasureMapInteractionController.verticalShiftToFitRange(
+        minY: minY,
+        maxY: maxY,
+        fallbackPointY: fallbackPoint?.y,
+        fallbackBottomOffset: effectiveFallbackOffset,
+        visibleVerticalRange: topClearance...targetPinBottomY
+      )
 
-      if maxY > targetPinBottomY {
-        let neededShiftUp = maxY - targetPinBottomY
-        if minY - neededShiftUp >= topClearance {
-          deltaY = neededShiftUp
-        } else if let fallback = fallbackPoint {
-          let fallbackBottom = fallback.y + effectiveFallbackOffset
-          if fallbackBottom > targetPinBottomY {
-            deltaY = fallbackBottom - targetPinBottomY
-          } else if fallback.y < topClearance {
-            deltaY = fallback.y - topClearance
-          }
-        }
-      } else if minY < topClearance {
-        let neededShiftDown = minY - topClearance
-        if maxY - neededShiftDown <= targetPinBottomY {
-          deltaY = neededShiftDown
-        } else if let fallback = fallbackPoint {
-          let fallbackBottom = fallback.y + effectiveFallbackOffset
-          if fallback.y < topClearance {
-            deltaY = fallback.y - topClearance
-          } else if fallbackBottom > targetPinBottomY {
-            deltaY = fallbackBottom - targetPinBottomY
-          }
-        }
-      }
-
-      if abs(deltaY) > 1.0 {
+      if deltaY != 0.0 {
         let currentCenterPoint = mapView.convert(mapView.centerCoordinate, toPointTo: mapView)
         let newCenterPoint = CGPoint(x: currentCenterPoint.x, y: currentCenterPoint.y + deltaY)
         let newCenterCoordinate = mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
         mapView.setCenter(newCenterCoordinate, animated: true)
       }
-    }
-
-    private func ensureMeasurePinsVisible(in mapView: MLNMapView, sheetHeight: CGFloat = 220) {
-      guard parent.viewModel.measureToolViewModel.isActive else { return }
-      guard let startCoord = parent.viewModel.measureToolViewModel.startCoordinate,
-            let endCoord = parent.viewModel.measureToolViewModel.endCoordinate else { return }
-
-      let pinHeight: CGFloat = MarinePinGraphicsFactory.pinHeight
-      let ptA = mapView.convert(startCoord, toPointTo: mapView)
-      let ptB = mapView.convert(endCoord, toPointTo: mapView)
-      let activePt = parent.viewModel.measureToolViewModel.activePin == .start ? ptA : ptB
-
-      shiftCameraToFitVerticalRange(
-        minY: min(ptA.y, ptB.y),
-        maxY: max(ptA.y + pinHeight, ptB.y + pinHeight),
-        fallbackPoint: activePt,
-        fallbackBottomOffset: pinHeight,
-        in: mapView,
-        sheetHeight: sheetHeight
-      )
     }
 
     /// Pure geometric projection computing the camera center coordinate required for `coordinate` to appear at `targetPoint` on screen.
@@ -1085,8 +921,23 @@ struct MapLibreView: UIViewRepresentable {
       parent.viewModel.measureToolViewModel.onEnsureVisibleRequested = { [weak self, weak mapView] sheetHeight in
         guard let self = self, let mapView = mapView else { return }
         // Never move the camera while the user is actively touching or dragging on the map!
-        guard !self.isUserActivelyInteractingWithPins else { return }
-        self.ensureMeasurePinsVisible(in: mapView, sheetHeight: sheetHeight)
+        guard !self.isUserActivelyInteractingWithTools else { return }
+        self.measureController.requestEnsureVisibleIfNeeded(
+          in: mapView,
+          measureViewModel: self.parent.viewModel.measureToolViewModel,
+          sheetHeight: sheetHeight,
+          onRequestVerticalFraming: { [weak self, weak mapView] request, resolvedSheetHeight in
+            guard let self, let mapView else { return }
+            self.shiftCameraToFitVerticalRange(
+              minY: request.minY,
+              maxY: request.maxY,
+              fallbackPoint: request.fallbackPoint,
+              fallbackBottomOffset: request.fallbackBottomOffset,
+              in: mapView,
+              sheetHeight: resolvedSheetHeight
+            )
+          }
+        )
       }
 
       networkObservationTask?.cancel()
@@ -1404,150 +1255,6 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
     
-    // MARK: - Offline Selection Corner Drag Gestures
-
-    /// Tests whether a screen touch point is within the touch hit target of one of the 4 selection corners.
-    func hitTestSelectionCorner(at point: CGPoint, in mapView: MLNMapView) -> ActiveSelectionCorner? {
-      guard parent.offlineSelectionViewModel.isSelectionModeActive,
-            let bounds = parent.offlineSelectionViewModel.selectedBounds else {
-        return nil
-      }
-
-      let nw = CLLocationCoordinate2D(latitude: bounds.northEast.latitude, longitude: bounds.southWest.longitude)
-      let ne = CLLocationCoordinate2D(latitude: bounds.northEast.latitude, longitude: bounds.northEast.longitude)
-      let se = CLLocationCoordinate2D(latitude: bounds.southWest.latitude, longitude: bounds.northEast.longitude)
-      let sw = CLLocationCoordinate2D(latitude: bounds.southWest.latitude, longitude: bounds.southWest.longitude)
-
-      let ptNW = mapView.convert(nw, toPointTo: mapView)
-      let ptNE = mapView.convert(ne, toPointTo: mapView)
-      let ptSE = mapView.convert(se, toPointTo: mapView)
-      let ptSW = mapView.convert(sw, toPointTo: mapView)
-
-      let hitRadius = parent.marineTheme.metrics.mapHandleHitRadius
-
-      let distNW = hypot(point.x - ptNW.x, point.y - ptNW.y)
-      let distNE = hypot(point.x - ptNE.x, point.y - ptNE.y)
-      let distSE = hypot(point.x - ptSE.x, point.y - ptSE.y)
-      let distSW = hypot(point.x - ptSW.x, point.y - ptSW.y)
-
-      let corners: [(ActiveSelectionCorner, CGFloat)] = [
-        (.topLeft, distNW),
-        (.topRight, distNE),
-        (.bottomRight, distSE),
-        (.bottomLeft, distSW)
-      ]
-
-      if let closest = corners.min(by: { $0.1 < $1.1 }), closest.1 <= hitRadius {
-        return closest.0
-      }
-      return nil
-    }
-
-    nonisolated static func computeUpdatedBounds(
-      from current: GeographicBoundingBox,
-      dragging corner: ActiveSelectionCorner,
-      to coord: CLLocationCoordinate2D
-    ) -> GeographicBoundingBox {
-      // Convert physical minimum span (500 m) to latitude/longitude degrees accounting for cos(latitude) Mercator foreshortening
-      let earthRadiusMeters = AppConstants.Map.earthMeanRadius.converted(to: .meters).value
-      let minMeters = AppConstants.Cartography.Offline.minimumSelectionSpan.converted(to: .meters).value
-      let minLatSpan = Measurement(value: minMeters / earthRadiusMeters, unit: UnitAngle.radians)
-        .converted(to: .degrees).value
-      let midLatRadians = Measurement(value: current.center.latitude, unit: UnitAngle.degrees)
-        .converted(to: .radians).value
-      let cosLat = max(abs(cos(midLatRadians)), 0.01)
-      let minLonSpan = minLatSpan / cosLat
-
-      var sw = current.southWest
-      var ne = current.northEast
-
-      switch corner {
-      case .topLeft: // NW: updates latitude of North, longitude of West
-        ne.latitude = max(coord.latitude, sw.latitude + minLatSpan)
-        sw.longitude = min(coord.longitude, ne.longitude - minLonSpan)
-      case .topRight: // NE: updates latitude of North, longitude of East
-        ne.latitude = max(coord.latitude, sw.latitude + minLatSpan)
-        ne.longitude = max(coord.longitude, sw.longitude + minLonSpan)
-      case .bottomLeft: // SW: updates latitude of South, longitude of West
-        sw.latitude = min(coord.latitude, ne.latitude - minLatSpan)
-        sw.longitude = min(coord.longitude, ne.longitude - minLonSpan)
-      case .bottomRight: // SE: updates latitude of South, longitude of East
-        sw.latitude = min(coord.latitude, ne.latitude - minLatSpan)
-        ne.longitude = max(coord.longitude, sw.longitude + minLonSpan)
-      }
-
-      return GeographicBoundingBox(southWest: sw, northEast: ne)
-    }
-
-    private func handleSelectionCornerPan(_ sender: UIPanGestureRecognizer, in mapView: MLNMapView) {
-      guard parent.offlineSelectionViewModel.isSelectionModeActive else {
-        activeDraggedSelectionCorner = nil
-        activeSelectionDragInitialBounds = nil
-        activeSelectionDragCurrentBounds = nil
-        return
-      }
-
-      let touchPoint = sender.location(in: mapView)
-
-      switch sender.state {
-      case .began:
-        guard let corner = hitTestSelectionCorner(at: touchPoint, in: mapView),
-              let initialBounds = parent.offlineSelectionViewModel.selectedBounds else { return }
-        activeDraggedSelectionCorner = corner
-        activeSelectionDragInitialBounds = initialBounds
-        activeSelectionDragCurrentBounds = initialBounds
-        lastPanUpdateTime = CACurrentMediaTime()
-        parent.viewModel.chartInteractedByUser()
-
-      case .changed:
-        guard let corner = activeDraggedSelectionCorner,
-              let initialBounds = activeSelectionDragInitialBounds else { return }
-        let now = CACurrentMediaTime()
-        guard now - lastPanUpdateTime >= Self.pinPanThrottleInterval else { return }
-        lastPanUpdateTime = now
-
-        let coord = mapView.convert(touchPoint, toCoordinateFrom: mapView)
-        let updatedBounds = Self.computeUpdatedBounds(from: initialBounds, dragging: corner, to: coord)
-        activeSelectionDragCurrentBounds = updatedBounds
-
-        // Isolated visual update: directly mutate MapLibre vector layers to prevent SwiftUI render storm
-        // while keeping `styleSynchronizer.lastSnapshot` aligned with the rendered geometry.
-        styleSynchronizer.updateOfflineSelectionBounds(updatedBounds, in: mapView.style)
-
-      case .ended:
-        let committedBounds: GeographicBoundingBox?
-        if let corner = activeDraggedSelectionCorner,
-           let initialBounds = activeSelectionDragInitialBounds {
-          let coord = mapView.convert(touchPoint, toCoordinateFrom: mapView)
-          committedBounds = Self.computeUpdatedBounds(from: initialBounds, dragging: corner, to: coord)
-        } else {
-          committedBounds = activeSelectionDragCurrentBounds
-        }
-        activeDraggedSelectionCorner = nil
-        activeSelectionDragInitialBounds = nil
-        activeSelectionDragCurrentBounds = nil
-        if let finalBounds = committedBounds {
-          if styleSynchronizer.lastSnapshot?.offlineSelectionBounds != finalBounds {
-            styleSynchronizer.updateOfflineSelectionBounds(finalBounds, in: mapView.style)
-          }
-          parent.offlineSelectionViewModel.updateBoundingBox(finalBounds)
-        }
-
-      case .cancelled, .failed:
-        let restoredBounds = parent.offlineSelectionViewModel.isSelectionModeActive
-          ? parent.offlineSelectionViewModel.selectedBounds
-          : nil
-        // Restore MapLibre visual layers and diff cache to the uncommitted model bounds
-        styleSynchronizer.updateOfflineSelectionBounds(restoredBounds, in: mapView.style)
-        activeDraggedSelectionCorner = nil
-        activeSelectionDragInitialBounds = nil
-        activeSelectionDragCurrentBounds = nil
-
-      default:
-        break
-      }
-    }
-    
     // Capture user's chart movements to sync the final camera state and evaluate tracking mode persistence.
     func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
       let wasZoomMove = self.isZoomMoveActive || isZoomReason(reason)
@@ -1560,7 +1267,7 @@ struct MapLibreView: UIViewRepresentable {
       // or gently recenter onto a magnetically snapped waypoint once manual panning settles.
       // Skip only when this callback is a synchronous re-entrant cancellation from starting a magnetic recenter.
       if !self.isStartingMagneticRecenter &&
-         !self.isLongPressActive &&
+         !self.isCalloutLongPressActive &&
          self.parent.viewModel.calloutViewModel.isCalloutVisible &&
          !self.parent.viewModel.measureToolViewModel.isActive,
          let reticlePoint = reticleScreenPoint(in: mapView) {
