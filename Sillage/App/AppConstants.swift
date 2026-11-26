@@ -46,10 +46,15 @@ public enum AppConstants {
     
     public struct Offline {
       public static let maxDownloadArea = Measurement(value: 15000, unit: UnitArea.squareNauticalMiles)
+      /// Minimum geographic span (500 m) enforced along both latitude and longitude axes when resizing an offline selection box.
+      nonisolated public static let minimumSelectionSpan = Measurement(value: 500, unit: UnitLength.meters)
     }
   }
 
   public struct Map {
+    /// Standard IUGG mean spherical Earth radius (6,371,000 m) used across nautical spherical and loxodromic calculations.
+    nonisolated public static let earthMeanRadius = Measurement(value: 6_371_000.0, unit: UnitLength.meters)
+
     /// Throttling duration for high-frequency map region projection and telemetry updates (e.g. callout / overlay calculations).
     nonisolated public static let regionThrottleInterval: Duration = .milliseconds(100)
 

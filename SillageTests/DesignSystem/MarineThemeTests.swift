@@ -82,9 +82,11 @@ final class MarineThemeTests: XCTestCase {
   func testGloveMode_IncreasesTouchTargetOnly() {
     XCTAssertFalse(MarineTheme.standard.isGloveMode)
     XCTAssertEqual(MarineTheme.standard.minTouchTarget, 44)
+    XCTAssertEqual(MarineTheme.standard.metrics.mapHandleHitRadius, 36.0)
 
     XCTAssertTrue(MarineTheme.gloveMode.isGloveMode)
     XCTAssertEqual(MarineTheme.gloveMode.minTouchTarget, 66)
+    XCTAssertEqual(MarineTheme.gloveMode.metrics.mapHandleHitRadius, 48.0)
   }
 
   func testEquatableAndHashable_DifferentiatesGloveModeWithPresetIdentity() {

@@ -50,7 +50,7 @@ extension CLLocationCoordinate2D: @retroactive Codable {
 }
 
 extension CLLocationCoordinate2D {
-  private static let earthRadius = Measurement<UnitLength>(value: 6371000.0, unit: .meters)
+  private static let earthRadius = AppConstants.Map.earthMeanRadius
 
   /// Calculates the Great Circle distance from this coordinate to another coordinate using the Haversine formula.
   /// Pure value-type calculation avoiding heap allocations of `CLLocation`.

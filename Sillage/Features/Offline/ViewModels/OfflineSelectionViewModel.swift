@@ -81,6 +81,10 @@ final class OfflineSelectionViewModel {
   }
   var zoomMax: Int = AppConstants.Cartography.Zoom.defaultOfflineZoomMax
 
+  /// Optional screen-accurate bounds provider registered by the active map view to compute a North-Up centered crop box upon entering selection mode.
+  @ObservationIgnored
+  var defaultSelectionBoundsProvider: (() -> GeographicBoundingBox?)?
+
   @ObservationIgnored
   private var calculationTask: Task<Void, Never>?
 
@@ -268,8 +272,8 @@ final class OfflineSelectionViewModel {
 
     self.isSelectionModeActive = true
 
-    if let initialBounds {
-      self.updateBoundingBox(initialBounds)
+    if let resolvedBounds = initialBounds ?? defaultSelectionBoundsProvider?() {
+      self.updateBoundingBox(resolvedBounds)
     } else {
       self.selectedBounds = nil
       self.estimatedArea = nil

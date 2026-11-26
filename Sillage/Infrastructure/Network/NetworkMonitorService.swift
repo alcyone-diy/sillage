@@ -21,6 +21,10 @@ import MapLibre
 import OSLog
 import Observation
 
+extension Notification.Name {
+  nonisolated static let networkDidReconnect = Notification.Name("NetworkDidReconnect")
+}
+
 @MainActor
 protocol NetworkMonitorServiceProtocol: AnyObject {
   var isConnected: Bool { get }
@@ -52,7 +56,7 @@ final class NetworkMonitorService: NetworkMonitorServiceProtocol, @unchecked Sen
           }
           
           if connected {
-            NotificationCenter.default.post(name: NSNotification.Name("NetworkDidReconnect"), object: nil)
+            NotificationCenter.default.post(name: .networkDidReconnect, object: nil)
           }
         }
       }

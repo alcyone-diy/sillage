@@ -103,6 +103,9 @@ struct MarineTheme: Equatable, Hashable {
 
   struct Metrics {
     let touchTarget: CGFloat
+    /// Touch hit-test radius around interactive map handles (measure pins, offline selection corners).
+    /// Standard 36pt radius = 72pt diameter; Glove Mode 48pt radius = 96pt diameter.
+    let mapHandleHitRadius: CGFloat
     
     /// The visual size of the interaction handles, dynamically adjusted for Glove Mode visibility.
     let handleSize: CGFloat
@@ -147,6 +150,7 @@ struct MarineTheme: Equatable, Hashable {
   var metrics: Metrics {
     Metrics(
       touchTarget: minTouchTarget,
+      mapHandleHitRadius: isGloveMode ? 48.0 : 36.0,
       handleSize: isGloveMode ? 36.0 : 24.0,
       calloutHeaderBadgeSize: isGloveMode ? 44.0 : 36.0,
       closeButtonCircleSize: isGloveMode ? 36.0 : 28.0

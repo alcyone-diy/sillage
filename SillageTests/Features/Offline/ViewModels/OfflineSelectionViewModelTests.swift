@@ -1803,9 +1803,56 @@ final class OfflineSelectionViewModelTests: XCTestCase {
     sut.startNewSelection()
 
     XCTAssertTrue(sut.isSelectionModeActive)
-    XCTAssertNil(sut.selectedBounds, "selectedBounds is left nil so MapLibreView can calculate screen-accurate default bounds")
+    XCTAssertNil(sut.selectedBounds, "selectedBounds remains nil when no defaultSelectionBoundsProvider is registered")
     XCTAssertNil(sut.estimatedArea)
     XCTAssertFalse(sut.isValidSize)
+  }
+
+  func testStartNewSelection_withDefaultSelectionBoundsProvider_initializesBoundsSynchronously() {
+    let (sut, _, _, _, _, _, _, _) = makeSUT(setupVisibleBounds: true)
+    let projected = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 46.10, longitude: -1.25),
+      northEast: CLLocationCoordinate2D(latitude: 46.20, longitude: -1.10)
+    )
+    sut.defaultSelectionBoundsProvider = { projected }
+
+    sut.startNewSelection()
+
+    XCTAssertTrue(sut.isSelectionModeActive)
+    XCTAssertEqual(sut.selectedBounds, projected)
+  }
+
+  func testComputeUpdatedBounds_scalesMinimumLongitudeSpanByCosineLatitude() {
+    let equatorialBox = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: -0.05, longitude: 0.0),
+      northEast: CLLocationCoordinate2D(latitude: 0.05, longitude: 0.1)
+    )
+    let highLatBox = GeographicBoundingBox(
+      southWest: CLLocationCoordinate2D(latitude: 59.95, longitude: 10.0),
+      northEast: CLLocationCoordinate2D(latitude: 60.05, longitude: 10.1)
+    )
+
+    // Attempt to invert both boxes by dragging NE far south-west of SW
+    let clampedEquatorial = MapLibreView.Coordinator.computeUpdatedBounds(
+      from: equatorialBox,
+      dragging: .topRight,
+      to: CLLocationCoordinate2D(latitude: -1.0, longitude: -1.0)
+    )
+    let clampedHighLat = MapLibreView.Coordinator.computeUpdatedBounds(
+      from: highLatBox,
+      dragging: .topRight,
+      to: CLLocationCoordinate2D(latitude: 59.0, longitude: 9.0)
+    )
+
+    let eqLatSpan = clampedEquatorial.northEast.latitude - clampedEquatorial.southWest.latitude
+    let eqLonSpan = clampedEquatorial.northEast.longitude - clampedEquatorial.southWest.longitude
+    let highLatSpan = clampedHighLat.northEast.latitude - clampedHighLat.southWest.latitude
+    let highLonSpan = clampedHighLat.northEast.longitude - clampedHighLat.southWest.longitude
+
+    // Latitude span corresponds to ~500m everywhere (~0.0045°), whereas at 60°N cos(60°) = 0.5 doubles longitude span
+    XCTAssertEqual(eqLatSpan, highLatSpan, accuracy: 1e-6)
+    XCTAssertEqual(eqLonSpan, eqLatSpan, accuracy: 1e-6)
+    XCTAssertEqual(highLonSpan, eqLonSpan * 2.0, accuracy: 1e-4)
   }
 
   func testStartNewSelection_withExplicitBounds_setsProvidedBounds() {

@@ -343,7 +343,7 @@ public struct GeographicBoundingBox: Sendable, Equatable, Hashable, Codable {
   /// Exact spherical zone area: `A = R² * Δλ_rad * (sin(φ_max) - sin(φ_min))`.
   /// Correctly handles full-globe `360°` longitudinal spans and anti-meridian crossings.
   public nonisolated var estimatedArea: Measurement<UnitArea> {
-    let earthRadiusMeters = 6_371_000.0
+    let earthRadiusMeters = AppConstants.Map.earthMeanRadius.converted(to: .meters).value
     let minLat = max(-90.0, min(90.0, min(southWest.latitude, northEast.latitude)))
     let maxLat = max(-90.0, min(90.0, max(southWest.latitude, northEast.latitude)))
 

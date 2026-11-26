@@ -12,7 +12,7 @@ import CoreLocation
 
 extension CLLocationCoordinate2D {
 
-  private static let earthRadius = Measurement<UnitLength>(value: 6371000.0, unit: .meters)
+  private static let earthRadius = AppConstants.Map.earthMeanRadius
 
   /// Generates a mathematically closed polygon (circle) of coordinates representing a radius around a center point.
   /// - Parameter radius: The physical radius as a `Measurement<UnitLength>`.
