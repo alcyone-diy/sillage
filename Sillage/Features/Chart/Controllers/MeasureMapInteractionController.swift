@@ -130,51 +130,6 @@ final class MeasureMapInteractionController {
     )
   }
 
-  /// Pure screen-space vertical camera shift calculation fitting `[minY, maxY]` inside `visibleVerticalRange`.
-  /// Accepts pre-resolved screen clearance bounds (`topClearance...bottomClearance`) rather than `sheetHeight`,
-  /// keeping it independent of iPhone bottom sheets vs iPad lateral drawers.
-  /// Returns `0` when the vertical shift is sub-point (`<= 1pt`).
-  nonisolated static func verticalShiftToFitRange(
-    minY: CGFloat,
-    maxY: CGFloat,
-    fallbackPointY: CGFloat?,
-    fallbackBottomOffset: CGFloat,
-    visibleVerticalRange: ClosedRange<CGFloat>
-  ) -> CGFloat {
-    let topClearance = visibleVerticalRange.lowerBound
-    let targetBottomY = visibleVerticalRange.upperBound
-
-    var deltaY: CGFloat = 0.0
-
-    if maxY > targetBottomY {
-      let neededShiftUp = maxY - targetBottomY
-      if minY - neededShiftUp >= topClearance {
-        deltaY = neededShiftUp
-      } else if let fallbackY = fallbackPointY {
-        let fallbackBottom = fallbackY + fallbackBottomOffset
-        if fallbackBottom > targetBottomY {
-          deltaY = fallbackBottom - targetBottomY
-        } else if fallbackY < topClearance {
-          deltaY = fallbackY - topClearance
-        }
-      }
-    } else if minY < topClearance {
-      let neededShiftDown = minY - topClearance
-      if maxY - neededShiftDown <= targetBottomY {
-        deltaY = neededShiftDown
-      } else if let fallbackY = fallbackPointY {
-        let fallbackBottom = fallbackY + fallbackBottomOffset
-        if fallbackY < topClearance {
-          deltaY = fallbackY - topClearance
-        } else if fallbackBottom > targetBottomY {
-          deltaY = fallbackBottom - targetBottomY
-        }
-      }
-    }
-
-    return abs(deltaY) > 1.0 ? deltaY : 0.0
-  }
-
   // MARK: - MapLibre Projection & Gesture Handling
 
   func hitTestPin(

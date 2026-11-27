@@ -12,7 +12,7 @@ import CoreGraphics
 import CoreLocation
 
 /// Projected waypoint candidate evaluated for magnetic reticle snapping.
-struct WaypointSnapCandidate: Sendable {
+struct WaypointSnapCandidate: Equatable, Sendable {
   let id: String
   let coordinate: CLLocationCoordinate2D
   let screenPoint: CGPoint
@@ -25,8 +25,76 @@ struct WaypointSnapResult: Equatable, Sendable {
   let visualOffset: CGSize
 }
 
-/// Pure screen-space evaluator for light magnetic reticle snapping to visible waypoints with detach hysteresis.
+/// Pure screen-space evaluator and candidate builder for light magnetic reticle snapping to visible waypoints.
 enum WaypointMagneticSnap {
+
+  /// Returns whether `coordinate` lies within the visible geographic bounds expanded by a 10% safety margin,
+  /// handling viewports that cross the ±180° antimeridian.
+  static func isCoordinateNearVisibleBounds(
+    _ coordinate: CLLocationCoordinate2D,
+    southWest: CLLocationCoordinate2D,
+    northEast: CLLocationCoordinate2D
+  ) -> Bool {
+    let latSpan = max(northEast.latitude - southWest.latitude, 0.0)
+    let latMargin = latSpan * 0.1
+    guard coordinate.latitude >= southWest.latitude - latMargin &&
+          coordinate.latitude <= northEast.latitude + latMargin else {
+      return false
+    }
+
+    if southWest.longitude <= northEast.longitude {
+      let lonSpan = northEast.longitude - southWest.longitude
+      let lonMargin = lonSpan * 0.1
+      return coordinate.longitude >= southWest.longitude - lonMargin &&
+             coordinate.longitude <= northEast.longitude + lonMargin
+    } else {
+      // Viewport crosses the antimeridian: accept either side
+      return coordinate.longitude >= southWest.longitude ||
+             coordinate.longitude <= northEast.longitude
+    }
+  }
+
+  /// Builds projected snap candidates from visible and GoTo waypoints, excluding active drafts and deduplicating IDs.
+  static func makeCandidates(
+    visibleWaypoints: [WaypointVisualState],
+    goToWaypoint: WaypointVisualState?,
+    draftWaypointID: String?,
+    southWest: CLLocationCoordinate2D,
+    northEast: CLLocationCoordinate2D,
+    project: (CLLocationCoordinate2D) -> CGPoint
+  ) -> [WaypointSnapCandidate] {
+    var candidates: [WaypointSnapCandidate] = []
+
+    for wp in visibleWaypoints where !wp.isDraft && wp.id != draftWaypointID {
+      guard isCoordinateNearVisibleBounds(wp.coordinate, southWest: southWest, northEast: northEast) else {
+        continue
+      }
+      candidates.append(
+        WaypointSnapCandidate(
+          id: wp.id,
+          coordinate: wp.coordinate,
+          screenPoint: project(wp.coordinate)
+        )
+      )
+    }
+
+    if let goTo = goToWaypoint,
+       !goTo.isDraft,
+       goTo.id != draftWaypointID,
+       isCoordinateNearVisibleBounds(goTo.coordinate, southWest: southWest, northEast: northEast),
+       !candidates.contains(where: { $0.id == goTo.id }) {
+      candidates.append(
+        WaypointSnapCandidate(
+          id: goTo.id,
+          coordinate: goTo.coordinate,
+          screenPoint: project(goTo.coordinate)
+        )
+      )
+    }
+
+    return candidates
+  }
+
   /// Evaluates whether the reticle at `reticlePoint` should magnetically attach to or stay locked on a waypoint.
   /// Hysteresis prevents rapid attach/detach oscillation at the boundary in rough marine conditions.
   static func evaluate(

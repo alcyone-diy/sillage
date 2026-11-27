@@ -8,27 +8,25 @@
 //  See LICENSE file in the project root for full license information.
 //
 
-import SwiftUI
-import MapLibre
 import CoreLocation
+import MapLibre
 import OSLog
-import QuartzCore
+import SwiftUI
 
 struct MapLibreView: UIViewRepresentable {
-  
+
   @Environment(\.marineTheme) var marineTheme
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(OfflineSelectionViewModel.self) private var offlineSelectionViewModel
   var viewModel: ChartViewModel
-  
-  func makeUIView(context: Context) -> MLNMapView {
 
-    // Initialization of the MapLibre view without a frame
+  func makeUIView(context: Context) -> MLNMapView {
     let mapView = MarineMapView(frame: .zero)
-    
+    let coordinator = context.coordinator
+
     // Anchor all zoom gestures (pinch, one-finger quick zoom, double-tap, two-finger tap)
     // to the active nautical crosshair so zooming never drifts the aimed point off the reticle.
-    mapView.customGestureAnchorProvider = { [weak coordinator = context.coordinator, weak mapView] gesture in
+    mapView.customGestureAnchorProvider = { [weak coordinator, weak mapView] gesture in
       guard let coordinator, let mapView else { return nil }
       let viewModel = coordinator.parent.viewModel
       let calloutVM = viewModel.calloutViewModel
@@ -58,99 +56,52 @@ struct MapLibreView: UIViewRepresentable {
         crosshairYFraction: crosshairYFraction
       )
     }
-    
+
     // Explicitly disable automatic inset adjustments to avoid conflicts with SwiftUI Safe Areas
     mapView.automaticallyAdjustsContentInset = false
-    // Note: MLNMapView legacy warning persists due to internal SDK check on UIHostingController. Layout is correctly managed by SwiftUI.
-    
     mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    
-    context.coordinator.mapView = mapView
-    
-    // Delegate configuration
-    mapView.delegate = context.coordinator
-    
-    // Set maximum zoom level to allow overzooming
     mapView.maximumZoomLevel = AppConstants.Cartography.Zoom.globalMaximum
-    
-    // Disable pitch gesture to keep the map in 2D
     mapView.isPitchEnabled = false
-    
     mapView.attributionButton.isHidden = true
     mapView.logoView.isHidden = true
-    
+
     // Configure compass to remain permanently visible at top-right below top HUD overlay
     mapView.compassView.compassVisibility = .visible
     mapView.compassViewPosition = .topRight
-    mapView.compassViewMargins = CGPoint(x: MarineTheme.Spacing.medium, y: MarineTheme.Spacing.compassTopMargin)
-    
-    // Load a minimal blank style so MapLibre initializes and fires `mapView(_:didFinishLoading:)`
+    mapView.compassViewMargins = CGPoint(
+      x: MarineTheme.Spacing.medium,
+      y: MarineTheme.Spacing.compassTopMargin
+    )
+
+    coordinator.mapView = mapView
+    mapView.delegate = coordinator
+
     if let blankStyleURL = createBlankStyleJSON() {
       mapView.styleURL = blankStyleURL
     }
-    
-    // Centering of the initial camera using ViewModel's state
-    mapView.setCenter(viewModel.centerCoordinate, zoomLevel: viewModel.zoomLevel, direction: viewModel.chartDirection.converted(to: .degrees).value, animated: false)
-    
-    // Setup subscription for explicit user location centering via AsyncStream
-    context.coordinator.setupSubscription(for: mapView)
-    
-    // Setup long press gesture for contextual menu / waypoint creation
-    let longPressGesture = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPress(_:)))
-    longPressGesture.minimumPressDuration = 0.5
-    mapView.addGestureRecognizer(longPressGesture)
-    
-    // Setup single tap gesture for measure tool interactions (pin selection, placing Pin B)
-    let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-    tapGesture.cancelsTouchesInView = false
-    
-    // Prevent single-tap from interfering with MapLibre's native double-tap zoom gestures
-    if let gestureRecognizers = mapView.gestureRecognizers {
-      for recognizer in gestureRecognizers {
-        if let tapRecognizer = recognizer as? UITapGestureRecognizer, tapRecognizer.numberOfTapsRequired == 2 {
-          tapGesture.require(toFail: tapRecognizer)
-        }
-      }
-    }
-    
-    mapView.addGestureRecognizer(tapGesture)
-    
-    // Setup dedicated pan gesture for interactive measure pin drag-and-drop
-    let pinPanGesture = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinPan(_:)))
-    pinPanGesture.delegate = context.coordinator
-    pinPanGesture.cancelsTouchesInView = true
-    mapView.addGestureRecognizer(pinPanGesture)
-    context.coordinator.pinPanGesture = pinPanGesture
-    
-    viewModel.isCoordinateVisible = { [weak mapView] coord in
-      guard let mapView = mapView else { return false }
-      let pt = mapView.convert(coord, toPointTo: mapView)
-      let sheetClearance: CGFloat = 240.0
-      let topInset = mapView.safeAreaInsets.top
-      let visibleRect = CGRect(
-        x: 0,
-        y: topInset,
-        width: mapView.bounds.width,
-        height: max(50.0, mapView.bounds.height - sheetClearance - topInset)
-      )
-      return visibleRect.contains(pt)
+
+    coordinator.cameraController.applyInitialViewportCamera(from: viewModel, in: mapView)
+    coordinator.setupSubscriptions(for: mapView)
+    installGestureRecognizers(on: mapView, coordinator: coordinator)
+
+    viewModel.isCoordinateVisible = { [weak coordinator, weak mapView] coord in
+      guard let coordinator, let mapView else { return false }
+      return coordinator.cameraController.isCoordinateVisible(coord, in: mapView)
     }
 
-    offlineSelectionViewModel.defaultSelectionBoundsProvider = { [weak coordinator = context.coordinator, weak mapView, weak offlineVM = offlineSelectionViewModel] in
+    offlineSelectionViewModel.defaultSelectionBoundsProvider = { [weak coordinator, weak mapView, weak offlineVM = offlineSelectionViewModel] in
       guard let coordinator, let mapView, let offlineVM else { return nil }
-      // Restore North-Up orientation and level pitch in a single camera update before projecting the screen crop box,
-      // preventing tilted/rotated perspectives from producing skewed coordinates.
-      Self.resetCameraToNorthUpLevelIfNeeded(mapView)
+      coordinator.cameraController.resetToNorthUpLevelIfNeeded(in: mapView)
       return coordinator.offlineSelectionController.makeDefaultBounds(
         in: mapView,
         cropBoxWidthRatio: offlineVM.cropBoxWidthRatio,
         cropBoxAspect: offlineVM.cropBoxAspect
       )
     }
-    
+
     return mapView
   }
-  
+
   func makeStyleSnapshot(
     using coordinator: Coordinator,
     activeTrackPoints: ArraySlice<TrackPoint>
@@ -183,19 +134,19 @@ struct MapLibreView: UIViewRepresentable {
   }
 
   func updateUIView(_ uiView: MLNMapView, context: Context) {
-    // Updates the coordinator's parent to always point to the latest view (SwiftUI struct)
-    context.coordinator.parent = self
-    
+    let coordinator = context.coordinator
+    coordinator.parent = self
+
     // Unconditionally construct snapshot so SwiftUI tracks all `@Observable` dependencies
     // even if the MapLibre style hasn't finished loading yet.
     // `activeTrackPoints` is scoped locally and never stored inside `lastSnapshot` to preserve CoW refcount == 1.
     let activeTrackPoints = trackRecordingService.trackPoints
-    let snapshot = makeStyleSnapshot(using: context.coordinator, activeTrackPoints: activeTrackPoints)
+    let snapshot = makeStyleSnapshot(using: coordinator, activeTrackPoints: activeTrackPoints)
     let trackingMode = viewModel.trackingMode
-    
+
     if let style = uiView.style {
-      let hadPreviousSnapshot = context.coordinator.styleSynchronizer.lastSnapshot != nil
-      let dirty = context.coordinator.styleSynchronizer.apply(
+      let hadPreviousSnapshot = coordinator.styleSynchronizer.lastSnapshot != nil
+      let dirty = coordinator.styleSynchronizer.apply(
         snapshot,
         activeTrackPoints: activeTrackPoints,
         forceAll: false,
@@ -210,84 +161,28 @@ struct MapLibreView: UIViewRepresentable {
       }
 
       if hadPreviousSnapshot && dirty.contains(.baseChart) && snapshot.chartSource != nil {
-        uiView.setCenter(
-          viewModel.centerCoordinate,
-          zoomLevel: viewModel.zoomLevel,
-          direction: viewModel.chartDirection.converted(to: .degrees).value,
-          animated: false
-        )
+        coordinator.cameraController.syncCameraAfterChartSourceSwitch(from: viewModel, in: uiView)
       }
     }
 
-    // Viewport bounds resize / rotation handling
-    if context.coordinator.lastBounds.size != uiView.bounds.size {
-      context.coordinator.lastBounds = uiView.bounds
-      if viewModel.calloutViewModel.isCentering,
-         let target = viewModel.calloutViewModel.targetCoordinate,
-         let style = uiView.style {
-        let targetScreenPoint = CGPoint(
-          x: uiView.bounds.midX,
-          y: uiView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
-        )
-        let newCenterCoordinate = context.coordinator.centerCoordinateToPosition(target, at: targetScreenPoint, in: uiView)
-        uiView.setCenter(newCenterCoordinate, animated: false)
-        let targetWaypointID = viewModel.calloutViewModel.targetWaypointID
-        let resolvedCoord = targetWaypointID != nil ? target : uiView.convert(targetScreenPoint, toCoordinateFrom: uiView)
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-          viewModel.calloutViewModel.interruptCentering(at: resolvedCoord, waypointID: targetWaypointID)
-        }
-        context.coordinator.styleSynchronizer.updateAimingCoordinate(nil, in: style)
-      }
+    if coordinator.cameraController.consumeBoundsSizeChange(uiView.bounds) {
+      coordinator.calloutController.handleViewportResize(
+        in: uiView,
+        calloutViewModel: viewModel.calloutViewModel
+      )
     }
 
-    // Offline selection mode: force chart rotation to 0 (North-Up) and reset pitch to 0.
-    if offlineSelectionViewModel.isSelectionModeActive {
-      uiView.isRotateEnabled = false
-
-      // Restore North-Up orientation and level pitch immediately without animation.
-      // Mathematical integrity: animated transitions cause uiView.convert() to project against
-      // a transient tilted/rotated perspective, producing corrupted coordinates.
-      Self.resetCameraToNorthUpLevelIfNeeded(uiView)
-    } else {
-      uiView.isRotateEnabled = true
-    }
-    
-    // Stop inertia cleanly when locking tracking mode without triggering delegate events
-    if context.coordinator.lastTrackingMode != trackingMode {
-      if context.coordinator.lastTrackingMode == .free && trackingMode != .free {
-        uiView.delegate = nil
-        uiView.setCamera(uiView.camera, animated: false)
-        uiView.delegate = context.coordinator
-      }
-      context.coordinator.lastTrackingMode = trackingMode
-    }
-    
-    // Force tracking mode to none if it deviated, since tracking is explicitly handled in the viewModel
-    if uiView.userTrackingMode != .none {
-      uiView.userTrackingMode = .none
-    }
-    
-    // Handle Content Inset for Look-ahead in Course Up mode
-    let newInset: UIEdgeInsets
-    if trackingMode == .courseUp {
-      let lookAheadOffset = uiView.bounds.height / 3.0
-      newInset = UIEdgeInsets(top: lookAheadOffset, left: 0, bottom: 0, right: 0)
-    } else {
-      newInset = .zero
-    }
-    
-    if uiView.contentInset != newInset {
-      uiView.setContentInset(newInset, animated: true, completionHandler: nil)
-    }
-    
-    // Disable compass interaction when in an automated tracking mode to prevent state conflicts
-    uiView.compassView.isUserInteractionEnabled = (trackingMode != .courseUp)
+    coordinator.cameraController.syncOfflineSelectionRotationLock(
+      isSelectionModeActive: offlineSelectionViewModel.isSelectionModeActive,
+      in: uiView
+    )
+    coordinator.cameraController.syncTrackingModeAndContentInset(
+      trackingMode: trackingMode,
+      in: uiView,
+      delegate: coordinator
+    )
   }
 
-
-  
   func makeCoordinator() -> Coordinator {
     Coordinator(self)
   }
@@ -297,16 +192,40 @@ struct MapLibreView: UIViewRepresentable {
     coordinator.cancelTasks()
   }
 
-  /// Resets heading (`0°`) and pitch (`0°`) in a single non-animated camera transaction when deviated.
-  private static func resetCameraToNorthUpLevelIfNeeded(_ mapView: MLNMapView) {
-    guard mapView.direction != 0 || mapView.camera.pitch != 0 else { return }
-    let camera = mapView.camera
-    camera.heading = 0
-    camera.pitch = 0
-    mapView.setCamera(camera, animated: false)
+  private func installGestureRecognizers(on mapView: MLNMapView, coordinator: Coordinator) {
+    let longPressGesture = UILongPressGestureRecognizer(
+      target: coordinator,
+      action: #selector(Coordinator.handleLongPress(_:))
+    )
+    longPressGesture.minimumPressDuration = 0.5
+    mapView.addGestureRecognizer(longPressGesture)
+
+    let tapGesture = UITapGestureRecognizer(
+      target: coordinator,
+      action: #selector(Coordinator.handleTap(_:))
+    )
+    tapGesture.cancelsTouchesInView = false
+    if let gestureRecognizers = mapView.gestureRecognizers {
+      for recognizer in gestureRecognizers {
+        if let tapRecognizer = recognizer as? UITapGestureRecognizer,
+           tapRecognizer.numberOfTapsRequired == 2 {
+          tapGesture.require(toFail: tapRecognizer)
+        }
+      }
+    }
+    mapView.addGestureRecognizer(tapGesture)
+
+    let pinPanGesture = UIPanGestureRecognizer(
+      target: coordinator,
+      action: #selector(Coordinator.handlePinPan(_:))
+    )
+    pinPanGesture.delegate = coordinator
+    pinPanGesture.cancelsTouchesInView = true
+    mapView.addGestureRecognizer(pinPanGesture)
+    coordinator.pinPanGesture = pinPanGesture
   }
-  
-  /// Creates a minimal empty JSON style to force MapLibre to load its engine and fire the finish loading delegate method.
+
+  /// Loads a minimal blank JSON style so MapLibre initializes its engine and fires `mapView(_:didFinishLoading:)`.
   private func createBlankStyleJSON() -> URL? {
     guard let styleURL = Bundle.main.url(forResource: "blank-style", withExtension: "json") else {
       Logger.chart.warning("blank-style.json not found in App Bundle. MapLibre may not initialize correctly.")
@@ -314,69 +233,99 @@ struct MapLibreView: UIViewRepresentable {
     }
     return styleURL
   }
-  
+
   // MARK: - Coordinator
-  
+
   @MainActor
   class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
     var parent: MapLibreView
     let styleSynchronizer = MapStyleStateSynchronizer()
+    let cameraController = MapCameraController()
     let offlineSelectionController: OfflineSelectionInteractionController
     let measureController = MeasureMapInteractionController()
-    private var streamTask: TaskCancellable?
+    let calloutController: CalloutAimingController
+
     private var networkObservationTask: TaskCancellable?
     weak var mapView: MLNMapView?
     weak var pinPanGesture: UIPanGestureRecognizer?
-    private var isCalloutLongPressActive: Bool = false
-    private var hasDraggedDuringLongPress: Bool = false
-    private var longPressBeganPoint: CGPoint?
-    private static let longPressDragThreshold: CGFloat = 6.0
-    private var isMagneticRecentering: Bool = false
-    private var isStartingMagneticRecenter: Bool = false
-    private var isUserPanMoveActive: Bool = false
-    private var isZoomMoveActive: Bool = false
-    private var panStartWaypointID: String?
-    private let snapFeedbackGenerator = UISelectionFeedbackGenerator()
+
     private var isUserActivelyInteractingWithTools: Bool {
-      isCalloutLongPressActive ||
+      calloutController.isInteracting ||
       measureController.isInteracting(measureViewModel: parent.viewModel.measureToolViewModel) ||
       offlineSelectionController.isInteracting
     }
-    private var lastCalloutLongPressUpdateTime: CFTimeInterval = 0
-    private var lastCalloutTargetUpdateTime: CFTimeInterval = 0
-    private static let calloutLongPressThrottleInterval: CFTimeInterval = 0.016
-    
-    var lastTrackingMode: ChartTrackingMode = .free
-    
-    /// Technical Design Choice: Vessel Centering Gesture Tolerance Margin
-    /// Tracks the initial anchor coordinate and screen point at the start of a manual drag gesture,
-    /// allowing accidental touches, slips, and small vibrations to be tolerated without immediately breaking tracking mode.
-    var initialPanCenterCoordinate: CLLocationCoordinate2D?
-    var initialPanScreenPoint: CGPoint?
-    var hasExceededTrackingMargin: Bool = false
-    var lastBounds: CGRect = .zero
-    var hasAppliedInitialCamera: Bool = false
-    var pendingReloadCamera: (center: CLLocationCoordinate2D, zoomLevel: Double, direction: CLLocationDirection)?
-    
+
     init(_ parent: MapLibreView) {
       self.parent = parent
       self.offlineSelectionController = OfflineSelectionInteractionController(styleSynchronizer: styleSynchronizer)
+      self.calloutController = CalloutAimingController(
+        styleSynchronizer: styleSynchronizer,
+        cameraController: cameraController
+      )
       super.init()
     }
-    
+
     func cancelTasks() {
-      streamTask?.cancel()
-      streamTask = nil
+      cameraController.cancelTasks()
       networkObservationTask?.cancel()
       networkObservationTask = nil
     }
 
-    // MARK: - Explicit Tool Gesture Routing
+    func setupSubscriptions(for mapView: MLNMapView) {
+      parent.viewModel.measureToolViewModel.onEnsureVisibleRequested = { [weak self, weak mapView] sheetHeight in
+        guard let self, let mapView, !self.isUserActivelyInteractingWithTools else { return }
+        self.measureController.requestEnsureVisibleIfNeeded(
+          in: mapView,
+          measureViewModel: self.parent.viewModel.measureToolViewModel,
+          sheetHeight: sheetHeight,
+          onRequestVerticalFraming: { [weak self, weak mapView] request, resolvedSheetHeight in
+            guard let self, let mapView else { return }
+            self.cameraController.shiftToFitVerticalRange(
+              minY: request.minY,
+              maxY: request.maxY,
+              fallbackPoint: request.fallbackPoint,
+              fallbackBottomOffset: request.fallbackBottomOffset,
+              in: mapView,
+              sheetHeight: resolvedSheetHeight,
+              isGloveMode: self.parent.marineTheme.isGloveMode
+            )
+          }
+        )
+      }
+
+      networkObservationTask?.cancel()
+      networkObservationTask = TaskCancellable(Task { @MainActor [weak self, weak mapView] in
+        for await _ in NotificationCenter.default.notifications(named: .networkDidReconnect) {
+          guard !Task.isCancelled, let self, let mapView else { break }
+          Logger.chart.info("Network reconnected, forcing MapLibre complete style reload")
+          self.cameraController.captureReloadCameraIfNeeded(from: mapView)
+          mapView.reloadStyle(nil)
+        }
+      })
+
+      cameraController.startCameraStreamSubscription(for: mapView, viewModel: parent.viewModel)
+    }
+
+    private func waypointSnapCandidates(in mapView: MLNMapView) -> [WaypointSnapCandidate] {
+      let visibleBounds = mapView.visibleCoordinateBounds
+      return WaypointMagneticSnap.makeCandidates(
+        visibleWaypoints: parent.viewModel.visibleWaypointVisualStates,
+        goToWaypoint: parent.viewModel.goToWaypointVisualState,
+        draftWaypointID: parent.viewModel.draftWaypointID,
+        southWest: visibleBounds.sw,
+        northEast: visibleBounds.ne,
+        project: { mapView.convert($0, toPointTo: mapView) }
+      )
+    }
+
+    // MARK: - Explicit Gesture Routing
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
       if gestureRecognizer === pinPanGesture {
-        guard !isCalloutLongPressActive, !measureController.isLongPressingPin else { return false }
-        guard let mapView = self.mapView else { return false }
+        guard !calloutController.isLongPressActive, !measureController.isLongPressingPin else {
+          return false
+        }
+        guard let mapView else { return false }
         let touchPoint = gestureRecognizer.location(in: mapView)
         let hitRadius = parent.marineTheme.metrics.mapHandleHitRadius
         if parent.viewModel.measureToolViewModel.isActive {
@@ -399,10 +348,26 @@ struct MapLibreView: UIViewRepresentable {
       }
       return true
     }
-    
+
+    func gestureRecognizer(
+      _ gestureRecognizer: UIGestureRecognizer,
+      shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+      if gestureRecognizer == pinPanGesture || otherGestureRecognizer == pinPanGesture {
+        return false
+      }
+      if gestureRecognizer is UILongPressGestureRecognizer || otherGestureRecognizer is UILongPressGestureRecognizer {
+        return false
+      }
+      if isUserActivelyInteractingWithTools {
+        return false
+      }
+      return true
+    }
+
     @objc func handleTap(_ sender: UITapGestureRecognizer) {
-      guard sender.state == .ended else { return }
-      guard parent.viewModel.measureToolViewModel.isActive,
+      guard sender.state == .ended,
+            parent.viewModel.measureToolViewModel.isActive,
             let mapView = sender.view as? MLNMapView else {
         return
       }
@@ -416,7 +381,7 @@ struct MapLibreView: UIViewRepresentable {
         }
       )
     }
-    
+
     @objc func handlePinPan(_ sender: UIPanGestureRecognizer) {
       guard let mapView = sender.view as? MLNMapView else { return }
 
@@ -441,6 +406,46 @@ struct MapLibreView: UIViewRepresentable {
       }
     }
 
+    @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
+      // 1. Active long-press session takes strict precedence so `.changed` / `.ended` / `.cancelled`
+      // never jump across controllers if tool state changes mid-gesture.
+      if measureController.isLongPressingPin {
+        guard let mapView = sender.view as? MLNMapView else {
+          measureController.cancelActiveInteraction(measureViewModel: parent.viewModel.measureToolViewModel)
+          return
+        }
+        routeLongPressToMeasure(sender, in: mapView)
+        return
+      }
+      if calloutController.isLongPressActive {
+        guard let mapView = sender.view as? MLNMapView else {
+          calloutController.cancelLongPressSession(
+            calloutViewModel: parent.viewModel.calloutViewModel,
+            style: self.mapView?.style
+          )
+          return
+        }
+        routeLongPressToCallout(sender, in: mapView)
+        return
+      }
+
+      // 2. New long-press session: route according to active tool state
+      if parent.viewModel.measureToolViewModel.isActive {
+        guard let mapView = sender.view as? MLNMapView else { return }
+        routeLongPressToMeasure(sender, in: mapView)
+        return
+      }
+
+      /// Technical Design Choice: Disable contextual gesture during active action confirmation cards
+      /// Prevents long-press waypoint popover creation whenever a MarineActionConfirmationCard is active
+      /// (e.g. anchor repositioning or offline area selection).
+      guard !parent.viewModel.isActionConfirmationCardActive,
+            let mapView = sender.view as? MLNMapView else {
+        return
+      }
+      routeLongPressToCallout(sender, in: mapView)
+    }
+
     private func routePanToMeasure(_ sender: UIPanGestureRecognizer, in mapView: MLNMapView) {
       let attachRadius = parent.marineTheme.isGloveMode
         ? AppConstants.Map.waypointMagneticSnapGloveRadius
@@ -459,13 +464,14 @@ struct MapLibreView: UIViewRepresentable {
         },
         onRequestVerticalFraming: { [weak self, weak mapView] request, sheetHeight in
           guard let self, let mapView else { return }
-          self.shiftCameraToFitVerticalRange(
+          self.cameraController.shiftToFitVerticalRange(
             minY: request.minY,
             maxY: request.maxY,
             fallbackPoint: request.fallbackPoint,
             fallbackBottomOffset: request.fallbackBottomOffset,
             in: mapView,
-            sheetHeight: sheetHeight
+            sheetHeight: sheetHeight,
+            isGloveMode: self.parent.marineTheme.isGloveMode
           )
         }
       )
@@ -481,49 +487,6 @@ struct MapLibreView: UIViewRepresentable {
           self?.parent.viewModel.chartInteractedByUser()
         }
       )
-    }
-    
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-      if gestureRecognizer == pinPanGesture || otherGestureRecognizer == pinPanGesture {
-        return false
-      }
-      if gestureRecognizer is UILongPressGestureRecognizer || otherGestureRecognizer is UILongPressGestureRecognizer {
-        return false
-      }
-      if isUserActivelyInteractingWithTools {
-        return false
-      }
-      return true
-    }
-    
-    @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
-      // 1. Active long-press session takes strict precedence so `.changed` / `.ended` / `.cancelled`
-      // never jump across controllers if tool state changes mid-gesture.
-      if measureController.isLongPressingPin {
-        guard let mapView = sender.view as? MLNMapView else {
-          measureController.cancelActiveInteraction(measureViewModel: parent.viewModel.measureToolViewModel)
-          return
-        }
-        routeLongPressToMeasure(sender, in: mapView)
-        return
-      }
-      if isCalloutLongPressActive {
-        handleCalloutLongPress(sender)
-        return
-      }
-
-      // 2. New long-press session: route according to active tool state
-      if parent.viewModel.measureToolViewModel.isActive {
-        guard let mapView = sender.view as? MLNMapView else { return }
-        routeLongPressToMeasure(sender, in: mapView)
-        return
-      }
-
-      /// Technical Design Choice: Disable contextual gesture during active action confirmation cards
-      /// Prevents long-press waypoint popover creation whenever a MarineActionConfirmationCard is active
-      /// (e.g. anchor repositioning or offline area selection).
-      guard !parent.viewModel.isActionConfirmationCardActive else { return }
-      handleCalloutLongPress(sender)
     }
 
     private func routeLongPressToMeasure(_ sender: UILongPressGestureRecognizer, in mapView: MLNMapView) {
@@ -543,587 +506,33 @@ struct MapLibreView: UIViewRepresentable {
         },
         onRequestVerticalFraming: { [weak self, weak mapView] request, sheetHeight in
           guard let self, let mapView else { return }
-          self.shiftCameraToFitVerticalRange(
+          self.cameraController.shiftToFitVerticalRange(
             minY: request.minY,
             maxY: request.maxY,
             fallbackPoint: request.fallbackPoint,
             fallbackBottomOffset: request.fallbackBottomOffset,
             in: mapView,
-            sheetHeight: sheetHeight
+            sheetHeight: sheetHeight,
+            isGloveMode: self.parent.marineTheme.isGloveMode
           )
         }
       )
     }
 
-    private func handleCalloutLongPress(_ sender: UILongPressGestureRecognizer) {
-      if sender.state == .ended || sender.state == .cancelled || sender.state == .failed {
-        isCalloutLongPressActive = false
-      }
-      
-      guard let mapView = sender.view as? MLNMapView else { return }
-      let touchPoint = sender.location(in: mapView)
-
-      switch sender.state {
-      case .began:
-        isCalloutLongPressActive = true
-        hasDraggedDuringLongPress = false
-        longPressBeganPoint = touchPoint
-        isMagneticRecentering = false
-        lastCalloutLongPressUpdateTime = CACurrentMediaTime()
-        snapFeedbackGenerator.prepare()
-        // Disable active tracking mode during target inspection
-        parent.viewModel.chartInteractedByUser()
-
-        // 1. Trigger haptic feedback as soon as the long press is detected
-        let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
-        feedbackGenerator.impactOccurred()
-
-        // Respect Glove Mode touch target sizing (44pt standard, 66pt glove mode) for initial waypoint hit-testing
-        let hitSize = parent.marineTheme.minTouchTarget
-        let halfHitSize = hitSize / 2.0
-        let touchRect = CGRect(x: touchPoint.x - halfHitSize, y: touchPoint.y - halfHitSize, width: hitSize, height: hitSize)
-        let features = mapView.visibleFeatures(in: touchRect, styleLayerIdentifiers: [MapLayerIdentifier.goToWaypoint.rawValue, MapLayerIdentifier.visibleWaypoints.rawValue])
-
-        let draftID = parent.viewModel.draftWaypointID
-        var containsDraftFeature = false
-        var closestWaypoint: (feature: MLNPointFeature, id: String, distance: CGFloat)? = nil
-
-        for case let feature as MLNPointFeature in features {
-          guard let id = feature.attributes[MapFeatureKey.id.rawValue] as? String else { continue }
-          if id == draftID {
-            containsDraftFeature = true
-            continue
-          }
-          let pt = mapView.convert(feature.coordinate, toPointTo: mapView)
-          let dist = hypot(pt.x - touchPoint.x, pt.y - touchPoint.y)
-          if let existing = closestWaypoint {
-            if dist < existing.distance {
-              closestWaypoint = (feature, id, dist)
-            }
-          } else {
-            closestWaypoint = (feature, id, dist)
-          }
+    private func routeLongPressToCallout(_ sender: UILongPressGestureRecognizer, in mapView: MLNMapView) {
+      calloutController.handleLongPress(
+        sender,
+        in: mapView,
+        viewModel: parent.viewModel,
+        theme: parent.marineTheme,
+        snapCandidatesProvider: { [weak self] map in
+          self?.waypointSnapCandidates(in: map) ?? []
         }
-
-        if let hit = closestWaypoint {
-          // Unified reticle targeting: place the GPU crosshair directly on the waypoint coordinate
-          // so the user can drag off it or release to center it under the reticle.
-          styleSynchronizer.updateAimingCoordinate(hit.feature.coordinate, in: mapView.style)
-          parent.viewModel.calloutViewModel.startAimingPreview(at: hit.feature.coordinate, waypointID: hit.id)
-        } else if containsDraftFeature {
-          // Interacting exclusively with the draft waypoint currently being created: ignore map callout presentation
-          break
-        } else {
-          // Long press on empty chart area:
-          // 2. Display callout dialog immediately
-          // 3. Display crosshair in MapLibre under the finger immediately
-          let targetCoordinate = mapView.convert(touchPoint, toCoordinateFrom: mapView)
-          styleSynchronizer.updateAimingCoordinate(targetCoordinate, in: mapView.style)
-          parent.viewModel.calloutViewModel.startAimingPreview(at: targetCoordinate, waypointID: nil)
-        }
-
-      case .changed:
-        // Update crosshair under finger as the user drags before releasing (with light waypoint magnetism)
-        guard parent.viewModel.calloutViewModel.aimingCoordinate != nil else { break }
-        let now = CACurrentMediaTime()
-        guard now - lastCalloutLongPressUpdateTime >= Self.calloutLongPressThrottleInterval else { break }
-        lastCalloutLongPressUpdateTime = now
-
-        let currentTouchPoint = sender.location(in: mapView)
-        if !hasDraggedDuringLongPress {
-          if let beganPoint = longPressBeganPoint,
-             hypot(currentTouchPoint.x - beganPoint.x, currentTouchPoint.y - beganPoint.y) < Self.longPressDragThreshold {
-            // Ignore sub-threshold finger micro-tremors so Glove Mode waypoint locks (30–33pt) do not detach prematurely.
-            break
-          }
-          hasDraggedDuringLongPress = true
-        }
-
-        let previousWaypointID = parent.viewModel.calloutViewModel.targetWaypointID
-        let snap = evaluateWaypointSnap(
-          at: currentTouchPoint,
-          in: mapView,
-          currentlySnappedID: previousWaypointID
-        )
-
-        let updatedCoordinate: CLLocationCoordinate2D
-        let updatedWaypointID: String?
-        if let snap {
-          updatedCoordinate = snap.coordinate
-          updatedWaypointID = snap.waypointID
-          if snap.waypointID != previousWaypointID {
-            snapFeedbackGenerator.selectionChanged()
-          }
-        } else {
-          updatedCoordinate = mapView.convert(currentTouchPoint, toCoordinateFrom: mapView)
-          updatedWaypointID = nil
-        }
-
-        styleSynchronizer.updateAimingCoordinate(updatedCoordinate, in: mapView.style)
-        parent.viewModel.calloutViewModel.updateAimingPreview(at: updatedCoordinate, waypointID: updatedWaypointID)
-
-      case .ended:
-        isCalloutLongPressActive = false
-        longPressBeganPoint = nil
-        if let currentAimingCoordinate = parent.viewModel.calloutViewModel.aimingCoordinate {
-          let resolvedCoordinate: CLLocationCoordinate2D
-          let resolvedWaypointID: String?
-
-          // Preserve initial Glove Mode touch-target lock if the user released without dragging,
-          // since minTouchTarget/2 (33pt) intentionally exceeds the magnetic detach radius (30pt).
-          if !hasDraggedDuringLongPress, let lockedID = parent.viewModel.calloutViewModel.targetWaypointID {
-            resolvedCoordinate = currentAimingCoordinate
-            resolvedWaypointID = lockedID
-          } else if let snap = evaluateWaypointSnap(
-            at: touchPoint,
-            in: mapView,
-            currentlySnappedID: parent.viewModel.calloutViewModel.targetWaypointID
-          ) {
-            resolvedCoordinate = snap.coordinate
-            resolvedWaypointID = snap.waypointID
-          } else {
-            resolvedCoordinate = mapView.convert(touchPoint, toCoordinateFrom: mapView)
-            resolvedWaypointID = nil
-          }
-
-          styleSynchronizer.updateAimingCoordinate(resolvedCoordinate, in: mapView.style)
-
-          let targetScreenPoint = CGPoint(
-            x: mapView.bounds.midX,
-            y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
-          )
-          let resolvedScreenPoint = mapView.convert(resolvedCoordinate, toPointTo: mapView)
-          let isNearCenter = hypot(
-            resolvedScreenPoint.x - targetScreenPoint.x,
-            resolvedScreenPoint.y - targetScreenPoint.y
-          ) < 1.0
-
-          if !isNearCenter {
-            // 1. Center the map with the MapLibre crosshair so resolvedCoordinate lands at targetScreenPoint
-            parent.viewModel.calloutViewModel.beginAiming(
-              at: resolvedCoordinate,
-              waypointID: resolvedWaypointID,
-              needsCentering: true
-            )
-            if parent.viewModel.trackingMode != .courseUp && mapView.contentInset != .zero {
-              mapView.contentInset = .zero
-            }
-            let newCenterCoordinate = centerCoordinateToPosition(resolvedCoordinate, at: targetScreenPoint, in: mapView)
-            mapView.setCenter(newCenterCoordinate, animated: true)
-          } else {
-            // Already at target screen point:
-            // Trigger SwiftUI crosshair opacity = 1.0; MapLibreView.updateUIView will hide the MapLibre
-            // crosshair layer in the exact same SwiftUI render transaction.
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-              parent.viewModel.calloutViewModel.beginAiming(
-                at: resolvedCoordinate,
-                waypointID: resolvedWaypointID,
-                needsCentering: false
-              )
-            }
-          }
-        }
-
-      case .cancelled, .failed:
-        isCalloutLongPressActive = false
-        hasDraggedDuringLongPress = false
-        longPressBeganPoint = nil
-        if parent.viewModel.calloutViewModel.aimingCoordinate != nil {
-          styleSynchronizer.updateAimingCoordinate(nil, in: mapView.style)
-          parent.viewModel.calloutViewModel.cancelAimingPreview()
-        }
-
-      default:
-        break
-      }
-    }
-    
-    /// Technical Design Choice: Automatic Map Camera Framing for Sheet Obscuration Prevention
-    /// Shifts the map camera vertically so that the vertical segment [minY, maxY] fits comfortably
-    /// between topClearance and the top of the bottom sheet dialog (with safety margin).
-    private func shiftCameraToFitVerticalRange(
-      minY: CGFloat,
-      maxY: CGFloat,
-      fallbackPoint: CGPoint?,
-      fallbackBottomOffset: CGFloat? = nil,
-      in mapView: MLNMapView,
-      sheetHeight: CGFloat
-    ) {
-      let safeBottom = mapView.safeAreaInsets.bottom
-      // The required clearance margin between the bottom of the target visual element and the top of the dialog
-      let marginAboveSheet: CGFloat = 24.0
-      let topClearance: CGFloat = max(mapView.safeAreaInsets.top + 80.0, MarineTheme.Metrics.topToolbarClearance)
-
-      let effectiveSheetHeight = sheetHeight > 0 ? sheetHeight : (parent.marineTheme.isGloveMode ? 260.0 : 220.0)
-      let dialogTopY = mapView.bounds.height - effectiveSheetHeight - safeBottom
-      let targetPinBottomY = max(topClearance, dialogTopY - marginAboveSheet)
-      let effectiveFallbackOffset = fallbackBottomOffset ?? MarinePinGraphicsFactory.pinHeight
-
-      let deltaY = MeasureMapInteractionController.verticalShiftToFitRange(
-        minY: minY,
-        maxY: maxY,
-        fallbackPointY: fallbackPoint?.y,
-        fallbackBottomOffset: effectiveFallbackOffset,
-        visibleVerticalRange: topClearance...targetPinBottomY
-      )
-
-      if deltaY != 0.0 {
-        let currentCenterPoint = mapView.convert(mapView.centerCoordinate, toPointTo: mapView)
-        let newCenterPoint = CGPoint(x: currentCenterPoint.x, y: currentCenterPoint.y + deltaY)
-        let newCenterCoordinate = mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
-        mapView.setCenter(newCenterCoordinate, animated: true)
-      }
-    }
-
-    /// Pure geometric projection computing the camera center coordinate required for `coordinate` to appear at `targetPoint` on screen.
-    func centerCoordinateToPosition(
-      _ coordinate: CLLocationCoordinate2D,
-      at targetPoint: CGPoint,
-      in mapView: MLNMapView
-    ) -> CLLocationCoordinate2D {
-      let currentCoordPoint = mapView.convert(coordinate, toPointTo: mapView)
-      let deltaX = currentCoordPoint.x - targetPoint.x
-      let deltaY = currentCoordPoint.y - targetPoint.y
-      let currentCenterPoint = mapView.convert(mapView.centerCoordinate, toPointTo: mapView)
-      let newCenterPoint = CGPoint(x: currentCenterPoint.x + deltaX, y: currentCenterPoint.y + deltaY)
-      return mapView.convert(newCenterPoint, toCoordinateFrom: mapView)
-    }
-
-    /// Returns the nominal screen position of the aiming crosshair (40% from top),
-    /// or `nil` if the map view has not yet been laid out with non-zero bounds.
-    func reticleScreenPoint(in mapView: MLNMapView) -> CGPoint? {
-      guard mapView.bounds.width > 0, mapView.bounds.height > 0 else {
-        return nil
-      }
-      return CGPoint(
-        x: mapView.bounds.midX,
-        y: mapView.bounds.height * AppConstants.Map.aimingCrosshairYFraction
       )
     }
 
-    /// Returns the geographic coordinate currently under the aiming crosshair (40% from top),
-    /// or `nil` if the map view has not yet been laid out with non-zero bounds.
-    func reticleCoordinate(in mapView: MLNMapView) -> CLLocationCoordinate2D? {
-      guard let aimingPoint = reticleScreenPoint(in: mapView) else {
-        return nil
-      }
-      return mapView.convert(aimingPoint, toCoordinateFrom: mapView)
-    }
+    // MARK: - MLNMapViewDelegate
 
-    private func isCoordinateNearVisibleBounds(
-      _ coordinate: CLLocationCoordinate2D,
-      bounds: MLNCoordinateBounds
-    ) -> Bool {
-      let latSpan = max(bounds.ne.latitude - bounds.sw.latitude, 0.0)
-      let latMargin = latSpan * 0.1
-      guard coordinate.latitude >= bounds.sw.latitude - latMargin &&
-            coordinate.latitude <= bounds.ne.latitude + latMargin else {
-        return false
-      }
-
-      if bounds.sw.longitude <= bounds.ne.longitude {
-        let lonSpan = bounds.ne.longitude - bounds.sw.longitude
-        let lonMargin = lonSpan * 0.1
-        return coordinate.longitude >= bounds.sw.longitude - lonMargin &&
-               coordinate.longitude <= bounds.ne.longitude + lonMargin
-      } else {
-        // Viewport crosses the antimeridian: accept either side
-        return coordinate.longitude >= bounds.sw.longitude ||
-               coordinate.longitude <= bounds.ne.longitude
-      }
-    }
-
-    private func waypointSnapCandidates(in mapView: MLNMapView) -> [WaypointSnapCandidate] {
-      let draftID = parent.viewModel.draftWaypointID
-      let visibleBounds = mapView.visibleCoordinateBounds
-      var candidates: [WaypointSnapCandidate] = []
-
-      for wp in parent.viewModel.visibleWaypointVisualStates where !wp.isDraft && wp.id != draftID {
-        guard isCoordinateNearVisibleBounds(wp.coordinate, bounds: visibleBounds) else { continue }
-        candidates.append(
-          WaypointSnapCandidate(
-            id: wp.id,
-            coordinate: wp.coordinate,
-            screenPoint: mapView.convert(wp.coordinate, toPointTo: mapView)
-          )
-        )
-      }
-
-      if let goTo = parent.viewModel.goToWaypointVisualState,
-         !goTo.isDraft,
-         goTo.id != draftID,
-         isCoordinateNearVisibleBounds(goTo.coordinate, bounds: visibleBounds),
-         !candidates.contains(where: { $0.id == goTo.id }) {
-        candidates.append(
-          WaypointSnapCandidate(
-            id: goTo.id,
-            coordinate: goTo.coordinate,
-            screenPoint: mapView.convert(goTo.coordinate, toPointTo: mapView)
-          )
-        )
-      }
-
-      return candidates
-    }
-
-    /// Returns true while the user still has a finger actively driving a MapLibre camera gesture.
-    /// When false during a user pan (`isUserPanMoveActive`), the map is coasting on deceleration inertia.
-    private func hasActiveMapTouchGesture(in mapView: MLNMapView) -> Bool {
-      guard let recognizers = mapView.gestureRecognizers else { return false }
-      return recognizers.contains { recognizer in
-        guard recognizer != pinPanGesture else { return false }
-        return recognizer.state == .began || recognizer.state == .changed
-      }
-    }
-
-    private var magneticDetachRadius: CGFloat {
-      let attachRadius = parent.marineTheme.isGloveMode
-        ? AppConstants.Map.waypointMagneticSnapGloveRadius
-        : AppConstants.Map.waypointMagneticSnapRadius
-      return attachRadius + AppConstants.Map.waypointMagneticDetachHysteresis
-    }
-
-    /// Evaluates whether an already-locked waypoint remains within its detach radius during a zoom
-    /// gesture without ever acquiring a new neighboring waypoint.
-    private func evaluateLockedWaypointRetention(
-      at reticlePoint: CGPoint,
-      in mapView: MLNMapView,
-      waypointID: String,
-      coordinate: CLLocationCoordinate2D
-    ) -> WaypointSnapResult? {
-      let wpPoint = mapView.convert(coordinate, toPointTo: mapView)
-      let offset = CGSize(width: wpPoint.x - reticlePoint.x, height: wpPoint.y - reticlePoint.y)
-      guard hypot(offset.width, offset.height) <= magneticDetachRadius else { return nil }
-      return WaypointSnapResult(waypointID: waypointID, coordinate: coordinate, visualOffset: offset)
-    }
-
-    private func evaluateWaypointSnap(
-      at point: CGPoint,
-      in mapView: MLNMapView,
-      currentlySnappedID: String?
-    ) -> WaypointSnapResult? {
-      let attachRadius = parent.marineTheme.isGloveMode
-        ? AppConstants.Map.waypointMagneticSnapGloveRadius
-        : AppConstants.Map.waypointMagneticSnapRadius
-      return WaypointMagneticSnap.evaluate(
-        reticlePoint: point,
-        candidates: waypointSnapCandidates(in: mapView),
-        currentlySnappedID: currentlySnappedID,
-        attachRadius: attachRadius,
-        detachHysteresis: AppConstants.Map.waypointMagneticDetachHysteresis
-      )
-    }
-
-    func setupSubscription(for mapView: MLNMapView) {
-      // Connect ensureVisible callback from MeasureToolViewModel
-      parent.viewModel.measureToolViewModel.onEnsureVisibleRequested = { [weak self, weak mapView] sheetHeight in
-        guard let self = self, let mapView = mapView else { return }
-        // Never move the camera while the user is actively touching or dragging on the map!
-        guard !self.isUserActivelyInteractingWithTools else { return }
-        self.measureController.requestEnsureVisibleIfNeeded(
-          in: mapView,
-          measureViewModel: self.parent.viewModel.measureToolViewModel,
-          sheetHeight: sheetHeight,
-          onRequestVerticalFraming: { [weak self, weak mapView] request, resolvedSheetHeight in
-            guard let self, let mapView else { return }
-            self.shiftCameraToFitVerticalRange(
-              minY: request.minY,
-              maxY: request.maxY,
-              fallbackPoint: request.fallbackPoint,
-              fallbackBottomOffset: request.fallbackBottomOffset,
-              in: mapView,
-              sheetHeight: resolvedSheetHeight
-            )
-          }
-        )
-      }
-
-      networkObservationTask?.cancel()
-      networkObservationTask = TaskCancellable(Task { @MainActor [weak self, weak mapView] in
-        for await _ in NotificationCenter.default.notifications(named: .networkDidReconnect) {
-          guard !Task.isCancelled, let self, let mapView else { break }
-          Logger.chart.info("Network reconnected, forcing MapLibre complete style reload")
-          if self.hasAppliedInitialCamera {
-            self.pendingReloadCamera = (
-              center: mapView.centerCoordinate,
-              zoomLevel: mapView.zoomLevel,
-              direction: mapView.direction
-            )
-          }
-          mapView.reloadStyle(nil)
-        }
-      })
-
-      streamTask?.cancel()
-      streamTask = TaskCancellable(Task { @MainActor [weak self, weak mapView] in
-        guard let stream = self?.parent.viewModel.cameraMoveStream else { return }
-        for await event in stream {
-          guard !Task.isCancelled, let self, let mapView else { break }
-          self.applyCameraMoveEvent(event, in: mapView)
-        }
-      })
-    }
-
-    /// Synchronously dispatches a camera command to MapLibre so newer GPS / user camera events
-    /// immediately interrupt in-flight animations instead of queueing behind suspended `await` frames.
-    private func applyCameraMoveEvent(_ event: CameraMoveEvent, in mapView: MLNMapView) {
-      switch event {
-      case .fitBounds(let bounds, let padding, let animated):
-        let mlnBounds = MLNCoordinateBounds(sw: bounds.southWest, ne: bounds.northEast)
-        mapView.setVisibleCoordinateBounds(mlnBounds, edgePadding: padding, animated: animated, completionHandler: nil)
-      case .center(let coordinate, let zoom, let heading):
-        let targetZoom = zoom ?? mapView.zoomLevel
-        if let heading = heading {
-          mapView.setCenter(
-            coordinate,
-            zoomLevel: targetZoom,
-            direction: heading.converted(to: .degrees).value,
-            animated: true,
-            completionHandler: nil
-          )
-        } else {
-          mapView.setCenter(coordinate, zoomLevel: targetZoom, animated: true)
-        }
-      case .positionAtScreenFraction(let coordinate, let yFraction, let xFraction):
-        guard mapView.bounds.height > 0, mapView.bounds.width > 0 else {
-          mapView.setCenter(coordinate, animated: true)
-          break
-        }
-        if parent.viewModel.trackingMode != .courseUp && mapView.contentInset != .zero {
-          mapView.contentInset = .zero
-        }
-        let targetPoint = CGPoint(x: mapView.bounds.width * xFraction, y: mapView.bounds.height * yFraction)
-        let newCenterCoordinate = centerCoordinateToPosition(coordinate, at: targetPoint, in: mapView)
-        mapView.setCenter(newCenterCoordinate, animated: true)
-      }
-    }
-    
-    func mapViewRegionIsChanging(_ mapView: MLNMapView) {
-      let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
-      self.parent.viewModel.throttledUpdateMapScaleAndZoom(metersPerPoint: mpp, zoomLevel: mapView.zoomLevel)
-      self.parent.viewModel.throttledUpdateCenterCoordinate(mapView.centerCoordinate)
-      self.parent.viewModel.updateOfflineRegionScreenPositions(
-        projection: { mapView.convert($0, toPointTo: mapView) },
-        bounds: mapView.bounds
-      )
-
-      // Live update reticle magnetic pull (120fps) and target coordinate (throttled ~30Hz on empty water)
-      if parent.viewModel.calloutViewModel.isCalloutVisible &&
-         !parent.viewModel.measureToolViewModel.isActive &&
-         !parent.viewModel.calloutViewModel.isCentering &&
-         parent.viewModel.calloutViewModel.aimingCoordinate == nil,
-         let reticlePoint = reticleScreenPoint(in: mapView) {
-        let calloutVM = parent.viewModel.calloutViewModel
-
-        // During programmatic magnetic recentering, track only the locked waypoint's shrinking visual offset
-        // so intermediate frames cannot jump to a neighboring waypoint or retrigger haptics.
-        if isMagneticRecentering,
-           calloutVM.targetWaypointID != nil,
-           let lockedCoord = calloutVM.targetCoordinate {
-          let lockedPoint = mapView.convert(lockedCoord, toPointTo: mapView)
-          let shrinkingOffset = CGSize(
-            width: lockedPoint.x - reticlePoint.x,
-            height: lockedPoint.y - reticlePoint.y
-          )
-          calloutVM.updateReticleVisualOffset(shrinkingOffset)
-        } else if isZoomMoveActive {
-          // Never acquire a new waypoint during zoom (e.g. zooming out shrinking screen distance to a neighbor),
-          // while keeping open-water coordinates or an already-locked waypoint synchronized if the pinch pans/rotates.
-          let now = CACurrentMediaTime()
-          if let lockedID = calloutVM.targetWaypointID, let lockedCoord = calloutVM.targetCoordinate {
-            if let retained = evaluateLockedWaypointRetention(
-              at: reticlePoint,
-              in: mapView,
-              waypointID: lockedID,
-              coordinate: lockedCoord
-            ) {
-              calloutVM.updateReticleVisualOffset(retained.visualOffset)
-            } else {
-              lastCalloutTargetUpdateTime = now
-              let targetCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
-              calloutVM.updateTarget(coordinate: targetCoord, waypointID: nil, visualOffset: .zero)
-            }
-          } else if now - lastCalloutTargetUpdateTime >= 0.032 {
-            lastCalloutTargetUpdateTime = now
-            let targetCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
-            calloutVM.updateTarget(coordinate: targetCoord, waypointID: nil, visualOffset: .zero)
-          }
-        } else {
-          let previousWaypointID = calloutVM.targetWaypointID
-          let snap = evaluateWaypointSnap(
-            at: reticlePoint,
-            in: mapView,
-            currentlySnappedID: previousWaypointID
-          )
-
-          let now = CACurrentMediaTime()
-          if let snap {
-            if snap.waypointID != previousWaypointID {
-              snapFeedbackGenerator.selectionChanged()
-              lastCalloutTargetUpdateTime = now
-              calloutVM.updateTarget(
-                coordinate: snap.coordinate,
-                waypointID: snap.waypointID,
-                visualOffset: snap.visualOffset
-              )
-            } else {
-              calloutVM.updateReticleVisualOffset(snap.visualOffset)
-            }
-
-            // Stop pan deceleration inertia once the finger is off screen so the reticle catches
-            // a waypoint instead of coasting past it, while never blocking an active finger drag
-            // or a short flick meant to leave the waypoint already targeted when the pan began.
-            if isUserPanMoveActive &&
-               !hasActiveMapTouchGesture(in: mapView) &&
-               snap.waypointID != panStartWaypointID {
-              let offsetDistance = hypot(snap.visualOffset.width, snap.visualOffset.height)
-              if offsetDistance > 1.0 {
-                isMagneticRecentering = true
-                isUserPanMoveActive = false
-                panStartWaypointID = nil
-                isStartingMagneticRecenter = true
-                defer { isStartingMagneticRecenter = false }
-                let newCenterCoordinate = centerCoordinateToPosition(snap.coordinate, at: reticlePoint, in: mapView)
-                mapView.setCenter(newCenterCoordinate, animated: true)
-              }
-            }
-          } else if previousWaypointID != nil {
-            // Immediately transition sheet from waypoint back to empty water upon detaching
-            panStartWaypointID = nil
-            lastCalloutTargetUpdateTime = now
-            let targetCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
-            calloutVM.updateTarget(coordinate: targetCoord, waypointID: nil, visualOffset: .zero)
-          } else if now - lastCalloutTargetUpdateTime >= 0.032 {
-            lastCalloutTargetUpdateTime = now
-            let targetCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
-            calloutVM.updateTarget(coordinate: targetCoord, waypointID: nil, visualOffset: .zero)
-          }
-        }
-      }
-      
-      // Technical Design Choice: Dynamic Tracking Break Evaluation
-      // During active manual panning in tracking mode (.northUp or .courseUp), measure the physical screen displacement
-      // of the initial anchor coordinate. As soon as displacement exceeds the threshold (scaled for Glove Mode),
-      // transition immediately to .free mode so the user experiences smooth, uninterrupted chart panning.
-      if parent.viewModel.trackingMode != .free,
-         !parent.viewModel.anchorViewModel.isAdjustingAnchor,
-         parent.viewModel.waypointAdjustmentSession == nil,
-         !hasExceededTrackingMargin,
-         let initialCoord = initialPanCenterCoordinate,
-         let initialPoint = initialPanScreenPoint {
-        let currentPoint = mapView.convert(initialCoord, toPointTo: mapView)
-        let displacement = hypot(currentPoint.x - initialPoint.x, currentPoint.y - initialPoint.y)
-        let threshold = parent.marineTheme.isGloveMode ? AppConstants.Map.trackingBreakGloveThreshold : AppConstants.Map.trackingBreakThreshold
-        if displacement >= threshold {
-          hasExceededTrackingMargin = true
-          parent.viewModel.chartInteractedByUser()
-        }
-      }
-    }
-    
-    // Called when the map has finished loading its style
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
       Logger.chart.info("MapLibre successfully loaded the default style.")
 
@@ -1131,25 +540,7 @@ struct MapLibreView: UIViewRepresentable {
       let snapshot = parent.makeStyleSnapshot(using: self, activeTrackPoints: activeTrackPoints)
       styleSynchronizer.apply(snapshot, activeTrackPoints: activeTrackPoints, forceAll: true, to: style)
 
-      // NOTE: We do not call `mapView.setVisibleCoordinateBounds` here.
-      // In SwiftUI, `didFinishLoading` can fire before the map view has a non-zero frame.
-      // Calling coordinate bounds on a `.zero` frame corrupts the MapLibre camera (`NaN` zoom level).
-      // Loading `blank-style.json` (which has no center/zoom) resets the MapLibre camera to (0,0),
-      // so we must restore the camera whenever a style finishes loading:
-      // - On a style reload (e.g., `NetworkDidReconnect`), restore the exact pre-reload camera.
-      // - On initial boot, apply the ViewModel's starting camera once.
-      if let savedCamera = pendingReloadCamera {
-        pendingReloadCamera = nil
-        mapView.setCenter(savedCamera.center, zoomLevel: savedCamera.zoomLevel, direction: savedCamera.direction, animated: false)
-      } else if !hasAppliedInitialCamera {
-        hasAppliedInitialCamera = true
-        mapView.setCenter(
-          parent.viewModel.centerCoordinate,
-          zoomLevel: parent.viewModel.zoomLevel,
-          direction: parent.viewModel.chartDirection.converted(to: .degrees).value,
-          animated: false
-        )
-      }
+      cameraController.restoreCameraAfterStyleLoad(from: parent.viewModel, in: mapView)
 
       if snapshot.offlineMask != nil, mapView.bounds.width > 0, mapView.bounds.height > 0 {
         parent.viewModel.updateOfflineRegionScreenPositions(
@@ -1158,16 +549,54 @@ struct MapLibreView: UIViewRepresentable {
         )
       }
     }
-    
-    func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
-      guard mode != .none else { return }
-      Task { @MainActor [weak mapView] in
-        // Enforce userTrackingMode = .none since vessel tracking is driven explicitly by ChartViewModel
-        guard let mapView, mapView.userTrackingMode != .none else { return }
-        mapView.userTrackingMode = .none
-      }
+
+    func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+      calloutController.regionWillChange(
+        in: mapView,
+        reason: reason,
+        viewModel: parent.viewModel,
+        theme: parent.marineTheme,
+        snapCandidatesProvider: { [weak self] map in
+          self?.waypointSnapCandidates(in: map) ?? []
+        }
+      )
+      cameraController.regionWillChange(in: mapView, reason: reason, viewModel: parent.viewModel)
     }
-    
+
+    func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+      cameraController.regionIsChanging(
+        in: mapView,
+        viewModel: parent.viewModel,
+        isGloveMode: parent.marineTheme.isGloveMode
+      )
+      calloutController.regionIsChanging(
+        in: mapView,
+        viewModel: parent.viewModel,
+        theme: parent.marineTheme,
+        excludedGestureRecognizer: pinPanGesture,
+        snapCandidatesProvider: { [weak self] map in
+          self?.waypointSnapCandidates(in: map) ?? []
+        }
+      )
+    }
+
+    func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+      calloutController.regionDidChange(
+        in: mapView,
+        reason: reason,
+        viewModel: parent.viewModel,
+        theme: parent.marineTheme,
+        snapCandidatesProvider: { [weak self] map in
+          self?.waypointSnapCandidates(in: map) ?? []
+        }
+      )
+      cameraController.regionDidChange(in: mapView, reason: reason, viewModel: parent.viewModel)
+    }
+
+    func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
+      cameraController.enforceDisabledNativeUserTracking(on: mapView, mode: mode)
+    }
+
     // Hide the native MapLibre user location puck, as we draw our own custom vessel feature.
     func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
       if annotation is MLNUserLocation {
@@ -1182,218 +611,7 @@ struct MapLibreView: UIViewRepresentable {
       }
       return nil
     }
-    
-    private func isZoomReason(_ reason: MLNCameraChangeReason) -> Bool {
-      reason.contains(.gesturePinch) ||
-      reason.contains(.gestureZoomIn) ||
-      reason.contains(.gestureZoomOut) ||
-      reason.contains(.gestureOneFingerZoom)
-    }
 
-    private func shouldBreakTracking(for reason: MLNCameraChangeReason) -> Bool {
-      let isZooming = isZoomReason(reason)
-      let isPanningOrRotating = reason.contains(.gesturePan) || reason.contains(.gestureRotate)
-      
-      // Break tracking ONLY if panning/rotating and NOT zooming
-      return isPanningOrRotating && !isZooming
-    }
-    
-    func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
-      if !reason.contains(.programmatic) {
-        self.parent.viewModel.isMapMoving = true
-        self.isMagneticRecentering = false
-        let isZoom = isZoomReason(reason)
-        let isUserPan = reason.contains(.gesturePan) && !isZoom
-        self.isZoomMoveActive = isZoom
-        self.isUserPanMoveActive = isUserPan
-        self.panStartWaypointID = isUserPan ? self.parent.viewModel.calloutViewModel.targetWaypointID : nil
-        self.snapFeedbackGenerator.prepare()
-        if self.parent.viewModel.calloutViewModel.isCalloutVisible &&
-           !self.parent.viewModel.measureToolViewModel.isActive {
-          if self.parent.viewModel.calloutViewModel.isCentering,
-             let reticlePoint = reticleScreenPoint(in: mapView) {
-            let snap = evaluateWaypointSnap(
-              at: reticlePoint,
-              in: mapView,
-              currentlySnappedID: self.parent.viewModel.calloutViewModel.targetWaypointID
-            )
-            let resolvedCoord = snap?.coordinate ?? mapView.convert(reticlePoint, toCoordinateFrom: mapView)
-            // Trigger SwiftUI crosshair opacity = 1.0; MapLibreView.updateUIView will hide the MapLibre
-            // crosshair layer in the exact same SwiftUI render transaction.
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-              self.parent.viewModel.calloutViewModel.interruptCentering(
-                at: resolvedCoord,
-                waypointID: snap?.waypointID,
-                visualOffset: snap?.visualOffset ?? .zero
-              )
-            }
-          }
-        }
-        
-        if self.parent.viewModel.trackingMode != .free && !self.parent.viewModel.anchorViewModel.isAdjustingAnchor && self.parent.viewModel.waypointAdjustmentSession == nil {
-          if shouldBreakTracking(for: reason) {
-            // Technical Design Choice: Delayed Tracking Break on Pan Gesture
-            // Instead of instantly dropping tracking mode at the first sub-pixel camera movement,
-            // we snapshot the current anchor coordinate and screen projection. The tracking mode will only
-            // break if the user drags further than the tolerance threshold (AppConstants.Map.trackingBreakThreshold).
-            self.initialPanCenterCoordinate = mapView.centerCoordinate
-            self.initialPanScreenPoint = mapView.convert(mapView.centerCoordinate, toPointTo: mapView)
-            self.hasExceededTrackingMargin = false
-          } else {
-            // Pinch-to-zoom or non-breaking gestures explicitly preserve automated vessel tracking.
-            self.initialPanCenterCoordinate = nil
-            self.initialPanScreenPoint = nil
-            self.hasExceededTrackingMargin = false
-          }
-        }
-      } else {
-        self.isZoomMoveActive = false
-        self.isUserPanMoveActive = false
-        self.panStartWaypointID = nil
-      }
-    }
-    
-    // Capture user's chart movements to sync the final camera state and evaluate tracking mode persistence.
-    func mapView(_ mapView: MLNMapView, regionDidChangeWith reason: MLNCameraChangeReason, animated: Bool) {
-      let wasZoomMove = self.isZoomMoveActive || isZoomReason(reason)
-      self.parent.viewModel.isMapMoving = false
-      self.isZoomMoveActive = false
-      self.isUserPanMoveActive = false
-      self.panStartWaypointID = nil
-
-      // Synchronously hand off from MapLibre crosshair to SwiftUI crosshair on the exact frame camera movement stops,
-      // or gently recenter onto a magnetically snapped waypoint once manual panning settles.
-      // Skip only when this callback is a synchronous re-entrant cancellation from starting a magnetic recenter.
-      if !self.isStartingMagneticRecenter &&
-         !self.isCalloutLongPressActive &&
-         self.parent.viewModel.calloutViewModel.isCalloutVisible &&
-         !self.parent.viewModel.measureToolViewModel.isActive,
-         let reticlePoint = reticleScreenPoint(in: mapView) {
-        let calloutVM = self.parent.viewModel.calloutViewModel
-
-        if calloutVM.isCentering {
-          let resolvedCoord: CLLocationCoordinate2D
-          let resolvedWaypointID: String?
-          if let lockedID = calloutVM.targetWaypointID, let lockedCoord = calloutVM.targetCoordinate {
-            resolvedCoord = lockedCoord
-            resolvedWaypointID = lockedID
-          } else if let snap = evaluateWaypointSnap(
-            at: reticlePoint,
-            in: mapView,
-            currentlySnappedID: calloutVM.targetWaypointID
-          ) {
-            resolvedCoord = snap.coordinate
-            resolvedWaypointID = snap.waypointID
-          } else {
-            resolvedCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
-            resolvedWaypointID = nil
-          }
-
-          var transaction = Transaction()
-          transaction.disablesAnimations = true
-          withTransaction(transaction) {
-            calloutVM.completeCentering(at: resolvedCoord, waypointID: resolvedWaypointID)
-          }
-        } else {
-          let snap: WaypointSnapResult?
-          if wasZoomMove {
-            // During zoom, never acquire a new waypoint; only retain an already-locked one if still within detach radius.
-            if let lockedID = calloutVM.targetWaypointID, let lockedCoord = calloutVM.targetCoordinate {
-              snap = evaluateLockedWaypointRetention(
-                at: reticlePoint,
-                in: mapView,
-                waypointID: lockedID,
-                coordinate: lockedCoord
-              )
-            } else {
-              snap = nil
-            }
-          } else {
-            snap = evaluateWaypointSnap(
-              at: reticlePoint,
-              in: mapView,
-              currentlySnappedID: calloutVM.targetWaypointID
-            )
-          }
-
-          if let snap {
-            let offsetDistance = hypot(snap.visualOffset.width, snap.visualOffset.height)
-            if offsetDistance > 1.0 && !self.isMagneticRecentering {
-              self.isMagneticRecentering = true
-              calloutVM.updateTarget(
-                coordinate: snap.coordinate,
-                waypointID: snap.waypointID,
-                visualOffset: snap.visualOffset
-              )
-              let newCenterCoordinate = centerCoordinateToPosition(snap.coordinate, at: reticlePoint, in: mapView)
-              mapView.setCenter(newCenterCoordinate, animated: true)
-            } else {
-              self.isMagneticRecentering = false
-              calloutVM.updateTarget(
-                coordinate: snap.coordinate,
-                waypointID: snap.waypointID,
-                visualOffset: .zero
-              )
-            }
-          } else {
-            self.isMagneticRecentering = false
-            let aimingCoord = mapView.convert(reticlePoint, toCoordinateFrom: mapView)
-            calloutVM.updateTarget(coordinate: aimingCoord, waypointID: nil, visualOffset: .zero)
-          }
-        }
-      }
-
-      Task { @MainActor [weak self, weak mapView] in
-        guard let self, let mapView else { return }
-        
-        // Keep ViewModel state in sync with the chart.
-        let mpp = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
-        self.parent.viewModel.updateMapScaleAndZoomImmediately(metersPerPoint: mpp, zoomLevel: mapView.zoomLevel)
-        self.parent.viewModel.updateCenterCoordinateImmediately(mapView.centerCoordinate)
-        self.parent.viewModel.chartDirection = Measurement(value: mapView.direction, unit: UnitAngle.degrees)
-        
-        // Save the camera state to UserDefaults
-        self.parent.viewModel.saveCameraState()
-        
-        let visibleBounds = mapView.visibleCoordinateBounds
-        self.parent.viewModel.currentVisibleBounds = GeographicBoundingBox(
-          southWest: visibleBounds.sw,
-          northEast: visibleBounds.ne
-        )
-        
-        self.parent.viewModel.updateOfflineRegionScreenPositions(
-          projection: { mapView.convert($0, toPointTo: mapView) },
-          bounds: mapView.bounds
-        )
-        
-        // Technical Design Choice: Centering Restoration vs Tracking Break
-        // If the user was in an automated tracking mode:
-        // - If movement exceeded the threshold: tracking mode was broken during the gesture (or broken now).
-        // - If movement remained within the tolerance margin: restore camera lock on vessel smoothly,
-        //   EXCEPT when manual anchor position adjustment or callout targeting is active,
-        //   preventing the crosshair aiming position from being pulled away (rubber-band bug) during micro-drags.
-        if self.parent.viewModel.trackingMode != .free {
-          if self.hasExceededTrackingMargin {
-            self.parent.viewModel.chartInteractedByUser()
-          } else if self.shouldBreakTracking(for: reason) {
-            if !self.parent.viewModel.anchorViewModel.isAdjustingAnchor &&
-               self.parent.viewModel.waypointAdjustmentSession == nil &&
-               !self.parent.viewModel.calloutViewModel.isCalloutVisible {
-              Logger.chart.info("Manual drag remained within tolerance margin; recentering on vessel.")
-              self.parent.viewModel.centerOnUserLocation()
-            }
-          }
-        }
-        
-        self.initialPanCenterCoordinate = nil
-        self.initialPanScreenPoint = nil
-        self.hasExceededTrackingMargin = false
-      }
-    }
-    
-    // Potential loading errors
     func mapViewDidFailLoadingMap(_ mapView: MLNMapView, withError error: Error) {
       Logger.chart.error("Error loading MapLibre map: \(error.localizedDescription, privacy: .public)")
     }
