@@ -10,6 +10,7 @@
 
 import XCTest
 import SwiftUI
+import CoreLocation
 @testable import Sillage
 
 @MainActor
@@ -64,6 +65,44 @@ final class VitalTelemetryHUDTests: XCTestCase {
       .environment(PreferencesService(defaults: defaults))
 
     let host = UIHostingController(rootView: hud)
+    XCTAssertNotNil(host.view)
+  }
+
+  func testVitalTelemetryHUD_RendersDirectlyWithDampingAndActiveNavigationServicesWithoutChartViewModel() async throws {
+    let defaults = try XCTUnwrap(isolatedDefaults?.defaults)
+    let preferences = PreferencesService(defaults: defaults)
+    preferences.activeTelemetryMetrics = [.sog, .cog, .btw, .rng, .xte]
+
+    let positioning = MockPositioningService()
+    let dampingService = InstrumentDampingService(positioningService: positioning)
+    dampingService.start()
+    defer { dampingService.stop() }
+
+    let db = try DatabaseManager.inMemory()
+    let waypointService = WaypointService(databaseManager: db)
+    let target = Waypoint(
+      id: "hud-target",
+      name: "HUD Target",
+      coordinate: CLLocationCoordinate2D(latitude: 46.20, longitude: -1.20)
+    )
+    try await waypointService.saveWaypoint(target)
+
+    let activeNavService = ActiveNavigationService(
+      databaseManager: db,
+      instrumentDampingService: dampingService
+    )
+    await activeNavService.start()
+    defer { activeNavService.stop() }
+
+    try await activeNavService.setDestination(waypointID: target.id)
+
+    let hud = VitalTelemetryHUD()
+      .environment(preferences)
+      .environment(dampingService)
+      .environment(activeNavService)
+
+    let host = UIHostingController(rootView: hud)
+    host.view.layoutIfNeeded()
     XCTAssertNotNil(host.view)
   }
 }

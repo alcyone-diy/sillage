@@ -642,8 +642,13 @@ final class WaypointTests: XCTestCase {
     XCTAssertEqual(initialVisualState.coordinate.longitude, -1.15, accuracy: 0.0001)
     
     // 2. Open Waypoint in detail view and adjust position
+    let activeNavigationService = ActiveNavigationService(
+      databaseManager: dbManager,
+      instrumentDampingService: instrumentDampingService
+    )
     let vm = WaypointDetailViewModel(
       waypointService: service,
+      activeNavigationService: activeNavigationService,
       editingWaypoint: waypoint,
       startEditable: true
     )
@@ -708,6 +713,11 @@ final class WaypointTests: XCTestCase {
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let activeNavigationService = ActiveNavigationService(
+      databaseManager: dbManager,
+      instrumentDampingService: instrumentDampingService
+    )
+    await activeNavigationService.start()
     let mockAuthService = MockGeoGarageAuthService()
     let messageService = MessageService()
     
@@ -719,6 +729,7 @@ final class WaypointTests: XCTestCase {
       anchorService: anchorService,
       anchorViewModel: anchorViewModel,
       waypointService: service,
+      activeNavigationService: activeNavigationService,
       messageService: messageService
     )
     
@@ -730,7 +741,7 @@ final class WaypointTests: XCTestCase {
       coordinate: originalCoord
     )
     try await service.saveWaypoint(waypoint)
-    service.setDestination(waypointID: waypoint.id)
+    try await activeNavigationService.setDestination(waypointID: waypoint.id)
     
     // Allow background ValueObservation to populate service.currentWaypoints and ChartViewModel
     for _ in 0..<50 {
@@ -744,9 +755,11 @@ final class WaypointTests: XCTestCase {
     
     let vm = WaypointDetailViewModel(
       waypointService: service,
+      activeNavigationService: activeNavigationService,
       editingWaypoint: waypoint,
       startEditable: true
     )
+    XCTAssertTrue(vm.isGoTo)
     
     chartVM.startWaypointPositionAdjustment(
       viewModel: vm,
@@ -828,8 +841,13 @@ final class WaypointTests: XCTestCase {
     XCTAssertNil(chartVM.activeWaypointDetailViewModel)
     
     // Open in read-only mode (startEditable: false)
+    let activeNavigationService = ActiveNavigationService(
+      databaseManager: dbManager,
+      instrumentDampingService: instrumentDampingService
+    )
     let vm = WaypointDetailViewModel(
       waypointService: service,
+      activeNavigationService: activeNavigationService,
       editingWaypoint: waypoint,
       startEditable: false
     )
@@ -858,8 +876,14 @@ final class WaypointTests: XCTestCase {
       coordinate: coord
     )
 
+    let navService = ActiveNavigationService(
+      databaseManager: dbManager,
+      currentInstrumentState: { nil },
+      observeInstrumentState: { AsyncStream { $0.finish() } }
+    )
     let vm = WaypointDetailViewModel(
       waypointService: service,
+      activeNavigationService: navService,
       editingWaypoint: waypoint,
       startEditable: false
     )
@@ -1053,11 +1077,18 @@ final class WaypointTests: XCTestCase {
     )
     try await service.saveWaypoint(waypoint)
 
+    let navService = ActiveNavigationService(
+      databaseManager: dbManager,
+      currentInstrumentState: { nil },
+      observeInstrumentState: { AsyncStream { $0.finish() } }
+    )
     let vm = WaypointDetailViewModel(
       waypointService: service,
+      activeNavigationService: navService,
       editingWaypoint: waypoint,
       startEditable: true
     )
+    XCTAssertFalse(vm.isGoTo)
 
     var persistCallCount = 0
     vm.persistWaypointHandler = { _ in
@@ -1092,8 +1123,14 @@ final class WaypointTests: XCTestCase {
     )
     try await service.saveWaypoint(waypoint)
 
+    let navService = ActiveNavigationService(
+      databaseManager: dbManager,
+      currentInstrumentState: { nil },
+      observeInstrumentState: { AsyncStream { $0.finish() } }
+    )
     let vm = WaypointDetailViewModel(
       waypointService: service,
+      activeNavigationService: navService,
       editingWaypoint: waypoint,
       startEditable: false
     )
@@ -1130,8 +1167,14 @@ final class WaypointTests: XCTestCase {
       coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
     )
 
+    let navService = ActiveNavigationService(
+      databaseManager: dbManager,
+      currentInstrumentState: { nil },
+      observeInstrumentState: { AsyncStream { $0.finish() } }
+    )
     let vm = WaypointDetailViewModel(
       waypointService: service,
+      activeNavigationService: navService,
       editingWaypoint: waypoint,
       startEditable: false
     )
@@ -1160,8 +1203,14 @@ final class WaypointTests: XCTestCase {
       coordinate: CLLocationCoordinate2D(latitude: 46.16, longitude: -1.15)
     )
 
+    let navService = ActiveNavigationService(
+      databaseManager: dbManager,
+      currentInstrumentState: { nil },
+      observeInstrumentState: { AsyncStream { $0.finish() } }
+    )
     let vm = WaypointDetailViewModel(
       waypointService: service,
+      activeNavigationService: navService,
       editingWaypoint: waypoint,
       startEditable: false
     )

@@ -177,6 +177,7 @@ struct WaypointDetailContainer: View {
   let waypointID: String
   let initialWaypoint: Waypoint?
   @Environment(WaypointService.self) private var waypointService
+  @Environment(ActiveNavigationService.self) private var activeNavigationService
   @Environment(ChartViewModel.self) private var chartViewModel
   @Environment(PanelManagerViewModel.self) private var panelManager
   @State private var state: LoadState = .loading
@@ -206,11 +207,10 @@ struct WaypointDetailContainer: View {
         WaypointDetailView(
           viewModel: viewModel,
           onGoToRequested: { waypointID in
-            waypointService.setDestination(waypointID: waypointID)
-            panelManager.closePanel()
+            requestGoTo(waypointID: waypointID, viewModel: viewModel)
           },
           onCancelNavigationRequested: {
-            waypointService.setDestination(waypointID: nil)
+            requestCancelNavigation(viewModel: viewModel)
           },
           onModifyPositionRequested: {
             chartViewModel.startWaypointPositionAdjustment(
@@ -276,6 +276,7 @@ struct WaypointDetailContainer: View {
       }
       let vm = WaypointDetailViewModel(
         waypointService: waypointService,
+        activeNavigationService: activeNavigationService,
         editingWaypoint: waypointToUse,
         startEditable: false
       )
@@ -283,6 +284,32 @@ struct WaypointDetailContainer: View {
       state = .loaded(vm)
     } catch {
       state = .error(error)
+    }
+  }
+
+  private func requestGoTo(waypointID: String, viewModel: WaypointDetailViewModel) {
+    let activeNavigationService = self.activeNavigationService
+    let panelManager = self.panelManager
+    Task { @MainActor [weak activeNavigationService, weak panelManager, weak viewModel] in
+      guard let activeNavigationService else { return }
+      do {
+        try await activeNavigationService.setDestination(waypointID: waypointID)
+        panelManager?.closePanel()
+      } catch {
+        viewModel?.activeError = error
+      }
+    }
+  }
+
+  private func requestCancelNavigation(viewModel: WaypointDetailViewModel) {
+    let activeNavigationService = self.activeNavigationService
+    Task { @MainActor [weak activeNavigationService, weak viewModel] in
+      guard let activeNavigationService else { return }
+      do {
+        try await activeNavigationService.setDestination(waypointID: nil)
+      } catch {
+        viewModel?.activeError = error
+      }
     }
   }
 }

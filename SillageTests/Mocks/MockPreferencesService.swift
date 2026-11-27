@@ -65,7 +65,6 @@ final class MockPreferencesService: PreferencesServiceProtocol {
     activeTrackSessionID = nil
   }
 
-  var goToWaypointID: String?
   var displayedTrackSessionID: String?
 
   var isBaroAlarmEnabled: Bool = false
@@ -102,7 +101,6 @@ final class MockPreferencesService: PreferencesServiceProtocol {
     savedCameraZoom = nil
     savedCameraDirection = nil
     activeTrackSessionID = nil
-    goToWaypointID = nil
     displayedTrackSessionID = nil
     isBaroAlarmEnabled = false
     baroAlarmSensitivity = .medium

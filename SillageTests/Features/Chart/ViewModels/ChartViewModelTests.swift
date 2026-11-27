@@ -1283,7 +1283,7 @@ final class ChartViewModelTests: XCTestCase {
     XCTAssertEqual(viewModel.currentChartSource, expected, "Initial login with passive OpenSeaMap should switch to the first available layer")
   }
 
-  func testGeoGarageInitialLoginPreservesChartWhenGoToIsActive() {
+  func testGeoGarageInitialLoginPreservesChartWhenGoToIsActive() async throws {
     // Arrange
     let mockAuthService = MockGeoGarageAuthService()
     let positioningService = MockPositioningService()
@@ -1300,6 +1300,19 @@ final class ChartViewModelTests: XCTestCase {
     )
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
+    let db = try DatabaseManager.inMemory()
+    let waypointService = WaypointService(databaseManager: db)
+    let activeNavigationService = ActiveNavigationService(
+      databaseManager: db,
+      instrumentDampingService: instrumentDampingService
+    )
+    let waypoint = Waypoint(
+      id: "active_wp_id",
+      name: "Active Target",
+      coordinate: CLLocationCoordinate2D(latitude: 46.15, longitude: -1.16)
+    )
+    try await waypointService.saveWaypoint(waypoint)
+    try await activeNavigationService.setDestination(waypointID: waypoint.id)
 
     let viewModel = ChartViewModel(
       positioningService: positioningService,
@@ -1307,11 +1320,12 @@ final class ChartViewModelTests: XCTestCase {
       preferencesService: preferencesService,
       authService: mockAuthService,
       anchorService: anchorService,
-      anchorViewModel: anchorViewModel
+      anchorViewModel: anchorViewModel,
+      waypointService: waypointService,
+      activeNavigationService: activeNavigationService
     )
 
     viewModel.currentChartSource = .openSeaMap
-    viewModel.goToWaypointID = "active_wp_id"
 
     let layers = [
       GeoGarageLayer(layer: "shom", brandName: "SHOM France", versionDate: "2026-01-01", validUntil: "2027-01-01")
@@ -1605,6 +1619,10 @@ final class ChartViewModelTests: XCTestCase {
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let mockAuthService = MockGeoGarageAuthService()
     let waypointService = WaypointService(databaseManager: dbManager)
+    let activeNavigationService = ActiveNavigationService(
+      databaseManager: dbManager,
+      instrumentDampingService: instrumentDampingService
+    )
 
     let viewModel = ChartViewModel(
       positioningService: positioningService,
@@ -1616,6 +1634,7 @@ final class ChartViewModelTests: XCTestCase {
       trackService: trackService,
       trackRecordingService: trackRecordingService,
       waypointService: waypointService,
+      activeNavigationService: activeNavigationService,
       messageService: messageService,
       configuration: AppConfiguration(geoGarageClientID: nil)
     )
@@ -1681,6 +1700,10 @@ final class ChartViewModelTests: XCTestCase {
     let instrumentDampingService = InstrumentDampingService(positioningService: positioningService)
     let mockAuthService = MockGeoGarageAuthService()
     let waypointService = WaypointService(databaseManager: dbManager)
+    let activeNavigationService = ActiveNavigationService(
+      databaseManager: dbManager,
+      instrumentDampingService: instrumentDampingService
+    )
 
     let viewModel = ChartViewModel(
       positioningService: positioningService,
@@ -1692,6 +1715,7 @@ final class ChartViewModelTests: XCTestCase {
       trackService: trackService,
       trackRecordingService: trackRecordingService,
       waypointService: waypointService,
+      activeNavigationService: activeNavigationService,
       messageService: messageService,
       configuration: AppConfiguration(geoGarageClientID: nil)
     )

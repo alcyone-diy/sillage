@@ -20,6 +20,7 @@ final class MapCalloutViewModel {
   
   var isCalloutVisible: Bool = false
   var isPointInfoPresented: Bool = false
+  var activeError: Error? = nil
   var targetCoordinate: CLLocationCoordinate2D? = nil
   var targetWaypointID: String? = nil
   var isCentering: Bool = false
@@ -87,6 +88,7 @@ final class MapCalloutViewModel {
     self.reticleVisualOffset = .zero
     self.isPointInfoPresented = false
     self.isCalloutVisible = false
+    self.activeError = nil
     self.targetCoordinate = nil
     self.targetWaypointID = nil
     self.sunEphemeris = nil
@@ -180,6 +182,7 @@ final class MapCalloutViewModel {
     pointInfoFetchTask = nil
     self.isCalloutVisible = false
     self.isPointInfoPresented = false
+    self.activeError = nil
     self.targetWaypointID = nil
     self.aimingCoordinate = nil
     self.isCentering = false

@@ -15,6 +15,7 @@ import Observation
 @Observable
 public final class WaypointListViewModel {
   private let waypointService: WaypointService
+  private let activeNavigationService: ActiveNavigationService
   public var activeError: Error?
   
   public var waypoints: [Waypoint] {
@@ -22,11 +23,15 @@ public final class WaypointListViewModel {
   }
   
   public var goToWaypointID: String? {
-    waypointService.goToWaypointID
+    activeNavigationService.goToWaypointID
   }
   
-  public init(waypointService: WaypointService) {
+  public init(
+    waypointService: WaypointService,
+    activeNavigationService: ActiveNavigationService
+  ) {
     self.waypointService = waypointService
+    self.activeNavigationService = activeNavigationService
   }
   
   public func deleteWaypoint(_ waypoint: Waypoint) {
@@ -40,6 +45,12 @@ public final class WaypointListViewModel {
   }
   
   public func setDestination(waypointID: String?) {
-    waypointService.setDestination(waypointID: waypointID)
+    Task { [weak self] in
+      do {
+        try await self?.activeNavigationService.setDestination(waypointID: waypointID)
+      } catch {
+        self?.activeError = error
+      }
+    }
   }
 }

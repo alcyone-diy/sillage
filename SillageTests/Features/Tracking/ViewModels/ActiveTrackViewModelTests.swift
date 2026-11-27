@@ -143,6 +143,10 @@ struct ActiveTrackViewModelTests {
     let anchorViewModel = AnchorViewModel(anchorService: anchorService)
     let mockAuthService = MockGeoGarageAuthService()
     let waypointService = WaypointService(databaseManager: databaseManager)
+    let activeNavigationService = ActiveNavigationService(
+      databaseManager: databaseManager,
+      instrumentDampingService: instrumentDampingService
+    )
 
     let chartViewModel = ChartViewModel(
       positioningService: positioningService,
@@ -154,6 +158,7 @@ struct ActiveTrackViewModelTests {
       trackService: trackService,
       trackRecordingService: trackRecordingService,
       waypointService: waypointService,
+      activeNavigationService: activeNavigationService,
       messageService: messageService,
       configuration: AppConfiguration(geoGarageClientID: nil)
     )

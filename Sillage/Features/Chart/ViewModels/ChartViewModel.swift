@@ -150,11 +150,6 @@ final class ChartViewModel {
     return state == .stale || state == .lost
   }
   
-  var bearingToWaypoint: Measurement<UnitAngle>? = nil
-  var rangeToWaypoint: Measurement<UnitLength>? = nil
-  var crossTrackError: Measurement<UnitLength>? = nil
-  private var goToOriginCoordinate: CLLocationCoordinate2D? = nil
-  
   // MARK: - Chart Visual States (Annotations)
   
   var vesselVisualState: VesselVisualState?
@@ -167,7 +162,9 @@ final class ChartViewModel {
     waypointService.draftWaypoint?.id
   }
   var bearingLineVisualState: BearingLineVisualState?
-  var goToWaypointID: String?
+  var goToWaypointID: String? {
+    activeNavigationService.goToWaypointID
+  }
   var anchorVisualState: AnchorVisualState?
   var offlineMaskVisualState: OfflineMaskVisualState?
   var offlineRegionScreenLabels: [OfflineRegionScreenLabel] = []
@@ -192,6 +189,7 @@ final class ChartViewModel {
   private var preferencesService: PreferencesServiceProtocol
   private let authService: GeoGarageAuthServiceProtocol
   private let waypointService: WaypointService
+  private let activeNavigationService: ActiveNavigationService
   private let trackService: TrackService
   private let trackRecordingService: TrackRecordingService
   private let anchorService: AnchorService
@@ -237,7 +235,7 @@ final class ChartViewModel {
   /// without requiring a non-isolated `deinit`.
   private var instrumentTask: TaskCancellable?
   private var observationTask: TaskCancellable?
-  private var waypointSelectionTask: TaskCancellable?
+  private var navigationActivationTask: TaskCancellable?
   private var waypointsObservationTask: TaskCancellable?
   private var anchorObservationTask: TaskCancellable?
   private var finalizedTrackSessionsTask: TaskCancellable?
@@ -409,6 +407,7 @@ final class ChartViewModel {
     trackService: TrackService,
     trackRecordingService: TrackRecordingService,
     waypointService: WaypointService,
+    activeNavigationService: ActiveNavigationService,
     messageService: MessageService,
     keychainManager: any KeychainManaging = KeychainManager.shared,
     configuration: AppConfiguration
@@ -420,6 +419,7 @@ final class ChartViewModel {
     self.anchorService = anchorService
     self.anchorViewModel = anchorViewModel
     self.waypointService = waypointService
+    self.activeNavigationService = activeNavigationService
     self.trackService = trackService
     self.trackRecordingService = trackRecordingService
     self.messageService = messageService
@@ -484,28 +484,39 @@ final class ChartViewModel {
   }
   
   private func setupWaypointService() {
-    // Initial handling
+    // Initial handling (restores GoTo visual state without overriding saved camera or tracking mode)
     handleWaypointsChange(
       waypoints: waypointService.currentWaypoints,
       draftWaypoint: waypointService.draftWaypoint
     )
-    handleGoToWaypointChange(id: waypointService.goToWaypointID)
-    
-    observeWaypointSelection()
+    syncActiveGoToVisualState()
+
+    observeActiveNavigation()
+    setupNavigationActivationTask()
     observeWaypointsList()
   }
 
-  private func observeWaypointSelection() {
-    let waypointService = self.waypointService
+  private func observeActiveNavigation() {
+    let activeNavigationService = self.activeNavigationService
     withObservationTracking {
-      _ = waypointService.goToWaypointID
+      _ = activeNavigationService.activeLeg
     } onChange: { [weak self] in
       Task { @MainActor [weak self] in
         guard let self = self else { return }
-        self.handleGoToWaypointChange(id: self.waypointService.goToWaypointID)
-        self.observeWaypointSelection()
+        self.syncActiveGoToVisualState()
+        self.observeActiveNavigation()
       }
     }
+  }
+
+  private func setupNavigationActivationTask() {
+    navigationActivationTask = TaskCancellable(Task { @MainActor [weak self] in
+      guard let stream = self?.activeNavigationService.navigationActivationStream else { return }
+      for await waypoint in stream {
+        guard !Task.isCancelled, let self else { break }
+        self.handleExplicitNavigationActivation(waypoint: waypoint)
+      }
+    })
   }
 
   private func observeWaypointsList() {
@@ -550,33 +561,28 @@ final class ChartViewModel {
     })
   }
   
-  private func handleGoToWaypointChange(id: String?) {
-    // 1. Strict validation
-    guard let id = id,
-          let waypoint = waypointService.currentWaypoints.first(where: { $0.id == id }) else {
-      // 2. Safe fallback: Total reset if invalid or nil
-      self.goToWaypointID = nil
+  private func syncActiveGoToVisualState() {
+    guard let leg = activeNavigationService.activeLeg else {
       self.goToWaypointVisualState = nil
-      self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
       self.updateBearingLine(state: self.instrumentDampingService.state)
       return
     }
-    
-    // 3. Application of the valid state
+    self.goToWaypointVisualState = resolvedVisualState(for: leg.waypoint)
+    self.updateBearingLine(state: self.instrumentDampingService.state)
+  }
+
+  /// Frames the viewport onto the newly activated GoTo leg when triggered by an explicit user command.
+  /// Cold-start restoration bypasses this path so the user's saved camera position and tracking mode stay intact.
+  private func handleExplicitNavigationActivation(waypoint: Waypoint) {
     let visualState = resolvedVisualState(for: waypoint)
-    self.goToWaypointID = id
     self.goToWaypointVisualState = visualState
-    self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
     self.updateBearingLine(state: self.instrumentDampingService.state)
     self.trackingMode = .free
     self.preferencesService.lastMapTrackingMode = .free
-    
-    // 4. Emit the event
+
     let event: CameraMoveEvent
-    if let boatCoordinate = instrumentDampingService.state?.coordinate {
+    if let boatCoordinate = liveVesselCoordinate(from: instrumentDampingService.state) {
       let bounds = GeographicBoundingBox.enclosing(visualState.coordinate, boatCoordinate)
-      
-      // Use padding to ensure points are not hidden behind UI panels
       event = CameraMoveEvent.fitBounds(
         bounds: bounds,
         padding: MarineTheme.navigationTargetFramingPadding,
@@ -585,7 +591,7 @@ final class ChartViewModel {
     } else {
       event = CameraMoveEvent.center(coordinate: visualState.coordinate, zoom: nil, heading: nil)
     }
-    
+
     for continuation in self.cameraMoveContinuations.values {
       continuation.yield(event)
     }
@@ -670,32 +676,7 @@ final class ChartViewModel {
       lastPositionedDraftCoordinate = nil
     }
     
-    // Check the persistence of the current target waypoint
-    // Note: We read the intent from waypointService instead of self.goToWaypointID
-    // This allows correctly restoring navigation upon app startup,
-    // as handleGoToWaypointChange might have temporarily purged the state if waypoints were not yet loaded.
-    guard let targetID = waypointService.goToWaypointID else {
-      self.goToWaypointID = nil
-      self.goToWaypointVisualState = nil
-      self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
-      self.updateBearingLine(state: self.instrumentDampingService.state)
-      return
-    }
-    
-    guard let waypoint = waypoints.first(where: { $0.id == targetID }) else {
-      // The target waypoint no longer exists (deleted), cancel navigation
-      self.goToWaypointID = nil
-      self.goToWaypointVisualState = nil
-      self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
-      self.updateBearingLine(state: self.instrumentDampingService.state)
-      return
-    }
-    
-    // The waypoint still exists, update its data (color, name, position)
-    self.goToWaypointID = targetID
-    self.goToWaypointVisualState = resolvedVisualState(for: waypoint)
-    self.updateBearingToWaypoint(state: self.instrumentDampingService.state)
-    self.updateBearingLine(state: self.instrumentDampingService.state)
+    syncActiveGoToVisualState()
   }
   
   /// Initiates the asynchronous import of an MBTiles file and switches the chart to it upon success.
@@ -976,7 +957,6 @@ final class ChartViewModel {
   private func refreshMapFeatures(state: InstrumentState? = nil) {
     let safeState = state ?? instrumentDampingService.state
     
-    updateBearingToWaypoint(state: safeState)
     updateBearingLine(state: safeState)
     updateVesselFeature(state: safeState)
     updateHeadingVector(state: safeState)
@@ -1033,12 +1013,9 @@ final class ChartViewModel {
   }
 
   private func updateAccuracyFeature(state: InstrumentState?) {
-    guard let accuracy = state?.horizontalAccuracy?.converted(to: .meters).value, let coordinate = state?.coordinate else {
-      self.gpsAccuracyVisualState = nil
-      return
-    }
-    let accuracyMeasurement = Measurement(value: accuracy, unit: UnitLength.meters)
-    guard let accuracyCoords = coordinate.circularPolygon(radius: accuracyMeasurement) else {
+    guard let accuracy = state?.horizontalAccuracy,
+          let coordinate = state?.coordinate,
+          let accuracyCoords = coordinate.circularPolygon(radius: accuracy) else {
       self.gpsAccuracyVisualState = nil
       return
     }
@@ -1664,28 +1641,21 @@ final class ChartViewModel {
     }
   }
   
-  private func updateBearingToWaypoint(state: InstrumentState?) {
-    guard let current = state?.coordinate, let waypoint = goToWaypointVisualState?.coordinate else {
-      bearingToWaypoint = nil
-      rangeToWaypoint = nil
-      crossTrackError = nil
-      goToOriginCoordinate = nil
-      return
+  /// Returns the vessel coordinate strictly when GPS state is `.active` or `.degraded`.
+  /// Rejects `.lost` and `.stale` states so camera framing and bearing lines never anchor onto a dead cached position.
+  private func liveVesselCoordinate(from state: InstrumentState?) -> CLLocationCoordinate2D? {
+    guard let state,
+          state.gpsState == .active || state.gpsState == .degraded,
+          let coordinate = state.coordinate,
+          CLLocationCoordinate2DIsValid(coordinate) else {
+      return nil
     }
-
-    bearingToWaypoint = current.greatCircleBearing(to: waypoint)
-    rangeToWaypoint = current.geodesicDistance(to: waypoint)
-
-    if let origin = goToOriginCoordinate {
-      crossTrackError = current.crossTrackError(from: origin, to: waypoint)
-    } else {
-      goToOriginCoordinate = current
-      crossTrackError = current.crossTrackError(from: current, to: waypoint)
-    }
+    return coordinate
   }
-  
+
   private func updateBearingLine(state: InstrumentState?) {
-    guard let current = state?.coordinate, let waypoint = goToWaypointVisualState?.coordinate else {
+    guard let current = liveVesselCoordinate(from: state),
+          let waypoint = goToWaypointVisualState?.coordinate else {
       bearingLineVisualState = nil
       return
     }

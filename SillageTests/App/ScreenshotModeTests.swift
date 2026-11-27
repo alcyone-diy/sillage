@@ -76,8 +76,10 @@ struct ScreenshotModeTests {
       return
     }
 
-    // 0. User preferences (predictor vector, selected waypoint, HUD metrics, disclaimer) must remain 100% untouched
-    #expect(container.preferencesService.goToWaypointID == "user-wpt-chauveau")
+    // 0. User preferences (predictor vector, HUD metrics, disclaimer) must remain 100% untouched,
+    //    and legacy UserDefaults `goToWaypointID` is migrated one-shot into SQLite `active_navigation`.
+    #expect(isolatedDefaults.defaults.string(forKey: ActiveNavigationService.legacyGoToWaypointDefaultsKey) == nil)
+    #expect(container.activeNavigationService.goToWaypointID == "user-wpt-chauveau")
     #expect(container.preferencesService.isCOGVectorEnabled == false)
     #expect(container.preferencesService.cogVectorTimeHorizon == Measurement(value: 1800.0, unit: .seconds))
     #expect(isolatedDefaults.defaults.object(forKey: "hasAcceptedDisclaimer") == nil)
@@ -92,32 +94,32 @@ struct ScreenshotModeTests {
     for _ in 0..<40 {
       if let coord = container.chartViewModel.currentCoordinate,
          abs(coord.latitude - scenario.vesselCoordinate.latitude) < 0.0001,
-         container.chartViewModel.crossTrackError != nil,
+         container.activeNavigationService.crossTrackError != nil,
          container.barometerViewModel.formattedTrend != nil {
         break
       }
       try? await Task.sleep(for: .milliseconds(50))
     }
 
-    // 3. Verify GPS, SOG, COG, BTW, RNG, XTE on ChartViewModel
+    // 3. Verify GPS, SOG, COG on ChartViewModel/InstrumentDampingService and BTW, RNG, XTE on ActiveNavigationService
     let currentCoord = try #require(container.chartViewModel.currentCoordinate)
     #expect(abs(currentCoord.latitude - scenario.vesselCoordinate.latitude) < 0.0001)
     #expect(abs(currentCoord.longitude - scenario.vesselCoordinate.longitude) < 0.0001)
 
-    let sogKnots = try #require(container.chartViewModel.smoothedSOG?.converted(to: .knots).value)
+    let sogKnots = try #require(container.instrumentDampingService.state?.smoothedSOG?.converted(to: .knots).value)
     #expect(abs(sogKnots - 6.4) < 0.05)
 
-    let cogDegrees = try #require(container.chartViewModel.smoothedCOG?.normalizedDegrees)
+    let cogDegrees = try #require(container.instrumentDampingService.state?.smoothedCOG?.normalizedDegrees)
     #expect(abs(cogDegrees - 258.0) < 0.5)
 
-    #expect(container.chartViewModel.bearingToWaypoint != nil)
-    #expect(container.chartViewModel.rangeToWaypoint != nil)
-    let xteNM = try #require(container.chartViewModel.crossTrackError?.converted(to: .marineNauticalMiles).value)
+    #expect(container.activeNavigationService.bearingToWaypoint != nil)
+    #expect(container.activeNavigationService.rangeToWaypoint != nil)
+    let xteNM = try #require(container.activeNavigationService.crossTrackError?.converted(to: .marineNauticalMiles).value)
     #expect(abs(xteNM) > 0.001)
 
     // 4. Verify user's Waypoint + 4 seeded demo Waypoints and 2 seeded demo Tracks, with user's Active GoTo preserved
     #expect(container.waypointService.currentWaypoints.count == 5)
-    #expect(container.waypointService.goToWaypointID == "user-wpt-chauveau")
+    #expect(container.activeNavigationService.goToWaypointID == "user-wpt-chauveau")
     var observedTracks: [TrackSession] = []
     for await sessions in container.trackService.observeTrackSessions() {
       observedTracks = sessions

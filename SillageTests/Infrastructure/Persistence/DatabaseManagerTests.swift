@@ -427,6 +427,7 @@ final class DatabaseManagerTests: Sendable {
       #expect(try db.tableExists("checklist_session_item"))
       #expect(try db.tableExists("geogarage_download"))
       #expect(try db.tableExists("geogarage_layer"))
+      #expect(try db.tableExists("active_navigation"))
 
       let columns = try db.columns(in: "checklist_template").map { $0.name }
       #expect(columns.contains("category_id"))
@@ -485,6 +486,57 @@ final class DatabaseManagerTests: Sendable {
       let customExists = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM checklist_category WHERE id = 'custom'")
       #expect(customExists == 1)
     }
+  }
+
+  @Test("active_navigation enforces singleton id = 1, coordinate bounds, and ON DELETE CASCADE with waypoint")
+  func testActiveNavigationConstraintsAndCascadeDelete() async throws {
+    let waypointRecord = WaypointRecord(
+      id: "wpt-cascade-1",
+      name: "Cascade Target",
+      latitude_deg: 46.15,
+      longitude_deg: -1.16,
+      timestamp: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+
+    try await dbManager.write { db in
+      try waypointRecord.insert(db)
+      try ActiveNavigationRecord(
+        waypoint_id: waypointRecord.id,
+        originCoordinate: CLLocationCoordinate2D(latitude: 46.10, longitude: -1.10),
+        activatedAt: Date(timeIntervalSince1970: 1_700_000_100)
+      ).insert(db)
+    }
+
+    // Singleton constraint: id != 1 must be rejected
+    await #expect(throws: GRDB.DatabaseError.self) {
+      try await self.dbManager.write { db in
+        try ActiveNavigationRecord(
+          id: 2,
+          waypoint_id: waypointRecord.id,
+          originCoordinate: nil,
+          activatedAt: Date()
+        ).insert(db)
+      }
+    }
+
+    // Null-symmetry constraint: half-null origin coordinates must be rejected
+    await #expect(throws: GRDB.DatabaseError.self) {
+      try await self.dbManager.write { db in
+        try db.execute(
+          sql: "UPDATE active_navigation SET origin_latitude_deg = 45.0, origin_longitude_deg = NULL WHERE id = 1"
+        )
+      }
+    }
+
+    // Deleting the target waypoint must cascade-delete the active_navigation row
+    try await dbManager.write { db in
+      _ = try WaypointRecord.deleteOne(db, key: waypointRecord.id)
+    }
+
+    let remainingCount = try await dbManager.reader.read { db in
+      try ActiveNavigationRecord.fetchCount(db)
+    }
+    #expect(remainingCount == 0)
   }
 
   // MARK: - Helpers

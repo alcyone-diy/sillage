@@ -17,7 +17,8 @@ import SwiftUI
 /// Supports interactive Edit Mode (`isEditingHUD == true`), squish long-press feedback, and ephemeral short-tap hint toasts capped at 2 successful Edit Mode entries.
 @MainActor
 public struct VitalTelemetryHUD: View {
-  @Environment(ChartViewModel.self) private var chartViewModel: ChartViewModel?
+  @Environment(InstrumentDampingService<ContinuousClock>.self) private var instrumentDampingService: InstrumentDampingService<ContinuousClock>?
+  @Environment(ActiveNavigationService.self) private var activeNavigationService: ActiveNavigationService?
   @Environment(PreferencesService.self) private var preferencesService
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @Environment(\.locale) private var locale
@@ -235,27 +236,27 @@ public struct VitalTelemetryHUD: View {
   private func createTelemetryItem(for metric: TelemetryMetric) -> MarineTelemetryItem {
     switch metric {
     case .sog:
-      let value = chartViewModel?.smoothedSOG
+      let value = instrumentDampingService?.state?.smoothedSOG
       let string = value?.marineFormatted ?? "---"
       return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
     case .cog:
-      let value = chartViewModel?.smoothedCOG
+      let value = instrumentDampingService?.state?.smoothedCOG
       let string = value?.marineBearingFormatted ?? "---"
       return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
     case .btw:
-      let value = chartViewModel?.bearingToWaypoint
+      let value = activeNavigationService?.bearingToWaypoint
       let string = value?.marineBearingFormatted ?? "---"
       return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
     case .rng:
-      let value = chartViewModel?.rangeToWaypoint
+      let value = activeNavigationService?.rangeToWaypoint
       let string = value?.marineContextualDistanceFormatted(locale: locale) ?? "---"
       return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 
     case .xte:
-      let value = chartViewModel?.crossTrackError
+      let value = activeNavigationService?.crossTrackError
       let string = value?.marineCrossTrackFormatted ?? "---"
       return MarineTelemetryItem(id: metric.id, label: metric.label, value: string, isPlaceholder: value == nil)
 

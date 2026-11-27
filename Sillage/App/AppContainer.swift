@@ -20,6 +20,8 @@ extension AppEnvironment {
     let trackRecordingService: TrackRecordingService
     let trackService: TrackService
     let waypointService: WaypointService
+    let activeNavigationService: ActiveNavigationService
+    let instrumentDampingService: InstrumentDampingService<ContinuousClock>
     let geoGarageAuthService: GeoGarageAuthService
     let geoGarageLayerRepository: GeoGarageLayerRepository
     let geoGarageDownloadRepository: GeoGarageDownloadRepository

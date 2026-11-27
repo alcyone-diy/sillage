@@ -20,6 +20,7 @@ import OSLog
 struct MapCalloutView: View {
   @Environment(\.marineTheme) private var marineTheme
   @Environment(WaypointService.self) private var waypointService
+  @Environment(ActiveNavigationService.self) private var activeNavigationService
   @Environment(PanelManagerViewModel.self) private var panelManager
   @Environment(AppViewModel.self) private var appViewModel
   @Environment(\.locale) private var locale
@@ -191,6 +192,18 @@ struct MapCalloutView: View {
       }
     }
     .containerBackground(marineTheme.colors.panelBackground, for: .navigation)
+    .alert(
+      "Error",
+      isPresented: Binding(
+        get: { calloutViewModel.activeError != nil },
+        set: { if !$0 { calloutViewModel.activeError = nil } }
+      ),
+      presenting: calloutViewModel.activeError
+    ) { _ in
+      Button("OK", role: .cancel) { }
+    } message: { error in
+      Text(error.localizedDescription)
+    }
     .onAppear {
       notifySheetHeightChanged(measuredHeight)
     }
@@ -369,22 +382,12 @@ struct MapCalloutView: View {
   
   @ViewBuilder
   private func waypointActionsView(waypointID: String) -> some View {
-    let isSelected = chartViewModel.goToWaypointID == waypointID
+    let isSelected = activeNavigationService.goToWaypointID == waypointID
     
     VStack(spacing: MarineTheme.Spacing.small) {
       // 1. Primary Action Button (Prominent)
       Button {
-        Task { @MainActor [weak waypointService = waypointService, weak calloutViewModel = calloutViewModel] in
-          guard let waypointService, let calloutViewModel else { return }
-          if isSelected {
-            Logger.navigation.info("Deselecting destination waypoint ID: \(waypointID, privacy: .public)")
-            waypointService.setDestination(waypointID: nil)
-          } else {
-            Logger.navigation.info("Setting destination waypoint ID: \(waypointID, privacy: .public)")
-            waypointService.setDestination(waypointID: waypointID)
-          }
-          calloutViewModel.dismiss()
-        }
+        toggleDestination(waypointID: waypointID, isCurrentlySelected: isSelected)
       } label: {
         Label(
           isSelected ? "Deselect" : "Select",
@@ -456,7 +459,7 @@ struct MapCalloutView: View {
       .buttonStyle(MarineButtonStyle(.primary))
       
       // 2. Secondary Actions Row
-      let hasActiveTarget = chartViewModel.goToWaypointID != nil
+      let hasActiveTarget = activeNavigationService.goToWaypointID != nil
       HStack(spacing: MarineTheme.Spacing.small) {
         Button {
           Logger.navigation.info("Opening point info sheet from map target callout")
@@ -485,12 +488,7 @@ struct MapCalloutView: View {
       
       if hasActiveTarget {
         Button {
-          Task { @MainActor [weak waypointService = waypointService, weak calloutViewModel = calloutViewModel] in
-            guard let waypointService, let calloutViewModel else { return }
-            Logger.navigation.info("Deselecting active target from map callout")
-            waypointService.setDestination(waypointID: nil)
-            calloutViewModel.dismiss()
-          }
+          clearActiveDestination()
         } label: {
           Label("Deselect Target", marineIcon: .deselect)
             .padding(.horizontal, MarineTheme.Spacing.small)
@@ -498,6 +496,43 @@ struct MapCalloutView: View {
             .minimumScaleFactor(MarineTheme.Metrics.actionTextScaleFactor)
         }
         .buttonStyle(MarineButtonStyle(.cancel))
+      }
+    }
+  }
+
+  private func toggleDestination(waypointID: String, isCurrentlySelected: Bool) {
+    let activeNavigationService = self.activeNavigationService
+    let calloutViewModel = self.calloutViewModel
+    Task { @MainActor [weak activeNavigationService, weak calloutViewModel] in
+      guard let activeNavigationService, let calloutViewModel else { return }
+      do {
+        if isCurrentlySelected {
+          Logger.navigation.info("Deselecting destination waypoint ID: \(waypointID, privacy: .public)")
+          try await activeNavigationService.setDestination(waypointID: nil)
+        } else {
+          Logger.navigation.info("Setting destination waypoint ID: \(waypointID, privacy: .public)")
+          try await activeNavigationService.setDestination(waypointID: waypointID)
+        }
+        calloutViewModel.dismiss()
+      } catch {
+        Logger.navigation.error("Failed to update GoTo destination for waypoint \(waypointID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        calloutViewModel.activeError = error
+      }
+    }
+  }
+
+  private func clearActiveDestination() {
+    let activeNavigationService = self.activeNavigationService
+    let calloutViewModel = self.calloutViewModel
+    Task { @MainActor [weak activeNavigationService, weak calloutViewModel] in
+      guard let activeNavigationService, let calloutViewModel else { return }
+      do {
+        Logger.navigation.info("Deselecting active target from map callout")
+        try await activeNavigationService.setDestination(waypointID: nil)
+        calloutViewModel.dismiss()
+      } catch {
+        Logger.navigation.error("Failed to clear active GoTo destination: \(error.localizedDescription, privacy: .public)")
+        calloutViewModel.activeError = error
       }
     }
   }

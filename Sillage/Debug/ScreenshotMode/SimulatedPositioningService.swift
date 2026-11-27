@@ -159,8 +159,8 @@ final class SimulatedPositioningService: PositioningService {
     let swingCoords = scenario.swingCoordinates
 
     emissionTask = Task { @MainActor [weak self] in
-      // 1. Wait `legOriginSettleDelay` after initial leg origin fix so ChartViewModel & WaypointService
-      //    lock goToOriginCoordinate, then transition to vesselCoordinate for a non-zero XTE.
+      // 1. Wait `legOriginSettleDelay` after initial leg origin fix so `ActiveNavigationService`
+      //    locks `originCoordinate`, then transition to `vesselCoordinate` for a non-zero XTE.
       if self?.hasEmittedLegOrigin == false {
         try? await Task.sleep(for: settleDelay)
         guard !Task.isCancelled else { return }

@@ -102,7 +102,7 @@ public final class WaypointDetailViewModel {
   
   public var isGoTo: Bool {
     guard let id = editingWaypointID else { return false }
-    return waypointService.goToWaypointID == id
+    return activeNavigationService?.goToWaypointID == id
   }
   
   // MARK: - Point Information (Ephemeris & Magnetism)
@@ -118,6 +118,7 @@ public final class WaypointDetailViewModel {
   }
   
   private let waypointService: WaypointService
+  private let activeNavigationService: ActiveNavigationService?
   private let astronomicalService: AstronomicalService
   private let magneticDeclinationService: MagneticDeclinationService
   private var pointInfoLoadGeneration: UInt64 = 0
@@ -145,6 +146,7 @@ public final class WaypointDetailViewModel {
     magneticDeclinationService: MagneticDeclinationService = MagneticDeclinationService()
   ) {
     self.waypointService = waypointService
+    self.activeNavigationService = nil
     self.astronomicalService = astronomicalService
     self.magneticDeclinationService = magneticDeclinationService
     self.editingWaypointID = nil
@@ -170,12 +172,14 @@ public final class WaypointDetailViewModel {
   
   public init(
     waypointService: WaypointService,
+    activeNavigationService: ActiveNavigationService,
     editingWaypoint: Waypoint,
     startEditable: Bool = false,
     astronomicalService: AstronomicalService = AstronomicalService(),
     magneticDeclinationService: MagneticDeclinationService = MagneticDeclinationService()
   ) {
     self.waypointService = waypointService
+    self.activeNavigationService = activeNavigationService
     self.astronomicalService = astronomicalService
     self.magneticDeclinationService = magneticDeclinationService
     self.editingWaypointID = editingWaypoint.id

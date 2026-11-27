@@ -34,6 +34,20 @@ final class MapCalloutViewModelTests: XCTestCase {
     XCTAssertFalse(viewModel.isCalloutVisible)
     XCTAssertNil(viewModel.targetWaypointID)
   }
+
+  func testActiveErrorPreservesCalloutUntilDismissed() {
+    let viewModel = MapCalloutViewModel()
+    let targetCoord = CLLocationCoordinate2D(latitude: 46.15, longitude: -1.16)
+    viewModel.beginAiming(at: targetCoord, waypointID: "wp-missing", needsCentering: false)
+
+    viewModel.activeError = WaypointError.notFound
+    XCTAssertTrue(viewModel.isCalloutVisible)
+    XCTAssertNotNil(viewModel.activeError)
+
+    viewModel.dismiss()
+    XCTAssertFalse(viewModel.isCalloutVisible)
+    XCTAssertNil(viewModel.activeError)
+  }
   
   func testPointInfoPresentationLifecycle() {
     let viewModel = MapCalloutViewModel()

@@ -74,6 +74,7 @@ final class AppEnvironment {
     let trackRecordingService: TrackRecordingService
     let trackService: TrackService
     let waypointService: WaypointService
+    let activeNavigationService: ActiveNavigationService
   }
 
   private struct GeoGarageServices {
@@ -271,6 +272,7 @@ final class AppEnvironment {
     )
 
     navServices.instrumentDampingService.start()
+    await navServices.activeNavigationService.start(legacyDefaults: self.userDefaults)
 
     let chartViewModel = ChartViewModel(
       positioningService: navServices.positioningService,
@@ -282,6 +284,7 @@ final class AppEnvironment {
       trackService: navServices.trackService,
       trackRecordingService: navServices.trackRecordingService,
       waypointService: navServices.waypointService,
+      activeNavigationService: navServices.activeNavigationService,
       messageService: messageService,
       keychainManager: keychainManager,
       configuration: configuration
@@ -342,6 +345,8 @@ final class AppEnvironment {
       trackRecordingService: navServices.trackRecordingService,
       trackService: navServices.trackService,
       waypointService: navServices.waypointService,
+      activeNavigationService: navServices.activeNavigationService,
+      instrumentDampingService: navServices.instrumentDampingService,
       geoGarageAuthService: geoGarage.authService,
       geoGarageLayerRepository: geoGarage.layerRepository,
       geoGarageDownloadRepository: geoGarage.downloadRepository,
@@ -458,11 +463,11 @@ final class AppEnvironment {
       messageService: messageService
     )
     let trackService = TrackService(databaseManager: databaseManager)
-    let waypointService = WaypointService(
+    let waypointService = WaypointService(databaseManager: databaseManager)
+    let activeNavigationService = ActiveNavigationService(
       databaseManager: databaseManager,
-      initialGoToWaypointID: preferencesService.goToWaypointID
+      instrumentDampingService: instrumentDampingService
     )
-    observeWaypointGoTo(waypointService: waypointService, preferencesService: preferencesService)
 
     return NavigationAndSensorServices(
       positioningService: positioningService,
@@ -473,7 +478,8 @@ final class AppEnvironment {
       barometricService: barometricService,
       trackRecordingService: trackRecordingService,
       trackService: trackService,
-      waypointService: waypointService
+      waypointService: waypointService,
+      activeNavigationService: activeNavigationService
     )
   }
 
@@ -672,21 +678,6 @@ final class AppEnvironment {
   }
 
   // MARK: - Runtime Coordination Helpers
-
-  private func observeWaypointGoTo(
-    waypointService: WaypointService,
-    preferencesService: PreferencesService
-  ) {
-    withObservationTracking {
-      _ = waypointService.goToWaypointID
-    } onChange: { [weak self, weak waypointService, weak preferencesService] in
-      Task { @MainActor [weak self, weak waypointService, weak preferencesService] in
-        guard let self, let service = waypointService, let preferences = preferencesService else { return }
-        preferences.goToWaypointID = service.goToWaypointID
-        self.observeWaypointGoTo(waypointService: service, preferencesService: preferences)
-      }
-    }
-  }
 
   /// Secret catch-up started after `state = .ready`; exposed so tests can await it.
   var packageSecretRestoreTask: Task<Void, Never>? {

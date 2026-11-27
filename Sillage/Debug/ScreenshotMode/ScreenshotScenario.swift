@@ -159,8 +159,8 @@ struct ScreenshotScenario: Sendable {
   /// Initial origin coordinate of the active GoTo leg (used to compute a realistic non-zero XTE).
   let legOriginCoordinate: CLLocationCoordinate2D
 
-  /// Delay before transitioning from `legOriginCoordinate` to `vesselCoordinate` so `ChartViewModel`
-  /// locks `goToOriginCoordinate` and computes a non-zero Cross-Track Error (`XTE`).
+  /// Delay before transitioning from `legOriginCoordinate` to `vesselCoordinate` so `ActiveNavigationService`
+  /// locks `originCoordinate` and computes a non-zero Cross-Track Error (`XTE`).
   var legOriginSettleDelay: Duration = .milliseconds(1150)
 
   /// Current vessel position on the chart.

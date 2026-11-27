@@ -344,6 +344,23 @@ public final class DatabaseManager: Sendable {
       )
     }
 
+    migrator.registerMigration("v14_active_navigation") { db in
+      try db.create(table: "active_navigation") { t in
+        t.column("id", .integer).primaryKey()
+        t.column("waypoint_id", .text)
+          .notNull()
+          .references("waypoint", column: "id", onDelete: .cascade)
+        t.column("origin_latitude_deg", .double)
+        t.column("origin_longitude_deg", .double)
+        t.column("activated_at_unix", .double).notNull()
+
+        t.check(sql: "id = 1")
+        t.check(sql: "(origin_latitude_deg IS NULL) = (origin_longitude_deg IS NULL)")
+        t.check(sql: "origin_latitude_deg IS NULL OR (origin_latitude_deg BETWEEN -90 AND 90)")
+        t.check(sql: "origin_longitude_deg IS NULL OR (origin_longitude_deg BETWEEN -180 AND 180)")
+      }
+    }
+
     return migrator
   }
 }

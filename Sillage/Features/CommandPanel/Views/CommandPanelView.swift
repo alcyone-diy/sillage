@@ -19,6 +19,7 @@ struct CommandPanelView: View {
   @Environment(AppEnvironment.self) private var appEnvironment
   @Environment(\.marineTheme) private var marineTheme
   @Environment(WaypointService.self) private var waypointService
+  @Environment(ActiveNavigationService.self) private var activeNavigationService
   @Environment(TrackRecordingService.self) private var trackRecordingService
   @Environment(BarometerViewModel.self) private var barometerViewModel
   @Environment(PermissionService.self) private var permissionService
@@ -232,7 +233,10 @@ struct CommandPanelView: View {
     case .tracks:
       TracksManagerView()
     case .waypoints:
-      WaypointListContainer(waypointService: waypointService)
+      WaypointListContainer(
+        waypointService: waypointService,
+        activeNavigationService: activeNavigationService
+      )
     case .trackSessionDetail(let sessionID, let session):
       TrackDetailView(
         sessionID: sessionID,
@@ -349,8 +353,16 @@ struct CommandPanelView: View {
 private struct WaypointListContainer: View {
   @State private var viewModel: WaypointListViewModel
 
-  init(waypointService: WaypointService) {
-    _viewModel = State(wrappedValue: WaypointListViewModel(waypointService: waypointService))
+  init(
+    waypointService: WaypointService,
+    activeNavigationService: ActiveNavigationService
+  ) {
+    _viewModel = State(
+      wrappedValue: WaypointListViewModel(
+        waypointService: waypointService,
+        activeNavigationService: activeNavigationService
+      )
+    )
   }
 
   var body: some View {

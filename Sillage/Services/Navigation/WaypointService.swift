@@ -27,15 +27,13 @@ public enum WaypointError: LocalizedError {
 @Observable
 public final class WaypointService {
   public private(set) var currentWaypoints: [Waypoint] = []
-  public private(set) var goToWaypointID: String?
   public private(set) var draftWaypoint: Waypoint?
   
   private let databaseManager: DatabaseManager
   private var observationTask: TaskCancellable?
 
-  public init(databaseManager: DatabaseManager, initialGoToWaypointID: String? = nil) {
+  public init(databaseManager: DatabaseManager) {
     self.databaseManager = databaseManager
-    self.goToWaypointID = initialGoToWaypointID
     startObservation()
   }
 
@@ -122,14 +120,6 @@ public final class WaypointService {
         Logger.database.warning("Waypoint not found for deletion: \(id, privacy: .public)")
       }
     }
-    
-    if goToWaypointID == id {
-      setDestination(waypointID: nil)
-    }
-  }
-
-  public func setDestination(waypointID: String?) {
-    goToWaypointID = waypointID
   }
 
   public func setDraftWaypoint(_ waypoint: Waypoint?) {

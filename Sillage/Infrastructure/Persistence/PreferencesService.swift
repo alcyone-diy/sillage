@@ -140,7 +140,6 @@ protocol PreferencesServiceProtocol: AnyObject {
   func saveActiveTrackSessionID(_ id: String)
   func clearActiveTrackSessionID()
 
-  var goToWaypointID: String? { get set }
   var displayedTrackSessionID: String? { get set }
 
   // MARK: - Barometer Settings
@@ -186,7 +185,6 @@ class PreferencesService: PreferencesServiceProtocol {
   @ObservationIgnored private let cogVectorTimeHorizonSecondsKey = "cogVectorTimeHorizonSeconds"
   @ObservationIgnored private let isCOGVectorTicksEnabledKey = "isCOGVectorTicksEnabled"
   @ObservationIgnored private let activeTrackSessionIDKey = "activeTrackSessionID"
-  @ObservationIgnored private let goToWaypointIDKey = "goToWaypointID"
   @ObservationIgnored private let displayedTrackSessionIDKey = "displayedTrackSessionID"
   @ObservationIgnored private let isBaroAlarmEnabledKey = "isBaroAlarmEnabled"
   @ObservationIgnored private let baroAlarmSensitivityKey = "baroAlarmSensitivity"
@@ -336,10 +334,6 @@ class PreferencesService: PreferencesServiceProtocol {
     didSet { defaults.set(activeTrackSessionID, forKey: activeTrackSessionIDKey) }
   }
 
-  var goToWaypointID: String? {
-    didSet { defaults.set(goToWaypointID, forKey: goToWaypointIDKey) }
-  }
-
   var displayedTrackSessionID: String? {
     didSet { defaults.set(displayedTrackSessionID, forKey: displayedTrackSessionIDKey) }
   }
@@ -467,7 +461,6 @@ class PreferencesService: PreferencesServiceProtocol {
     self.isCOGVectorTicksEnabled = defaults.object(forKey: isCOGVectorTicksEnabledKey) as? Bool ?? true
     self.rawCogVectorTimeHorizonSeconds = defaults.object(forKey: cogVectorTimeHorizonSecondsKey) as? Double ?? 3600.0
     self.activeTrackSessionID = defaults.string(forKey: activeTrackSessionIDKey)
-    self.goToWaypointID = defaults.string(forKey: goToWaypointIDKey)
     self.displayedTrackSessionID = defaults.string(forKey: displayedTrackSessionIDKey)
 
     self.isBaroAlarmEnabled = defaults.object(forKey: isBaroAlarmEnabledKey) as? Bool ?? false
@@ -535,7 +528,6 @@ class PreferencesService: PreferencesServiceProtocol {
     isCOGVectorTicksEnabled = true
     cogVectorTimeHorizon = Measurement(value: 3600, unit: .seconds)
     activeTrackSessionID = nil
-    goToWaypointID = nil
     displayedTrackSessionID = nil
     isBaroAlarmEnabled = false
     baroAlarmSensitivity = .medium
