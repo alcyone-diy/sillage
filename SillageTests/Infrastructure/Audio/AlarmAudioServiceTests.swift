@@ -91,6 +91,40 @@ private final class MockAlarmAudioEngine: AlarmAudioPlaying, @unchecked Sendable
   }
 }
 
+private final class MockAlarmAudioSessionController: AlarmAudioSessionManaging, @unchecked Sendable {
+  private let eventHandlerLock = OSAllocatedUnfairLock<(@MainActor (AlarmAudioSessionEvent) -> Void)?>(initialState: nil)
+  private let cancelCountLock = OSAllocatedUnfairLock(initialState: 0)
+
+  var cancelledObserverCount: Int {
+    cancelCountLock.withLock { $0 }
+  }
+
+  func configurePlaybackCategory() -> Bool { true }
+  func activatePlaybackSession() -> Bool { true }
+  func deactivatePlaybackSession() {}
+
+  @MainActor
+  func observeEvents(
+    handler: @escaping @MainActor (AlarmAudioSessionEvent) -> Void
+  ) -> [TaskCancellable] {
+    eventHandlerLock.withLock { $0 = handler }
+    let cancelLock = cancelCountLock
+    let watchTask = Task {
+      while !Task.isCancelled {
+        try? await Task.sleep(for: .seconds(60))
+      }
+      cancelLock.withLock { $0 += 1 }
+    }
+    return [TaskCancellable(watchTask)]
+  }
+
+  @MainActor
+  func emit(_ event: AlarmAudioSessionEvent) {
+    let handler = eventHandlerLock.withLock { $0 }
+    handler?(event)
+  }
+}
+
 @MainActor
 final class AlarmAudioServiceTests: XCTestCase {
 
@@ -246,5 +280,31 @@ final class AlarmAudioServiceTests: XCTestCase {
 
     service.stopSiren()
     try await waitFor { engine.stopCallCount == 2 }
+  }
+
+  func testInjectedSessionControllerSeam_routesDomainEventsAndCancelsObserversOnStop() async throws {
+    let engine = MockAlarmAudioEngine(startResults: [true, true])
+    let sessionController = MockAlarmAudioSessionController()
+    let clock = TestClock()
+    let service = AlarmAudioService(
+      audioEngine: engine,
+      sessionController: sessionController,
+      clock: clock,
+      retryDelays: [.seconds(1)],
+      vibrationInterval: .seconds(10),
+      vibrate: {}
+    )
+
+    service.startSiren()
+    try await waitFor { engine.startCallCount == 1 }
+
+    sessionController.emit(.interruptionBegan)
+    try await waitFor { engine.interruptionBeganCallCount == 1 }
+
+    sessionController.emit(.interruptionEnded)
+    try await waitFor { engine.startCallCount == 2 }
+
+    service.stopSiren()
+    try await waitFor { engine.stopCallCount == 1 && sessionController.cancelledObserverCount == 1 }
   }
 }

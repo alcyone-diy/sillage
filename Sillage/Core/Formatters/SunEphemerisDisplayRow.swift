@@ -8,7 +8,7 @@
 //  See LICENSE file in the project root for full license information.
 //
 
-import SwiftUI
+import Foundation
 
 /// Presentation value for a single solar ephemeris row.
 enum SunEphemerisRowValue: Equatable {
@@ -18,9 +18,10 @@ enum SunEphemerisRowValue: Equatable {
 }
 
 /// Shared presentation model for solar ephemeris rows across `MapCalloutView` and `WaypointDetailView`.
+/// Uses `Foundation.LocalizedStringResource` so `Core/Formatters/` remains free of SwiftUI imports.
 struct SunEphemerisDisplayRow: Identifiable {
   let id: String
-  let title: LocalizedStringKey
+  let title: LocalizedStringResource
   let icon: String
   let value: SunEphemerisRowValue
 
