@@ -57,7 +57,13 @@ public struct AnchorEvaluator: Sendable {
       return .maintainState
     }
 
-    let currentDistance = targetCoordinate.distance(to: fix.coordinate)
+    guard let currentDistance = targetCoordinate.geodesicDistance(to: fix.coordinate) else {
+      // Never auto-resolve an active dragging alarm or silently ignore invalid coordinates (e.g. NaN / kCLLocationCoordinate2DInvalid).
+      if currentStatus == .armed {
+        return .triggerAlarm(reason: .gpsSignalLost)
+      }
+      return .maintainState
+    }
 
     // State Transition Rules
     if currentDistance > watch.radius {

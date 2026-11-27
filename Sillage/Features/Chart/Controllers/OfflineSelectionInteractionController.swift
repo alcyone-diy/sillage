@@ -118,7 +118,7 @@ final class OfflineSelectionInteractionController {
     dragging corner: ActiveSelectionCorner,
     to coord: CLLocationCoordinate2D
   ) -> GeographicBoundingBox {
-    let earthRadiusMeters = AppConstants.Map.earthMeanRadius.converted(to: .meters).value
+    let earthRadiusMeters = GeodesicConstants.earthMeanRadius.converted(to: .meters).value
     let minMeters = AppConstants.Cartography.Offline.minimumSelectionSpan.converted(to: .meters).value
     let minLatSpan = Measurement(value: minMeters / earthRadiusMeters, unit: UnitAngle.radians)
       .converted(to: .degrees).value

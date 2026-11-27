@@ -47,7 +47,7 @@ public actor PositionBasedVelocityCalculator {
     let timestamp: Date
   }
 
-  private static let earthRadiusMeters: Double = AppConstants.Map.earthMeanRadius.converted(to: .meters).value
+  private static let earthRadiusMeters: Double = GeodesicConstants.earthMeanRadius.converted(to: .meters).value
   private static let accurateFixTriggerThreshold = Measurement<UnitLength>(value: 15.0, unit: .meters)
   private static let coarseFixRetentionThreshold = Measurement<UnitLength>(value: 20.0, unit: .meters)
 

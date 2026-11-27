@@ -22,10 +22,10 @@ public struct NavigationFix: Sendable, Equatable {
   // speedOverGround and speedOverGroundAccuracy both valid or none.
   public let speedOverGround: Measurement<UnitSpeed>?
   public let speedOverGroundAccuracy: Measurement<UnitSpeed>?
-  
+
   // Always valid.
   public let timestamp: Date
-  
+
   public init(
     coordinate: CLLocationCoordinate2D,
     horizontalAccuracy: Measurement<UnitLength>,
@@ -43,23 +43,18 @@ public struct NavigationFix: Sendable, Equatable {
     self.speedOverGroundAccuracy = speedOverGroundAccuracy
     self.timestamp = timestamp
   }
-  
-  /// Calculates the geodetic distance using the WGS 84 reference ellipsoid.
-  /// Note: Instantiating CLLocation is necessary here to leverage Apple's highly accurate
-  /// underlying GIS algorithms, as a simple Haversine formula is insufficient for marine navigation.
-  public func distance(from navigationFix: NavigationFix) -> Measurement<UnitLength> {
-    let startLocation = CLLocation(latitude: self.coordinate.latitude, longitude: self.coordinate.longitude)
-    let endLocation = CLLocation(latitude: navigationFix.coordinate.latitude, longitude: navigationFix.coordinate.longitude)
-    
-    let distanceInMeters = startLocation.distance(from: endLocation)
-    return Measurement(value: distanceInMeters, unit: .meters)
+
+  /// Calculates the geodesic distance on the WGS-84 reference ellipsoid via `NavigationMath`
+  /// without allocating Objective-C `CLLocation` instances.
+  nonisolated public func distance(from navigationFix: NavigationFix) -> Measurement<UnitLength> {
+    return self.coordinate.distance(to: navigationFix.coordinate)
   }
 
   /// Explicit Equatable implementation.
   /// A fix is considered identical if it occurs at the exact same geographic point and time.
-  public static func == (lhs: NavigationFix, rhs: NavigationFix) -> Bool {
+  nonisolated public static func == (lhs: NavigationFix, rhs: NavigationFix) -> Bool {
     return lhs.coordinate.latitude == rhs.coordinate.latitude &&
-    lhs.coordinate.longitude == rhs.coordinate.longitude &&
-    lhs.timestamp == rhs.timestamp
+      lhs.coordinate.longitude == rhs.coordinate.longitude &&
+      lhs.timestamp == rhs.timestamp
   }
 }

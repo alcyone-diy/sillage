@@ -184,4 +184,38 @@ final class AnchorEvaluatorTests: XCTestCase {
     let result = evaluator.evaluate(fix: fix, watch: pendingWatch, currentStatus: .droppedPendingPosition)
     XCTAssertEqual(result, AnchorEvaluationResult.maintainState)
   }
+
+  func testEvaluate_whenCoordinateIsInvalidOrOutOfBounds_neverSilencesDraggingAlarmAndTriggersGPSLostWhenArmed() {
+    let watch = AnchorWatch(
+      coordinate: centerCoord,
+      radius: Measurement(value: 50.0, unit: UnitLength.meters)
+    )
+
+    let invalidCoordinates: [CLLocationCoordinate2D] = [
+      kCLLocationCoordinate2DInvalid,
+      CLLocationCoordinate2D(latitude: 95.0, longitude: -1.15),
+      CLLocationCoordinate2D(latitude: .nan, longitude: -1.15)
+    ]
+
+    for badCoord in invalidCoordinates {
+      let corruptFix = NavigationFix(
+        coordinate: badCoord,
+        horizontalAccuracy: Measurement(value: 4.0, unit: UnitLength.meters),
+        courseOverGround: nil,
+        courseOverGroundAccuracy: nil,
+        speedOverGround: nil,
+        speedOverGroundAccuracy: nil,
+        timestamp: Date()
+      )
+
+      XCTAssertEqual(
+        evaluator.evaluate(fix: corruptFix, watch: watch, currentStatus: .armed),
+        .triggerAlarm(reason: .gpsSignalLost)
+      )
+      XCTAssertEqual(
+        evaluator.evaluate(fix: corruptFix, watch: watch, currentStatus: .dragging),
+        .maintainState
+      )
+    }
+  }
 }

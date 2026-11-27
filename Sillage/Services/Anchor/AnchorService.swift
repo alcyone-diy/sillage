@@ -238,7 +238,7 @@ final class AnchorService {
     )
     
     if let fix = latestFix {
-      self.currentDistance = newCoordinate.distance(to: fix.coordinate)
+      self.currentDistance = newCoordinate.geodesicDistance(to: fix.coordinate)
     }
     
     persistState()
@@ -529,7 +529,7 @@ final class AnchorService {
       return
     }
     
-    self.currentDistance = anchorCoord.distance(to: fix.coordinate)
+    self.currentDistance = anchorCoord.geodesicDistance(to: fix.coordinate)
     
     if evaluateAlarm {
       let evaluationResult = evaluator.evaluate(fix: fix, watch: watch, currentStatus: status)
@@ -581,10 +581,9 @@ final class AnchorService {
     
     let newCoord = fix.coordinate
     if let lastPoint = watch.evitementHistory.last {
-      let deltaDistance = lastPoint.coordinate.distance(to: newCoord)
-      
-      // Purely spatial filter: strictly require moving >= 2 meters
-      guard deltaDistance >= Self.minEvitementDistanceThreshold else {
+      // Purely spatial filter: strictly require moving >= 2 meters with valid geodesic coordinates
+      guard let deltaDistance = lastPoint.coordinate.geodesicDistance(to: newCoord),
+            deltaDistance >= Self.minEvitementDistanceThreshold else {
         return
       }
     }

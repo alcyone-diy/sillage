@@ -74,12 +74,19 @@ nonisolated public enum MBTilesCoordinateMath {
     let latAngle = Measurement<UnitAngle>(value: latitude, unit: .degrees)
     let latRadians = latAngle.converted(to: .radians).value
 
-    let n = Double(1 << zoom)
+    let maxTiles = 1 << zoom
+    let n = Double(maxTiles)
     let secLat = 1.0 / cos(latRadians)
     guard secLat.isFinite else { return nil }
 
-    let y = Int(floor((1.0 - log(tan(latRadians) + secLat) / .pi) / 2.0 * n))
-    guard y >= 0 && y < (1 << zoom) else { return nil }
+    // Clamp normalized Mercator Y into [0, 1] after the strict ±maxMercatorLatitudeDegrees guard
+    // so floating-point ULP overshoot at the exact ±85.05112878° limits maps cleanly to rows 0 and (maxTiles - 1).
+    let rawNormalizedY = (1.0 - log(tan(latRadians) + secLat) / .pi) / 2.0
+    guard rawNormalizedY.isFinite else { return nil }
+    let normalizedY = min(1.0, max(0.0, rawNormalizedY))
+
+    let y = min(maxTiles - 1, Int(floor(normalizedY * n)))
+    guard y >= 0 && y < maxTiles else { return nil }
     return y
   }
 

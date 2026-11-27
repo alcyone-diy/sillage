@@ -52,9 +52,6 @@ public enum AppConstants {
   }
 
   public struct Map {
-    /// Standard IUGG mean spherical Earth radius (6,371,000 m) used across nautical spherical and loxodromic calculations.
-    nonisolated public static let earthMeanRadius = Measurement(value: 6_371_000.0, unit: UnitLength.meters)
-
     /// Throttling duration for high-frequency map region projection and telemetry updates (e.g. callout / overlay calculations).
     nonisolated public static let regionThrottleInterval: Duration = .milliseconds(100)
 

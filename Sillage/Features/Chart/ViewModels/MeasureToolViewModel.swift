@@ -70,7 +70,7 @@ final class MeasureToolViewModel {
   /// Physical distance between start and end points as a strict Foundation `Measurement<UnitLength>`.
   var distance: Measurement<UnitLength>? {
     guard case .active(let start, let end) = state else { return nil }
-    return start.distance(to: end)
+    return start.geodesicDistance(to: end)
   }
 
   /// Initial great circle compass bearing from start to end coordinate.

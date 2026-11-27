@@ -312,6 +312,6 @@ final class MapCalloutViewModel {
   /// - Returns: Physical distance as a `Measurement<UnitLength>`, or `nil` if telemetry is incomplete.
   func distance(from vesselCoordinate: CLLocationCoordinate2D?) -> Measurement<UnitLength>? {
     guard let vessel = vesselCoordinate, let target = targetCoordinate else { return nil }
-    return vessel.distance(to: target)
+    return vessel.geodesicDistance(to: target)
   }
 }

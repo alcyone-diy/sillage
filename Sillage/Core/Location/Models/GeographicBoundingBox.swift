@@ -11,7 +11,7 @@
 import Foundation
 import CoreLocation
 
-public struct GeographicBoundingBox: Sendable, Equatable, Hashable, Codable {
+public struct GeographicBoundingBox: Sendable, Equatable, Hashable {
   
   // MARK: - Properties
   
@@ -343,7 +343,7 @@ public struct GeographicBoundingBox: Sendable, Equatable, Hashable, Codable {
   /// Exact spherical zone area: `A = R² * Δλ_rad * (sin(φ_max) - sin(φ_min))`.
   /// Correctly handles full-globe `360°` longitudinal spans and anti-meridian crossings.
   public nonisolated var estimatedArea: Measurement<UnitArea> {
-    let earthRadiusMeters = AppConstants.Map.earthMeanRadius.converted(to: .meters).value
+    let earthRadiusMeters = GeodesicConstants.earthMeanRadius.converted(to: .meters).value
     let minLat = max(-90.0, min(90.0, min(southWest.latitude, northEast.latitude)))
     let maxLat = max(-90.0, min(90.0, max(southWest.latitude, northEast.latitude)))
 
@@ -447,5 +447,27 @@ public struct GeographicBoundingBox: Sendable, Equatable, Hashable, Codable {
       diff -= 360.0
     }
     return diff
+  }
+}
+
+// MARK: - Codable (via nonisolated CodableCoordinate)
+
+extension GeographicBoundingBox: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case southWest
+    case northEast
+  }
+
+  public nonisolated init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let sw = try container.decode(CodableCoordinate.self, forKey: .southWest)
+    let ne = try container.decode(CodableCoordinate.self, forKey: .northEast)
+    self.init(southWest: sw.coordinate, northEast: ne.coordinate)
+  }
+
+  public nonisolated func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(CodableCoordinate(southWest), forKey: .southWest)
+    try container.encode(CodableCoordinate(northEast), forKey: .northEast)
   }
 }

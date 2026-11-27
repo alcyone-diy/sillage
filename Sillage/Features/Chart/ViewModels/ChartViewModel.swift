@@ -915,7 +915,8 @@ final class ChartViewModel {
     let throttledVesselCoord: CLLocationCoordinate2D? = {
       guard let newCoord = currentVesselCoord else { return nil }
       if let oldCoord = anchorVisualState?.vesselCoordinate {
-        if newCoord.distance(to: oldCoord) < Self.anchorVisualVesselThrottleDistance {
+        if let delta = newCoord.geodesicDistance(to: oldCoord),
+           delta < Self.anchorVisualVesselThrottleDistance {
           return oldCoord
         }
       }
@@ -1673,7 +1674,7 @@ final class ChartViewModel {
     }
 
     bearingToWaypoint = current.greatCircleBearing(to: waypoint)
-    rangeToWaypoint = current.distance(to: waypoint)
+    rangeToWaypoint = current.geodesicDistance(to: waypoint)
 
     if let origin = goToOriginCoordinate {
       crossTrackError = current.crossTrackError(from: origin, to: waypoint)

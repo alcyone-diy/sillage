@@ -24,7 +24,7 @@ public struct MarineLineOfSightHUDView: View {
   }
 
   public var body: some View {
-    let distance = vesselCoordinate?.distance(to: targetCoordinate)
+    let distance = vesselCoordinate?.geodesicDistance(to: targetCoordinate)
     let bearing = vesselCoordinate?.greatCircleBearing(to: targetCoordinate)
 
     let distanceString = distance?.marineContextualDistanceFormatted(locale: locale) ?? "---"
