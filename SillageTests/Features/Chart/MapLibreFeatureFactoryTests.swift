@@ -327,9 +327,9 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
     XCTAssertEqual(feature?.attributes[MapFeatureKey.isDegraded.rawValue] as? Bool, true)
   }
 
-  func testCreateAnchorFeatures_whenDraggingWithEvitement_attachesStatusToAllFeatures() {
+  func testCreateAnchorFeatures_whenDraggingWithSwingTrail_attachesStatusToAllFeatures() {
     let anchorCoord = CLLocationCoordinate2D(latitude: 47.218, longitude: -1.553)
-    let evitement = [
+    let swing = [
       CLLocationCoordinate2D(latitude: 47.2181, longitude: -1.5531),
       CLLocationCoordinate2D(latitude: 47.2183, longitude: -1.5534)
     ]
@@ -337,16 +337,16 @@ final class MapLibreFeatureFactoryTests: XCTestCase {
       status: .dragging,
       pointCoordinate: anchorCoord,
       radius: Measurement(value: 40, unit: .meters),
-      vesselCoordinate: evitement.last,
-      evitementCoordinates: evitement
+      vesselCoordinate: swing.last,
+      swingCoordinates: swing
     )
 
     let features = MapLibreFeatureFactory.createAnchorFeatures(from: state)
 
     XCTAssertEqual(features.pointFeature?.attributes[MapFeatureKey.status.rawValue] as? String, AnchorVisualStatus.dragging.rawValue)
     XCTAssertEqual(features.radiusFeature?.attributes[MapFeatureKey.status.rawValue] as? String, AnchorVisualStatus.dragging.rawValue)
-    XCTAssertEqual(features.evitementLineFeature?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.anchorEvitement.rawValue)
-    XCTAssertEqual(features.evitementLineFeature?.attributes[MapFeatureKey.status.rawValue] as? String, AnchorVisualStatus.dragging.rawValue)
+    XCTAssertEqual(features.swingLineFeature?.attributes[MapFeatureKey.type.rawValue] as? String, MapFeatureType.anchorSwing.rawValue)
+    XCTAssertEqual(features.swingLineFeature?.attributes[MapFeatureKey.status.rawValue] as? String, AnchorVisualStatus.dragging.rawValue)
   }
 
   // MARK: - Chart Tools Feature Tests

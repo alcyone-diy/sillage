@@ -74,7 +74,7 @@ actor TileProxyManager: TileProxyManagerProtocol {
     }
     let taggedRequest: URLRequest
     if let mutableRequest = (request as NSURLRequest).mutableCopy() as? NSMutableURLRequest {
-      URLProtocol.setProperty(true, forKey: TileProxyProtocol.handledRequestPropertyKey, in: mutableRequest)
+      URLProtocol.setProperty(true, forKey: TileProxyURLProtocol.handledRequestPropertyKey, in: mutableRequest)
       taggedRequest = mutableRequest as URLRequest
     } else {
       taggedRequest = request
@@ -90,7 +90,7 @@ actor TileProxyManager: TileProxyManagerProtocol {
     case 200:
       return data
     case 404:
-      // Missing tile at this zoom level: allow overzoom fallback in TileProxyProtocol
+      // Missing tile at this zoom level: allow overzoom fallback in TileProxyURLProtocol
       return nil
     case 401, 403:
       Logger.network.warning("GeoGarage tile request unauthorized (HTTP \(httpResponse.statusCode, privacy: .public)) for \(url.path, privacy: .public)")

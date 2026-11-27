@@ -87,22 +87,22 @@ enum AppBootstrapInfrastructure {
     }
   }
 
-  /// Registers `TileProxyProtocol` on MapLibre's shared `URLSessionConfiguration` before any map or pack starts.
+  /// Registers `TileProxyURLProtocol` on MapLibre's shared `URLSessionConfiguration` before any map or pack starts.
   nonisolated static func configureMapLibreProtocol() {
     guard let config = MLNNetworkConfiguration.sharedManager.sessionConfiguration else { return }
-    registerTileProxyProtocol(in: config)
+    registerTileProxyURLProtocol(in: config)
     MLNNetworkConfiguration.sharedManager.sessionConfiguration = config
   }
 
-  /// Idempotently inserts `TileProxyProtocol` at index 0 of `configuration.protocolClasses`.
-  nonisolated static func registerTileProxyProtocol(in configuration: URLSessionConfiguration) {
+  /// Idempotently inserts `TileProxyURLProtocol` at index 0 of `configuration.protocolClasses`.
+  nonisolated static func registerTileProxyURLProtocol(in configuration: URLSessionConfiguration) {
     if var protocolClasses = configuration.protocolClasses {
-      if !protocolClasses.contains(where: { $0 == TileProxyProtocol.self }) {
-        protocolClasses.insert(TileProxyProtocol.self, at: 0)
+      if !protocolClasses.contains(where: { $0 == TileProxyURLProtocol.self }) {
+        protocolClasses.insert(TileProxyURLProtocol.self, at: 0)
       }
       configuration.protocolClasses = protocolClasses
     } else {
-      configuration.protocolClasses = [TileProxyProtocol.self]
+      configuration.protocolClasses = [TileProxyURLProtocol.self]
     }
   }
 }

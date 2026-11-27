@@ -42,7 +42,7 @@ final class AppEnvironmentTests: XCTestCase {
 
   override func setUp() async throws {
     try await super.setUp()
-    TileProxyProtocol.resetForTesting()
+    TileProxyURLProtocol.resetForTesting()
     MockURLProtocol.reset()
     installPortalHandler()
     authSession = MockURLProtocol.makeMockSession()
@@ -74,7 +74,7 @@ final class AppEnvironmentTests: XCTestCase {
     testPreferencesService = nil
     mockKeychain = nil
     MockURLProtocol.reset()
-    TileProxyProtocol.resetForTesting()
+    TileProxyURLProtocol.resetForTesting()
     environment = nil
     partnerSecretService = nil
     authSession = nil

@@ -52,4 +52,26 @@ final class LegalLicenseTests: XCTestCase {
       "LegalListViewModel must expose every LegalDocumentID case"
     )
   }
+
+  @MainActor
+  func testAllBundledLicensesAndMapStylesResolveInMainBundle() async {
+    for documentID in LegalDocumentID.allCases {
+      let document = LegalDocument.document(for: documentID)
+      if let filename = document.filename, let ext = document.fileExtension {
+        let resourceURL = Bundle.main.url(forResource: filename, withExtension: ext)
+        XCTAssertNotNil(resourceURL, "Missing bundled license resource \(filename).\(ext)")
+
+        let detailVM = LegalDetailViewModel(document: document)
+        await detailVM.loadContent()
+        if case .loaded(let text) = detailVM.state {
+          XCTAssertFalse(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } else {
+          XCTFail("Expected LegalDetailViewModel to load \(filename).\(ext), got \(detailVM.state)")
+        }
+      }
+    }
+
+    XCTAssertNotNil(Bundle.main.url(forResource: "blank-style", withExtension: "json"))
+    XCTAssertNotNil(Bundle.main.url(forResource: "geogarage", withExtension: "json"))
+  }
 }

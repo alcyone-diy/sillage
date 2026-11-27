@@ -923,14 +923,14 @@ final class ChartViewModel {
       return newCoord
     }()
     
-    let evitementCoords = watch.evitementHistory.map(\.coordinate)
+    let swingCoords = watch.swingHistory.map(\.coordinate)
     
     anchorVisualState = AnchorVisualState(
       status: visualStatus,
       pointCoordinate: targetCoordinate,
       radius: watch.radius,
       vesselCoordinate: throttledVesselCoord,
-      evitementCoordinates: evitementCoords
+      swingCoordinates: swingCoords
     )
   }
 

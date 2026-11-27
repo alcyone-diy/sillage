@@ -30,7 +30,7 @@ enum MapFeatureType: String {
   case anchorPoint = "anchorPoint"
   case anchorRadius = "anchorRadius"
   case anchorRode = "anchorRode"
-  case anchorEvitement = "anchorEvitement"
+  case anchorSwing = "anchorSwing"
   case bearingLine = "bearingLine"
   case vectorLine = "vectorLine"
   case vectorTick = "vectorTick"

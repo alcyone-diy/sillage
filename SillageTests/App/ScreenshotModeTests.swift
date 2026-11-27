@@ -20,7 +20,7 @@ struct ScreenshotModeTests {
 
   @Test("Sensor simulation populates GPS, COG, SOG, XTE, Barometer graph, and Battery without altering user preferences")
   func testScreenshotModeFullTelemetryHydration() async throws {
-    TileProxyProtocol.resetForTesting()
+    TileProxyURLProtocol.resetForTesting()
     MockURLProtocol.reset()
     MockURLProtocol.setHandler { request in
       let url = request.url ?? URL(fileURLWithPath: "/")
@@ -35,7 +35,7 @@ struct ScreenshotModeTests {
     defer {
       isolatedDefaults.tearDown()
       MockURLProtocol.reset()
-      TileProxyProtocol.resetForTesting()
+      TileProxyURLProtocol.resetForTesting()
     }
 
     let dbManager = try DatabaseManager.inMemory()

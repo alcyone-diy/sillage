@@ -80,21 +80,21 @@ struct AppBootstrapInfrastructureTests {
     AppBootstrapInfrastructure.removeGPXExportsDirectoryIfPresent(in: tempRoot, fileManager: fm)
   }
 
-  @Test("registerTileProxyProtocol inserts TileProxyProtocol at index 0 idempotently")
-  func registerTileProxyProtocolIdempotency() {
+  @Test("registerTileProxyURLProtocol inserts TileProxyURLProtocol at index 0 idempotently")
+  func registerTileProxyURLProtocolIdempotency() {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [DummyURLProtocol.self]
 
-    AppBootstrapInfrastructure.registerTileProxyProtocol(in: config)
-    #expect(config.protocolClasses?.first == TileProxyProtocol.self)
+    AppBootstrapInfrastructure.registerTileProxyURLProtocol(in: config)
+    #expect(config.protocolClasses?.first == TileProxyURLProtocol.self)
     #expect(config.protocolClasses?.contains(where: { $0 == DummyURLProtocol.self }) == true)
-    let countAfterFirst = config.protocolClasses?.filter { $0 == TileProxyProtocol.self }.count
+    let countAfterFirst = config.protocolClasses?.filter { $0 == TileProxyURLProtocol.self }.count
     #expect(countAfterFirst == 1)
 
-    // Second registration must not duplicate TileProxyProtocol.
-    AppBootstrapInfrastructure.registerTileProxyProtocol(in: config)
-    let countAfterSecond = config.protocolClasses?.filter { $0 == TileProxyProtocol.self }.count
+    // Second registration must not duplicate TileProxyURLProtocol.
+    AppBootstrapInfrastructure.registerTileProxyURLProtocol(in: config)
+    let countAfterSecond = config.protocolClasses?.filter { $0 == TileProxyURLProtocol.self }.count
     #expect(countAfterSecond == 1)
-    #expect(config.protocolClasses?.first == TileProxyProtocol.self)
+    #expect(config.protocolClasses?.first == TileProxyURLProtocol.self)
   }
 }

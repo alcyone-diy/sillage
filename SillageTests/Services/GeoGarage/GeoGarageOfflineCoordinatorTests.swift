@@ -454,11 +454,11 @@ struct GeoGarageOfflineCoordinatorTests {
     ])
   }
 
-  @Test("stop() cancels observation streams and resets TileProxyProtocol when configured")
+  @Test("stop() cancels observation streams and resets TileProxyURLProtocol when configured")
   func stopCancelsObservation() async throws {
     let fixture = try makeFixture()
     defer {
-      TileProxyProtocol.resetForTesting()
+      TileProxyURLProtocol.resetForTesting()
       fixture.isolatedDefaults.tearDown()
       MockURLProtocol.reset()
     }
@@ -471,16 +471,16 @@ struct GeoGarageOfflineCoordinatorTests {
       configuration: .fromBundle()
     )
     fixture.coordinator.configureTileProxy(tileProxyManager: proxyManager)
-    #expect(TileProxyProtocol.offlineTileProvider != nil)
-    #expect(TileProxyProtocol.onAuthenticationFailure != nil)
+    #expect(TileProxyURLProtocol.offlineTileProvider != nil)
+    #expect(TileProxyURLProtocol.onAuthenticationFailure != nil)
 
     fixture.coordinator.start()
     fixture.coordinator.stop()
 
-    #expect(TileProxyProtocol.offlineTileProvider == nil)
-    #expect(TileProxyProtocol.tileProxyManager == nil)
-    #expect(TileProxyProtocol.keychainManager == nil)
-    #expect(TileProxyProtocol.onAuthenticationFailure == nil)
+    #expect(TileProxyURLProtocol.offlineTileProvider == nil)
+    #expect(TileProxyURLProtocol.tileProxyManager == nil)
+    #expect(TileProxyURLProtocol.keychainManager == nil)
+    #expect(TileProxyURLProtocol.onAuthenticationFailure == nil)
 
     let download = makeSampleDownload()
     try await fixture.downloadRepository.save(download)

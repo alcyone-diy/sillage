@@ -1,5 +1,5 @@
 //
-//  TileProxyProtocolTests.swift
+//  TileProxyURLProtocolTests.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-08-21.
@@ -96,7 +96,7 @@ final class MockTileProxyManager: TileProxyManagerProtocol, @unchecked Sendable 
 // MARK: - Test Suite
 
 @MainActor
-final class TileProxyProtocolTests: XCTestCase {
+final class TileProxyURLProtocolTests: XCTestCase {
 
   private var mockOfflineProvider: MockOfflineTileProvider?
   private var mockNetworkManager: MockTileProxyManager?
@@ -114,14 +114,14 @@ final class TileProxyProtocolTests: XCTestCase {
 
     try await keychain.save(token: "test_valid_token", for: GeoGarageKeychainKeys.accessToken)
 
-    TileProxyProtocol.configure(
+    TileProxyURLProtocol.configure(
       offlineTileProvider: offline,
       tileProxyManager: network,
       keychainManager: keychain
     )
 
     let config = URLSessionConfiguration.ephemeral
-    config.protocolClasses = [TileProxyProtocol.self]
+    config.protocolClasses = [TileProxyURLProtocol.self]
     config.urlCache = nil
     config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
     customSession = URLSession(configuration: config)
@@ -130,7 +130,7 @@ final class TileProxyProtocolTests: XCTestCase {
   override func tearDown() async throws {
     customSession?.invalidateAndCancel()
     customSession = nil
-    TileProxyProtocol.resetForTesting()
+    TileProxyURLProtocol.resetForTesting()
     mockOfflineProvider = nil
     mockNetworkManager = nil
     mockKeychain = nil
@@ -147,13 +147,13 @@ final class TileProxyProtocolTests: XCTestCase {
       return
     }
 
-    XCTAssertTrue(TileProxyProtocol.canInit(with: URLRequest(url: validURL)))
-    XCTAssertFalse(TileProxyProtocol.canInit(with: URLRequest(url: invalidURL)))
+    XCTAssertTrue(TileProxyURLProtocol.canInit(with: URLRequest(url: validURL)))
+    XCTAssertFalse(TileProxyURLProtocol.canInit(with: URLRequest(url: invalidURL)))
   }
 
   // MARK: - Offline Hit Tests
 
-  func testTileProxyProtocol_returnsLocalOfflineTileWhenAvailable() async throws {
+  func testTileProxyURLProtocol_returnsLocalOfflineTileWhenAvailable() async throws {
     guard let mockOfflineProvider, let mockNetworkManager, let customSession else {
       XCTFail("Missing test fixtures")
       return
@@ -187,7 +187,7 @@ final class TileProxyProtocolTests: XCTestCase {
 
   // MARK: - Network Fallback Tests
 
-  func testTileProxyProtocol_fallsBackToNetworkWhenOfflineTileNotFound() async throws {
+  func testTileProxyURLProtocol_fallsBackToNetworkWhenOfflineTileNotFound() async throws {
     guard let mockNetworkManager, let customSession else {
       XCTFail("Missing test fixtures")
       return
@@ -219,19 +219,19 @@ final class TileProxyProtocolTests: XCTestCase {
     XCTAssertEqual(mockNetworkManager.lastRequestedURL, tileURL, "Network manager must have received the tile URL")
   }
 
-  func testTileProxyProtocol_failsClosedWhenTileProxyManagerNotConfigured() async {
+  func testTileProxyURLProtocol_failsClosedWhenTileProxyManagerNotConfigured() async {
     guard let mockOfflineProvider, let mockKeychain, let customSession else {
       XCTFail("Missing test fixtures")
       return
     }
 
-    TileProxyProtocol.resetForTesting()
-    TileProxyProtocol.configure(
+    TileProxyURLProtocol.resetForTesting()
+    TileProxyURLProtocol.configure(
       offlineTileProvider: mockOfflineProvider,
       tileProxyManager: nil,
       keychainManager: mockKeychain
     )
-    XCTAssertNil(TileProxyProtocol.tileProxyManager, "TileProxyManager must be nil after reset and nil configure")
+    XCTAssertNil(TileProxyURLProtocol.tileProxyManager, "TileProxyManager must be nil after reset and nil configure")
 
     guard let tileURL = URL(string: "https://tiles.geogarage.com/cus_999/ukho/10/512/340.png") else {
       XCTFail("Failed to create tile URL")
@@ -252,7 +252,7 @@ final class TileProxyProtocolTests: XCTestCase {
 
   // MARK: - Defensive Parsing Tests
 
-  func testTileProxyProtocol_handlesMalformedURLDefensively() async {
+  func testTileProxyURLProtocol_handlesMalformedURLDefensively() async {
     guard let customSession else {
       XCTFail("Missing customSession")
       return
@@ -274,7 +274,7 @@ final class TileProxyProtocolTests: XCTestCase {
 
   // MARK: - Cancellation Tests
 
-  func testTileProxyProtocol_cancelsGracefully() async {
+  func testTileProxyURLProtocol_cancelsGracefully() async {
     guard let customSession else {
       XCTFail("Missing customSession")
       return
@@ -297,7 +297,7 @@ final class TileProxyProtocolTests: XCTestCase {
 
   // MARK: - Offline Resilience (Airplane Mode / Sea Navigation)
 
-  func testTileProxyProtocol_servesOfflineTileEvenWithoutNetworkToken() async throws {
+  func testTileProxyURLProtocol_servesOfflineTileEvenWithoutNetworkToken() async throws {
     guard let mockOfflineProvider, let customSession else {
       XCTFail("Missing test fixtures")
       return
@@ -339,20 +339,20 @@ final class TileProxyProtocolTests: XCTestCase {
       return
     }
 
-    URLProtocol.setProperty(true, forKey: TileProxyProtocol.handledRequestPropertyKey, in: mutableRequest)
-    XCTAssertFalse(TileProxyProtocol.canInit(with: mutableRequest as URLRequest))
+    URLProtocol.setProperty(true, forKey: TileProxyURLProtocol.handledRequestPropertyKey, in: mutableRequest)
+    XCTAssertFalse(TileProxyURLProtocol.canInit(with: mutableRequest as URLRequest))
   }
 
   // MARK: - HTTP Error & Auth Failure Propagation Tests
 
-  func testTileProxyProtocol_propagatesAuthErrorWithoutFallbackOrTransparentTile() async {
+  func testTileProxyURLProtocol_propagatesAuthErrorWithoutFallbackOrTransparentTile() async {
     guard let mockNetworkManager, let customSession else {
       XCTFail("Missing test fixtures")
       return
     }
 
     let authFailureCount = OSAllocatedUnfairLock(initialState: 0)
-    TileProxyProtocol.configure(
+    TileProxyURLProtocol.configure(
       offlineTileProvider: mockOfflineProvider,
       tileProxyManager: mockNetworkManager,
       keychainManager: mockKeychain,
@@ -376,7 +376,7 @@ final class TileProxyProtocolTests: XCTestCase {
     }
   }
 
-  func testTileProxyProtocol_propagatesHTTPErrorWithoutFallbackOrTransparentTile() async {
+  func testTileProxyURLProtocol_propagatesHTTPErrorWithoutFallbackOrTransparentTile() async {
     guard let mockNetworkManager, let customSession else {
       XCTFail("Missing test fixtures")
       return
@@ -399,7 +399,7 @@ final class TileProxyProtocolTests: XCTestCase {
 
   // MARK: - Overzoom Orientation Tests
 
-  func testTileProxyProtocol_overzoomPreservesTopBottomOrientation() async throws {
+  func testTileProxyURLProtocol_overzoomPreservesTopBottomOrientation() async throws {
     guard let mockNetworkManager, let customSession else {
       XCTFail("Missing test fixtures")
       return

@@ -15,14 +15,14 @@ struct AnchorFeatures {
   let pointFeature: MLNPointFeature?
   let radiusFeature: MLNPolygonFeature?
   let rodeLineFeature: MLNPolylineFeature?
-  let evitementLineFeature: MLNPolylineFeature?
+  let swingLineFeature: MLNPolylineFeature?
 }
 
 @MainActor
 enum MapLibreFeatureFactory {
   static func createAnchorFeatures(from state: AnchorVisualState?) -> AnchorFeatures {
     guard let state else {
-      return AnchorFeatures(pointFeature: nil, radiusFeature: nil, rodeLineFeature: nil, evitementLineFeature: nil)
+      return AnchorFeatures(pointFeature: nil, radiusFeature: nil, rodeLineFeature: nil, swingLineFeature: nil)
     }
     
     let pointFeature = MLNPointFeature()
@@ -49,14 +49,14 @@ enum MapLibreFeatureFactory {
     let rodeLineFeature: MLNPolylineFeature? = nil
 
 
-    let evitementLineFeature: MLNPolylineFeature? = {
-      guard state.evitementCoordinates.count >= 2 else {
+    let swingLineFeature: MLNPolylineFeature? = {
+      guard state.swingCoordinates.count >= 2 else {
         return nil
       }
-      var coords = state.evitementCoordinates
+      var coords = state.swingCoordinates
       let feature = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
       feature.attributes = [
-        MapFeatureKey.type.rawValue: MapFeatureType.anchorEvitement.rawValue,
+        MapFeatureKey.type.rawValue: MapFeatureType.anchorSwing.rawValue,
         MapFeatureKey.status.rawValue: state.status.rawValue
       ]
       return feature
@@ -66,7 +66,7 @@ enum MapLibreFeatureFactory {
       pointFeature: pointFeature,
       radiusFeature: radiusFeature,
       rodeLineFeature: rodeLineFeature,
-      evitementLineFeature: evitementLineFeature
+      swingLineFeature: swingLineFeature
     )
   }
 

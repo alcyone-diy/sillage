@@ -299,7 +299,7 @@ struct ScreenshotScenario: Sendable {
   }
 
   /// Generates a 13-point curved swing arc (`~195°` to `255°` bearing at `radiusMeters` from `anchorCenter`),
-  /// with each point spaced ~3.2 m apart so `AnchorService` records a clean evitement arc on the chart.
+  /// with each point spaced ~3.2 m apart so `AnchorService` records a clean swing arc on the chart.
   private static func makeAnchorageSwingArc(
     around anchorCenter: CLLocationCoordinate2D,
     radiusMeters: Double

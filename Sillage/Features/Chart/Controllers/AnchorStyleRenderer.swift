@@ -32,14 +32,14 @@ enum AnchorStyleMetrics {
   static let rodeArmedOpacity: Double = 0.9
   static let rodeDraggingOpacity: Double = 1.0
 
-  static let evitementDefaultOpacity: Double = 0.70
-  static let evitementDraggingOpacity: Double = 0.90
+  static let swingDefaultOpacity: Double = 0.70
+  static let swingDraggingOpacity: Double = 0.90
 
   static let visibleOpacity: Double = 1.0
   static let solidArmedOpacity: Double = 0.9
 }
 
-/// Manages the 5 anchor watch layers (radius fill, dashed/solid strokes, evitement trail, rode line, anchor symbol).
+/// Manages the 5 anchor watch layers (radius fill, dashed/solid strokes, swing trail, rode line, anchor symbol).
 /// Theme-dependent colors, widths, opacities, and sprite names are driven by GeoJSON `status` match expressions
 /// configured inside `applyTheme`, ensuring theme switches never clobber active `.armed` or `.dragging` alarm states.
 @MainActor
@@ -65,10 +65,10 @@ enum AnchorStyleRenderer {
       MapStyleStack.insertLayer(layer, identifier: .anchorRadiusStrokeSolid, into: style)
     }
 
-    let evitementSource = MapStyleStack.ensureShapeSource(.anchorEvitement, in: style)
-    if style.layer(withIdentifier: MapLayerIdentifier.anchorEvitementLine.rawValue) == nil {
-      let layer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorEvitementLine.rawValue, source: evitementSource)
-      MapStyleStack.insertLayer(layer, identifier: .anchorEvitementLine, into: style)
+    let swingSource = MapStyleStack.ensureShapeSource(.anchorSwing, in: style)
+    if style.layer(withIdentifier: MapLayerIdentifier.anchorSwingLine.rawValue) == nil {
+      let layer = MLNLineStyleLayer(identifier: MapLayerIdentifier.anchorSwingLine.rawValue, source: swingSource)
+      MapStyleStack.insertLayer(layer, identifier: .anchorSwingLine, into: style)
     }
 
     let rodeSource = MapStyleStack.ensureShapeSource(.anchorRode, in: style)
@@ -128,10 +128,10 @@ enum AnchorStyleRenderer {
       rodeLayer.lineOpacity = expressions.rodeLineOpacity
     }
 
-    if let evitementLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorEvitementLine.rawValue) as? MLNLineStyleLayer {
-      evitementLayer.lineColor = expressions.evitementLineColor
-      evitementLayer.lineWidth = expressions.evitementLineWidth
-      evitementLayer.lineOpacity = expressions.evitementLineOpacity
+    if let swingLayer = style.layer(withIdentifier: MapLayerIdentifier.anchorSwingLine.rawValue) as? MLNLineStyleLayer {
+      swingLayer.lineColor = expressions.swingLineColor
+      swingLayer.lineWidth = expressions.swingLineWidth
+      swingLayer.lineOpacity = expressions.swingLineOpacity
     }
   }
 
@@ -141,8 +141,8 @@ enum AnchorStyleRenderer {
     if let radiusSource = style.source(withIdentifier: MapSourceIdentifier.anchorRadius.rawValue) as? MLNShapeSource {
       radiusSource.shape = features.radiusFeature
     }
-    if let evitementSource = style.source(withIdentifier: MapSourceIdentifier.anchorEvitement.rawValue) as? MLNShapeSource {
-      evitementSource.shape = features.evitementLineFeature
+    if let swingSource = style.source(withIdentifier: MapSourceIdentifier.anchorSwing.rawValue) as? MLNShapeSource {
+      swingSource.shape = features.swingLineFeature
     }
     if let rodeSource = style.source(withIdentifier: MapSourceIdentifier.anchorRode.rawValue) as? MLNShapeSource {
       rodeSource.shape = features.rodeLineFeature
@@ -177,9 +177,9 @@ enum AnchorStyleRenderer {
     let rodeLineColor: NSExpression
     let rodeLineWidth: NSExpression
     let rodeLineOpacity: NSExpression
-    let evitementLineColor: NSExpression
-    let evitementLineWidth: NSExpression
-    let evitementLineOpacity: NSExpression
+    let swingLineColor: NSExpression
+    let swingLineWidth: NSExpression
+    let swingLineOpacity: NSExpression
   }
 
   static func rodeDashPattern(for status: AnchorVisualStatus) -> [NSNumber]? {
@@ -286,11 +286,11 @@ enum AnchorStyleRenderer {
         ],
         defaultValue: AnchorStyleMetrics.hiddenOpacity
       ),
-      evitementLineColor: statusMatchExpression(
+      swingLineColor: statusMatchExpression(
         mapping: statusColors,
         defaultValue: armedColor
       ),
-      evitementLineWidth: statusMatchExpression(
+      swingLineWidth: statusMatchExpression(
         mapping: [
           .setup: AnchorStyleMetrics.thickLineWidth,
           .dropped: AnchorStyleMetrics.thickLineWidth,
@@ -299,12 +299,12 @@ enum AnchorStyleRenderer {
         ],
         defaultValue: AnchorStyleMetrics.thickLineWidth
       ),
-      evitementLineOpacity: statusMatchExpression(
+      swingLineOpacity: statusMatchExpression(
         mapping: [
           .setup: AnchorStyleMetrics.hiddenOpacity,
-          .dropped: AnchorStyleMetrics.evitementDefaultOpacity,
-          .armed: AnchorStyleMetrics.evitementDefaultOpacity,
-          .dragging: AnchorStyleMetrics.evitementDraggingOpacity
+          .dropped: AnchorStyleMetrics.swingDefaultOpacity,
+          .armed: AnchorStyleMetrics.swingDefaultOpacity,
+          .dragging: AnchorStyleMetrics.swingDraggingOpacity
         ],
         defaultValue: AnchorStyleMetrics.hiddenOpacity
       )

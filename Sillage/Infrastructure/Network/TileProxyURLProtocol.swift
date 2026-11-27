@@ -1,5 +1,5 @@
 //
-//  TileProxyProtocol.swift
+//  TileProxyURLProtocol.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-05-03.
@@ -30,8 +30,8 @@ struct TileURLComponents: Sendable {
   let y: Int
 }
 
-final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
-  static let handledRequestPropertyKey = "com.alcyone.sillage.TileProxyProtocol.handled"
+final class TileProxyURLProtocol: URLProtocol, @unchecked Sendable {
+  static let handledRequestPropertyKey = "com.alcyone.sillage.TileProxyURLProtocol.handled"
 
   private struct AuthFailureHandler: Sendable {
     let call: @Sendable () -> Void
@@ -245,7 +245,7 @@ final class TileProxyProtocol: URLProtocol, @unchecked Sendable {
 
     // 4. Fallback to remote network fetch via TileProxyManager
     guard let networkManager = dependencies.tileProxyManager else {
-      Logger.network.warning("TileProxyProtocol invoked without a configured TileProxyManager; failing closed for \(url.path, privacy: .private)")
+      Logger.network.warning("TileProxyURLProtocol invoked without a configured TileProxyManager; failing closed for \(url.path, privacy: .private)")
       return nil
     }
     if let data = try await networkManager.fetchTile(url: url) {

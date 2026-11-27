@@ -25,7 +25,7 @@ final class AppDelegateTests: XCTestCase {
 
   override func setUp() async throws {
     try await super.setUp()
-    TileProxyProtocol.resetForTesting()
+    TileProxyURLProtocol.resetForTesting()
     MockURLProtocol.reset()
     MockURLProtocol.setHandler { request in
       let url = request.url ?? URL(fileURLWithPath: "/")
@@ -58,7 +58,7 @@ final class AppDelegateTests: XCTestCase {
     mockKeychain = nil
     authSession = nil
     MockURLProtocol.reset()
-    TileProxyProtocol.resetForTesting()
+    TileProxyURLProtocol.resetForTesting()
     try await super.tearDown()
   }
 

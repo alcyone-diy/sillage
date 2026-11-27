@@ -216,7 +216,7 @@ final class AnchorService {
       radius: radius,
       initialAccuracy: watch.initialAccuracy,
       createdAt: watch.createdAt,
-      evitementHistory: watch.evitementHistory
+      swingHistory: watch.swingHistory
     )
     persistState()
     notifyStateChange()
@@ -234,7 +234,7 @@ final class AnchorService {
       radius: watch.radius,
       initialAccuracy: nil,
       createdAt: watch.createdAt,
-      evitementHistory: watch.evitementHistory
+      swingHistory: watch.swingHistory
     )
     
     if let fix = latestFix {
@@ -250,12 +250,12 @@ final class AnchorService {
     Logger.anchor.info("⚓️ Arming anchor watch at (\(coordinate.latitude, privacy: .public), \(coordinate.longitude, privacy: .public)). Radius: \(radius.value, privacy: .public) \(radius.unit.symbol, privacy: .public)")
     
     let initialAcc = activeWatch?.initialAccuracy ?? gpsAccuracy
-    let currentHistory = activeWatch?.evitementHistory ?? []
+    let currentHistory = activeWatch?.swingHistory ?? []
     let watch = AnchorWatch(
       coordinate: coordinate,
       radius: radius,
       initialAccuracy: initialAcc,
-      evitementHistory: currentHistory
+      swingHistory: currentHistory
     )
     self.activeWatch = watch
     self.status = .armed
@@ -534,9 +534,9 @@ final class AnchorService {
     if evaluateAlarm {
       let evaluationResult = evaluator.evaluate(fix: fix, watch: watch, currentStatus: status)
       
-      // Record evitement swing point if vessel moved spatially >= 2m in dropped, armed, or dragging status
+      // Record swing point if vessel moved spatially >= 2m in dropped, armed, or dragging status
       if status == .dropped || status == .armed || status == .dragging {
-        recordEvitementPointIfNeeded(fix: fix)
+        recordSwingPointIfNeeded(fix: fix)
       }
 
       switch evaluationResult {
@@ -566,30 +566,30 @@ final class AnchorService {
     }
   }
 
-  // MARK: - Evitement History & Debounced Persistence
+  // MARK: - Swing History & Debounced Persistence
 
-  private static let minEvitementDistanceThreshold = Measurement(value: 2.0, unit: UnitLength.meters)
+  private static let minSwingDistanceThreshold = Measurement(value: 2.0, unit: UnitLength.meters)
   private var debouncePersistTask: Task<Void, Never>?
 
-  /// Records a vessel location fix into activeWatch.evitementHistory if purely spatial filtering conditions are met.
+  /// Records a vessel location fix into activeWatch.swingHistory if purely spatial filtering conditions are met.
   /// Technical Design Choice: Purely spatial sampling (>= 2m movement) ensures stationary vessels do not exhaust
   /// the circular buffer over long anchorage periods. Updates in-memory state immediately for live map rendering,
   /// while disk persistence is debounced asynchronously to ensure eventual consistency even if movement stops.
-  private func recordEvitementPointIfNeeded(fix: NavigationFix) {
+  private func recordSwingPointIfNeeded(fix: NavigationFix) {
     guard var watch = activeWatch, (status == .dropped || status == .armed || status == .dragging) else { return }
 
     
     let newCoord = fix.coordinate
-    if let lastPoint = watch.evitementHistory.last {
+    if let lastPoint = watch.swingHistory.last {
       // Purely spatial filter: strictly require moving >= 2 meters with valid geodesic coordinates
       guard let deltaDistance = lastPoint.coordinate.geodesicDistance(to: newCoord),
-            deltaDistance >= Self.minEvitementDistanceThreshold else {
+            deltaDistance >= Self.minSwingDistanceThreshold else {
         return
       }
     }
 
-    let sample = AnchorEvitementPoint(coordinate: newCoord, timestamp: fix.timestamp)
-    watch.appendEvitementPoint(sample)
+    let sample = AnchorSwingPoint(coordinate: newCoord, timestamp: fix.timestamp)
+    watch.appendSwingPoint(sample)
     self.activeWatch = watch
     
     schedulePersistState()

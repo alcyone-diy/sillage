@@ -212,7 +212,7 @@ final class AppEnvironment {
     }
 
     // Phase 2: Non-throwing service & ViewModel assembly (compiler-enforced: no `try` outside local closures).
-    // Critical order: register `TileProxyProtocol` before starting MapLibre offline storage or map views.
+    // Critical order: register `TileProxyURLProtocol` before starting MapLibre offline storage or map views.
     AppBootstrapInfrastructure.configureMapLibreProtocol()
     self.offlineMapManager.start()
 

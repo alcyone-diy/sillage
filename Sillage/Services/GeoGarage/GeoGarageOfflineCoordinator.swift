@@ -13,7 +13,7 @@ import os
 import OSLog
 
 /// Coordinates GeoGarage offline chart credentials, reactive tile-reader synchronization,
-/// `TileProxyProtocol` configuration, and startup package-secret recovery.
+/// `TileProxyURLProtocol` configuration, and startup package-secret recovery.
 ///
 /// Lifecycle is explicit via `start()` / `stop()` with `[weak self]` captures so no
 /// `nonisolated(unsafe)` task properties or `deinit` task cancellations are required.
@@ -86,7 +86,7 @@ final class GeoGarageOfflineCoordinator {
     )
   }
 
-  /// Configures `TileProxyProtocol` with the offline tile provider and a rate-limited
+  /// Configures `TileProxyURLProtocol` with the offline tile provider and a rate-limited
   /// `nonisolated` 401/403 authentication failure callback.
   func configureTileProxy(tileProxyManager: any TileProxyManagerProtocol) {
     let lastAuthRefreshAttempt = OSAllocatedUnfairLock<ContinuousClock.Instant?>(initialState: nil)
@@ -94,7 +94,7 @@ final class GeoGarageOfflineCoordinator {
       authService: authService,
       lastAuthRefreshAttempt: lastAuthRefreshAttempt
     )
-    TileProxyProtocol.configure(
+    TileProxyURLProtocol.configure(
       offlineTileProvider: offlineTileProvider,
       tileProxyManager: tileProxyManager,
       keychainManager: keychainManager,
@@ -156,7 +156,7 @@ final class GeoGarageOfflineCoordinator {
   }
 
   /// Cancels and clears all observation, synchronization, and secret-recovery tasks,
-  /// and resets static `TileProxyProtocol` dependencies if configured by this coordinator.
+  /// and resets static `TileProxyURLProtocol` dependencies if configured by this coordinator.
   func stop() {
     isStarted = false
     downloadsObservationTask?.cancel()
@@ -168,7 +168,7 @@ final class GeoGarageOfflineCoordinator {
     packageSecretRestoreTask?.cancel()
     packageSecretRestoreTask = nil
     if didConfigureTileProxy {
-      TileProxyProtocol.reset()
+      TileProxyURLProtocol.reset()
       didConfigureTileProxy = false
     }
   }

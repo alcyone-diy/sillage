@@ -64,11 +64,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    // Registers TileProxyProtocol globally (URLSession.shared / NSURLConnection) as a fallback
+    // Registers TileProxyURLProtocol globally (URLSession.shared / NSURLConnection) as a fallback
     // alongside the explicit MLNNetworkConfiguration.sessionConfiguration injection in AppEnvironment.
-    // TileProxyProtocol.canInit(with:) strictly filters for "tiles.geogarage.com" and skips
+    // TileProxyURLProtocol.canInit(with:) strictly filters for "tiles.geogarage.com" and skips
     // requests already tagged by TileProxyManager.
-    URLProtocol.registerClass(TileProxyProtocol.self)
+    URLProtocol.registerClass(TileProxyURLProtocol.self)
 
     // Critical: The delegate must be assigned before the app finishes launching
     // so that iOS knows how to route foreground notifications.

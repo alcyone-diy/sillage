@@ -86,9 +86,9 @@ final class MapStyleControllerTests: XCTestCase {
       expressions.rodeLineColor,
       expressions.rodeLineWidth,
       expressions.rodeLineOpacity,
-      expressions.evitementLineColor,
-      expressions.evitementLineWidth,
-      expressions.evitementLineOpacity
+      expressions.swingLineColor,
+      expressions.swingLineWidth,
+      expressions.swingLineOpacity
     ]
 
     for expression in allExpressions {

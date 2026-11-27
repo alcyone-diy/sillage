@@ -1,5 +1,5 @@
 //
-//  AnchorEvitementPoint.swift
+//  AnchorSwingPoint.swift
 //  Alcyone Sillage
 //
 //  Created by Alcyone on 2026-08-08.
@@ -11,9 +11,9 @@
 import Foundation
 import CoreLocation
 
-/// Represents a single vessel location sample recorded during an anchor watch session.
+/// Represents a single vessel location sample recorded along the swing arc during an anchor watch session.
 /// Wraps `CodableCoordinate` for strict thread safety and JSON serialization compatibility.
-nonisolated public struct AnchorEvitementPoint: Codable, Sendable, Equatable {
+nonisolated public struct AnchorSwingPoint: Codable, Sendable, Equatable {
   private let storedCoordinate: CodableCoordinate
   public let timestamp: Date
 
